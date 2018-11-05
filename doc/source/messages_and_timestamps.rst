@@ -15,8 +15,8 @@ cyclic data flows.
 The following operator method constructs a message and publishes it on a data
 stream:
 
-.. literalinclude:: _literalinclude/examples/sum_squares_example.py
-    :pyobject: RandomOp.publish_random_number
+.. literalinclude:: _literalinclude/tests/sum_squares_test.py
+    :pyobject: IntegerOp.publish_random_number
     :emphasize-lines: 5
     :dedent: 4
 

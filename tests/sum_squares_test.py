@@ -23,8 +23,7 @@ flags.DEFINE_string('framework', 'ros',
 
 
 class IntegerOp(Op):
-    """Operator which publishes a random number every second.
-    """
+    """Operator which publishes an integer every second"""
 
     def __init__(self, name, number):
         super(IntegerOp, self).__init__(name)
@@ -46,8 +45,7 @@ class IntegerOp(Op):
 
 
 class SquareOp(Op):
-    """Operator which squares its input and sends the result to the output.
-    """
+    """Operator which publishes the square of its input"""
 
     def __init__(self, name):
         super(SquareOp, self).__init__(name)
