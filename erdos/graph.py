@@ -6,8 +6,6 @@ import subprocess
 import time
 from absl import flags
 
-import ray
-
 from erdos.op_handle import OpHandle
 from erdos.data_stream import DataStream
 from erdos.data_streams import DataStreams
@@ -259,6 +257,7 @@ class Graph(object):
             self.__init_ray()
 
     def __init_ray(self):
+        import ray
         if FLAGS.ray_redis_address == '':
             ray.init(redirect_output=True)
         else:
