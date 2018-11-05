@@ -1,6 +1,9 @@
 # ERDOS
 ERDOS is a platform for building self-driving cars and controlling robots.
 
+[![Build Status](https://travis-ci.org/erdos-project/erdos.svg)](https://travis-ci.org/erdos-project/erdos)
+[![Documentation Status](https://readthedocs.org/projects/erdos/badge/?version=latest)](https://erdos.readthedocs.io/en/latest/?badge=latest)
+
 # Getting started
 
 The easiest way to get ERDOS running is to use our Docker image:
