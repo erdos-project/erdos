@@ -1,0 +1,38 @@
+import logging
+import pickle
+import time
+
+import rospy
+from std_msgs.msg import String
+
+from erdos.data_stream import DataStream
+
+logger = logging.getLogger(__name__)
+
+
+class ROSOutputDataStream(DataStream):
+    def __init__(self, data_stream):
+        super(ROSOutputDataStream, self).__init__(
+            data_type=data_stream.data_type,
+            name=data_stream.name,
+            labels=data_stream.labels,
+            callbacks=data_stream.callbacks)
+        self.publisher = None
+
+    def send(self, msg):
+        """Sending a message on a ROS stream (i.e., publishes it)."""
+        msg.stream_name = self.name
+        msg = pickle.dumps(msg)
+        self.publisher.publish(msg)
+
+    def setup(self):
+        """Setups the source operator as a publisher."""
+        data_type = self.data_type if self.data_type else String
+        # TODO(ionel): We currently transform messages to Strings because
+        # we want to pass timestamp and stream info along with the message.
+        # However, the extra serialization can add overheads. Fix!
+        self.publisher = rospy.Publisher(
+            self.name, String, latch=True, queue_size=10)
+        # TODO(yika): hacky way to stall generator publisher in order to wait
+        # for all other processes finish initiating
+        time.sleep(1)
