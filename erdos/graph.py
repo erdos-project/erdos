@@ -85,12 +85,12 @@ class Graph(object):
         """
 
         # 1. Build refined stream graph.
-        self.__build_refined_op_graph()
+        self._build_refined_op_graph()
 
         # 2. Initiate backend framework.
         if framework:
             self.framework = framework
-        self.__init_frameworks()
+        self._init_frameworks()
 
         # 3. Set the execution framework on each operator handle.
         for op_id, op_handle in self.op_handles.items():
@@ -98,17 +98,17 @@ class Graph(object):
 
         # 4. Logging
         log_graph_to_dot_file('erdos.gv', self.op_handles.keys(),
-                              self.__get_edges())
+                              self._get_edges())
 
         # 5. Create executors in postorder.
-        executors = self.__create_executors()
+        executors = self._create_executors()
 
         # 6. Setup the executors.
         for executor in executors:
             executor.setup()
 
         # 7. Construct the graph of dependent operator handles.
-        dependent_op_handles = self.__build_dependent_op_handles()
+        dependent_op_handles = self._build_dependent_op_handles()
 
         # 8. Execute the graph
         for executor in executors:
@@ -128,7 +128,7 @@ class Graph(object):
             while True:
                 time.sleep(5)
 
-    def __build_refined_op_graph(self):
+    def _build_refined_op_graph(self):
         """Refines the operator graph.
 
         Instantiates all data streams connecting operators. Repeatedly calls
@@ -155,8 +155,8 @@ class Graph(object):
                         e.args = (first_arg, ) + e.args[1:]
                     raise
                 # Check if the returned output_streams has changed.
-                if self.__different_output_streams(op_handle.output_streams,
-                                                   output_streams):
+                if self._different_output_streams(op_handle.output_streams,
+                                                  output_streams):
                     not_converged = True
                 # Update output streams to reset registered sinks. Otherwise,
                 # we may end up with sinks that are added several times.
@@ -191,9 +191,9 @@ class Graph(object):
             op_handle.op_cls.setup_streams(
                 DataStreams(op_handle.input_streams), **op_handle.setup_args)
 
-        self.__build_output_stream_sinks_graph()
+        self._build_output_stream_sinks_graph()
 
-    def __build_output_stream_sinks_graph(self):
+    def _build_output_stream_sinks_graph(self):
         # Create sink graph using only op names
         # sink is the op that an output stream is flowing in
         # Because we have not initiated op or executor, we use op name
@@ -204,7 +204,7 @@ class Graph(object):
                 sinks.append(op_id)
                 self.output_stream_to_op_id_sinks[stream.name] = sinks
 
-    def __build_dependent_op_handles(self):
+    def _build_dependent_op_handles(self):
         dependent_op_handles = {}
         for op_id, op_handle in self.op_handles.items():
             for stream in op_handle.input_streams:
@@ -215,29 +215,29 @@ class Graph(object):
             dependent_op_handles[stream_name] = list(handles)
         return dependent_op_handles
 
-    def __different_output_streams(self, output_stream1, output_stream2):
+    def _different_output_streams(self, output_stream1, output_stream2):
         if len(output_stream1) != len(output_stream2):
             return True
         os_set1 = set([output_stream.name for output_stream in output_stream1])
         os_set2 = set([output_stream.name for output_stream in output_stream2])
         return len(os_set1.intersection(os_set2)) != len(os_set1)
 
-    def __get_source_op_handles(self):
+    def _get_source_op_handles(self):
         src_op_handles = []
         for op_id, op_handle in self.op_handles.items():
             if len(op_handle.input_streams) < 1:
                 src_op_handles.append(op_id)
         return src_op_handles
 
-    def __get_edges(self):
+    def _get_edges(self):
         edges = []
-        src_op_handles = self.__get_source_op_handles()
+        src_op_handles = self._get_source_op_handles()
         visited = set([])
         for op_id in src_op_handles:
-            self.__get_edges_helper(op_id, edges, visited)
+            self._get_edges_helper(op_id, edges, visited)
         return edges
 
-    def __get_edges_helper(self, op_id, edges, visited):
+    def _get_edges_helper(self, op_id, edges, visited):
         visited.add(op_id)
         for dependant_op_id in self.op_handles[op_id].dependant_ops:
             # TODO(ionel): Get the stream to which the dependant operator
@@ -245,9 +245,9 @@ class Graph(object):
             # as well.
             edges.append((op_id, dependant_op_id, ""))
             if dependant_op_id not in visited:
-                self.__get_edges_helper(dependant_op_id, edges, visited)
+                self._get_edges_helper(dependant_op_id, edges, visited)
 
-    def __init_frameworks(self):
+    def _init_frameworks(self):
         """Initialize the frameworks."""
         if self.framework == "ros":
             import rosgraph
@@ -256,9 +256,9 @@ class Graph(object):
                 subprocess.Popen("roscore")
                 time.sleep(2)
         elif self.framework == "ray":
-            self.__init_ray()
+            self._init_ray()
 
-    def __init_ray(self):
+    def _init_ray(self):
         if FLAGS.ray_redis_address == '':
             ray.init(redirect_output=True)
         else:
@@ -266,32 +266,32 @@ class Graph(object):
                 redis_address=FLAGS.ray_redis_address, redirect_output=True)
             time.sleep(2)
 
-    def __create_executors(self):
+    def _create_executors(self):
         visited = set([])
         executors = []
-        src_op_handles = self.__get_source_op_handles()
+        src_op_handles = self._get_source_op_handles()
         for op_id in src_op_handles:
             # Traverse the execution graph in postorder so that receivers
             # are already up when senders are started.
-            self.__postorder_init_executors(op_id, visited, executors)
+            self._postorder_init_executors(op_id, visited, executors)
         for op_id in self.op_handles:
             if op_id not in visited:
-                self.__postorder_init_executors(op_id, visited, executors)
+                self._postorder_init_executors(op_id, visited, executors)
         return executors
 
-    def __postorder_init_executors(self, op_id, visited, executors):
+    def _postorder_init_executors(self, op_id, visited, executors):
         """Traverse and initiate executors of the op_handles in postorder."""
         visited.add(op_id)
         for output_stream in self.op_handles[op_id].output_streams:
             for sink_op_id in self.output_stream_to_op_id_sinks.get(
                     output_stream, []):
                 if sink_op_id not in visited:
-                    self.__postorder_init_executors(sink_op_id, visited,
-                                                    executors)
-        executor = self.__create_executor(op_id)
+                    self._postorder_init_executors(sink_op_id, visited,
+                                                   executors)
+        executor = self._create_executor(op_id)
         executors.append(executor)
 
-    def __create_executor(self, op_id):
+    def _create_executor(self, op_id):
         op_handle = self.op_handles[op_id]
         if self.framework == 'ros':
             from erdos.ros.ros_executor import ROSExecutor
