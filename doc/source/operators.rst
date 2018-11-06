@@ -27,11 +27,11 @@ API
 
 Example: Periodically Publishing Data
 -------------------------------------
-.. literalinclude:: _literalinclude/examples/sum_squares_example.py
-    :pyobject: RandomOp
+.. literalinclude:: _literalinclude/tests/sum_squares_test.py
+    :pyobject: IntegerOp
 
 
 Example: Subscribing to Data Streams
 ------------------------------------
-.. literalinclude:: _literalinclude/examples/sum_squares_example.py
+.. literalinclude:: _literalinclude/tests/sum_squares_test.py
     :pyobject: SquareOp

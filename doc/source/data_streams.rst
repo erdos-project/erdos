@@ -82,12 +82,3 @@ handle messages.
 
 .. autoclass:: erdos.data_stream.DataStream
     :members: send
-
-
-Buffered Data Stream API
-------------------------
-ERDOS allows pull-based implementations and polling data streams
-using buffered data streams.
-
-.. autoclass:: erdos.buffered_data_stream.BufferedDataStream
-    :members: send, has_next, next

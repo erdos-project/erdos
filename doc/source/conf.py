@@ -43,6 +43,13 @@ extensions = [
     'sphinx.ext.napoleon',
 ]
 
+# Enable autodoc without requiring installation of listed modules
+import mock
+
+mock_modules = ["ray", "rospy", "actionlib"]
+for mod_name in mock_modules:
+    sys.modules[mod_name] = mock.Mock()
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
