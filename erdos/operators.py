@@ -158,9 +158,12 @@ class WhereOp(Op):
         self._where_lambda = where_lambda
 
     @staticmethod
-    def setup_streams(input_streams, output_stream_name, filter_stream_lambda=None):
+    def setup_streams(input_streams,
+                      output_stream_name,
+                      filter_stream_lambda=None):
         if filter_stream_lambda:
-            input_streams.filter(filter_stream_lambda).add_callback(WhereOp.on_msg)
+            input_streams.filter(filter_stream_lambda).add_callback(
+                WhereOp.on_msg)
         else:
             input_streams.add_callback(WhereOp.on_msg)
         return [DataStream(name=output_stream_name)]
@@ -177,9 +180,12 @@ class MapOp(Op):
         self._map_lambda = map_lambda
 
     @staticmethod
-    def setup_streams(input_streams, output_stream_name, filter_stream_lambda=None):
+    def setup_streams(input_streams,
+                      output_stream_name,
+                      filter_stream_lambda=None):
         if filter_stream_lambda:
-            input_streams.filter(filter_stream_lambda).add_callback(MapOp.on_msg)
+            input_streams.filter(filter_stream_lambda).add_callback(
+                MapOp.on_msg)
         else:
             input_streams.add_callback(MapOp.on_msg)
         return [DataStream(name=output_stream_name)]
@@ -217,10 +223,13 @@ class UnzipOp(Op):
         self._output_stream_name2 = output_stream_name2
 
     @staticmethod
-    def setup_streams(input_streams, output_stream_name1, output_stream_name2,
+    def setup_streams(input_streams,
+                      output_stream_name1,
+                      output_stream_name2,
                       filter_stream_lambda=None):
         if filter_stream_lambda:
-            input_streams.filter(filter_stream_lambda).add_callback(UnzipOp.on_msg)
+            input_streams.filter(filter_stream_lambda).add_callback(
+                UnzipOp.on_msg)
         else:
             input_streams.add_callback(UnzipOp.on_msg)
         return [
