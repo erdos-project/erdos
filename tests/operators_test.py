@@ -15,6 +15,7 @@ flags.DEFINE_string('framework', 'ros',
 flags.DEFINE_bool('where_test', False, 'True to execute the test')
 flags.DEFINE_bool('map_test', False, 'True to execute the test')
 flags.DEFINE_bool('concat_test', False, 'True to execute the test')
+flags.DEFINE_bool('map_many_test', False, 'True to execute the test')
 flags.DEFINE_bool('unzip_test', False, 'True to execute the test')
 
 
@@ -27,7 +28,8 @@ class DataGeneratorOp(Op):
     def setup_streams(input_streams):
         return [
             DataStream(name='data_stream'),
-            DataStream(name='tuple_data_stream')
+            DataStream(name='tuple_data_stream'),
+            DataStream(name='list_data_stream')
         ]
 
     @frequency(1)
@@ -37,6 +39,9 @@ class DataGeneratorOp(Op):
         tuple_msg = Message((self._cnt, 'counter {}'.format(self._cnt)),
                             Timestamp(coordinates=[self._cnt]))
         self.get_output_stream('tuple_data_stream').send(tuple_msg)
+        list_msg = Message([self._cnt, self._cnt + 1],
+                           Timestamp(coordinates=[self._cnt]))
+        self.get_output_stream('list_data_stream').send(list_msg)
         self._cnt += 1
 
     def execute(self):
@@ -87,6 +92,19 @@ def main(argv):
         log_op = graph.add(LogOp, name='concat_log_op')
         graph.connect([data_gen_op], [concat_op])
         graph.connect([concat_op], [log_op])
+
+    if FLAGS.map_many_test:
+        map_many_op = graph.add(
+            MapManyOp,
+            name='map_many_op',
+            init_args={'output_stream_name': 'flat_stream'}
+            setup_args={
+                'filter_stream_lambda': lambda stream: stream.name == 'list_data_stream',
+                'output_stream_name': 'flat_stream'
+            })
+        log_op = graph.add(LogOp, name='map_many_log_op')
+        graph.connect([data_gen_op], [map_many_op])
+        graph.connect([map_many_op], [log_op])
 
     if FLAGS.unzip_test:
         unzip_op = graph.add(
