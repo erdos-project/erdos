@@ -1,3 +1,6 @@
+import time
+
+
 class DataStream(object):
     """Data stream base class.
 
@@ -9,9 +12,14 @@ class DataStream(object):
     """
 
     def __init__(self, data_type=None, name="", labels=None, callbacks=None):
+        # Name and type
         self.name = name if name else "{0}_{1}".format(self.__class__.__name__,
                                                        hash(self))
+        self.create_tf = int(time.time())
+        self.uid = '%s_%d' % (self.name, self.create_tf)
         self.data_type = data_type
+
+        # Labels
         if labels:  # both keys and values in a label must be a single string
             for k, v in labels.items():
                 assert type(k) == str
@@ -19,6 +27,8 @@ class DataStream(object):
             self.labels = labels
         else:
             self.labels = {}
+
+        # Callbacks
         if callbacks is None:
             self.callbacks = set([])
         else:
