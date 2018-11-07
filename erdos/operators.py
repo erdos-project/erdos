@@ -3,7 +3,9 @@ import pickle
 import sys
 
 from erdos.data_stream import DataStream
+from erdos.message import Message
 from erdos.op import Op
+from erdos.timestamp import Timestamp
 from erdos.utils import frequency
 
 
@@ -147,3 +149,97 @@ class ReplayOp(Op):
         else:
             while True:
                 self.publish_data()
+
+
+class WhereOp(Op):
+    def __init__(self, name, output_stream_name, where_lambda):
+        super(WhereOp, self).__init__(name)
+        self._output_stream_name = output_stream_name
+        self._where_lambda = where_lambda
+
+    @staticmethod
+    def setup_streams(input_streams,
+                      output_stream_name,
+                      filter_stream_lambda=None):
+        if filter_stream_lambda:
+            input_streams.filter(filter_stream_lambda).add_callback(
+                WhereOp.on_msg)
+        else:
+            input_streams.add_callback(WhereOp.on_msg)
+        return [DataStream(name=output_stream_name)]
+
+    def on_msg(self, msg):
+        if self._where_lambda(msg):
+            self.get_output_stream(self._output_stream_name).send(msg)
+
+
+class MapOp(Op):
+    def __init__(self, name, output_stream_name, map_lambda):
+        super(MapOp, self).__init__(name)
+        self._output_stream_name = output_stream_name
+        self._map_lambda = map_lambda
+
+    @staticmethod
+    def setup_streams(input_streams,
+                      output_stream_name,
+                      filter_stream_lambda=None):
+        if filter_stream_lambda:
+            input_streams.filter(filter_stream_lambda).add_callback(
+                MapOp.on_msg)
+        else:
+            input_streams.add_callback(MapOp.on_msg)
+        return [DataStream(name=output_stream_name)]
+
+    def on_msg(self, msg):
+        new_data = self._map_lambda(msg)
+        new_msg = Message(new_data, msg.timestamp)
+        self.get_output_stream(self._output_stream_name).send(new_msg)
+
+
+class ConcatOp(Op):
+    def __init__(self, name, output_stream_name):
+        super(ConcatOp, self).__init__(name)
+        self._output_stream_name = output_stream_name
+
+    @staticmethod
+    def setup_streams(input_streams,
+                      output_stream_name,
+                      filter_stream_lambda=None):
+        if filter_stream_lambda:
+            input_streams.filter(filter_stream_lambda).add_callback(
+                ConcatOp.on_msg)
+        else:
+            input_streams.add_callback(ConcatOp.on_msg)
+        return [DataStream(name=output_stream_name)]
+
+    def on_msg(self, msg):
+        self.get_output_stream(self._output_stream_name).send(msg)
+
+
+class UnzipOp(Op):
+    def __init__(self, name, output_stream_name1, output_stream_name2):
+        super(UnzipOp, self).__init__(name)
+        self._output_stream_name1 = output_stream_name1
+        self._output_stream_name2 = output_stream_name2
+
+    @staticmethod
+    def setup_streams(input_streams,
+                      output_stream_name1,
+                      output_stream_name2,
+                      filter_stream_lambda=None):
+        if filter_stream_lambda:
+            input_streams.filter(filter_stream_lambda).add_callback(
+                UnzipOp.on_msg)
+        else:
+            input_streams.add_callback(UnzipOp.on_msg)
+        return [
+            DataStream(name=output_stream_name1),
+            DataStream(name=output_stream_name2)
+        ]
+
+    def on_msg(self, msg):
+        (left_val, right_val) = msg.data
+        self.get_output_stream(self._output_stream_name1).send(
+            Message(left_val, Timestamp(msg.timestamp)))
+        self.get_output_stream(self._output_stream_name2).send(
+            Message(right_val, Timestamp(msg.timestamp)))
