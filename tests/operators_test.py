@@ -97,7 +97,7 @@ def main(argv):
         map_many_op = graph.add(
             MapManyOp,
             name='map_many_op',
-            init_args={'output_stream_name': 'flat_stream'}
+            init_args={'output_stream_name': 'flat_stream'},
             setup_args={
                 'filter_stream_lambda': lambda stream: stream.name == 'list_data_stream',
                 'output_stream_name': 'flat_stream'
