@@ -51,7 +51,9 @@ class Op(object):
         pass
 
     def send(self, stream_name, msg):
-        self.output_streams[self.name + '_' + stream_name].send(msg)
+        for name, stream in self.output_streams.items():
+            if stream_name + str(stream.tf) == name:
+                stream.send(msg)
 
     @staticmethod
     def setup_streams(input_streams, **kwargs):

@@ -190,10 +190,19 @@ class Graph(object):
                 DataStreams(op_handle.input_streams), **op_handle.setup_args)
 
         # make stream name unique
+        stream_names = set()
         for op_id, op_handle in self.op_handles.items():
-            streams = op_handle.input_streams + op_handle.output_streams
-            for s in streams:
-                s.name = op_handle.name + '_' + s.name
+            for s in op_handle.output_streams:
+                if s.name not in stream_names:
+                    stream_names.add(s.name)
+                else:
+                    old_name = s.name
+                    tf = time.time() * 1000
+                    s.rename(tf)
+                    for dependant_id in op_handle.dependant_ops:
+                        for input in self.op_handles[dependant_id].input_streams:
+                            if input.name == old_name:
+                                input.rename(tf)
         self._build_output_stream_sinks_graph()
 
     def _build_output_stream_sinks_graph(self):

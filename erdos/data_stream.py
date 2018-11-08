@@ -28,6 +28,7 @@ class DataStream(object):
             self.callbacks = set([])
         else:
             self.callbacks = callbacks
+        self.tf = None
 
     def add_callback(self, on_msg_cb):
         """Registers a stream callback.
@@ -64,3 +65,7 @@ class DataStream(object):
         is not present.
         """
         return self.labels.get(key, None)
+
+    def rename(self, tf):
+        self.tf = tf
+        self.name += str(tf)
