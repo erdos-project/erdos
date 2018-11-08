@@ -29,7 +29,7 @@ class DataGeneratorOp(Op):
         return [
             DataStream(name='data_stream'),
             DataStream(name='tuple_data_stream'),
-            DataStream(name='list_data_stream')
+            DataStream(name='list_data_stream'),
         ]
 
     @frequency(1)

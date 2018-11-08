@@ -219,7 +219,7 @@ class MapManyOp(Op):
         else:
             data = msg.data
         try:
-            iter(msg.data)
+            data = iter(msg.data)
         except TypeError:
             data = [data]
         for val in data:
