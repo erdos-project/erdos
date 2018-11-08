@@ -51,9 +51,7 @@ class Op(object):
         pass
 
     def send(self, stream_name, msg):
-        for name, stream in self.output_streams.items():
-            if stream_name + str(stream.tf) == name:
-                stream.send(msg)
+        self.output_streams[stream_name].send(msg)
 
     @staticmethod
     def setup_streams(input_streams, **kwargs):
@@ -94,7 +92,12 @@ class Op(object):
     def _add_output_streams(self, output_streams):
         """Updates the dictionary of output data streams."""
         for output_stream in output_streams:
-            self.output_streams[output_stream.name] = output_stream
+            name = output_stream.name
+            # an op's output stream names will not be duplicated,
+            # so we revert this to let user fetch with the original name
+            if output_streams.rename:
+                name = name[:-13]  # 13 is the length of time.time() * 1000
+            self.output_streams[name] = output_stream
 
     def _internal_setup_streams(self):
         """Setups input and output streams."""

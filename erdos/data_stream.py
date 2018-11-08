@@ -8,11 +8,12 @@ class DataStream(object):
         labels (dict: str -> str): Describes properties of the data stream.
     """
 
-    def __init__(self, data_type=None, name="", labels=None, callbacks=None):
+    def __init__(self, data_type=None, name="", labels=None, callbacks=None, rename=False):
         # Name and type
         self.name = name if name else "{0}_{1}".format(self.__class__.__name__,
                                                        hash(self))
         self.data_type = data_type
+        self.rename = rename
 
         # Labels
         if labels:  # both keys and values in a label must be a single string
@@ -28,7 +29,6 @@ class DataStream(object):
             self.callbacks = set([])
         else:
             self.callbacks = callbacks
-        self.tf = None
 
     def add_callback(self, on_msg_cb):
         """Registers a stream callback.
@@ -67,5 +67,5 @@ class DataStream(object):
         return self.labels.get(key, None)
 
     def rename(self, tf):
-        self.tf = tf
+        self.rename = True
         self.name += str(tf)

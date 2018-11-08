@@ -16,7 +16,8 @@ class ROSOutputDataStream(DataStream):
             data_type=data_stream.data_type,
             name=data_stream.name,
             labels=data_stream.labels,
-            callbacks=data_stream.callbacks)
+            callbacks=data_stream.callbacks,
+            rename=data_stream.rename)
         self.publisher = None
 
     def send(self, msg):
