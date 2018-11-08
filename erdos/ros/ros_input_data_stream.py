@@ -16,7 +16,7 @@ class ROSInputDataStream(DataStream):
             name=data_stream.name,
             labels=data_stream.labels,
             callbacks=data_stream.callbacks,
-            rename=data_stream.rename)
+            renamed=data_stream.renamed)
         self.op = op
 
     def setup(self):

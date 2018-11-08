@@ -8,12 +8,12 @@ class DataStream(object):
         labels (dict: str -> str): Describes properties of the data stream.
     """
 
-    def __init__(self, data_type=None, name="", labels=None, callbacks=None, rename=False):
+    def __init__(self, data_type=None, name="", labels=None, callbacks=None, renamed=False):
         # Name and type
         self.name = name if name else "{0}_{1}".format(self.__class__.__name__,
                                                        hash(self))
         self.data_type = data_type
-        self.rename = rename
+        self.renamed = renamed
 
         # Labels
         if labels:  # both keys and values in a label must be a single string
@@ -67,5 +67,5 @@ class DataStream(object):
         return self.labels.get(key, None)
 
     def rename(self, tf):
-        self.rename = True
+        self.renamed = True
         self.name += str(tf)
