@@ -196,6 +196,37 @@ class MapOp(Op):
         self.get_output_stream(self._output_stream_name).send(new_msg)
 
 
+class MapManyOp(Op):
+    def __init__(self, name, output_stream_name, map_lambda=None):
+        super(MapManyOp, self).__init__(name)
+        self._output_stream_name = output_stream_name
+        self._map_lambda = map_lambda
+
+    @staticmethod
+    def setup_streams(input_streams,
+                      output_stream_name,
+                      filter_stream_lambda=None):
+        if filter_stream_lambda:
+            input_streams.filter(filter_stream_lambda).add_callback(
+                MapManyOp.on_msg)
+        else:
+            input_streams.add_callback(MapManyOp.on_msg)
+        return [DataStream(name=output_stream_name)]
+
+    def on_msg(self, msg):
+        if self._map_lambda:
+            data = self._map_lambda(msg)
+        else:
+            data = msg.data
+        try:
+            data = iter(msg.data)
+        except TypeError:
+            data = [data]
+        for val in data:
+            self.get_output_stream(self._output_stream_name).send(
+                Message(val, msg.timestamp))
+
+
 class ConcatOp(Op):
     def __init__(self, name, output_stream_name):
         super(ConcatOp, self).__init__(name)
