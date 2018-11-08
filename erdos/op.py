@@ -95,7 +95,7 @@ class Op(object):
             name = output_stream.name
             # an op's output stream names will not be duplicated,
             # so we revert this to let user fetch with the original name
-            if output_streams.renamed:
+            if output_stream.renamed:
                 name = name[:-13]  # 13 is the length of time.time() * 1000
             self.output_streams[name] = output_stream
 
