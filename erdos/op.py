@@ -31,9 +31,9 @@ class Op(object):
         self.progress_tracker = None
         self.framework = None
 
-    def get_output_stream(self, name):
-        """Returns the output stream matching name"""
-        return self.output_streams[name]
+    # def get_output_stream(self, name):
+    #     """Returns the output stream matching name"""
+    #     return self.output_streams[name]
 
     def notify_at(self, timestamp):
         """Subscribes the operator to receive a notification."""
@@ -49,6 +49,9 @@ class Op(object):
         User override. Otherwise, no-op.
         """
         pass
+
+    def send(self, stream_name, msg):
+        self.output_streams[self.name + '_' + stream_name].send(msg)
 
     @staticmethod
     def setup_streams(input_streams, **kwargs):

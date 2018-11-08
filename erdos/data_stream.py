@@ -1,6 +1,3 @@
-import time
-
-
 class DataStream(object):
     """Data stream base class.
 
@@ -15,8 +12,6 @@ class DataStream(object):
         # Name and type
         self.name = name if name else "{0}_{1}".format(self.__class__.__name__,
                                                        hash(self))
-        self.create_tf = int(time.time() * 1000)
-        self.name = '%s_%d' % (self.name, self.create_tf)
         self.data_type = data_type
 
         # Labels

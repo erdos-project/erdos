@@ -33,7 +33,8 @@ class PublisherOperator(Op):
     def publish_message(self):
         output_msg = Message("{}{}".format(self.text, self._cnt),
                              Timestamp(coordinates=[0]))
-        self.get_output_stream("publisher").send(output_msg)
+        self.send('publisher', output_msg)
+        # self.get_output_stream("publisher").send(output_msg)
         self._cnt += 1
 
     def execute(self):

@@ -189,6 +189,11 @@ class Graph(object):
             op_handle.op_cls.setup_streams(
                 DataStreams(op_handle.input_streams), **op_handle.setup_args)
 
+        # make stream name unique
+        for op_id, op_handle in self.op_handles.items():
+            streams = op_handle.input_streams + op_handle.output_streams
+            for s in streams:
+                s.name = op_handle.name + '_' + s.name
         self._build_output_stream_sinks_graph()
 
     def _build_output_stream_sinks_graph(self):
