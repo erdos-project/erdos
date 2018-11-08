@@ -39,7 +39,7 @@ class PublisherOp(Op):
         data = 'data %d' % self._cnt
         self._cnt += 1
         output_msg = Message(data, Timestamp(coordinates=[0]))
-        self.get_output_stream('pub_out').send(output_msg)
+        self.send('pub_out', output_msg)
         print('%s sent %s' % (self.name, data))
 
     def execute(self):
@@ -57,7 +57,7 @@ class SubscriberOp(Op):
         return [DataStream(data_type=String, name='sub_out')]
 
     def on_msg(self, msg):
-        self.get_output_stream('sub_out').send(msg)
+        self.send('sub_out', msg)
         print('%s received %s' % (self.name, msg))
 
     def execute(self):

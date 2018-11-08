@@ -42,7 +42,7 @@ class AddTwoIntsInputOp(Op):
         request.a = random.randint(1, 10)
         request.b = random.randint(1, 10)
         msg = Message(request, Timestamp(coordinates=[0]))
-        self.get_output_stream('input_stream').send(msg)
+        self.send('input_stream', msg)
 
     def execute(self):
         self.publish_inputs()
@@ -60,7 +60,7 @@ class DataGeneratorOp(Op):
     @frequency(1)
     def generate_data(self):
         msg = Message(str(self._cnt), Timestamp(coordinates=[self._cnt]))
-        self.get_output_stream('data_gen_stream').send(msg)
+        self.send('data_gen_stream', msg)
         self._cnt += 1
 
     def execute(self):

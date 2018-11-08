@@ -36,7 +36,7 @@ class IntegerOp(Op):
     @frequency(1)
     def publish_random_number(self):
         output_msg = Message(self.number, Timestamp(coordinates=[0]))
-        self.get_output_stream("integer_out").send(output_msg)
+        self.send("integer_out", output_msg)
         print("%s sent %d" % (self.name, self.number))
 
     def execute(self):
@@ -58,8 +58,7 @@ class SquareOp(Op):
     def on_next(self, msg):
         value = msg.data
         result = value**2
-        self.get_output_stream("square_output").send(
-            Message(result, msg.timestamp))
+        self.send("square_output", Message(result, msg.timestamp))
         print("%s received: %d ^ 2 = %d" % (self.name, value, result))
 
     def execute(self):
@@ -85,7 +84,7 @@ class SumOp(Op):
     def publish_sum(self):
         result = self.sum
         output_msg = Message(result, Timestamp(coordinates=[0]))
-        self.get_output_stream("sum_output").send(output_msg)
+        self.send("sum_output", output_msg)
 
     def add(self, msg):
         value = msg.data

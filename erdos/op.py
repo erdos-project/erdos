@@ -31,10 +31,6 @@ class Op(object):
         self.progress_tracker = None
         self.framework = None
 
-    # def get_output_stream(self, name):
-    #     """Returns the output stream matching name"""
-    #     return self.output_streams[name]
-
     def notify_at(self, timestamp):
         """Subscribes the operator to receive a notification."""
         self.progress_tracker.notify_at.remote(self.name, timestamp)

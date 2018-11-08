@@ -39,7 +39,7 @@ class FirstOp(Op):
         data = 'data %d' % self._cnt
         self._cnt += 1
         output_msg = Message(data, Timestamp(coordinates=[0]))
-        self.get_output_stream('first_out').send(output_msg)
+        self.send('first_out', output_msg)
         print('%s sent %s' % (self.name, data))
 
     def on_msg(self, msg):
@@ -60,7 +60,7 @@ class SecondOp(Op):
         return [DataStream(data_type=String, name='second_out')]
 
     def on_msg(self, msg):
-        self.get_output_stream('second_out').send(msg)
+        self.send('second_out', msg)
         print('%s received %s' % (self.name, msg))
 
     def execute(self):
