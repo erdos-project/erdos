@@ -34,6 +34,7 @@ class ROSOutputDataStream(DataStream):
         # However, the extra serialization can add overheads. Fix!
         self.publisher = rospy.Publisher(
             self.uid, String, latch=True, queue_size=10)
+        print("[Publisher]", self.uid)
         # TODO(yika): hacky way to stall generator publisher in order to wait
         # for all other processes finish initiating
         time.sleep(1)

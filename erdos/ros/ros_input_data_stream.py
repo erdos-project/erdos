@@ -26,6 +26,7 @@ class ROSInputDataStream(DataStream):
         # we want to pass timestamp and stream info along with the message.
         # However, the extra serialization can add overheads. Fix!
         rospy.Subscriber(self.uid, String, callback=self._on_msg)
+        print("[Subscriber]", self.uid)
 
     def _on_msg(self, msg):
         #data = msg if self.data_type else pickle.loads(msg.data)

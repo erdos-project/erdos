@@ -53,7 +53,8 @@ class DataStream(object):
             data_type=self.data_type,
             name=self.name,
             labels=self.labels.copy(),
-            callbacks=self.callbacks.copy())
+            callbacks=self.callbacks.copy(),
+            uid=self.uid)
 
     def get_label(self, key):
         """
@@ -62,5 +63,5 @@ class DataStream(object):
         """
         return self.labels.get(key, None)
 
-    def set_uids(self, sender_op_id):
+    def set_uid(self, sender_op_id):
         self.uid = "{}-{}".format(sender_op_id, self.name)
