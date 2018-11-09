@@ -8,10 +8,12 @@ class DataStream(object):
         labels (dict: str -> str): Describes properties of the data stream.
     """
 
-    def __init__(self, data_type=None, name="", labels=None, callbacks=None):
+    def __init__(self, data_type=None, name="", labels=None, callbacks=None, uid=None):
         self.name = name if name else "{0}_{1}".format(self.__class__.__name__,
                                                        hash(self))
         self.data_type = data_type
+        self._uid = uid
+
         if labels:  # both keys and values in a label must be a single string
             for k, v in labels.items():
                 assert type(k) == str
@@ -51,7 +53,8 @@ class DataStream(object):
             data_type=self.data_type,
             name=self.name,
             labels=self.labels.copy(),
-            callbacks=self.callbacks.copy())
+            callbacks=self.callbacks.copy(),
+            uid=self.uid)
 
     def get_label(self, key):
         """
@@ -59,3 +62,13 @@ class DataStream(object):
         is not present.
         """
         return self.labels.get(key, None)
+
+    @property
+    def uid(self):
+        if self._uid is None:
+            raise ValueError("Stream uid is None.")
+        return self._uid
+
+    @uid.setter
+    def uid(self, sender_op_id):
+        self._uid = "{}/{}".format(sender_op_id, self.name)

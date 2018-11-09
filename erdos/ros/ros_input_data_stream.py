@@ -15,7 +15,8 @@ class ROSInputDataStream(DataStream):
             data_type=data_stream.data_type,
             name=data_stream.name,
             labels=data_stream.labels,
-            callbacks=data_stream.callbacks)
+            callbacks=data_stream.callbacks,
+            uid=data_stream.uid)
         self.op = op
 
     def setup(self):
@@ -24,7 +25,7 @@ class ROSInputDataStream(DataStream):
         # TODO(ionel): We currently transform messages to Strings because
         # we want to pass timestamp and stream info along with the message.
         # However, the extra serialization can add overheads. Fix!
-        rospy.Subscriber(self.name, String, callback=self._on_msg)
+        rospy.Subscriber(self.uid, String, callback=self._on_msg)
 
     def _on_msg(self, msg):
         #data = msg if self.data_type else pickle.loads(msg.data)

@@ -39,13 +39,13 @@ class RayOperator(object):
 
     def on_msg(self, msg):
         """Invokes corresponding callback for stream stream_name."""
-        for cb in self._callbacks.get(msg.stream_name, []):
+        for cb in self._callbacks.get(msg.stream_uid, []):
             cb(msg)
 
-    def register_callback(self, stream_name, callback_name):
+    def register_callback(self, stream_uid, callback_name):
         """Registers a callback for a given stream."""
-        cbs = self._callbacks.get(stream_name, [])
-        self._callbacks[stream_name] = cbs + [getattr(self._op, callback_name)]
+        cbs = self._callbacks.get(stream_uid, [])
+        self._callbacks[stream_uid] = cbs + [getattr(self._op, callback_name)]
 
     def on_frequency(self, func_name, *args):
         """Invokes operator func_name.
@@ -76,7 +76,7 @@ class RayOperator(object):
         # Wrap output streams in Ray data streams.
         ray_output_streams = [
             RayOutputDataStream(
-                dependant_ops_handles.get(output_stream.name, []),
+                dependant_ops_handles.get(output_stream.uid, []),
                 output_stream) for output_stream in self._output_streams
         ]
         self._op._add_output_streams(ray_output_streams)
