@@ -67,20 +67,15 @@ class SubscriberOp(Op):
         data = msg if type(msg) is str else msg.data
         received_cnt = int(data.split(" ")[1])
 
-        if self._num_pub_ops == 1:
-            assert received_cnt < MAX_MSG_COUNT and received_cnt == self._cnt, \
-                'received count %d should be equal to %d and smaller than maximum count %d' \
-                % (received_cnt, self._cnt, MAX_MSG_COUNT)
+        if received_cnt not in self.counts:
+            self.counts[received_cnt] = 1
         else:
-            if received_cnt not in self.counts:
-                self.counts[received_cnt] = 1
-            else:
-                self.counts[received_cnt] += 1
-            max_total_count = MAX_MSG_COUNT * self._num_pub_ops
-            assert received_cnt < max_total_count and self.counts[received_cnt] <= 2 and received_cnt <= self._cnt, \
-                'received count %d should be smaller than total count %d and maximum count %d, ' \
-                'and should not appear more than twice' \
-                % (received_cnt, self._cnt, max_total_count)
+            self.counts[received_cnt] += 1
+        max_total_count = MAX_MSG_COUNT * self._num_pub_ops
+        assert received_cnt < max_total_count and self.counts[received_cnt] <= self._num_pub_ops, \
+            'received count %d should be smaller than total maximum received count %d, ' \
+            'and should not appear more than %d times' \
+            % (received_cnt, max_total_count, self._num_pub_ops)
 
         self._cnt += 1
         print('%s received %s' % (self.name, msg))
