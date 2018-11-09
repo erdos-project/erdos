@@ -16,7 +16,7 @@ class RayOutputDataStream(DataStream):
         """Send a message on the stream.
         Invokes sink actors' on_msg remote methods.
         """
-        msg.stream_name = self.name
+        msg.stream_id = self.uid
         for on_msg_func in self._dependant_op_on_msg:
             on_msg_func.remote(msg)
 

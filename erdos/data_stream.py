@@ -64,4 +64,4 @@ class DataStream(object):
         return self.labels.get(key, None)
 
     def set_uid(self, sender_op_id):
-        self.uid = "{}-{}".format(sender_op_id, self.name)
+        self.uid = "{}/{}".format(sender_op_id, self.name)
