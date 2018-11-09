@@ -144,7 +144,7 @@ class Graph(object):
                         DataStreams(current_input_streams),
                         **op_handle.setup_args)
                     for stream in output_streams:
-                        stream.set_uid(op_id)
+                        stream.uid = op_id
                 except TypeError as e:
                     if len(e.args) > 0 and e.args[0].startswith(
                             "setup_streams"):
@@ -197,7 +197,6 @@ class Graph(object):
         # Create sink graph using only op names
         # sink is the op that an output stream is flowing in
         # Because we have not initiated op or executor, we use op name
-        # Assume stream names are unique in the same graph
         for op_id, op_handle in self.op_handles.items():
             for stream in op_handle.output_streams:
                 sinks = self.output_stream_to_op_id_sinks.get(stream.uid, [])
