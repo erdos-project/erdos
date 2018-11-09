@@ -71,4 +71,4 @@ class DataStream(object):
 
     @uid.setter
     def uid(self, sender_op_id):
-        self.uid = "{}/{}".format(sender_op_id, self.name)
+        self._uid = "{}/{}".format(sender_op_id, self.name)
