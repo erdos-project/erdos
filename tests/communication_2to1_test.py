@@ -70,7 +70,10 @@ class SubscriberOp(Op):
             self.counts[count] = 1
         else:
             self.counts[count] += 1
-        assert count < MAXIMUM_COUNT and self.counts[count] <= 2 and count < self._cnt
+        assert count < MAXIMUM_COUNT and self.counts[count] <= 2 and count <= self._cnt, \
+            'received count %d should be smaller than total count %d and maximum count %d, ' \
+            'and should not appear more than twice' \
+            % (count, self._cnt, MAXIMUM_COUNT)
         self._cnt += 1
         print('%s received %s' % (self.name, msg))
 

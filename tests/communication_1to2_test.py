@@ -65,7 +65,9 @@ class SubscriberOp(Op):
         if type(msg) is not str:
             data = msg.data
         count = int(data.split(" ")[1])
-        assert count < MAXIMUM_COUNT and count == self._cnt
+        assert count < MAXIMUM_COUNT and count == self._cnt, \
+            'received count %d should be equal to %d and smaller than maximum count %d' \
+            % (count, self._cnt, MAXIMUM_COUNT)
         self._cnt += 1
         print('%s received %s' % (self.name, msg))
 

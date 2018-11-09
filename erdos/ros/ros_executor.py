@@ -21,6 +21,7 @@ class ROSExecutor(Executor):
         # Start the operator in a new thread.
         proc = Process(target=self._execute_helper)
         # TODO(ionel): ROS nodes cannot execute on other machines. Fix!
+        proc.daemon = True
         proc.start()
         self.op_handle.executor_handle = proc
 
