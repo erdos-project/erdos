@@ -7,7 +7,8 @@ class RayOutputDataStream(DataStream):
             data_type=data_stream.data_type,
             name=data_stream.name,
             labels=data_stream.labels,
-            callbacks=data_stream.callbacks)
+            callbacks=data_stream.callbacks,
+            uid=data_stream.uid)
         self._dependant_op_handles = dependant_op_handles
         self._dependant_op_on_msg = None
 

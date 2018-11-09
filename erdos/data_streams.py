@@ -63,3 +63,7 @@ class DataStreams(object):
         for stream in self._streams:
             stream.add_callback(callback_func)
         return self
+
+    def set_uids(self, sender_op_id):
+        for stream in self._streams:
+            stream.uid = "{}-{}".format(sender_op_id, stream.name)

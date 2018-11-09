@@ -143,6 +143,7 @@ class Graph(object):
                     output_streams = op_handle.op_cls.setup_streams(
                         DataStreams(current_input_streams),
                         **op_handle.setup_args)
+                    output_streams.set_ids(op_id)
                 except TypeError as e:
                     if len(e.args) > 0 and e.args[0].startswith(
                             "setup_streams"):
@@ -198,17 +199,17 @@ class Graph(object):
         # Assume stream names are unique in the same graph
         for op_id, op_handle in self.op_handles.items():
             for stream in op_handle.output_streams:
-                sinks = self.output_stream_to_op_id_sinks.get(stream.name, [])
+                sinks = self.output_stream_to_op_id_sinks.get(stream.uid, [])
                 sinks.append(op_id)
-                self.output_stream_to_op_id_sinks[stream.name] = sinks
+                self.output_stream_to_op_id_sinks[stream.uid] = sinks
 
     def _build_dependent_op_handles(self):
         dependent_op_handles = {}
         for op_id, op_handle in self.op_handles.items():
             for stream in op_handle.input_streams:
-                exec_handles = dependent_op_handles.get(stream.name, set([]))
+                exec_handles = dependent_op_handles.get(stream.uid, set([]))
                 exec_handles.add(op_handle.executor_handle)
-                dependent_op_handles[stream.name] = exec_handles
+                dependent_op_handles[stream.uid] = exec_handles
         for stream_name, handles in dependent_op_handles.items():
             dependent_op_handles[stream_name] = list(handles)
         return dependent_op_handles
@@ -216,8 +217,8 @@ class Graph(object):
     def _different_output_streams(self, output_stream1, output_stream2):
         if len(output_stream1) != len(output_stream2):
             return True
-        os_set1 = set([output_stream.name for output_stream in output_stream1])
-        os_set2 = set([output_stream.name for output_stream in output_stream2])
+        os_set1 = set([output_stream.uid for output_stream in output_stream1])
+        os_set2 = set([output_stream.uid for output_stream in output_stream2])
         return len(os_set1.intersection(os_set2)) != len(os_set1)
 
     def _get_source_op_handles(self):

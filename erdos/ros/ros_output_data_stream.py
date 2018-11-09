@@ -16,7 +16,8 @@ class ROSOutputDataStream(DataStream):
             data_type=data_stream.data_type,
             name=data_stream.name,
             labels=data_stream.labels,
-            callbacks=data_stream.callbacks)
+            callbacks=data_stream.callbacks,
+            uid=data_stream.uid)
         self.publisher = None
 
     def send(self, msg):
@@ -32,7 +33,7 @@ class ROSOutputDataStream(DataStream):
         # we want to pass timestamp and stream info along with the message.
         # However, the extra serialization can add overheads. Fix!
         self.publisher = rospy.Publisher(
-            self.name, String, latch=True, queue_size=10)
+            self.uid, String, latch=True, queue_size=10)
         # TODO(yika): hacky way to stall generator publisher in order to wait
         # for all other processes finish initiating
         time.sleep(1)

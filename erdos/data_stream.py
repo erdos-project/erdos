@@ -8,10 +8,12 @@ class DataStream(object):
         labels (dict: str -> str): Describes properties of the data stream.
     """
 
-    def __init__(self, data_type=None, name="", labels=None, callbacks=None):
+    def __init__(self, data_type=None, name="", labels=None, callbacks=None, uid=None):
         self.name = name if name else "{0}_{1}".format(self.__class__.__name__,
                                                        hash(self))
         self.data_type = data_type
+        self.uid = uid
+
         if labels:  # both keys and values in a label must be a single string
             for k, v in labels.items():
                 assert type(k) == str
