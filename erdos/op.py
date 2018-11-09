@@ -82,19 +82,6 @@ class Op(object):
         else:
             logging.critical("Unexpected framework %s", self.framework)
 
-    def shutdown(self):
-        if self.framework == "ros":
-            import rospy
-            rospy.signal_shutdown("The End.")
-        elif self.framework == "local":
-            import sys
-            sys.exit()
-        elif self.framework == "ray":
-            import ray
-            ray.shutdown()
-        else:
-            logging.critical("Unexpected framework %s", self.framework)
-
     def _add_input_streams(self, input_streams):
         """Setups and updates all input streams."""
         self.input_streams = self.input_streams + input_streams

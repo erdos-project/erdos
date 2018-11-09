@@ -1,7 +1,9 @@
 import os
 import sys
+import time
 from absl import app
 from absl import flags
+from multiprocessing import Process
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -23,6 +25,7 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string('framework', 'ros',
                     'Execution framework to use: ros | ray.')
 flags.DEFINE_string('case', '1-1', '{num_publisher}-{num_subscriber}, e.g. 1-1, 2-1, 1-2')
+MAXIMUM_COUNT = 5
 
 
 class PublisherOp(Op):
@@ -36,8 +39,8 @@ class PublisherOp(Op):
 
     @frequency(1)
     def publish_msg(self):
-        if self._cnt == 5:
-            self.shutdown()
+        if self._cnt == MAXIMUM_COUNT:
+            sys.exit()
         data = 'data %d' % self._cnt
         self._cnt += 1
         output_msg = Message(data, Timestamp(coordinates=[0]))
@@ -61,7 +64,7 @@ class SubscriberOp(Op):
 
     def on_msg(self, msg):
         count = int(msg.split(" ")[1])
-        assert count < 5 and count == self._cnt
+        assert count < MAXIMUM_COUNT and count == self._cnt
         self._cnt += 1
         print('%s received %s' % (self.name, msg))
 
@@ -69,33 +72,19 @@ class SubscriberOp(Op):
         self.spin()
 
 
-def main(argv):
-
-    # Parse args
-    arg = FLAGS.case.split('-')
-    n_pub = int(arg[0])
-    n_sub = int(arg[1])
-
-    # Set up graph
+def run_graph():
     graph = erdos.graph.get_current_graph()
-
-    # Add publishers
-    publishers = []
-    for i in range(n_pub):
-        pub = graph.add(PublisherOp, name='publisher_%d' % i)
-        publishers.append(pub)
-
-    # Add subscribers
-    subscribers = []
-    for i in range(n_sub):
-        sub = graph.add(SubscriberOp, name='subscriber_%d' % i)
-        subscribers.append(sub)
-
-    # Connect operators
-    graph.connect(publishers, subscribers)
-
-    # Execute graph
+    pub = graph.add(PublisherOp, name='publisher_%d' % i)
+    sub = graph.add(SubscriberOp, name='subscriber_%d' % i)
+    graph.connect([pub], [sub])
     graph.execute(FLAGS.framework)
+
+
+def main(argv):
+    proc = Process(target=run_graph)
+    proc.start()
+    time.time(10)
+    proc.terminate()
 
 
 if __name__ == '__main__':
