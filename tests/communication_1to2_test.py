@@ -76,15 +76,16 @@ class SubscriberOp(Op):
 def run_graph():
     graph = erdos.graph.get_current_graph()
     pub = graph.add(PublisherOp, name='publisher')
-    sub = graph.add(SubscriberOp, name='subscriber')
-    graph.connect([pub], [sub])
+    sub1 = graph.add(SubscriberOp, name='subscriber1')
+    sub2 = graph.add(SubscriberOp, name='subscriber2')
+    graph.connect([pub], [sub1, sub2])
     graph.execute(FLAGS.framework)
 
 
 def main(argv):
     proc = Process(target=run_graph)
     proc.start()
-    time.sleep(8)
+    time.sleep(10)
     proc.terminate()
 
 

@@ -55,6 +55,7 @@ class SubscriberOp(Op):
     def __init__(self, name):
         super(SubscriberOp, self).__init__(name)
         self._cnt = 0
+        self.counts = {}
 
     @staticmethod
     def setup_streams(input_streams):
@@ -65,7 +66,11 @@ class SubscriberOp(Op):
         if type(msg) is not str:
             data = msg.data
         count = int(data.split(" ")[1])
-        assert count < MAXIMUM_COUNT and count == self._cnt
+        if count not in self.counts:
+            self.counts[count] = 1
+        else:
+            self.counts[count] += 1
+        assert count < MAXIMUM_COUNT and self.counts[count] <= 2 and count < self._cnt
         self._cnt += 1
         print('%s received %s' % (self.name, msg))
 
@@ -75,16 +80,17 @@ class SubscriberOp(Op):
 
 def run_graph():
     graph = erdos.graph.get_current_graph()
-    pub = graph.add(PublisherOp, name='publisher')
+    pub1 = graph.add(PublisherOp, name='publisher1')
+    pub2 = graph.add(PublisherOp, name='publisher2')
     sub = graph.add(SubscriberOp, name='subscriber')
-    graph.connect([pub], [sub])
+    graph.connect([pub1, pub2], [sub])
     graph.execute(FLAGS.framework)
 
 
 def main(argv):
     proc = Process(target=run_graph)
     proc.start()
-    time.sleep(8)
+    time.sleep(10)
     proc.terminate()
 
 
