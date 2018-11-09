@@ -40,6 +40,8 @@ class FirstOp(Op):
 
     @frequency(1)
     def publish_msg(self):
+        if self._cnt == MAXIMUM_COUNT:
+            sys.exit()
         data = 'data %d' % self._cnt
         self._cnt += 1
         output_msg = Message(data, Timestamp(coordinates=[0]))
