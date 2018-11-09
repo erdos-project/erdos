@@ -1,7 +1,9 @@
 import os
 import sys
+import time
 from absl import app
 from absl import flags
+from multiprocessing import Process
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -22,12 +24,14 @@ except ModuleNotFoundError:
 FLAGS = flags.FLAGS
 flags.DEFINE_string('framework', 'ros',
                     'Execution framework to use: ros | ray.')
+MAXIMUM_COUNT = 5
 
 
 class FirstOp(Op):
     def __init__(self, name):
         super(FirstOp, self).__init__(name)
         self._cnt = 0
+        self._receive_cnt = 0
 
     @staticmethod
     def setup_streams(input_streams):
@@ -43,6 +47,13 @@ class FirstOp(Op):
         print('%s sent %s' % (self.name, data))
 
     def on_msg(self, msg):
+        if type(msg) is not str:
+            data = msg.data
+        count = int(data.split(" ")[1])
+        assert count < MAXIMUM_COUNT and count == self._receive_cnt, \
+            'received count %d should be equal to %d and smaller than maximum count %d' \
+            % (count, self._receive_cnt, MAXIMUM_COUNT)
+        self._receive_cnt += 1
         print('%s received %s' % (self.name, msg))
 
     def execute(self):
@@ -53,6 +64,7 @@ class FirstOp(Op):
 class SecondOp(Op):
     def __init__(self, name):
         super(SecondOp, self).__init__(name)
+        self._receive_cnt = 0
 
     @staticmethod
     def setup_streams(input_streams):
@@ -60,6 +72,13 @@ class SecondOp(Op):
         return [DataStream(data_type=String, name='second_out')]
 
     def on_msg(self, msg):
+        if type(msg) is not str:
+            data = msg.data
+        count = int(data.split(" ")[1])
+        assert count < MAXIMUM_COUNT and count == self._receive_cnt, \
+            'received count %d should be equal to %d and smaller than maximum count %d' \
+            % (count, self._receive_cnt, MAXIMUM_COUNT)
+        self._receive_cnt += 1
         self.get_output_stream('second_out').send(msg)
         print('%s received %s' % (self.name, msg))
 
@@ -67,21 +86,20 @@ class SecondOp(Op):
         self.spin()
 
 
-def main(argv):
-
-    # Set up graph
+def run_graph():
     graph = erdos.graph.get_current_graph()
-
-    # Add operators
     first = graph.add(FirstOp, name='first')
     second = graph.add(SecondOp, name='second')
-
-    # Connect operators
     graph.connect([first], [second])
     graph.connect([second], [first])
-
-    # Execute graph
     graph.execute(FLAGS.framework)
+
+
+def main(argv):
+    proc = Process(target=run_graph)
+    proc.start()
+    time.sleep(10)
+    proc.terminate()
 
 
 if __name__ == '__main__':
