@@ -24,7 +24,6 @@ except ModuleNotFoundError:
 FLAGS = flags.FLAGS
 flags.DEFINE_string('framework', 'ros',
                     'Execution framework to use: ros | ray.')
-flags.DEFINE_string('case', '1-1', '{num_publisher}-{num_subscriber}, e.g. 1-1, 2-1, 1-2')
 MAXIMUM_COUNT = 5
 
 
@@ -63,7 +62,9 @@ class SubscriberOp(Op):
         return [DataStream(data_type=String, name='sub_out')]
 
     def on_msg(self, msg):
-        count = int(msg.split(" ")[1])
+        if type(msg) is not str:
+            data = msg.data
+        count = int(data.split(" ")[1])
         assert count < MAXIMUM_COUNT and count == self._cnt
         self._cnt += 1
         print('%s received %s' % (self.name, msg))
@@ -74,8 +75,8 @@ class SubscriberOp(Op):
 
 def run_graph():
     graph = erdos.graph.get_current_graph()
-    pub = graph.add(PublisherOp, name='publisher_%d' % i)
-    sub = graph.add(SubscriberOp, name='subscriber_%d' % i)
+    pub = graph.add(PublisherOp, name='publisher')
+    sub = graph.add(SubscriberOp, name='subscriber')
     graph.connect([pub], [sub])
     graph.execute(FLAGS.framework)
 
