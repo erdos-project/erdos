@@ -33,5 +33,5 @@ class OpHandle(object):
 
     def _build_dependent_op_handles(self, dependent_op_handles):
         for stream in self.output_streams:
-            self.dependent_op_handles[stream.name] = dependent_op_handles.get(
-                stream.name, [])
+            self.dependent_op_handles[stream.uid] = dependent_op_handles.get(
+                stream.uid, [])
