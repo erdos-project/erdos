@@ -65,6 +65,8 @@ class DataStream(object):
 
     @property
     def uid(self):
+        if self.uid is None:
+            raise ValueError("Stream uid is None.")
         return self.uid
 
     @uid.setter
