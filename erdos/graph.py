@@ -143,7 +143,8 @@ class Graph(object):
                     output_streams = op_handle.op_cls.setup_streams(
                         DataStreams(current_input_streams),
                         **op_handle.setup_args)
-                    output_streams.set_ids(op_id)
+                    for stream in output_streams:
+                        stream.set_id(op_id)
                 except TypeError as e:
                     if len(e.args) > 0 and e.args[0].startswith(
                             "setup_streams"):

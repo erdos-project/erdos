@@ -61,3 +61,6 @@ class DataStream(object):
         is not present.
         """
         return self.labels.get(key, None)
+
+    def set_uids(self, sender_op_id):
+        self.uid = "{}-{}".format(sender_op_id, self.name)
