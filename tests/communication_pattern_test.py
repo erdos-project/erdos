@@ -51,11 +51,12 @@ class PublisherOp(Op):
 
 
 class SubscriberOp(Op):
-    def __init__(self, name, num_pub_ops=1):
+    def __init__(self, name, num_pub_ops=1, spin=True):
         super(SubscriberOp, self).__init__(name)
         self._cnt = 0
         self._num_pub_ops = num_pub_ops
         self.counts = {}
+        self.is_spin = spin
 
     @staticmethod
     def setup_streams(input_streams):
@@ -82,15 +83,15 @@ class SubscriberOp(Op):
                 % (received_cnt, self._cnt, max_total_count)
 
         self._cnt += 1
-        self.get_output_stream('sub_out').send(msg)
         print('%s received %s' % (self.name, msg))
 
     def execute(self):
-        while self._cnt < self._num_pub_ops * MAX_MSG_COUNT:
-            time.sleep(0.1)
+        if self.is_spin:
+            while self._cnt < self._num_pub_ops * MAX_MSG_COUNT:
+                time.sleep(0.1)
 
 
-def run_graph(n_pub, n_sub):
+def run_graph(n_pub, n_sub, spin):
 
     graph = erdos.graph.get_current_graph()
 
@@ -103,7 +104,7 @@ def run_graph(n_pub, n_sub):
     # Add subscribers
     subscribers = []
     for i in range(n_sub):
-        sub = graph.add(SubscriberOp, name='subscriber_%d' % i, init_args={'num_pub_ops': n_pub})
+        sub = graph.add(SubscriberOp, name='subscriber_%d' % i, init_args={'num_pub_ops': n_pub, 'spin': spin})
         subscribers.append(sub)
 
     # Connect operators
@@ -114,10 +115,13 @@ def run_graph(n_pub, n_sub):
 
 
 def main(argv):
+    spin = True
+    if FLAGS.framework == 'ray':
+        spin = False
     arg = FLAGS.case.split('-')
     n_pub = int(arg[0])
     n_sub = int(arg[1])
-    proc = Process(target=run_graph, args=(n_pub, n_sub))
+    proc = Process(target=run_graph, args=(n_pub, n_sub, spin))
     proc.start()
     time.sleep(10)
     proc.terminate()
