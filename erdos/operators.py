@@ -67,6 +67,7 @@ class LogOp(Op):
                                                self.encoding)
             file_handler.setFormatter(formatter)
             self.logger.addHandler(file_handler)
+        self.spin()
 
 
 class RecordOp(Op):

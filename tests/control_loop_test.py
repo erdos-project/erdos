@@ -24,14 +24,15 @@ except ModuleNotFoundError:
 FLAGS = flags.FLAGS
 flags.DEFINE_string('framework', 'ros',
                     'Execution framework to use: ros | ray.')
-MAXIMUM_COUNT = 5
+MAX_MSG_COUNT = 5
 
 
 class FirstOp(Op):
     def __init__(self, name):
         super(FirstOp, self).__init__(name)
         self._cnt = 0
-        self._receive_cnt = 0
+        self._send_cnt = 0
+        self.counts = {}
 
     @staticmethod
     def setup_streams(input_streams):
@@ -40,33 +41,37 @@ class FirstOp(Op):
 
     @frequency(1)
     def publish_msg(self):
-        if self._cnt == MAXIMUM_COUNT:
-            sys.exit()
-        data = 'data %d' % self._cnt
-        self._cnt += 1
+        data = 'data %d' % self._send_cnt
+        self._send_cnt += 1
         output_msg = Message(data, Timestamp(coordinates=[0]))
         self.get_output_stream('first_out').send(output_msg)
         print('%s sent %s' % (self.name, data))
 
     def on_msg(self, msg):
-        if type(msg) is not str:
-            data = msg.data
-        count = int(data.split(" ")[1])
-        assert count < MAXIMUM_COUNT and count == self._receive_cnt, \
-            'received count %d should be equal to %d and smaller than maximum count %d' \
-            % (count, self._receive_cnt, MAXIMUM_COUNT)
-        self._receive_cnt += 1
+        data = msg if type(msg) is str else msg.data
+        received_cnt = int(data.split(" ")[1])
+        if received_cnt not in self.counts:
+            self.counts[received_cnt] = 1
+        else:
+            self.counts[received_cnt] += 1
+        assert received_cnt < MAX_MSG_COUNT and self.counts[received_cnt] <= 1, \
+            'received count %d should be smaller than total maximum received count %d, ' \
+            'and can not appear more than once' \
+            % (received_cnt, MAX_MSG_COUNT)
+        self._cnt += 1
         print('%s received %s' % (self.name, msg))
 
     def execute(self):
-        self.publish_msg()
-        self.spin()
+        for _ in range(0, MAX_MSG_COUNT):
+            self.publish_msg()
+            time.sleep(1)
 
 
 class SecondOp(Op):
     def __init__(self, name):
         super(SecondOp, self).__init__(name)
-        self._receive_cnt = 0
+        self._cnt = 0
+        self.counts = {}
 
     @staticmethod
     def setup_streams(input_streams):
@@ -74,13 +79,17 @@ class SecondOp(Op):
         return [DataStream(data_type=String, name='second_out')]
 
     def on_msg(self, msg):
-        if type(msg) is not str:
-            data = msg.data
-        count = int(data.split(" ")[1])
-        assert count < MAXIMUM_COUNT and count == self._receive_cnt, \
-            'received count %d should be equal to %d and smaller than maximum count %d' \
-            % (count, self._receive_cnt, MAXIMUM_COUNT)
-        self._receive_cnt += 1
+        data = msg if type(msg) is str else msg.data
+        received_cnt = int(data.split(" ")[1])
+        if received_cnt not in self.counts:
+            self.counts[received_cnt] = 1
+        else:
+            self.counts[received_cnt] += 1
+        assert received_cnt < MAX_MSG_COUNT and self.counts[received_cnt] <= 1, \
+            'received count %d should be smaller than total maximum received count %d, ' \
+            'and can not appear more than once' \
+            % (received_cnt, MAX_MSG_COUNT)
+        self._cnt += 1
         self.get_output_stream('second_out').send(msg)
         print('%s received %s' % (self.name, msg))
 
