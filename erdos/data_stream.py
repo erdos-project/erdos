@@ -12,7 +12,7 @@ class DataStream(object):
         self.name = name if name else "{0}_{1}".format(self.__class__.__name__,
                                                        hash(self))
         self.data_type = data_type
-        self.uid = uid
+        self._uid = uid
 
         if labels:  # both keys and values in a label must be a single string
             for k, v in labels.items():
