@@ -36,6 +36,8 @@ class PublisherOp(Op):
 
     @frequency(1)
     def publish_msg(self):
+        if self._cnt == 5:
+            self.shutdown()
         data = 'data %d' % self._cnt
         self._cnt += 1
         output_msg = Message(data, Timestamp(coordinates=[0]))
@@ -50,6 +52,7 @@ class PublisherOp(Op):
 class SubscriberOp(Op):
     def __init__(self, name):
         super(SubscriberOp, self).__init__(name)
+        self._cnt = 0
 
     @staticmethod
     def setup_streams(input_streams):
@@ -57,7 +60,9 @@ class SubscriberOp(Op):
         return [DataStream(data_type=String, name='sub_out')]
 
     def on_msg(self, msg):
-        self.get_output_stream('sub_out').send(msg)
+        count = int(msg.split(" ")[1])
+        assert count < 5 and count == self._cnt
+        self._cnt += 1
         print('%s received %s' % (self.name, msg))
 
     def execute(self):
