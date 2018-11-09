@@ -5,4 +5,4 @@ python:
 install:
   - pip install pycodestyle
 script:
-  - pycodestyle --show-source . --exclude=simulation
+#  - pycodestyle --show-source . --exclude=simulation
