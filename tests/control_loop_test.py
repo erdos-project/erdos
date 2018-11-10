@@ -28,11 +28,10 @@ MAX_MSG_COUNT = 5
 
 
 class FirstOp(Op):
-    def __init__(self, name, spin=True):
+    def __init__(self, name):
         super(FirstOp, self).__init__(name)
         self._send_cnt = 0
         self.counts = {}
-        self.is_spin = spin
 
     @staticmethod
     def setup_streams(input_streams):
@@ -60,10 +59,10 @@ class FirstOp(Op):
         print('%s received %s' % (self.name, msg))
 
     def execute(self):
-        if self.is_spin:
-            for _ in range(0, MAX_MSG_COUNT):
-                self.publish_msg()
-                time.sleep(1)
+        for _ in range(0, MAX_MSG_COUNT):
+            self.publish_msg()
+            time.sleep(1)
+        time.sleep(1)
 
 
 class SecondOp(Op):
@@ -91,7 +90,7 @@ class SecondOp(Op):
             % (received_cnt, MAX_MSG_COUNT)
         self._cnt += 1
         self.get_output_stream('second_out').send(msg)
-        print('%s received %s' % (self.name, msg))
+        print('%s received and sent %s' % (self.name, msg))
 
     def execute(self):
         if self.is_spin:
@@ -102,7 +101,7 @@ class SecondOp(Op):
 
 def run_graph(spin):
     graph = erdos.graph.get_current_graph()
-    first = graph.add(FirstOp, name='first', init_args={'spin': spin})
+    first = graph.add(FirstOp, name='first')
     second = graph.add(SecondOp, name='second', init_args={'spin': spin})
     graph.connect([first], [second])
     graph.connect([second], [first])
