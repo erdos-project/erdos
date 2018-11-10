@@ -28,18 +28,17 @@ MAX_MSG_COUNT = 5
 
 
 class FirstOp(Op):
-    def __init__(self, name):
+    def __init__(self, name, spin=True):
         super(FirstOp, self).__init__(name)
-        self._cnt = 0
         self._send_cnt = 0
         self.counts = {}
+        self.is_spin = spin
 
     @staticmethod
     def setup_streams(input_streams):
         input_streams.add_callback(FirstOp.on_msg)
         return [DataStream(data_type=String, name='first_out')]
 
-    @frequency(1)
     def publish_msg(self):
         data = 'data %d' % self._send_cnt
         self._send_cnt += 1
@@ -58,20 +57,21 @@ class FirstOp(Op):
             'received count %d should be smaller than total maximum received count %d, ' \
             'and can not appear more than once' \
             % (received_cnt, MAX_MSG_COUNT)
-        self._cnt += 1
         print('%s received %s' % (self.name, msg))
 
     def execute(self):
-        for _ in range(0, MAX_MSG_COUNT):
-            self.publish_msg()
-            time.sleep(1)
+        if self.is_spin:
+            for _ in range(0, MAX_MSG_COUNT):
+                self.publish_msg()
+                time.sleep(1)
 
 
 class SecondOp(Op):
-    def __init__(self, name):
+    def __init__(self, name, spin=True):
         super(SecondOp, self).__init__(name)
         self._cnt = 0
         self.counts = {}
+        self.is_spin = spin
 
     @staticmethod
     def setup_streams(input_streams):
@@ -94,20 +94,26 @@ class SecondOp(Op):
         print('%s received %s' % (self.name, msg))
 
     def execute(self):
-        self.spin()
+        if self.is_spin:
+            while self._cnt < MAX_MSG_COUNT:
+                time.sleep(0.1)
+            time.sleep(1)
 
 
-def run_graph():
+def run_graph(spin):
     graph = erdos.graph.get_current_graph()
-    first = graph.add(FirstOp, name='first')
-    second = graph.add(SecondOp, name='second')
+    first = graph.add(FirstOp, name='first', init_args={'spin': spin})
+    second = graph.add(SecondOp, name='second', init_args={'spin': spin})
     graph.connect([first], [second])
     graph.connect([second], [first])
     graph.execute(FLAGS.framework)
 
 
 def main(argv):
-    proc = Process(target=run_graph)
+    spin = True
+    if FLAGS.framework == 'ray':
+        spin = False
+    proc = Process(target=run_graph, args=(spin, ))
     proc.start()
     time.sleep(10)
     proc.terminate()
