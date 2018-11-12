@@ -29,7 +29,6 @@ class ROSExecutor(Executor):
         rospy.init_node(op.name, anonymous=True)
         op._internal_setup_streams()
         op.execute()
-        rospy.spin()
 
     def _init_operator(self):
         """
