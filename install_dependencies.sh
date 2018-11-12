@@ -9,4 +9,4 @@ echo "source /opt/ros/kinetic/setup.bash" >> ~/.bashrc
 
 # Install pip packages
 sudo apt-get install -y python-pip
-pip install -r requirements.txt
+pip install erdos
