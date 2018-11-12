@@ -12,8 +12,11 @@ class DataStreams(object):
         Returns:
             (DataStreams): filtered data streams.
         """
-        result = filter(filter_func, self._streams)
-        return DataStreams(result)
+        if filter_func:
+            result = filter(filter_func, self._streams)
+            return DataStreams(result)
+        else:
+            return self
 
     def filter_name(self, name):
         """Filter on `stream.name`.

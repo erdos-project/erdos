@@ -161,11 +161,7 @@ class WhereOp(Op):
     def setup_streams(input_streams,
                       output_stream_name,
                       filter_stream_lambda=None):
-        if filter_stream_lambda:
-            input_streams.filter(filter_stream_lambda).add_callback(
-                WhereOp.on_msg)
-        else:
-            input_streams.add_callback(WhereOp.on_msg)
+        input_streams.filter(filter_stream_lambda).add_callback(WhereOp.on_msg)
         return [DataStream(name=output_stream_name)]
 
     def on_msg(self, msg):
@@ -183,11 +179,7 @@ class MapOp(Op):
     def setup_streams(input_streams,
                       output_stream_name,
                       filter_stream_lambda=None):
-        if filter_stream_lambda:
-            input_streams.filter(filter_stream_lambda).add_callback(
-                MapOp.on_msg)
-        else:
-            input_streams.add_callback(MapOp.on_msg)
+        input_streams.filter(filter_stream_lambda).add_callback(MapOp.on_msg)
         return [DataStream(name=output_stream_name)]
 
     def on_msg(self, msg):
@@ -206,11 +198,8 @@ class MapManyOp(Op):
     def setup_streams(input_streams,
                       output_stream_name,
                       filter_stream_lambda=None):
-        if filter_stream_lambda:
-            input_streams.filter(filter_stream_lambda).add_callback(
-                MapManyOp.on_msg)
-        else:
-            input_streams.add_callback(MapManyOp.on_msg)
+        input_streams.filter(filter_stream_lambda).add_callback(
+            MapManyOp.on_msg)
         return [DataStream(name=output_stream_name)]
 
     def on_msg(self, msg):
@@ -236,11 +225,7 @@ class ConcatOp(Op):
     def setup_streams(input_streams,
                       output_stream_name,
                       filter_stream_lambda=None):
-        if filter_stream_lambda:
-            input_streams.filter(filter_stream_lambda).add_callback(
-                ConcatOp.on_msg)
-        else:
-            input_streams.add_callback(ConcatOp.on_msg)
+        input_streams.filter(filter_stream_lambda).add_callback(ConcatOp.on_msg)
         return [DataStream(name=output_stream_name)]
 
     def on_msg(self, msg):
@@ -258,11 +243,7 @@ class UnzipOp(Op):
                       output_stream_name1,
                       output_stream_name2,
                       filter_stream_lambda=None):
-        if filter_stream_lambda:
-            input_streams.filter(filter_stream_lambda).add_callback(
-                UnzipOp.on_msg)
-        else:
-            input_streams.add_callback(UnzipOp.on_msg)
+        input_streams.filter(filter_stream_lambda).add_callback(UnzipOp.on_msg)
         return [
             DataStream(name=output_stream_name1),
             DataStream(name=output_stream_name2)
