@@ -1,8 +1,19 @@
+sudo: required
+
 language: python
+
+dist: xenial
+
+os:
+  - linux
+
 python:
   - "3.5"
   - "2.7"
+
 before_script:
+  - ./install_dependencies.sh
   - export PYTHONPATH=$PYTHONPATH:$(pwd)
+
 script:
   - ./tests/run_tests.sh
