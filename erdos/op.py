@@ -1,6 +1,7 @@
 import logging
 from time import sleep
 
+
 class Op(object):
     """Operator base class.
 

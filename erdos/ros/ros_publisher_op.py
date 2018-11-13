@@ -1,7 +1,6 @@
 import rospy
 
 from erdos.op import Op
-import erdos.utils
 
 
 class ROSPublisherOp(Op):

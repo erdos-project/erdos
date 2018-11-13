@@ -7,7 +7,6 @@ import time
 from absl import flags
 
 from erdos.op_handle import OpHandle
-from erdos.data_stream import DataStream
 from erdos.data_streams import DataStreams
 from erdos.local.local_executor import LocalExecutor
 from erdos.utils import log_graph_to_dot_file

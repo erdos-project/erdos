@@ -1,6 +1,4 @@
 import numpy as np
-import os
-import sys
 import cv2
 from cv_bridge import CvBridge
 

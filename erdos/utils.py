@@ -1,6 +1,5 @@
 import logging
 from functools import wraps
-from time import sleep
 
 _freq_called = set([])
 

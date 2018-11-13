@@ -22,8 +22,8 @@ class RayOutputDataStream(DataStream):
 
     def setup(self):
         """Setup dependant operator on_msg methods.
-        Each ERDOS operator is wrapped in a Ray actor which has a on_msg method.
-        This method gets references to the on_msg methods.
+        Each ERDOS operator is wrapped in a Ray actor which has a on_msg
+        method. This method gets references to the on_msg methods.
         """
         self._dependant_op_on_msg = [
             getattr(actor_handle, "on_msg")

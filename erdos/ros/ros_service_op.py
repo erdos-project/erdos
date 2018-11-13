@@ -21,7 +21,7 @@ class ROSServiceOp(Op):
         rospy.wait_for_service(service_name)
         try:
             self._srv_proxy = rospy.ServiceProxy(service_name, srv_type)
-        except rospy.ServiceException, expt:
+        except rospy.ServiceException as expt:
             logging.error('Could not create service proxy %s', expt)
 
     @staticmethod
@@ -49,7 +49,7 @@ class ROSServiceOp(Op):
         try:
             ret = self._srv_proxy(*args)
             return ret
-        except rospy.ServiceException, expt:
+        except rospy.ServiceException as expt:
             logging.error('Service call failed %s', expt)
 
     def on_call(self, msg):

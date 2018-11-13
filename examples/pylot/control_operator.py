@@ -1,5 +1,3 @@
-import numpy as np
-
 from erdos.data_stream import DataStream
 from erdos.message import Message
 from erdos.op import Op

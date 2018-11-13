@@ -2,16 +2,12 @@ from __future__ import print_function
 
 from collections import deque
 import numpy as np
-import os
-import sys
 
 from carla.image_converter import to_rgb_array
 
-import erdos
 from erdos.data_stream import DataStream
 from erdos.message import Message
 from erdos.op import Op
-from erdos.timestamp import Timestamp
 from erdos.utils import frequency
 
 

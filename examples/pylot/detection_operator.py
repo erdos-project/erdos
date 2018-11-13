@@ -1,7 +1,5 @@
 import os
 import pickle
-import sys
-import time
 
 from erdos.data_stream import DataStream
 from erdos.message import Message

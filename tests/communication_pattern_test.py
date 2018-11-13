@@ -20,11 +20,11 @@ except ModuleNotFoundError:
     # ROS not installed
     String = str
 
-
 FLAGS = flags.FLAGS
 flags.DEFINE_string('framework', 'ros',
                     'Execution framework to use: ros | ray.')
-flags.DEFINE_string('case', '1-1', '{num_publisher}-{num_subscriber}, e.g. 1-1, 2-1, 1-2')
+flags.DEFINE_string('case', '1-1',
+                    '{num_publisher}-{num_subscriber}, e.g. 1-1, 2-1, 1-2')
 MAX_MSG_COUNT = 5
 
 
@@ -99,7 +99,13 @@ def run_graph(n_pub, n_sub, spin):
     # Add subscribers
     subscribers = []
     for i in range(n_sub):
-        sub = graph.add(SubscriberOp, name='subscriber_%d' % i, init_args={'num_pub_ops': n_pub, 'spin': spin})
+        sub = graph.add(
+            SubscriberOp,
+            name='subscriber_%d' % i,
+            init_args={
+                'num_pub_ops': n_pub,
+                'spin': spin
+            })
         subscribers.append(sub)
 
     # Connect operators

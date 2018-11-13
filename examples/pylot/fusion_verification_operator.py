@@ -1,7 +1,6 @@
 from collections import deque
 import numpy as np
 
-import erdos
 from erdos.op import Op
 from erdos.utils import setup_logging
 

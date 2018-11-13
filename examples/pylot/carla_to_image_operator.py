@@ -1,4 +1,3 @@
-import cv2
 from cv_bridge import CvBridge
 
 from erdos.data_stream import DataStream

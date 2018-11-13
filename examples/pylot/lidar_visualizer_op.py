@@ -1,9 +1,5 @@
-import os
-import sys
 from open3d import draw_geometries, read_point_cloud
 
-from erdos.data_stream import DataStream
-from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import setup_logging
 
