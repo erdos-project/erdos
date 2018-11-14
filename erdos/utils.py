@@ -6,7 +6,7 @@ from threading import Thread
 _freq_called = set([])
 
 
-def deadline(duration):
+def deadline(*expected_args):
     """
     Deadline decorator to be used for restraining computation latency
     :param duration: computation's duration constrain in ms
@@ -27,7 +27,7 @@ def deadline(duration):
 
             task_finished = False
             check_thread = Thread(target=check_deadline)
-            target_ending_time = time.time() + duration / 1000.0
+            target_ending_time = time.time() + expected_args[0] / 1000.0
             check_thread.start()
             func(*args, **kwargs)
             task_finished = True

@@ -31,6 +31,7 @@ MAX_MSG_COUNT = 5
 class PublisherOp(Op):
     def __init__(self, name):
         super(PublisherOp, self).__init__(name)
+        self.idx = 0
 
     @staticmethod
     def setup_streams(input_streams):
@@ -38,7 +39,12 @@ class PublisherOp(Op):
 
     @deadline(100)
     def publish_msg(self):
-        time.sleep(1)
+        if self.idx % 2 == 0:
+            time.sleep(1)
+        data = 'data %d' % self.idx
+        output_msg = Message(data, Timestamp(coordinates=[0]))
+        self.get_output_stream('pub_out').send(output_msg)
+        self.idx += 1
 
     def execute(self):
         for _ in range(0, MAX_MSG_COUNT):
@@ -46,34 +52,42 @@ class PublisherOp(Op):
             time.sleep(1)
 
     def on_next_deadline_miss(self):
-        print('Miss deadline!!')
+        assert self.idx % 2 == 0
+        print('%s missed deadline on data %d' % (self.name, self.idx))
 
 
 class SubscriberOp(Op):
     def __init__(self, name, spin=True):
         super(SubscriberOp, self).__init__(name)
-        self._cnt = 0
         self.is_spin = spin
+        self.idx = 0
 
     @staticmethod
     def setup_streams(input_streams):
         input_streams.add_callback(SubscriberOp.on_msg)
         return [DataStream(data_type=String, name='sub_out')]
 
+    @deadline(100)
     def on_msg(self, msg):
-        msg = msg if type(msg) is str else msg.data
-        self._cnt += 1
-        print('%s received %s' % (self.name, msg))
+        if self.idx % 2 == 0:
+            time.sleep(1)
+        self.idx += 1
 
     def execute(self):
         if self.is_spin:
-            while self._cnt < MAX_MSG_COUNT:
+            while self.idx < MAX_MSG_COUNT:
                 time.sleep(0.1)
+
+    def on_next_deadline_miss(self):
+        assert self.idx % 2 == 0
+        print('%s missed deadline on data %d' % (self.name, self.idx))
 
 
 def run_graph(spin):
     graph = erdos.graph.get_current_graph()
     pub = graph.add(PublisherOp, name='publisher')
+    sub = graph.add(SubscriberOp, name='subscriber', init_args={'spin': spin})
+    graph.connect([pub], [sub])
     graph.execute(FLAGS.framework)
 
 
@@ -81,7 +95,7 @@ def main(argv):
     spin = True
     if FLAGS.framework == 'ray':
         spin = False
-    proc = Process(target=run_graph, args=(spin))
+    proc = Process(target=run_graph, args=(spin,))
     proc.start()
     time.sleep(10)
     proc.terminate()
