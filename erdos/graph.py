@@ -27,14 +27,17 @@ class Graph(object):
         operators (dict of str -> Op): A mapping of operator name to operator.
         framework (str): The name of the framework to use to execute the
             operators. Either ROS or Ray.
+        parent (Graph): This graph's parent graph. None if this graph has no
+            parent.
     """
 
-    def __init__(self, name="default"):
+    def __init__(self, name="default", parent=None):
         self.graph_name = name if name else "{0}_{1}".format(
             self.__class__.__name__, hash(self))
         self.op_handles = {}
         self.output_stream_to_op_id_sinks = {}
         self.framework = "ray"
+        self.parent = parent
 
     def add(self, op_cls, name="", init_args=None, setup_args=None):
         """Adds an operator to the execution graph.
@@ -72,6 +75,37 @@ class Graph(object):
         for op_id in input_ops:
             handle = self.op_handles[op_id]
             handle.dependant_ops += output_ops
+
+    def construct(self, input_ops):
+        """Constructs a graph
+
+        Args:
+            input_ops (list of Op): Operators to subscribe to.
+
+        Returns:
+            (list of Op): Output operators.
+        """
+        raise NotImplementedError("User must define setup_streams in graph.")
+
+    @staticmethod
+    def setup_streams(input_streams, **kwargs):
+        """Subscribes to input data streams and constructs output data streams.
+
+        Required user override.
+
+        Args:
+            input_streams (DataStreams): data streams from connected upstream
+                operators which the operator may subscribe to.
+            kwargs: Arbitrary keyword arguments used to subscribe to input
+                data streams or construct output data streams.
+
+        Returns:
+            (list of DataStream): output data streams on which the operator
+            publishes.
+        """
+        # TODO(peter): implement this after the stream redesign.
+        raise NotImplementedError(
+            "setups_streams will be exposed after API changes.")
 
     def execute(self, framework=None):
         """Execute the current graph.
