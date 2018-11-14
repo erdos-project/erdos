@@ -83,6 +83,9 @@ class Op(object):
         else:
             logging.critical("Unexpected framework %s", self.framework)
 
+    def on_next_deadline_miss(self):
+        raise NotImplementedError("If given deadline, a deadline missing callback function needs to be specified.")
+
     def _add_input_streams(self, input_streams):
         """Setups and updates all input streams."""
         self.input_streams = self.input_streams + input_streams

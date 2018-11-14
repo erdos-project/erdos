@@ -1,11 +1,44 @@
 import logging
+import time
 from functools import wraps
+from threading import Thread
 
 _freq_called = set([])
 
 
+def deadline(duration):
+    """
+    Deadline decorator to be used for restraining computation latency
+    :param duration: computation's duration constrain in ms
+    :param deadline_missing_callback: function to call when the deadline is missed
+    :return:
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            global task_finished, target_ending_time
+
+            def check_deadline():
+                global task_finished, target_ending_time
+                while not task_finished and time.time() < target_ending_time:
+                    time.sleep(0.01)
+                if not task_finished:
+                    args[0].on_next_deadline_miss()
+
+            task_finished = False
+            check_thread = Thread(target=check_deadline)
+            target_ending_time = time.time() + duration / 1000.0
+            check_thread.start()
+            func(*args, **kwargs)
+            task_finished = True
+            check_thread.join()
+        return wrapper
+
+    return decorator
+
+
 def frequency(*expected_args):
-    """ Frequency dectorator to be used for periodic tasks (i.e., methods)."""
+    """ Frequency decorator to be used for periodic tasks (i.e., methods)."""
 
     def decorator(func):
         @wraps(func)
@@ -82,3 +115,4 @@ def log_graph_to_dot_file(filename, nodes, edges):
     # dot footer
     dot_file.write("}")
     dot_file.close()
+
