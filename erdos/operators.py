@@ -266,7 +266,7 @@ def get_timestamp_ms():
     return int(time.time() * 1000)
 
 
-def get_window_start_with_offset(timestamp, window_size_ms, window_offset_ms):
+def get_window_start_with_offset(window_size_ms, window_offset_ms):
     return ((get_timestamp_ms() - window_offset_ms) / window_size_ms *
             window_size_ms)
 
@@ -310,7 +310,7 @@ class WindowAssigner(object):
     """
 
     def assign_windows(self, msg):
-        """Asiggns a message to a list of windows."""
+        """Assigns a message to a list of windows."""
         raise NotImplementedError(
             'Window assigner must implement assign_windows')
 
@@ -328,15 +328,12 @@ class TumblingWindowAssigner(WindowAssigner):
         self._offset = time_offset_ms
 
     def assign_windows(self, msg):
-        # NOTE: The window assigner assumes that the first coordinate
-        # of the timestamp represents event/source time.
-        start_time = get_window_start_with_offset(msg.timestamp.coordinates[0],
-                                                  self._size, self._offset)
+        start_time = get_window_start_with_offset(self._size, self._offset)
         return [TimeWindow(start_time, start_time + self._size)]
 
 
 class SlidingWindowAssigner(WindowAssigner):
-    """Asiggns messages to sliding windows.
+    """Assigns messages to sliding windows.
 
     Attributes:
         time_size_ms (int): Time duration of the window
@@ -350,8 +347,7 @@ class SlidingWindowAssigner(WindowAssigner):
         self._offset = time_offset_ms
 
     def assign_windows(self, msg):
-        start_time = get_window_start_with_offset(msg.timestamp.coordinates[0],
-                                                  self._size, self._offset)
+        start_time = get_window_start_with_offset(self._size, self._offset)
         windows = []
         while start_time < msg.timestamp.coordinates[0]:
             windows.append(TimeWindow(start_time, start_time + self._size))
