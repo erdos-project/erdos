@@ -47,9 +47,9 @@ class Op(object):
     def execute(self):
         """Invoked upon operator execution.
 
-        User override. Otherwise, no-op.
+        User override. Otherwise, spin.
         """
-        pass
+        self.spin()
 
     @staticmethod
     def setup_streams(input_streams, **kwargs):
