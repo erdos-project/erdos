@@ -17,6 +17,8 @@ flags.DEFINE_bool('map_test', False, 'True to execute the test')
 flags.DEFINE_bool('concat_test', False, 'True to execute the test')
 flags.DEFINE_bool('map_many_test', False, 'True to execute the test')
 flags.DEFINE_bool('unzip_test', False, 'True to execute the test')
+flags.DEFINE_bool('counting_window_test', False, 'True to execute the test')
+flags.DEFINE_bool('tumbling_window_test', False, 'True to execute the test')
 
 
 class DataGeneratorOp(Op):
@@ -46,6 +48,7 @@ class DataGeneratorOp(Op):
 
     def execute(self):
         self.publish_msg()
+        self.spin()
 
 
 def main(argv):
@@ -122,6 +125,34 @@ def main(argv):
         log_op = graph.add(LogOp, name='unzip_log_op')
         graph.connect([data_gen_op], [unzip_op])
         graph.connect([unzip_op], [log_op])
+
+    if FLAGS.counting_window_test:
+        window_op = graph.add(
+            WindowOp,
+            name='counting_window_op',
+            init_args={'output_stream_name': 'window_stream',
+                       'assigner': CountWindowAssigner(2),
+                       'trigger': CountWindowTrigger(2),
+                       'processor': SumWindowProcessor()},
+            setup_args={'output_stream_name': 'window_stream',
+                        'filter_stream_lambda': lambda stream: stream.name == 'data_stream'})
+        log_op = graph.add(LogOp, name='window_log_op')
+        graph.connect([data_gen_op], [window_op])
+        graph.connect([window_op], [log_op])
+
+    if FLAGS.tumbling_window_test:
+        window_op = graph.add(
+            WindowOp,
+            name='tumbling_window_op',
+            init_args={'output_stream_name': 'window_stream',
+                       'assigner': TumblingWindowAssigner(2000),
+                       'trigger': TimeWindowTrigger(),
+                       'processor': SumWindowProcessor()},
+            setup_args={'output_stream_name': 'window_stream',
+                        'filter_stream_lambda': lambda stream: stream.name == 'data_stream'})
+        log_op = graph.add(LogOp, name='window_log_op')
+        graph.connect([data_gen_op], [window_op])
+        graph.connect([window_op], [log_op])
 
     graph.execute(FLAGS.framework)
 

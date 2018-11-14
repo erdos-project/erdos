@@ -1,6 +1,9 @@
+import heapq
 import logging
 import pickle
 import sys
+import time
+from enum import Enum
 
 from erdos.data_stream import DataStream
 from erdos.message import Message
@@ -257,3 +260,299 @@ class UnzipOp(Op):
             Message(left_val, Timestamp(msg.timestamp)))
         self.get_output_stream(self._output_stream_name2).send(
             Message(right_val, Timestamp(msg.timestamp)))
+
+
+def get_timestamp_ms():
+    return int(time.time() * 1000)
+
+
+def get_window_start_with_offset(timestamp, window_size_ms, window_offset_ms):
+    return ((get_timestamp_ms() - window_offset_ms) / window_size_ms *
+            window_size_ms)
+
+
+class Window(object):
+    """Window base class.
+
+    Attributes:
+        window_id(int): A unique int identifying the window.
+    """
+
+    def __init__(self, window_id, is_time_window=False):
+        self.is_time_window = is_time_window
+        self._uid = window_id
+
+    @property
+    def uid(self):
+        return self._uid
+
+
+class TimeWindow(Window):
+    """Class for time-based windows.
+
+    Attributes:
+        start_time (int): Window starting time in ms
+        end_time (int): Window ending time in ms
+    """
+
+    def __init__(self, start_time, end_time):
+        super(TimeWindow, self).__init__(hash((start_time, end_time)), True)
+        self._start_time = start_time
+        self._end_time = end_time
+
+    @property
+    def end_time(self):
+        return self._end_time
+
+
+class WindowAssigner(object):
+    """WindowAssigner base class.
+    """
+
+    def assign_windows(self, msg):
+        """Asiggns a message to a list of windows."""
+        raise NotImplementedError(
+            'Window assigner must implement assign_windows')
+
+
+class TumblingWindowAssigner(WindowAssigner):
+    """Assigns messages to non-overlapping windows (i.e., tumbling).
+
+    Attributes:
+        time_size_ms (int): Time duration of the window
+        time_offset_ms (int): Offset of the window
+    """
+
+    def __init__(self, time_size_ms, time_offset_ms=0):
+        self._size = time_size_ms
+        self._offset = time_offset_ms
+
+    def assign_windows(self, msg):
+        # NOTE: The window assigner assumes that the first coordinate
+        # of the timestamp represents event/source time.
+        start_time = get_window_start_with_offset(msg.timestamp.coordinates[0],
+                                                  self._size, self._offset)
+        return [TimeWindow(start_time, start_time + self._size)]
+
+
+class SlidingWindowAssigner(WindowAssigner):
+    """Asiggns messages to sliding windows.
+
+    Attributes:
+        time_size_ms (int): Time duration of the window
+        time_slide_ms (int): By how much time a window slides
+        time_offset_ms (int): Offset of the window
+    """
+
+    def __init__(self, time_size_ms, time_slide_ms, time_offset_ms=0):
+        self._size = time_size_ms
+        self._slide = time_slide_ms
+        self._offset = time_offset_ms
+
+    def assign_windows(self, msg):
+        start_time = get_window_start_with_offset(msg.timestamp.coordinates[0],
+                                                  self._size, self._offset)
+        windows = []
+        while start_time < msg.timestamp.coordinates[0]:
+            windows.append(TimeWindow(start_time, start_time + self._size))
+            start_time += self._slide
+        return windows
+
+
+class CountWindowAssigner(WindowAssigner):
+    """Assigns n messages to each window.
+    Attributes:
+        msg_count (int): Number of messages per window.
+    """
+
+    def __init__(self, msg_count):
+        self._msg_count = msg_count
+        self._cur_msg_count = 0
+        self._window_id = 0
+
+    def assign_windows(self, msg):
+        if self._cur_msg_count < self._msg_count:
+            self._cur_msg_count += 1
+        else:
+            self._cur_msg_count = 1
+            self._window_id += 1
+        return [Window(self._window_id)]
+
+
+class WindowTrigger(object):
+    """WindowTrigger base class.
+
+    All triggers must inherit from this class, and must implement:
+    1. is_time_based: Return true if trigger is time-based.
+    2. on_message: Invoked for each message received for the window.
+    3. on_time: Invoked when the time triggers.
+    """
+
+    def is_time_based(self):
+        """Returns True if the window is time-based."""
+        raise NotImplementedError('Trigger must implement is_time_based')
+
+    def on_message(self, msg, window):
+        raise NotImplementedError('Trigger must implement on_message')
+
+    def on_time(self, time, window):
+        raise NotImplementedError('Trigger must implement on_time')
+
+
+class WindowTriggerAction(Enum):
+    CONTINUE = 1  # Continue accumulating messages, do no trigger processing.
+    PROCESS = 2  # Trigger window processing.
+
+
+class TimeWindowTrigger(WindowTrigger):
+    """Time-based trigger."""
+
+    def __init__(self):
+        pass
+
+    def is_time_based(self):
+        return True
+
+    def on_message(self, msg, window):
+        return WindowTriggerAction.CONTINUE
+
+    def on_time(self, time, window):
+        return WindowTriggerAction.PROCESS
+
+
+class CountWindowTrigger(WindowTrigger):
+    """Count-based trigger.
+
+    Attributes:
+        msg_cnt (int): Number of messages after which to process the window.
+    """
+
+    def __init__(self, msg_cnt):
+        self._msg_cnt = msg_cnt
+        self._cur_count = 0
+
+    def is_time_based(self):
+        return False
+
+    def on_message(self, msg, window):
+        self._cur_count += 1
+        if self._cur_count == self._msg_cnt:
+            self._cur_count = 0
+            return WindowTriggerAction.PROCESS
+        return WindowTriggerAction.CONTINUE
+
+    def on_time(self, time, window):
+        return WindowTriggerAction.PROCESS
+
+
+class WindowProcessor(object):
+    """WindowProcessor base class.
+
+    All window processors must inherit from this class, and must implement:
+    1. process: Process messages within a window.
+    """
+
+    def __init__(self):
+        pass
+
+    def process(self, msgs):
+        """Process messages within a window."""
+        raise NotImplementedError('WindowProcessor must implement process')
+
+
+class SumWindowProcessor(WindowProcessor):
+    def process(self, msgs):
+        assert len(msgs) > 0
+        res = 0
+        for msg in msgs:
+            res += msg.data
+        return [Message(res, msgs[0].timestamp)]
+
+
+class WindowOp(Op):
+    """ERDOS-provided operator for windowing streams.
+
+    Attributes:
+        name (str): A unique string naming the operator.
+        output_stream_name (str): Name of the stream on which to output data.
+        assigner (WindowAssigner): object that assigns messages to windows.
+        trigger (WindowTrigger): object that decides when windows must be
+            processed.
+        processor (WindowProcessor): object used to process a window when it is
+            ready.
+    """
+
+    def __init__(self, name, output_stream_name, assigner, trigger, processor):
+        super(WindowOp, self).__init__(name)
+        self._output_stream_name = output_stream_name
+        self._assigner = assigner
+        self._trigger = trigger
+        self._processor = processor
+        self._window_state_map = {}
+        self._window_end_pqueue = []
+        self._registered_windows = set([])
+
+    @staticmethod
+    def setup_streams(input_streams,
+                      output_stream_name,
+                      filter_stream_lambda=None):
+        input_streams.filter(filter_stream_lambda).add_callback(
+            WindowOp.on_msg)
+        return [DataStream(name=output_stream_name)]
+
+    def on_process(self, window_uid):
+        """Invoke processing of the window."""
+        output_msgs = self._processor.process(
+            self._window_state_map[window_uid])
+        for output_msg in output_msgs:
+            self.get_output_stream(self._output_stream_name).send(output_msg)
+        # Remove window state
+        del self._window_state_map[window_uid]
+        try:
+            self._registered_windows.remove(window_uid)
+        except KeyError, e:
+            pass
+
+    def on_time_trigger(self, time, window):
+        # The time window ended, invoke trigger to decide action.
+        action = self._trigger.on_time(time, window)
+        if action == WindowTriggerAction.PROCESS:
+            self.on_process(window.uid)
+
+    def on_message_trigger(self, msg, window):
+        action = self._trigger.on_message(msg, window)
+        if action == WindowTriggerAction.PROCESS:
+            self.on_process(window.uid)
+
+    def register_time_trigger(self, window_end_time, window):
+        """Adds the end of the window to a priority queue."""
+        if window.uid not in self._registered_windows:
+            # Only add the end of window event if we haven't seen this window
+            # before.
+            self._registered_windows.add(window.uid)
+            heapq.heappush(self._window_end_pqueue, (window_end_time, window))
+
+    def on_msg(self, msg):
+        windows = self._assigner.assign_windows(msg)
+        for window in windows:
+            # Add message to the per-window state.
+            if window.uid in self._window_state_map:
+                self._window_state_map[window.uid].append(msg)
+            else:
+                self._window_state_map[window.uid] = [msg]
+            if window.is_time_window:
+                # Register a trigger for the end of the window.
+                self.register_time_trigger(window.end_time, window)
+            self.on_message_trigger(msg, window)
+
+    @frequency(100)
+    def fire_triggers(self):
+        # TODO(ionel): There are more efficient ways to implement this. Fix!
+        while (len(self._window_end_pqueue) > 0 and
+               self._window_end_pqueue[0][0] <= get_timestamp_ms()):
+            (end_time, window) = heapq.heappop(self._window_end_pqueue)
+            self.on_time_trigger(end_time, window)
+
+    def execute(self):
+        self.fire_triggers()
+        self.spin()
