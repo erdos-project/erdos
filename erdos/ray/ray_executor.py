@@ -20,6 +20,13 @@ class RayExecutor(Executor):
             resources[self.op_handle.machine] = 1
         num_cpus = self.op_handle.resources.pop("CPU", None)
         num_gpus = self.op_handle.resources.pop("GPU", None)
+
+        # TODO (Yika): hacky way to solve decorator name issue
+        for stream in self.op_handle.input_streams:
+            stream.callbacks = set([f.__name__ for f in stream.callbacks])
+        for stream in self.op_handle.output_streams:
+            stream.callbacks = set([f.__name__ for f in stream.callbacks])
+
         # Create the Ray actor wrapping the ERDOS operator.
         ray_op = RayOperator._submit([self.op_handle], {}, num_cpus, num_gpus,
                                      resources)

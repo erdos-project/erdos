@@ -14,4 +14,4 @@ class RayInputDataStream(DataStream):
     def setup(self):
         for on_msg_callback in self.callbacks:
             self._actor_handle.register_callback.remote(
-                self.uid, on_msg_callback.__name__)
+                self.uid, on_msg_callback)
