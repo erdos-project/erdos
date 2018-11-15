@@ -25,6 +25,7 @@ def deadline(*expected_args):
                     getattr(args[0], expected_args[1])()
 
             lock = Lock()
+            global task_finished
             task_finished = False
             target_ending_time = time.time() + expected_args[0] / 1000.0
             check_thread = Thread(target=check_deadline, args=(target_ending_time,))
