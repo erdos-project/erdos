@@ -267,7 +267,7 @@ def get_timestamp_ms():
 
 
 def get_window_start_with_offset(window_size_ms, window_offset_ms):
-    return ((get_timestamp_ms() - window_offset_ms) / window_size_ms *
+    return ((get_timestamp_ms() - window_offset_ms) // window_size_ms *
             window_size_ms)
 
 
