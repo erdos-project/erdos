@@ -23,8 +23,6 @@ except ModuleNotFoundError:
 FLAGS = flags.FLAGS
 flags.DEFINE_string('framework', 'ros',
                     'Execution framework to use: ros | ray.')
-flags.DEFINE_string('case', '1-1',
-                    '{num_publisher}-{num_subscriber}, e.g. 1-1, 2-1, 1-2')
 MAX_MSG_COUNT = 5
 
 
@@ -37,7 +35,7 @@ class PublisherOp(Op):
     def setup_streams(input_streams):
         return [DataStream(data_type=String, name='pub_out')]
 
-    @deadline(100)
+    @deadline(100, "on_next_deadline_miss")
     def publish_msg(self):
         if self.idx % 2 == 0:
             time.sleep(1)
@@ -67,7 +65,7 @@ class SubscriberOp(Op):
         input_streams.add_callback(SubscriberOp.on_msg)
         return [DataStream(data_type=String, name='sub_out')]
 
-    @deadline(100)
+    @deadline(100, "on_next_deadline_miss")
     def on_msg(self, msg):
         if self.idx % 2 == 0:
             time.sleep(1)

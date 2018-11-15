@@ -1,7 +1,7 @@
 import logging
 import time
 from functools import wraps
-from threading import Thread
+from threading import Thread, Lock
 
 _freq_called = set([])
 
@@ -9,28 +9,32 @@ _freq_called = set([])
 def deadline(*expected_args):
     """
     Deadline decorator to be used for restraining computation latency
-    :param duration: computation's duration constrain in ms
-    :param deadline_missing_callback: function to call when the deadline is missed
+    :param duration: [int/float] computation's duration constrain in ms
+    :param deadline_missing_callback: [str] function name to call when the deadline is missed
     :return:
     """
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            global task_finished, target_ending_time
 
-            def check_deadline():
-                global task_finished, target_ending_time
+            def check_deadline(target_ending_time):
+                global task_finished
                 while not task_finished and time.time() < target_ending_time:
                     time.sleep(0.01)
                 if not task_finished:
-                    args[0].on_next_deadline_miss()
+                    getattr(args[0], expected_args[1])()
 
+            lock = Lock()
             task_finished = False
-            check_thread = Thread(target=check_deadline)
             target_ending_time = time.time() + expected_args[0] / 1000.0
+            check_thread = Thread(target=check_deadline, args=(target_ending_time,))
             check_thread.start()
+
+            # Execute callback function
             func(*args, **kwargs)
+            lock.acquire()
             task_finished = True
+            lock.release()
             check_thread.join()
         return wrapper
 
