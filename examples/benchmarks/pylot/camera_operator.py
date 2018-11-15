@@ -63,3 +63,4 @@ class CameraOperator(Op):
         """
         self._logger.info('Executing %s', self.name)
         self.publish_frame()
+        self.spin()

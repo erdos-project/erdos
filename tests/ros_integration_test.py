@@ -46,6 +46,7 @@ class AddTwoIntsInputOp(Op):
 
     def execute(self):
         self.publish_inputs()
+        self.spin()
 
 
 class DataGeneratorOp(Op):
@@ -65,6 +66,7 @@ class DataGeneratorOp(Op):
 
     def execute(self):
         self.generate_data()
+        self.spin()
 
 
 class EchoOp(Op):

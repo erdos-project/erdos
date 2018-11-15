@@ -31,3 +31,4 @@ class GPSOperator(Op):
     def execute(self):
         self._logger.info('Executing %s', self.name)
         self.publish_coordinates()
+        self.spin()

@@ -38,6 +38,7 @@ class InputOperator(Op):
 
     def execute(self):
         self.publish()
+        self.spin()
 
 
 class PushOperator(Op):

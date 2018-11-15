@@ -49,3 +49,4 @@ class CameraReplayOperator(Op):
         self.bridge = CvBridge()
         #cv_image = self.create_image()
         self.publish_frame()
+        self.spin()

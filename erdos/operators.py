@@ -154,6 +154,7 @@ class ReplayOp(Op):
         else:
             while True:
                 self.publish_data()
+        self.spin()
 
 
 class WhereOp(Op):

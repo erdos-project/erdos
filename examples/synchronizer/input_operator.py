@@ -38,3 +38,4 @@ class InputOperator(Op):
 
     def execute(self):
         self.publish_inputs()
+        self.spin()

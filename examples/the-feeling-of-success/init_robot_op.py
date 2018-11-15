@@ -67,3 +67,4 @@ class InitRobotOperator(Op):
         self._gripper = intera_interface.Gripper()
         if not self._gripper:
             raise AttributeError("Could not initialize the gripper!")
+        self.spin()

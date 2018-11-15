@@ -40,3 +40,4 @@ class DepthCameraOperator(Op):
     def execute(self):
         self._logger.info('Executing %s', self.name)
         self.publish_frame()
+        self.spin()

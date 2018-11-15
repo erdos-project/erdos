@@ -84,3 +84,4 @@ class SLAMOperator(Op):
     def execute(self):
         self._logger.info('Executing %s', self.name)
         self.localize()
+        self.spin()

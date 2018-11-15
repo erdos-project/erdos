@@ -51,3 +51,4 @@ class LidarOperator(Op):
         """
         self._logger.info('Executing %s', self.name)
         self.publish_point_cloud()
+        self.spin()

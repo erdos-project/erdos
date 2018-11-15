@@ -57,3 +57,4 @@ class FusionOperator(Op):
     def execute(self):
         self._logger.info('Executing %s', self.name)
         self.fuse()
+        self.spin()

@@ -33,3 +33,4 @@ class IMUOperator(Op):
     def execute(self):
         self._logger.info('Executing %s', self.name)
         self.publish_imu_data()
+        self.spin()

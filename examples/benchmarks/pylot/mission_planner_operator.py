@@ -34,3 +34,4 @@ class MissionPlannerOperator(Op):
     def execute(self):
         self._logger.info('Executing %s', self.name)
         self.calculate_directions()
+        self.spin()
