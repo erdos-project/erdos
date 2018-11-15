@@ -1,6 +1,5 @@
 import os
 import sys
-import time
 from absl import app
 from absl import flags
 
@@ -35,46 +34,171 @@ flags.DEFINE_string('framework', 'ros',
                     'Execution framework to use: ros | ray.')
 
 
-def main(argv):
+def add_camera_op(graph, camera_name):
+    return graph.add(
+        CameraOperator, name=camera_name, setup_args={'op_name': camera_name})
 
+
+def add_depth_camera_op(graph, depth_camera_name):
+    return graph.add(
+        DepthCameraOperator,
+        name=depth_camera_name,
+        setup_args={'op_name': depth_camera_name})
+
+
+def add_radar_op(graph, radar_name):
+    return graph.add(
+        RadarOperator, name=radar_name, setup_args={'op_name': radar_name})
+
+
+def add_detector_op(graph, detector_name):
+    return graph.add(
+        DetectionOperator,
+        name=detector_name,
+        init_args={
+            'min_runtime_us': 1,
+            'max_runtime_us': 100,
+            'min_det_objs': 3,
+            'max_det_objs': 15
+        },
+        setup_args={'op_name': detector_name})
+
+
+def add_intersection_det_op(graph, name):
+    return graph.add(
+        IntersectionDetOperator,
+        name=name,
+        init_args={
+            'min_runtime_us': 1,
+            'max_runtime_us': 100
+        },
+        setup_args={'op_name': name})
+
+
+def add_tracker_op(graph, name):
+    return graph.add(
+        TrackerOperator,
+        name=name,
+        init_args={
+            'min_runtime_us': 1,
+            'max_runtime_us': 100
+        },
+        setup_args={'op_name': name})
+
+
+def add_traffic_light_det_op(graph, name):
+    return graph.add(
+        TrafficLightDetOperator,
+        name=name,
+        init_args={
+            'min_runtime_us': 1,
+            'max_runtime_us': 100
+        },
+        setup_args={'op_name': name})
+
+
+def add_traffic_sign_det_op(graph, name):
+    return graph.add(
+        TrafficSignDetOperator,
+        name=name,
+        init_args={
+            'min_runtime_us': 1,
+            'max_runtime_us': 100
+        },
+        setup_args={'op_name': name})
+
+
+def add_segmentation_op(graph, name):
+    return graph.add(
+        SegmentationOperator,
+        name=name,
+        init_args={
+            'min_runtime_us': 1,
+            'max_runtime_us': 100
+        },
+        setup_args={'op_name': name})
+
+
+def add_lane_det_op(graph, name):
+    return graph.add(
+        LaneDetOperator,
+        name=name,
+        init_args={
+            'min_runtime_us': 1,
+            'max_runtime_us': 100
+        },
+        setup_args={'op_name': name})
+
+
+def add_front_camera_processing_graph(graph, location):
+    camera_op = add_camera_op(graph, 'camera_' + location)
+    obj_det_op = add_detector_op(graph, 'obj_det_' + location)
+    segmentation_op = add_segmentation_op(graph, 'segmentation_' + location)
+    traffic_light_det_op = add_traffic_light_det_op(
+        graph, 'traffic_light_det_' + location)
+    traffic_sign_det_op = add_traffic_sign_det_op(
+        graph, 'traffic_sign_det_' + location)
+    intersection_det_op = add_intersection_det_op(
+        graph, 'intersection_det_' + location)
+    lane_det_op = add_lane_det_op(graph, 'lane_det_' + location)
+    obj_tracker_op = add_tracker_op(graph, 'obj_tracker_' + location)
+    # TODO(ionel): Vary number of trackers depending on the number of detected
+    # objects.
+    graph.connect([camera_op], [
+        obj_det_op, segmentation_op, traffic_light_det_op, traffic_sign_det_op,
+        intersection_det_op, lane_det_op
+    ])
+    graph.connect([camera_op, obj_det_op], [obj_tracker_op])
+    return [obj_tracker_op, lane_det_op]
+
+
+def add_side_camera_processing_graph(graph, location):
+    camera_op = add_camera_op(graph, 'camera_' + location)
+    obj_det_op = add_detector_op(graph, 'obj_det_' + location)
+    traffic_light_det_op = add_traffic_light_det_op(
+        graph, 'traffic_light_det_' + location)
+    intersection_det_op = add_intersection_det_op(
+        graph, 'intersection_det_' + location)
+    lane_det_op = add_lane_det_op(graph, 'lane_det_' + location)
+    obj_tracker_op = add_tracker_op(graph, 'obj_tracker_' + location)
+    graph.connect(
+        [camera_op],
+        [obj_det_op, traffic_light_det_op, intersection_det_op, lane_det_op])
+    graph.connect([camera_op, obj_det_op], [obj_tracker_op])
+    return [obj_tracker_op, lane_det_op]
+
+
+def add_rear_camera_processing_graph(graph, location):
+    camera_op = add_camera_op(graph, 'camera_' + location)
+    obj_det_op = add_detector_op(graph, 'obj_det_' + location)
+    obj_tracker_op = add_tracker_op(graph, 'obj_tracker_' + location)
+    graph.connect([camera_op], [obj_det_op])
+    graph.connect([camera_op, obj_det_op], [obj_tracker_op])
+    return [obj_tracker_op]
+
+
+def main(argv):
     graph = erdos.graph.get_current_graph()
 
-    #####################
-    #### Create Ops #####
-    #####################
-    # 8 cameras @ 30 FPS.
-    camera_front_left_op = graph.add(
-        CameraOperator,
-        name='camera_front_left',
-        setup_args={'op_name': 'camera_front_left'})
-    camera_front_right_op = graph.add(
-        CameraOperator,
-        name='camera_front_right',
-        setup_args={'op_name': 'camera_front_right'})
-    camera_front_center_op = graph.add(
-        CameraOperator,
-        name='camera_front_center',
-        setup_args={'op_name': 'camera_front_center'})
-    camera_side_left_op = graph.add(
-        CameraOperator,
-        name='camera_side_left',
-        setup_args={'op_name': 'camera_side_left'})
-    camera_side_right_op = graph.add(
-        CameraOperator,
-        name='camera_side_right',
-        setup_args={'op_name': 'camera_side_right'})
-    camera_rear_left_op = graph.add(
-        CameraOperator,
-        name='camera_rear_left',
-        setup_args={'op_name': 'camera_rear_left'})
-    camera_rear_right_op = graph.add(
-        CameraOperator,
-        name='camera_rear_right',
-        setup_args={'op_name': 'camera_rear_right'})
-    camera_rear_center_op = graph.add(
-        CameraOperator,
-        name='camera_rear_center',
-        setup_args={'op_name': 'camera_rear_center'})
+    front_locations = ['front_left', 'front_center', 'front_right']
+    side_locations = ['side_left', 'side_right']
+    rear_locations = ['rear_left', 'rear_center', 'rear_right']
+
+    tracker_ops = []
+    lane_det_ops = []
+    for location in front_locations:
+        ops = add_front_camera_processing_graph(graph, location)
+        tracker_ops.append(ops[0])
+        lane_det_ops.append(ops[1])
+
+    for location in side_locations:
+        ops = add_side_camera_processing_graph(graph, location)
+        tracker_ops.append(ops[0])
+        lane_det_ops.append(ops[1])
+
+    for location in rear_locations:
+        ops = add_rear_camera_processing_graph(graph, location)
+        tracker_ops.append(ops[0])
 
     # 1 LIDAR, 100000 points per point cloud.
     lidar_op = graph.add(
@@ -90,390 +214,21 @@ def main(argv):
     imu_op = graph.add(IMUOperator, name='IMU')
 
     # 4 short range radars
-    short_rear_left_radar_op = graph.add(
-        RadarOperator,
-        name='short_radar_rear_left',
-        setup_args={'op_name': 'short_radar_rear_left'})
-    short_rear_right_radar_op = graph.add(
-        RadarOperator,
-        name='short_radar_rear_right',
-        setup_args={'op_name': 'short_radar_rear_right'})
-    short_front_left_radar_op = graph.add(
-        RadarOperator,
-        name='short_radar_front_left',
-        setup_args={'op_name': 'short_radar_front_left'})
-    short_front_right_radar_op = graph.add(
-        RadarOperator,
-        name='short_radar_front_right',
-        setup_args={'op_name': 'short_radar_front_right'})
+    short_radars = ['front_left', 'front_right', 'rear_left', 'rear_right']
+    short_radar_ops = {}
+    for location in short_radars:
+        radar_name = 'short_radar_' + location
+        short_radar_ops[radar_name] = add_radar_op(graph, radar_name)
 
     # 1 long range radar
-    long_radar_op = graph.add(
-        RadarOperator, name='long_radar', setup_args={'op_name': 'long_radar'})
+    long_radar_op = add_radar_op(graph, 'long_radar')
 
     # 3 depth cameras
-    depth_camera_front_left_op = graph.add(
-        DepthCameraOperator,
-        name='depth_camera_front_left',
-        setup_args={'op_name': 'depth_camera_front_left'})
-    depth_camera_front_right_op = graph.add(
-        DepthCameraOperator,
-        name='depth_camera_front_right',
-        setup_args={'op_name': 'depth_camera_front_right'})
-    depth_camera_front_center_op = graph.add(
-        DepthCameraOperator,
-        name='depth_camera_front_center',
-        setup_args={'op_name': 'depth_camera_front_center'})
-
-    # 1 object detector per camera.
-    front_left_obj_detector_op = graph.add(
-        DetectionOperator,
-        name='front_left_obj_det',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100,
-            'min_det_objs': 3,
-            'max_det_objs': 15
-        },
-        setup_args={'op_name': 'front_left_obj_det'})
-
-    front_right_obj_detector_op = graph.add(
-        DetectionOperator,
-        name='front_right_obj_det',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100,
-            'min_det_objs': 3,
-            'max_det_objs': 15
-        },
-        setup_args={'op_name': 'front_right_obj_det'})
-
-    front_center_obj_detector_op = graph.add(
-        DetectionOperator,
-        name='front_center_obj_det',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100,
-            'min_det_objs': 3,
-            'max_det_objs': 15
-        },
-        setup_args={'op_name': 'front_center_obj_det'})
-
-    rear_left_obj_detector_op = graph.add(
-        DetectionOperator,
-        name='rear_left_obj_det',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100,
-            'min_det_objs': 3,
-            'max_det_objs': 15
-        },
-        setup_args={'op_name': 'rear_left_obj_det'})
-
-    rear_right_obj_detector_op = graph.add(
-        DetectionOperator,
-        name='rear_right_obj_det',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100,
-            'min_det_objs': 3,
-            'max_det_objs': 15
-        },
-        setup_args={'op_name': 'rear_right_obj_det'})
-
-    rear_center_obj_detector_op = graph.add(
-        DetectionOperator,
-        name='rear_center_obj_det',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100,
-            'min_det_objs': 3,
-            'max_det_objs': 15
-        },
-        setup_args={'op_name': 'rear_center_obj_det'})
-
-    side_left_obj_detector_op = graph.add(
-        DetectionOperator,
-        name='side_left_obj_det',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100,
-            'min_det_objs': 3,
-            'max_det_objs': 15
-        },
-        setup_args={'op_name': 'side_left_obj_det'})
-
-    side_right_obj_detector_op = graph.add(
-        DetectionOperator,
-        name='side_right_obj_det',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100,
-            'min_det_objs': 3,
-            'max_det_objs': 15
-        },
-        setup_args={'op_name': 'side_right_obj_det'})
-
-    # TODO(ionel): Vary number of trackers depending on the number of detected
-    # objects.
-    front_left_tracker_op = graph.add(
-        TrackerOperator,
-        name='front_left_tracker',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'front_left_tracker'})
-
-    front_right_tracker_op = graph.add(
-        TrackerOperator,
-        name='front_right_tracker',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'front_right_tracker'})
-
-    front_center_tracker_op = graph.add(
-        TrackerOperator,
-        name='front_center_tracker',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'front_center_tracker'})
-
-    rear_left_tracker_op = graph.add(
-        TrackerOperator,
-        name='rear_left_tracker',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'rear_left_tracker'})
-
-    rear_right_tracker_op = graph.add(
-        TrackerOperator,
-        name='rear_right_tracker',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'rear_right_tracker'})
-
-    rear_center_tracker_op = graph.add(
-        TrackerOperator,
-        name='rear_center_tracker',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'rear_center_tracker'})
-
-    side_left_tracker_op = graph.add(
-        TrackerOperator,
-        name='side_left_tracker',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'side_left_tracker'})
-
-    side_right_tracker_op = graph.add(
-        TrackerOperator,
-        name='side_right_tracker',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'side_right_tracker'})
-
-    tracker_ops = [
-        front_left_tracker_op, front_right_tracker_op, front_center_tracker_op,
-        rear_left_tracker_op, rear_right_tracker_op, rear_center_tracker_op,
-        side_left_tracker_op, side_right_tracker_op
-    ]
-
-    # 3 segmentation operators. One for each front camera.
-    front_left_segmentation_op = graph.add(
-        SegmentationOperator,
-        name='front_left_segmented',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'front_left_segmented'})
-
-    front_right_segmentation_op = graph.add(
-        SegmentationOperator,
-        name='front_right_segmented',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'front_right_segmented'})
-
-    front_center_segmentation_op = graph.add(
-        SegmentationOperator,
-        name='front_center_segmented',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'front_center_segmented'})
-
-    # 5 traffic light detectors. One for each front and side camera.
-    front_left_traffic_light_det_op = graph.add(
-        TrafficLightDetOperator,
-        name='front_left_traffic_light',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'front_left_traffic_light'})
-
-    front_right_traffic_light_det_op = graph.add(
-        TrafficLightDetOperator,
-        name='front_right_traffic_light',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'front_right_traffic_light'})
-
-    front_center_traffic_light_det_op = graph.add(
-        TrafficLightDetOperator,
-        name='front_center_traffic_light',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'front_center_traffic_light'})
-
-    side_left_traffic_light_det_op = graph.add(
-        TrafficLightDetOperator,
-        name='side_left_traffic_light',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'side_left_traffic_light'})
-
-    side_right_traffic_light_det_op = graph.add(
-        TrafficLightDetOperator,
-        name='side_right_traffic_light',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'side_right_traffic_light'})
-
-    # 3 traffic sign detectors. One for each front camera.
-    front_left_traffic_sign_det_op = graph.add(
-        TrafficSignDetOperator,
-        name='front_left_traffic_sign',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'front_left_traffic_sign'})
-
-    front_right_traffic_sign_det_op = graph.add(
-        TrafficSignDetOperator,
-        name='front_right_traffic_sign',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'front_right_traffic_sign'})
-
-    front_center_traffic_sign_det_op = graph.add(
-        TrafficSignDetOperator,
-        name='front_center_traffic_sign',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'front_center_traffic_sign'})
-
-    # 5 intersection detectors. One for each front and side camera.
-    front_left_intersection_det_op = graph.add(
-        IntersectionDetOperator,
-        name='front_left_int_det',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'front_left_int_det'})
-
-    front_right_intersection_det_op = graph.add(
-        IntersectionDetOperator,
-        name='front_right_int_det',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'front_right_int_det'})
-
-    front_center_intersection_det_op = graph.add(
-        IntersectionDetOperator,
-        name='front_center_int_det',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'front_center_int_det'})
-
-    side_left_intersection_det_op = graph.add(
-        IntersectionDetOperator,
-        name='side_left_int_det',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'side_left_int_det'})
-
-    side_right_intersection_det_op = graph.add(
-        IntersectionDetOperator,
-        name='side_right_int_det',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'side_right_int_det'})
-
-    # 3 lane detection operatos. One for each front camera.
-    front_left_lane_det_op = graph.add(
-        LaneDetOperator,
-        name='front_left_lane_det',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'front_left_lane_det'})
-
-    front_right_lane_det_op = graph.add(
-        LaneDetOperator,
-        name='front_right_lane_det',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'front_right_lane_det'})
-
-    front_center_lane_det_op = graph.add(
-        LaneDetOperator,
-        name='front_center_lane_det',
-        init_args={
-            'min_runtime_us': 1,
-            'max_runtime_us': 100
-        },
-        setup_args={'op_name': 'front_center_lane_det'})
-
-    lane_detection_ops = [
-        front_left_lane_det_op, front_right_lane_det_op,
-        front_center_lane_det_op
-    ]
+    depth_camera_ops = {}
+    for location in front_locations:
+        depth_camera_name = 'depth_camera_' + location
+        depth_camera_ops[depth_camera_name] = add_depth_camera_op(
+            graph, depth_camera_name)
 
     # 1 SLAM operator.
     slam_op = graph.add(
@@ -507,54 +262,6 @@ def main(argv):
             'max_runtime_us': 100
         })
 
-    #####################
-    #### Connect Ops ####
-    #####################
-    graph.connect([camera_front_left_op], [
-        front_left_obj_detector_op, front_left_segmentation_op,
-        front_left_traffic_light_det_op, front_left_traffic_sign_det_op,
-        front_left_intersection_det_op, front_left_lane_det_op
-    ])
-    graph.connect([camera_front_right_op], [
-        front_right_obj_detector_op, front_right_segmentation_op,
-        front_right_traffic_light_det_op, front_right_traffic_sign_det_op,
-        front_right_intersection_det_op, front_right_lane_det_op
-    ])
-    graph.connect([camera_front_center_op], [
-        front_center_obj_detector_op, front_center_segmentation_op,
-        front_center_traffic_light_det_op, front_center_traffic_sign_det_op,
-        front_center_intersection_det_op, front_center_lane_det_op
-    ])
-    graph.connect([camera_side_left_op], [
-        side_left_obj_detector_op, side_left_traffic_light_det_op,
-        side_left_intersection_det_op
-    ])
-    graph.connect([camera_side_right_op], [
-        side_right_obj_detector_op, side_right_traffic_light_det_op,
-        side_right_intersection_det_op
-    ])
-    graph.connect([camera_rear_left_op], [rear_left_obj_detector_op])
-    graph.connect([camera_rear_right_op], [rear_right_obj_detector_op])
-    graph.connect([camera_rear_center_op], [rear_center_obj_detector_op])
-
-    # Pass object and camera streams to object trackers
-    graph.connect([camera_front_left_op, front_left_obj_detector_op],
-                  [front_left_tracker_op])
-    graph.connect([camera_front_right_op, front_right_obj_detector_op],
-                  [front_right_tracker_op])
-    graph.connect([camera_front_center_op, front_center_obj_detector_op],
-                  [front_center_tracker_op])
-    graph.connect([camera_rear_left_op, rear_left_obj_detector_op],
-                  [rear_left_tracker_op])
-    graph.connect([camera_rear_right_op, rear_right_obj_detector_op],
-                  [rear_right_tracker_op])
-    graph.connect([camera_rear_center_op, rear_center_obj_detector_op],
-                  [rear_center_tracker_op])
-    graph.connect([camera_side_left_op, side_left_obj_detector_op],
-                  [side_left_tracker_op])
-    graph.connect([camera_side_right_op, side_right_obj_detector_op],
-                  [side_right_tracker_op])
-
     graph.connect([lidar_op, long_radar_op, gps_op, imu_op], [slam_op])
 
     # TODO(ionel): Plug in depth camera streams.
@@ -568,12 +275,9 @@ def main(argv):
     graph.connect([slam_op, lidar_op, gps_op, imu_op] + tracker_ops,
                   [fusion_op])
     graph.connect([fusion_op], [mission_planner_op])
-    graph.connect([mission_planner_op, fusion_op] + lane_detection_ops,
+    graph.connect([mission_planner_op, fusion_op] + lane_det_ops,
                   [motion_planner_op])
 
-    #####################
-    ### Execute Graph ###
-    #####################
     graph.execute(FLAGS.framework)
 
 
