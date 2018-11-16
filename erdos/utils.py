@@ -28,7 +28,7 @@ def deadline(*expected_args):
             check_thread = Thread(target=check_deadline, args=(deadline_time,))
             check_thread.start()
             func(*args, **kwargs)  # Execute callback function
-            with condition
+            with condition:
                 condition.notify()
             check_thread.join()
         return wrapper
