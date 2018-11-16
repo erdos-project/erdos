@@ -32,6 +32,11 @@ import erdos.graph
 FLAGS = flags.FLAGS
 flags.DEFINE_string('framework', 'ros',
                     'Execution framework to use: ros | ray.')
+flags.DEFINE_bool('side_cameras', False, 'True to enable side cameras')
+flags.DEFINE_bool('rear_cameras', False, 'True to enable rear cameras')
+flags.DEFINE_string('front_camera_locations',
+                    'front_left,front_center,front_right',
+                    'Comma-separated list of locations')
 
 
 def add_camera_op(graph, camera_name):
@@ -255,9 +260,15 @@ def add_prediction_graph(graph, tracker_ops):
 def main(argv):
     graph = erdos.graph.get_current_graph()
 
-    front_locations = ['front_left', 'front_center', 'front_right']
-    side_locations = ['side_left', 'side_right']
-    rear_locations = ['rear_left', 'rear_center', 'rear_right']
+    front_locations = FLAGS.front_camera_locations.split(',')
+
+    side_locations = []
+    if FLAGS.side_cameras:
+        side_locations = ['side_left', 'side_right']
+
+    rear_locations = []
+    if FLAGS.rear_cameras:
+        rear_locations = ['rear_left', 'rear_center', 'rear_right']
 
     tracker_ops = []
     lane_det_ops = []
