@@ -23,7 +23,7 @@ except ModuleNotFoundError:
 FLAGS = flags.FLAGS
 flags.DEFINE_string('framework', 'ros',
                     'Execution framework to use: ros | ray.')
-MAX_MSG_COUNT = 5
+MAX_MSG_COUNT = 50
 
 
 class PublisherOp(Op):
@@ -35,10 +35,10 @@ class PublisherOp(Op):
     def setup_streams(input_streams):
         return [DataStream(data_type=String, name='pub_out')]
 
-    @deadline(100, "on_next_deadline_miss")
+    @deadline(10, "on_next_deadline_miss")
     def publish_msg(self):
         if self.idx % 2 == 0:
-            time.sleep(1)
+            time.sleep(0.02)
         data = 'data %d' % self.idx
         output_msg = Message(data, Timestamp(coordinates=[0]))
         self.get_output_stream('pub_out').send(output_msg)
@@ -47,7 +47,6 @@ class PublisherOp(Op):
     def execute(self):
         for _ in range(0, MAX_MSG_COUNT):
             self.publish_msg()
-            time.sleep(1)
 
     def on_next_deadline_miss(self):
         assert self.idx % 2 == 0
@@ -65,10 +64,10 @@ class SubscriberOp(Op):
         input_streams.add_callback(SubscriberOp.on_msg)
         return [DataStream(data_type=String, name='sub_out')]
 
-    @deadline(100, "on_next_deadline_miss")
+    @deadline(10, "on_next_deadline_miss")
     def on_msg(self, msg):
         if self.idx % 2 == 0:
-            time.sleep(1)
+            time.sleep(0.02)
         self.idx += 1
 
     def execute(self):
@@ -95,7 +94,7 @@ def main(argv):
         spin = False
     proc = Process(target=run_graph, args=(spin,))
     proc.start()
-    time.sleep(10)
+    time.sleep(5)
     proc.terminate()
 
 
