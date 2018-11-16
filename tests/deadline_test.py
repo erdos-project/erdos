@@ -37,8 +37,8 @@ class PublisherOp(Op):
 
     @deadline(100, "on_next_deadline_miss")
     def publish_msg(self):
-#        if self.idx % 2 == 0:
-        time.sleep(0.01)
+        if self.idx % 2 == 0:
+            time.sleep(1)
         data = 'data %d' % self.idx
         output_msg = Message(data, Timestamp(coordinates=[0]))
         self.get_output_stream('pub_out').send(output_msg)
@@ -50,7 +50,7 @@ class PublisherOp(Op):
             time.sleep(1)
 
     def on_next_deadline_miss(self):
-        # assert self.idx % 2 == 0
+        assert self.idx % 2 == 0
         print('%s missed deadline on data %d' % (self.name, self.idx))
 
 
@@ -65,7 +65,7 @@ class SubscriberOp(Op):
         input_streams.add_callback(SubscriberOp.on_msg)
         return [DataStream(data_type=String, name='sub_out')]
 
-#    @deadline(100, "on_next_deadline_miss")
+    @deadline(100, "on_next_deadline_miss")
     def on_msg(self, msg):
         if self.idx % 2 == 0:
             time.sleep(1)
@@ -77,15 +77,15 @@ class SubscriberOp(Op):
                 time.sleep(0.1)
 
     def on_next_deadline_miss(self):
-        # assert self.idx % 2 == 0
+        assert self.idx % 2 == 0
         print('%s missed deadline on data %d' % (self.name, self.idx))
 
 
 def run_graph(spin):
     graph = erdos.graph.get_current_graph()
     pub = graph.add(PublisherOp, name='publisher')
-#    sub = graph.add(SubscriberOp, name='subscriber', init_args={'spin': spin})
-#    graph.connect([pub], [sub])
+    sub = graph.add(SubscriberOp, name='subscriber', init_args={'spin': spin})
+    graph.connect([pub], [sub])
     graph.execute(FLAGS.framework)
 
 
