@@ -1,4 +1,3 @@
-import cv2
 from cv_bridge import CvBridge
 
 from erdos.data_stream import DataStream
@@ -31,7 +30,14 @@ class TrafficLightDetOperator(Op):
         input_streams.filter(is_rgb_camera_stream) \
                      .add_callback(TrafficLightDetOperator.on_frame)
         # TODO(ionel): Specify output stream type
-        return [DataStream(name='{}_output'.format(op_name))]
+        return [
+            DataStream(
+                name='{}_output'.format(op_name),
+                labels={
+                    'lights': 'true',
+                    'type': 'bbox'
+                })
+        ]
 
     def on_frame(self, msg):
         self._logger.info('%s received frame %s', self.name, msg.timestamp)

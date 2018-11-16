@@ -14,7 +14,6 @@ from fusion_operator import FusionOperator
 from segmentation_operator import SegmentationOperator
 from depth_camera_operator import DepthCameraOperator
 from imu_operator import IMUOperator
-#from localization_operator import LocalizationOperator
 from gps_operator import GPSOperator
 from traffic_sign_det_operator import TrafficSignDetOperator
 from lane_det_operator import LaneDetOperator
@@ -26,6 +25,7 @@ from mission_planner_operator import MissionPlannerOperator
 from slam_operator import SLAMOperator
 from mapping_operator import MappingOperator
 from tracker_operator import TrackerOperator
+from prediction_operator import PredictionOperator
 
 import erdos.graph
 
@@ -146,26 +146,34 @@ def add_front_camera_processing_graph(graph, location):
     # objects.
     graph.connect([camera_op], [
         obj_det_op, segmentation_op, traffic_light_det_op, traffic_sign_det_op,
-        intersection_det_op, lane_det_op
+        intersection_det_op
     ])
+    graph.connect([segmentation_op], [lane_det_op])
     graph.connect([camera_op, obj_det_op], [obj_tracker_op])
-    return [obj_tracker_op, lane_det_op]
+    return [
+        obj_tracker_op, lane_det_op, traffic_light_det_op, intersection_det_op,
+        traffic_sign_det_op
+    ]
 
 
 def add_side_camera_processing_graph(graph, location):
     camera_op = add_camera_op(graph, 'camera_' + location)
     obj_det_op = add_detector_op(graph, 'obj_det_' + location)
+    segmentation_op = add_segmentation_op(graph, 'segmentation_' + location)
     traffic_light_det_op = add_traffic_light_det_op(
         graph, 'traffic_light_det_' + location)
     intersection_det_op = add_intersection_det_op(
         graph, 'intersection_det_' + location)
     lane_det_op = add_lane_det_op(graph, 'lane_det_' + location)
     obj_tracker_op = add_tracker_op(graph, 'obj_tracker_' + location)
-    graph.connect(
-        [camera_op],
-        [obj_det_op, traffic_light_det_op, intersection_det_op, lane_det_op])
+    graph.connect([camera_op], [
+        obj_det_op, segmentation_op, traffic_light_det_op, intersection_det_op
+    ])
+    graph.connect([segmentation_op], [lane_det_op])
     graph.connect([camera_op, obj_det_op], [obj_tracker_op])
-    return [obj_tracker_op, lane_det_op]
+    return [
+        obj_tracker_op, lane_det_op, traffic_light_det_op, intersection_det_op
+    ]
 
 
 def add_rear_camera_processing_graph(graph, location):
@@ -177,29 +185,7 @@ def add_rear_camera_processing_graph(graph, location):
     return [obj_tracker_op]
 
 
-def main(argv):
-    graph = erdos.graph.get_current_graph()
-
-    front_locations = ['front_left', 'front_center', 'front_right']
-    side_locations = ['side_left', 'side_right']
-    rear_locations = ['rear_left', 'rear_center', 'rear_right']
-
-    tracker_ops = []
-    lane_det_ops = []
-    for location in front_locations:
-        ops = add_front_camera_processing_graph(graph, location)
-        tracker_ops.append(ops[0])
-        lane_det_ops.append(ops[1])
-
-    for location in side_locations:
-        ops = add_side_camera_processing_graph(graph, location)
-        tracker_ops.append(ops[0])
-        lane_det_ops.append(ops[1])
-
-    for location in rear_locations:
-        ops = add_rear_camera_processing_graph(graph, location)
-        tracker_ops.append(ops[0])
-
+def add_localization_graph(graph, front_locations, tracker_ops):
     # 1 LIDAR, 100000 points per point cloud.
     lidar_op = graph.add(
         LidarOperator,
@@ -215,20 +201,13 @@ def main(argv):
 
     # 4 short range radars
     short_radars = ['front_left', 'front_right', 'rear_left', 'rear_right']
-    short_radar_ops = {}
+    short_radar_ops = []
     for location in short_radars:
         radar_name = 'short_radar_' + location
-        short_radar_ops[radar_name] = add_radar_op(graph, radar_name)
+        short_radar_ops.append(add_radar_op(graph, radar_name))
 
     # 1 long range radar
     long_radar_op = add_radar_op(graph, 'long_radar')
-
-    # 3 depth cameras
-    depth_camera_ops = {}
-    for location in front_locations:
-        depth_camera_name = 'depth_camera_' + location
-        depth_camera_ops[depth_camera_name] = add_depth_camera_op(
-            graph, depth_camera_name)
 
     # 1 SLAM operator.
     slam_op = graph.add(
@@ -239,11 +218,74 @@ def main(argv):
             'max_runtime_us': 100
         })
 
-    # TODO(ionel): Plugin mapping operator.
-    # mapping_op = graph.add(MappingOperator, name='mapping')
+    # 3 depth cameras
+    depth_camera_ops = []
+    for location in front_locations:
+        depth_camera_ops.append(
+            add_depth_camera_op(graph, 'depth_camera_' + location))
 
     # fusion operator
-    fusion_op = graph.add(FusionOperator, name='fusion')
+    fusion_op = graph.add(
+        FusionOperator,
+        name='fusion',
+        init_args={
+            'min_runtime_us': 1,
+            'max_runtime_us': 100
+        })
+
+    graph.connect([lidar_op, long_radar_op, gps_op, imu_op], [slam_op])
+    graph.connect(
+        [slam_op, lidar_op] + tracker_ops + short_radar_ops + depth_camera_ops,
+        [fusion_op])
+    return (slam_op, fusion_op)
+
+
+def add_prediction_graph(graph, tracker_ops):
+    prediction_op = graph.add(
+        PredictionOperator,
+        name='prediction',
+        init_args={
+            'min_runtime_us': 1,
+            'max_runtime_us': 100
+        })
+    graph.connect([prediction_op], tracker_ops)
+    return [prediction_op]
+
+
+def main(argv):
+    graph = erdos.graph.get_current_graph()
+
+    front_locations = ['front_left', 'front_center', 'front_right']
+    side_locations = ['side_left', 'side_right']
+    rear_locations = ['rear_left', 'rear_center', 'rear_right']
+
+    tracker_ops = []
+    lane_det_ops = []
+    traffic_light_det_ops = []
+    intersection_det_ops = []
+    traffic_sign_det_ops = []
+    for location in front_locations:
+        ops = add_front_camera_processing_graph(graph, location)
+        tracker_ops.append(ops[0])
+        lane_det_ops.append(ops[1])
+        traffic_light_det_ops.append(ops[2])
+        intersection_det_ops.append(ops[3])
+        traffic_sign_det_ops.append(ops[4])
+
+    for location in side_locations:
+        ops = add_side_camera_processing_graph(graph, location)
+        tracker_ops.append(ops[0])
+        lane_det_ops.append(ops[1])
+        traffic_light_det_ops.append(ops[2])
+        intersection_det_ops.append(ops[3])
+        traffic_sign_det_ops.append(ops[4])
+
+    for location in rear_locations:
+        ops = add_rear_camera_processing_graph(graph, location)
+        tracker_ops.append(ops[0])
+
+    # TODO(ionel): Plugin mapping operator.
+    # mapping_op = graph.add(MappingOperator, name='mapping')
 
     # 1 mission planner operator.
     mission_planner_op = graph.add(
@@ -262,21 +304,15 @@ def main(argv):
             'max_runtime_us': 100
         })
 
-    graph.connect([lidar_op, long_radar_op, gps_op, imu_op], [slam_op])
+    (slam_op, fusion_op) = add_localization_graph(graph, front_locations,
+                                                  tracker_ops)
+    prediction_op = add_prediction_graph(graph, tracker_ops)[0]
 
-    # TODO(ionel): Plug in depth camera streams.
-
-    # TODO(ionel): Plug in short radar streams.
-
-    # TODO(ionel): Connect segmentation operators.
-
-    # TODO(ionel): Plug in intersection, traffic signs, traffic lights, object trackers
-
-    graph.connect([slam_op, lidar_op, gps_op, imu_op] + tracker_ops,
-                  [fusion_op])
-    graph.connect([fusion_op], [mission_planner_op])
-    graph.connect([mission_planner_op, fusion_op] + lane_det_ops,
-                  [motion_planner_op])
+    graph.connect([slam_op], [mission_planner_op])
+    graph.connect(
+        [mission_planner_op, fusion_op, prediction_op] + lane_det_ops +
+        traffic_light_det_ops + intersection_det_ops + traffic_sign_det_ops,
+        [motion_planner_op])
 
     graph.execute(FLAGS.framework)
 

@@ -5,7 +5,6 @@ from erdos.message import Message
 from erdos.op import Op
 from erdos.timestamp import Timestamp
 from erdos.utils import frequency, setup_logging
-import pylot_utils
 
 
 class IMUOperator(Op):

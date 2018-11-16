@@ -1,4 +1,3 @@
-import cv2
 from cv_bridge import CvBridge
 
 from erdos.data_stream import DataStream
@@ -34,14 +33,18 @@ class DetectionOperator(Op):
         # TODO(ionel): Specify output stream type
         return [
             DataStream(
-                name='{}_output'.format(op_name), labels={'detector': 'true'})
+                name='{}_output'.format(op_name),
+                labels={
+                    'detector': 'true',
+                    'type': 'bbox'
+                })
         ]
 
     def on_msg_camera_stream(self, msg):
         self._logger.info('%s received frame %s', self.name, msg.timestamp)
         cv_img = self._bridge.imgmsg_to_cv2(msg.data, "bgr8")
         if self._cnt % 10 == 0:
-            # XXX(ionel): We receive all frames, but only run detection once
+            # TODO(ionel): We receive all frames, but only run detection once
             # every 10 frames. We shouldn't receive all frames.
             pylot_utils.do_work(self._logger, self._min_runtime,
                                 self._max_runtime)

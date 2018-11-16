@@ -1,4 +1,3 @@
-import cv2
 from cv_bridge import CvBridge
 
 from erdos.data_stream import DataStream
@@ -30,7 +29,14 @@ class TrackerOperator(Op):
         input_streams.filter(is_detector_stream) \
                      .add_callback(TrackerOperator.on_bounding_box)
         # TODO(ionel): Specify output stream type
-        return [DataStream(name='{}_output'.format(op_name))]
+        return [
+            DataStream(
+                name='{}_output'.format(op_name),
+                labels={
+                    'tracker': 'true',
+                    'type': 'bbox'
+                })
+        ]
 
     def on_bounding_box(self, msg):
         self._logger.info('%s received detected object at time %s', self.name,

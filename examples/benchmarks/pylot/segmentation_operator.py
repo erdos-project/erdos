@@ -1,4 +1,3 @@
-import cv2
 from cv_bridge import CvBridge
 
 from erdos.data_stream import DataStream
@@ -6,8 +5,6 @@ from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import setup_logging
 import pylot_utils
-
-from std_msgs.msg import String
 
 
 class SegmentationOperator(Op):

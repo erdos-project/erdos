@@ -9,7 +9,6 @@ from erdos.op import Op
 from erdos.timestamp import Timestamp
 from erdos.utils import frequency, setup_logging
 
-from std_msgs.msg import String
 from sensor_msgs.msg import Image
 
 NUM_FRAMES = 50

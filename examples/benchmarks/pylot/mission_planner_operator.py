@@ -18,8 +18,18 @@ class MissionPlannerOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams):
+        def is_positions_stream(stream):
+            return stream.labels.get('positions', '') == 'true'
+
+        input_streams.filter(is_positions_stream).add_callback(
+            MissionPlannerOperator.on_position_msg)
+
         # TODO(ionel): Specify output type.
         return [DataStream(name='directions', labels={'directions': 'true'})]
+
+    def on_position_msg(self, msg):
+        self._logger.info('%s received position %s', self.name, msg.timestamp)
+        self._position = msg.data
 
     @frequency(1)
     def calculate_directions(self):

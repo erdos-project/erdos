@@ -1,4 +1,3 @@
-import cv2
 from cv_bridge import CvBridge
 import random
 
@@ -28,7 +27,10 @@ class IntersectionDetOperator(Op):
         return [
             DataStream(
                 name='{}_output'.format(op_name),
-                labels={'intersections': 'true'})
+                labels={
+                    'intersections': 'true',
+                    'type': 'bbox'
+                })
         ]
 
     def on_frame(self, msg):

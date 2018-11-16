@@ -1,3 +1,6 @@
+import cv2
+from cv_bridge import CvBridge
+import numpy as np
 import os
 
 from erdos.data_stream import DataStream
@@ -5,6 +8,8 @@ from erdos.message import Message
 from erdos.op import Op
 from erdos.timestamp import Timestamp
 from erdos.utils import frequency, setup_logging
+
+from sensor_msgs.msg import Image
 
 NUM_FRAMES = 50
 # TODO(ionel): Getting paths like this is dangerous. Fix!
@@ -16,26 +21,36 @@ class DepthCameraOperator(Op):
     def __init__(self, name):
         super(DepthCameraOperator, self).__init__(name)
         self._logger = setup_logging(self.name, 'pylot.log')
+        self._bridge = CvBridge()
         self._cnt = 0
 
     @staticmethod
     def setup_streams(input_streams, op_name):
-        # TODO(ionel): Specify stream type.
         return [
             DataStream(
+                data_type=Image,
                 name='{}_output'.format(op_name),
                 labels={'camera_type': 'depth'})
         ]
 
-    @frequency(10)
-    def publish_frame(self):
-        image = self.read_image(self._cnt % NUM_FRAMES)
-        # TODO(ionel): Implement.
-        pass
+    def create_image(self, width, height):
+        np_image = np.zeros((width, height, 3), dtype=np.uint8)
+        r, g, b = cv2.split(np_image)
+        cv_image = cv2.merge([b, g, r])
+        return cv_image
 
-    def read_image(self, cnt):
-        # TODO(ionel): Implement.
-        pass
+    @frequency(30)
+    def publish_frame(self):
+        # TODO(ionel): Should send RGBD instead of RGB.
+        cv_image = self.create_image(1280, 960)
+        image = self._bridge.cv2_to_imgmsg(cv_image, encoding="bgr8")
+        image.header.seq = self._cnt
+        self._logger.info('%s depth camera publishing frame %d', self.name,
+                          self._cnt)
+        output_msg = Message(image, Timestamp(coordinates=[self._cnt]))
+        output_name = '{}_output'.format(self.name)
+        self.get_output_stream(output_name).send(output_msg)
+        self._cnt += 1
 
     def execute(self):
         self._logger.info('Executing %s', self.name)
