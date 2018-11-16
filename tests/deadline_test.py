@@ -37,8 +37,8 @@ class PublisherOp(Op):
 
     @deadline(100, "on_next_deadline_miss")
     def publish_msg(self):
-        if self.idx % 2 == 0:
-            time.sleep(1)
+        # if self.idx % 2 == 0:
+        # time.sleep(0.001)
         data = 'data %d' % self.idx
         output_msg = Message(data, Timestamp(coordinates=[0]))
         self.get_output_stream('pub_out').send(output_msg)

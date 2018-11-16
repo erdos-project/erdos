@@ -16,21 +16,23 @@ def deadline(*expected_args):
         @wraps(func)
         def wrapper(*args, **kwargs):
 
-            def check_deadline(ending_time):
-                condition.acquire()
-                condition.wait(timeout=ending_time - time.time())
-                condition.release()
+            def check_deadline(cv, ending_time):
+                cv.aquire()
+                cv.wait(timeout=ending_time - time.time())
+                cv.release()
                 if time.time() >= ending_time:
                     getattr(args[0], expected_args[1])()
 
             condition = Condition()
             target_ending_time = time.time() + expected_args[0] / 1000.0
-            check_thread = Thread(target=check_deadline, args=(target_ending_time,))
+            check_thread = Thread(target=check_deadline, args=(condition, target_ending_time,))
             check_thread.start()
+
             condition.acquire()
             func(*args, **kwargs)  # Execute callback function
             condition.notify()
             condition.release()
+
             check_thread.join()
         return wrapper
 
