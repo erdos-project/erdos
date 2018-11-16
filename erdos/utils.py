@@ -1,11 +1,43 @@
 import logging
+import time
 from functools import wraps
+from threading import Thread, Condition
 
 _freq_called = set([])
 
 
+def deadline(*expected_args):
+    """
+    Deadline decorator to be used for restraining computation latency.
+    Takes in computation's duration constrain in ms and
+    the name of the function to call when the deadline is missed
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+
+            condition = Condition()
+
+            def check_deadline(end_time):
+                with condition:
+                    condition.wait(timeout=end_time - time.time())
+                if time.time() >= end_time:
+                    getattr(args[0], expected_args[1])()
+
+            deadline_time = time.time() + expected_args[0] / 1000.0
+            check_thread = Thread(target=check_deadline, args=(deadline_time,))
+            check_thread.start()
+            func(*args, **kwargs)  # Execute callback function
+            with condition:
+                condition.notify()
+            check_thread.join()
+        return wrapper
+
+    return decorator
+
+
 def frequency(*expected_args):
-    """ Frequency dectorator to be used for periodic tasks (i.e., methods)."""
+    """ Frequency decorator to be used for periodic tasks (i.e., methods)."""
 
     def decorator(func):
         @wraps(func)
