@@ -21,9 +21,9 @@ class RayExecutor(Executor):
         num_cpus = self.op_handle.resources.pop("CPU", None)
         num_gpus = self.op_handle.resources.pop("GPU", None)
 
-        # TODO (Yika): hacky way to solve callback function name change issue
-        # When we wrap op_handle in a ray operator, the __name__ of all op callbacks that have
-        # frequency/deadline decorators turn into "wrapper", so we extract the __name__ here
+        # TODO (Yika): hacky solution for using decorator on callbacks
+        # When we wrap op in ray operator, __name__ of callbacks that have
+        # decorators will turn into "wrapper", so we extract the __name__ here
         for stream in self.op_handle.input_streams:
             stream.callbacks = set([f.__name__ for f in stream.callbacks])
         for stream in self.op_handle.output_streams:
