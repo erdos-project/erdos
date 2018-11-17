@@ -2,6 +2,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import time
+
 import ray
 
 from erdos.ray.frequency_actor import FrequencyActor
@@ -39,6 +41,8 @@ class RayOperator(object):
 
     def on_msg(self, msg):
         """Invokes corresponding callback for stream stream_name."""
+        self._op.log_event(time.time(), msg.timestamp,
+                           'receive {}'.format(msg.stream_name))
         for cb in self._callbacks.get(msg.stream_uid, []):
             cb(msg)
 
@@ -76,6 +80,7 @@ class RayOperator(object):
         # Wrap output streams in Ray data streams.
         ray_output_streams = [
             RayOutputDataStream(
+                self._op,
                 dependant_ops_handles.get(output_stream.uid, []),
                 output_stream) for output_stream in self._output_streams
         ]

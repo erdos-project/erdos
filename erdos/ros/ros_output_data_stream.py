@@ -11,17 +11,20 @@ logger = logging.getLogger(__name__)
 
 
 class ROSOutputDataStream(DataStream):
-    def __init__(self, data_stream):
+    def __init__(self, op, data_stream):
         super(ROSOutputDataStream, self).__init__(
             data_type=data_stream.data_type,
             name=data_stream.name,
             labels=data_stream.labels,
             callbacks=data_stream.callbacks,
             uid=data_stream.uid)
+        self.op = op
         self.publisher = None
 
     def send(self, msg):
         """Sending a message on a ROS stream (i.e., publishes it)."""
+        self.op.log_event(time.time(), msg.timestamp,
+                          'send {}'.format(self.name))
         msg.stream_name = self.name
         msg = pickle.dumps(msg)
         self.publisher.publish(msg)
