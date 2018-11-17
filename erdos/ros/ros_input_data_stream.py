@@ -1,5 +1,6 @@
 import logging
 import pickle
+import time
 
 import rospy
 from std_msgs.msg import String
@@ -30,5 +31,7 @@ class ROSInputDataStream(DataStream):
     def _on_msg(self, msg):
         #data = msg if self.data_type else pickle.loads(msg.data)
         msg = pickle.loads(msg.data)
+        self.op.log_event(time.time(), msg.timestamp,
+                          'receive {}'.format(self.name))
         for on_msg_callback in self.callbacks:
             on_msg_callback(self.op, msg)

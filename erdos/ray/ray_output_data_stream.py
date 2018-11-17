@@ -1,14 +1,17 @@
+import time
+
 from erdos.data_stream import DataStream
 
 
 class RayOutputDataStream(DataStream):
-    def __init__(self, dependant_op_handles, data_stream):
+    def __init__(self, op, dependant_op_handles, data_stream):
         super(RayOutputDataStream, self).__init__(
             data_type=data_stream.data_type,
             name=data_stream.name,
             labels=data_stream.labels,
             callbacks=data_stream.callbacks,
             uid=data_stream.uid)
+        self._op = op
         self._dependant_op_handles = dependant_op_handles
         self._dependant_op_on_msg = None
 
@@ -16,6 +19,8 @@ class RayOutputDataStream(DataStream):
         """Send a message on the stream.
         Invokes sink actors' on_msg remote methods.
         """
+        self._op.log_event(time.time(), msg.timestamp,
+                           'send {}'.format(self.name))
         msg.stream_uid = self.uid
         for on_msg_func in self._dependant_op_on_msg:
             on_msg_func.remote(msg)
