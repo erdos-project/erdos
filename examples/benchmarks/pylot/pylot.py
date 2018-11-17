@@ -3,9 +3,10 @@ import sys
 from absl import app
 from absl import flags
 
-sys.path.append(
-    os.path.dirname(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+import erdos.graph
+from erdos.data_stream import DataStream
+from erdos.message import Message
+from erdos.op import Op
 
 from camera_operator import CameraOperator
 from lidar_operator import LidarOperator
@@ -27,7 +28,9 @@ from mapping_operator import MappingOperator
 from tracker_operator import TrackerOperator
 from prediction_operator import PredictionOperator
 
-import erdos.graph
+sys.path.append(
+    os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('framework', 'ros',
@@ -37,6 +40,40 @@ flags.DEFINE_bool('rear_cameras', False, 'True to enable rear cameras')
 flags.DEFINE_string('front_camera_locations',
                     'front_left,front_center,front_right',
                     'Comma-separated list of locations')
+
+
+class BufferLogOp(Op):
+    def __init__(self, name, output_name, flush_to_file=False,
+                 flush_to_stream=False):
+        super(BufferLogOp, self).__init__(name)
+        self._output_name = output_name
+        self._buffer = []
+        self._flush_to_file = flush_to_file
+        self._flush_to_stream = flush_to_stream
+
+    @staticmethod
+    def setup_streams(input_streams, output_name):
+        def is_flush_stream(stream):
+            return stream.labels.get('flush', '') == 'true'
+
+        input_streams.filter(lambda stream: not is_flush_stream(stream)) \
+                     .add_callback(BufferLogOp.on_log_msg)
+        input_streams.filter(is_flush_stream).add_callback(
+            BufferLogOp.on_flush_msg)
+        return [DataStream(name=output_name)]
+
+    def on_log_msg(self, msg):
+        self._buffer.append(msg.data)
+
+    def on_flush_msg(self, msg):
+        if self._flush_to_file:
+            with open('{}.log'.format(self._output_name), 'w') as output_file:
+                for msg in self._buffer:
+                    output_file.write(msg)
+        if self._flush_to_stream:
+            for msg in self._buffer:
+                self.get_output_stream(self._output_name).send(msg)
+        self._buffer = []
 
 
 def add_camera_op(graph, camera_name):
