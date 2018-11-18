@@ -19,12 +19,17 @@ class LoggingOp(Op):
 
     def flush(self):
         while not self._event_log_buffer.empty():
-            event_log = self._event_log_buffer.get()
-            self._log_file.write(str(event_log) + '\n')
+            (name, processing_time, timestamp,
+             log_message) = self._event_log_buffer.get()
+            self._log_file.write(name + ',' + str(processing_time) + ',' +
+                                 str(timestamp) + ',' + str(log_message) +
+                                 '\n')
 
     def log_event(self, processing_time, timestamp, log_message=None):
-        event_log = (self.name, processing_time, timestamp, log_message)
         if self._buffer_logs:
-            self._event_log_buffer.put(event_log)
+            self._event_log_buffer.put((self.name, processing_time, timestamp,
+                                        log_message))
         else:
-            self._log_file.write(str(event_log) + '\n')
+            self._log_file.write(self.name + ',' + str(processing_time) + ',' +
+                                 str(timestamp) + ',' + str(log_message) +
+                                 '\n')

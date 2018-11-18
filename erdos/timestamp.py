@@ -19,7 +19,7 @@ class Timestamp(object):
         return str(self.coordinates)
 
     def __str__(self):
-        self.__repr__()
+        return self.__repr__()
 
     def __eq__(self, timestamp):
         if len(self.coordinates) != len(timestamp.coordinates):
