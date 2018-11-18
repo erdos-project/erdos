@@ -158,6 +158,25 @@ class ReplayOp(Op):
         self.spin()
 
 
+class FileWriterOp(Op):
+    def __init__(self, name, file_name):
+        super(FileWriterOp, self).__init__(name)
+        self._output_file = open(file_name, 'w')
+
+    def __del__(self):
+        self._output_file.close()
+
+    @staticmethod
+    def setup_streams(input_streams,
+                      filter_stream_lambda=None):
+        input_streams.filter(filter_stream_lambda).add_callback(
+            FileWriterOp.on_msg)
+        return []
+
+    def on_msg(self, msg):
+        self._output_file.write(str(msg.data) + '\n')
+
+
 class WhereOp(Op):
     def __init__(self, name, output_stream_name, where_lambda):
         super(WhereOp, self).__init__(name)
