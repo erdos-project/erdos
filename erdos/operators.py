@@ -1,3 +1,4 @@
+import copy
 import heapq
 import logging
 import pickle
@@ -231,7 +232,8 @@ class ConcatOp(Op):
     def setup_streams(input_streams,
                       output_stream_name,
                       filter_stream_lambda=None):
-        input_streams.filter(filter_stream_lambda).add_callback(ConcatOp.on_msg)
+        input_streams.filter(filter_stream_lambda).add_callback(
+            ConcatOp.on_msg)
         return [DataStream(name=output_stream_name)]
 
     def on_msg(self, msg):
@@ -486,6 +488,7 @@ class WindowOp(Op):
         self._trigger = trigger
         self._processor = processor
         self._window_state_map = {}
+        self._window_trigger_map = {}
         self._window_end_pqueue = []
         self._registered_windows = set([])
 
@@ -505,9 +508,10 @@ class WindowOp(Op):
             self.get_output_stream(self._output_stream_name).send(output_msg)
         # Remove window state
         del self._window_state_map[window_uid]
+        del self._window_trigger_map[window_uid]
         try:
             self._registered_windows.remove(window_uid)
-        except KeyError, e:
+        except KeyError as e:
             pass
 
     def on_time_trigger(self, time, window):
@@ -517,7 +521,7 @@ class WindowOp(Op):
             self.on_process(window.uid)
 
     def on_message_trigger(self, msg, window):
-        action = self._trigger.on_message(msg, window)
+        action = self._window_trigger_map[window.uid].on_message(msg, window)
         if action == WindowTriggerAction.PROCESS:
             self.on_process(window.uid)
 
@@ -537,6 +541,11 @@ class WindowOp(Op):
                 self._window_state_map[window.uid].append(msg)
             else:
                 self._window_state_map[window.uid] = [msg]
+            if window.uid not in self._window_trigger_map:
+                self._window_trigger_map[window.uid] = copy.deepcopy(
+                    self._trigger)
+            # TODO(ionel): We shouldn't have two paths for time & non-time
+            # windows. Fix!
             if window.is_time_window:
                 # Register a trigger for the end of the window.
                 self.register_time_trigger(window.end_time, window)
@@ -545,8 +554,8 @@ class WindowOp(Op):
     @frequency(100)
     def fire_triggers(self):
         # TODO(ionel): There are more efficient ways to implement this. Fix!
-        while (len(self._window_end_pqueue) > 0 and
-               self._window_end_pqueue[0][0] <= get_timestamp_ms()):
+        while (len(self._window_end_pqueue) > 0
+               and self._window_end_pqueue[0][0] <= get_timestamp_ms()):
             (end_time, window) = heapq.heappop(self._window_end_pqueue)
             self.on_time_trigger(end_time, window)
 
