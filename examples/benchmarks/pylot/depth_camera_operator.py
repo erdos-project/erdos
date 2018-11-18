@@ -4,8 +4,8 @@ import numpy as np
 import os
 
 from erdos.data_stream import DataStream
+from erdos.logging_op import LoggingOp
 from erdos.message import Message
-from erdos.op import Op
 from erdos.timestamp import Timestamp
 from erdos.utils import frequency, setup_logging
 
@@ -17,9 +17,9 @@ frames_path = os.path.dirname(os.path.dirname(
     os.path.realpath(__file__))) + '/../pylot/images/'
 
 
-class DepthCameraOperator(Op):
-    def __init__(self, name):
-        super(DepthCameraOperator, self).__init__(name)
+class DepthCameraOperator(LoggingOp):
+    def __init__(self, name, buffer_logs=False):
+        super(DepthCameraOperator, self).__init__(name, buffer_logs)
         self._logger = setup_logging(self.name, 'pylot.log')
         self._bridge = CvBridge()
         self._cnt = 0
@@ -45,8 +45,6 @@ class DepthCameraOperator(Op):
         cv_image = self.create_image(1280, 960)
         image = self._bridge.cv2_to_imgmsg(cv_image, encoding="bgr8")
         image.header.seq = self._cnt
-        self._logger.info('%s depth camera publishing frame %d', self.name,
-                          self._cnt)
         output_msg = Message(image, Timestamp(coordinates=[self._cnt]))
         output_name = '{}_output'.format(self.name)
         self.get_output_stream(output_name).send(output_msg)

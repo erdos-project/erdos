@@ -40,10 +40,15 @@ flags.DEFINE_bool('rear_cameras', False, 'True to enable rear cameras')
 flags.DEFINE_string('front_camera_locations',
                     'front_left,front_center,front_right',
                     'Comma-separated list of locations')
+flags.DEFINE_bool('buffer_logs', True,
+                  'True to enable buffering message logging')
 
 
 class BufferLogOp(Op):
-    def __init__(self, name, output_name, flush_to_file=False,
+    def __init__(self,
+                 name,
+                 output_name,
+                 flush_to_file=False,
                  flush_to_stream=False):
         super(BufferLogOp, self).__init__(name)
         self._output_name = output_name
@@ -78,19 +83,26 @@ class BufferLogOp(Op):
 
 def add_camera_op(graph, camera_name):
     return graph.add(
-        CameraOperator, name=camera_name, setup_args={'op_name': camera_name})
+        CameraOperator,
+        name=camera_name,
+        init_args={'buffer_logs': FLAGS.buffer_logs},
+        setup_args={'op_name': camera_name})
 
 
 def add_depth_camera_op(graph, depth_camera_name):
     return graph.add(
         DepthCameraOperator,
         name=depth_camera_name,
+        init_args={'buffer_logs': FLAGS.buffer_logs},
         setup_args={'op_name': depth_camera_name})
 
 
 def add_radar_op(graph, radar_name):
     return graph.add(
-        RadarOperator, name=radar_name, setup_args={'op_name': radar_name})
+        RadarOperator,
+        name=radar_name,
+        init_args={'buffer_logs': FLAGS.buffer_logs},
+        setup_args={'op_name': radar_name})
 
 
 def add_detector_op(graph, detector_name):
@@ -101,7 +113,8 @@ def add_detector_op(graph, detector_name):
             'min_runtime_us': 1,
             'max_runtime_us': 100,
             'min_det_objs': 3,
-            'max_det_objs': 15
+            'max_det_objs': 15,
+            'buffer_logs': FLAGS.buffer_logs
         },
         setup_args={'op_name': detector_name})
 
@@ -112,7 +125,8 @@ def add_intersection_det_op(graph, name):
         name=name,
         init_args={
             'min_runtime_us': 1,
-            'max_runtime_us': 100
+            'max_runtime_us': 100,
+            'buffer_logs': FLAGS.buffer_logs
         },
         setup_args={'op_name': name})
 
@@ -123,7 +137,8 @@ def add_tracker_op(graph, name):
         name=name,
         init_args={
             'min_runtime_us': 1,
-            'max_runtime_us': 100
+            'max_runtime_us': 100,
+            'buffer_logs': FLAGS.buffer_logs
         },
         setup_args={'op_name': name})
 
@@ -134,7 +149,8 @@ def add_traffic_light_det_op(graph, name):
         name=name,
         init_args={
             'min_runtime_us': 1,
-            'max_runtime_us': 100
+            'max_runtime_us': 100,
+            'buffer_logs': FLAGS.buffer_logs
         },
         setup_args={'op_name': name})
 
@@ -145,7 +161,8 @@ def add_traffic_sign_det_op(graph, name):
         name=name,
         init_args={
             'min_runtime_us': 1,
-            'max_runtime_us': 100
+            'max_runtime_us': 100,
+            'buffer_logs': FLAGS.buffer_logs
         },
         setup_args={'op_name': name})
 
@@ -156,7 +173,8 @@ def add_segmentation_op(graph, name):
         name=name,
         init_args={
             'min_runtime_us': 1,
-            'max_runtime_us': 100
+            'max_runtime_us': 100,
+            'buffer_logs': FLAGS.buffer_logs
         },
         setup_args={'op_name': name})
 
@@ -167,7 +185,8 @@ def add_lane_det_op(graph, name):
         name=name,
         init_args={
             'min_runtime_us': 1,
-            'max_runtime_us': 100
+            'max_runtime_us': 100,
+            'buffer_logs': FLAGS.buffer_logs
         },
         setup_args={'op_name': name})
 
@@ -232,14 +251,22 @@ def add_localization_graph(graph, front_locations, tracker_ops):
     lidar_op = graph.add(
         LidarOperator,
         name='lidar',
-        init_args={'num_points': 100000},
+        init_args={
+            'num_points': 100000,
+            'buffer_logs': FLAGS.buffer_logs
+        },
         setup_args={'op_name': 'lidar'})
 
     # 1 GPS
-    gps_op = graph.add(GPSOperator, name='GPS')
+    gps_op = graph.add(
+        GPSOperator, name='GPS', init_args={'buffer_logs': FLAGS.buffer_logs})
 
     # 1 IMU
-    imu_op = graph.add(IMUOperator, name='IMU')
+    imu_op = graph.add(
+        IMUOperator,
+        name='IMU',
+        init_args={'buffer_logs': FLAGS.buffer_logs},
+    )
 
     # 4 short range radars
     short_radars = ['front_left', 'front_right', 'rear_left', 'rear_right']
@@ -257,7 +284,8 @@ def add_localization_graph(graph, front_locations, tracker_ops):
         name='SLAM',
         init_args={
             'min_runtime_us': 1,
-            'max_runtime_us': 100
+            'max_runtime_us': 100,
+            'buffer_logs': FLAGS.buffer_logs
         })
 
     # 3 depth cameras
@@ -272,7 +300,8 @@ def add_localization_graph(graph, front_locations, tracker_ops):
         name='fusion',
         init_args={
             'min_runtime_us': 1,
-            'max_runtime_us': 100
+            'max_runtime_us': 100,
+            'buffer_logs': FLAGS.buffer_logs
         })
 
     graph.connect([lidar_op, long_radar_op, gps_op, imu_op], [slam_op])
@@ -288,7 +317,8 @@ def add_prediction_graph(graph, tracker_ops):
         name='prediction',
         init_args={
             'min_runtime_us': 1,
-            'max_runtime_us': 100
+            'max_runtime_us': 100,
+            'buffer_logs': FLAGS.buffer_logs
         })
     graph.connect([prediction_op], tracker_ops)
     return [prediction_op]
@@ -333,7 +363,10 @@ def main(argv):
         tracker_ops.append(ops[0])
 
     # TODO(ionel): Plugin mapping operator.
-    # mapping_op = graph.add(MappingOperator, name='mapping')
+    # mapping_op = graph.add(
+    #     MappingOperator,
+    #     name='mapping',
+    #     init_args={'buffer_logs': FLAGS.buffer_logs})
 
     # 1 mission planner operator.
     mission_planner_op = graph.add(
@@ -341,7 +374,8 @@ def main(argv):
         name='mission_planner',
         init_args={
             'min_runtime_us': 1,
-            'max_runtime_us': 100
+            'max_runtime_us': 100,
+            'buffer_logs': FLAGS.buffer_logs
         })
     # 1 motion planner operator.
     motion_planner_op = graph.add(
@@ -349,7 +383,8 @@ def main(argv):
         name='motion_planner',
         init_args={
             'min_runtime_us': 1,
-            'max_runtime_us': 100
+            'max_runtime_us': 100,
+            'buffer_logs': FLAGS.buffer_logs
         })
 
     (slam_op, fusion_op) = add_localization_graph(graph, front_locations,

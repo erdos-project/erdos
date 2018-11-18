@@ -1,16 +1,20 @@
 import numpy as np
 
 from erdos.data_stream import DataStream
+from erdos.logging_op import LoggingOp
 from erdos.message import Message
-from erdos.op import Op
 from erdos.timestamp import Timestamp
 from erdos.utils import frequency, setup_logging
 import pylot_utils
 
 
-class MissionPlannerOperator(Op):
-    def __init__(self, name, min_runtime_us=None, max_runtime_us=None):
-        super(MissionPlannerOperator, self).__init__(name)
+class MissionPlannerOperator(LoggingOp):
+    def __init__(self,
+                 name,
+                 min_runtime_us=None,
+                 max_runtime_us=None,
+                 buffer_logs=False):
+        super(MissionPlannerOperator, self).__init__(name, buffer_logs)
         self._logger = setup_logging(self.name, 'pylot.log')
         self._min_runtime = min_runtime_us
         self._max_runtime = max_runtime_us
@@ -28,7 +32,6 @@ class MissionPlannerOperator(Op):
         return [DataStream(name='directions', labels={'directions': 'true'})]
 
     def on_position_msg(self, msg):
-        self._logger.info('%s received position %s', self.name, msg.timestamp)
         self._position = msg.data
 
     @frequency(1)
@@ -36,7 +39,6 @@ class MissionPlannerOperator(Op):
         pylot_utils.do_work(self._logger, self._min_runtime, self._max_runtime)
         # Send value 0-5 for direction (e.g., 0 left, 1 right, ...).
         direction = np.random.randint(0, 6)
-        self._logger.info('%s generated direction %d', self.name, self._cnt)
         output_msg = Message(direction, Timestamp(coordinates=[self._cnt]))
         self.get_output_stream('directions').send(output_msg)
         self._cnt += 1

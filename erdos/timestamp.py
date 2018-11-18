@@ -15,6 +15,12 @@ class Timestamp(object):
         else:
             self.coordinates = timestamp.coordinates
 
+    def __repr__(self):
+        return str(self.coordinates)
+
+    def __str__(self):
+        self.__repr__()
+
     def __eq__(self, timestamp):
         if len(self.coordinates) != len(timestamp.coordinates):
             return False
@@ -55,6 +61,3 @@ class Timestamp(object):
 
     def __ge__(self, timestamp):
         return not self.__lt__(timestamp)
-
-    def __str__(self):
-        return str(self.coordinates)

@@ -1,20 +1,21 @@
 from cv_bridge import CvBridge
 
+from erdos.logging_op import LoggingOp
 from erdos.data_stream import DataStream
 from erdos.message import Message
-from erdos.op import Op
 from erdos.utils import setup_logging
 import pylot_utils
 
 
-class DetectionOperator(Op):
+class DetectionOperator(LoggingOp):
     def __init__(self,
                  name,
                  min_runtime_us=None,
                  max_runtime_us=None,
                  min_det_objs=3,
-                 max_det_objs=15):
-        super(DetectionOperator, self).__init__(name)
+                 max_det_objs=15,
+                 buffer_logs=False):
+        super(DetectionOperator, self).__init__(name, buffer_logs)
         self._logger = setup_logging(self.name, 'pylot.log')
         self._min_runtime = min_runtime_us
         self._max_runtime = max_runtime_us
@@ -41,7 +42,6 @@ class DetectionOperator(Op):
         ]
 
     def on_msg_camera_stream(self, msg):
-        self._logger.info('%s received frame %s', self.name, msg.timestamp)
         cv_img = self._bridge.imgmsg_to_cv2(msg.data, "bgr8")
         if self._cnt % 10 == 0:
             # TODO(ionel): We receive all frames, but only run detection once
@@ -50,8 +50,6 @@ class DetectionOperator(Op):
                                 self._max_runtime)
             bboxes = pylot_utils.generate_synthetic_bounding_boxes(
                 self._min_det_objs, self._max_det_objs)
-            self._logger.info('%s publising detected objects %s', self.name,
-                              msg.timestamp)
             output_msg = Message(bboxes, msg.timestamp)
             output_name = '{}_output'.format(self.name)
             self.get_output_stream(output_name).send(output_msg)

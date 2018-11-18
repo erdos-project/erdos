@@ -1,12 +1,11 @@
 from erdos.data_stream import DataStream
-from erdos.message import Message
-from erdos.op import Op
+from erdos.logging_op import LoggingOp
 from erdos.utils import setup_logging
 
 
-class GenericLoadOperator(Op):
-    def __init__(self, name):
-        super(GenericLoadOperator, self).__init__(name)
+class GenericLoadOperator(LoggingOp):
+    def __init__(self, name, buffer_logs=False):
+        super(GenericLoadOperator, self).__init__(name, buffer_logs)
         self._logger = setup_logging(self.name, 'pylot.log')
 
     @staticmethod

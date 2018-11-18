@@ -1,16 +1,20 @@
 import random
 
 from erdos.data_stream import DataStream
+from erdos.logging_op import LoggingOp
 from erdos.message import Message
-from erdos.op import Op
 from erdos.timestamp import Timestamp
 from erdos.utils import frequency, setup_logging
 import pylot_utils
 
 
-class SLAMOperator(Op):
-    def __init__(self, name, min_runtime_us=None, max_runtime_us=None):
-        super(SLAMOperator, self).__init__(name)
+class SLAMOperator(LoggingOp):
+    def __init__(self,
+                 name,
+                 min_runtime_us=None,
+                 max_runtime_us=None,
+                 buffer_logs=False):
+        super(SLAMOperator, self).__init__(name, buffer_logs)
         self._logger = setup_logging(self.name, 'pylot.log')
         self._min_runtime = min_runtime_us
         self._max_runtime = max_runtime_us
@@ -52,31 +56,23 @@ class SLAMOperator(Op):
         return [DataStream(name='location', labels={'positions': 'true'})]
 
     def on_point_cloud(self, msg):
-        self._logger.info('%s received point cloud %s', self.name,
-                          msg.timestamp)
         self._point_cloud = msg.data
 
     def on_radar(self, msg):
-        self._logger.info('%s received radar %s', self.name, msg.timestamp)
         self._radar = msg.data
 
     def on_gps(self, msg):
-        self._logger.info('%s received GPS %s', self.name, msg.timestamp)
         self._gps = msg.data
 
     def on_imu(self, msg):
-        self._logger.info('%s received IMU %s', self.name, msg.timestamp)
         self._imu = msg.data
 
     @frequency(50)
     def localize(self):
-        self._logger.info('%s localize called %d', self.name, self._cnt)
         pylot_utils.do_work(self._logger, self._min_runtime, self._max_runtime)
         # TODO(ionel): Check how synchronized the data is.
         # TODO(ionel): Interact with the mapping operator.
         location = (random.uniform(0, 180), random.uniform(0, 180))
-        self._logger.info('%s publish localization data %d', self.name,
-                          self._cnt)
         output_msg = Message(location, Timestamp(coordinates=[self._cnt]))
         self.get_output_stream('location').send(output_msg)
         self._cnt += 1

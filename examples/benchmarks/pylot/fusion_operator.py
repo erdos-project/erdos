@@ -1,16 +1,15 @@
 from erdos.data_stream import DataStream
+from erdos.logging_op import LoggingOp
 from erdos.message import Message
-from erdos.op import Op
 from erdos.timestamp import Timestamp
 from erdos.utils import frequency, setup_logging
 import pylot_utils
 
-from std_msgs.msg import String
 
-
-class FusionOperator(Op):
-    def __init__(self, name, min_runtime_us, max_runtime_us):
-        super(FusionOperator, self).__init__(name)
+class FusionOperator(LoggingOp):
+    def __init__(self, name, min_runtime_us, max_runtime_us,
+                 buffer_logs=False):
+        super(FusionOperator, self).__init__(name, buffer_logs)
         self._logger = setup_logging(self.name, 'pylot.log')
         self._min_runtime = min_runtime_us
         self._max_runtime = max_runtime_us
@@ -54,29 +53,21 @@ class FusionOperator(Op):
             FusionOperator.on_depth_frame_msg)
 
         # TODO(ionel): Set output type.
-        return [
-            DataStream(name='fusion', labels={'fused': 'true'})
-        ]
+        return [DataStream(name='fusion', labels={'fused': 'true'})]
 
     def on_slam_msg(self, msg):
-        self._logger.info('%s received position %s', self.name, msg.timestamp)
         self._positions.append(msg)
 
     def on_det_obj_msg(self, msg):
-        self._logger.info('%s received object %s', self.name, msg.timestamp)
         self._objs.append(msg)
 
     def on_lidar_msg(self, msg):
-        self._logger.info("%s received lidar %s", self.name, msg.timestamp)
         self._point_clouds.append(msg)
 
     def on_radar_msg(self, msg):
-        self._logger.info("%s received radar %s", self.name, msg.timestamp)
         self._radar.append(msg)
 
     def on_depth_frame_msg(self, msg):
-        self._logger.info("%s received depth frame %s", self.name,
-                          msg.timestamp)
         self._depth_frames.append(msg)
 
     @frequency(10)
@@ -93,8 +84,6 @@ class FusionOperator(Op):
             pylot_utils.do_work(self._logger, self._min_runtime,
                                 self._max_runtime)
             msg = Message(output_data, Timestamp(coordinates=[self._cnt]))
-            self._logger.info('%s publising fusion %s', self.name,
-                              msg.timestamp)
             self.get_output_stream('fusion').send(msg)
             self._cnt += 1
 
