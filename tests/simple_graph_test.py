@@ -13,16 +13,10 @@ FLAGS = flags.FLAGS
 
 class SumSquaresGraph(Graph):
     def construct(self, input_ops):
-        square_ops = []
-        for i, input_op in enumerate(input_ops):
-            square_op = self.add(SquareOp, "square_{}".format(i))
-            self.connect([input_op], [square_op])
-            square_ops.append(square_op)
+        square_op = self.add(SquareOp, "square")
         sum_op = self.add(SumOp, name="sum")
-        print("#" * 50)
-        print("construct input ops: {}".format(input_ops))
-        print("square ops: {}".format(square_ops))
-        self.connect(square_ops, [sum_op])
+        self.connect(input_ops, [square_op])
+        self.connect([square_op], [sum_op])
         return [sum_op]
 
 
