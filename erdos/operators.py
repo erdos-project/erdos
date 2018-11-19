@@ -167,8 +167,7 @@ class FileWriterOp(Op):
         self._output_file.close()
 
     @staticmethod
-    def setup_streams(input_streams,
-                      filter_stream_lambda=None):
+    def setup_streams(input_streams, filter_stream_lambda=None):
         input_streams.filter(filter_stream_lambda).add_callback(
             FileWriterOp.on_msg)
         return []
@@ -581,3 +580,16 @@ class WindowOp(Op):
     def execute(self):
         self.fire_triggers()
         self.spin()
+
+
+class NoopOp(Op):
+    def on_msg(self, msg):
+        self.get_output_stream(msg.stream_name).send(msg)
+
+    @staticmethod
+    def setup_streams(input_streams, **kwargs):
+        input_streams.add_callback(NoopOp.on_msg)
+        return [
+            DataStream(s.data_type, s.name, s.labels)
+            for s in input_streams._streams
+        ]

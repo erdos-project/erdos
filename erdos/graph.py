@@ -7,6 +7,7 @@ import time
 from absl import flags
 
 from erdos.op_handle import OpHandle
+from erdos.graph_handle import GraphHandle
 from erdos.data_streams import DataStreams
 from erdos.local.local_executor import LocalExecutor
 from erdos.utils import log_graph_to_dot_file
@@ -31,13 +32,21 @@ class Graph(object):
             parent.
     """
 
-    def __init__(self, name="default", parent=None):
+    def __init__(self, name="default", parent=None, input_op=None):
+        if parent is None and input_op is not None:
+            raise ValueError(
+                "Cannot set input_ops for graphs without a parent")
+
         self.graph_name = name if name else "{0}_{1}".format(
             self.__class__.__name__, hash(self))
-        self.op_handles = {}
+        self.parent = parent
+        if input_op:
+            self.op_handles = {input_op: self.parent.op_handles[input_op]}
+        else:
+            self.op_handles = {}
+        self.graph_handles = {}
         self.output_stream_to_op_id_sinks = {}
         self.framework = "ray"
-        self.parent = parent
 
     def add(self, op_cls, name="", init_args=None, setup_args=None):
         """Adds an operator to the execution graph.
@@ -54,11 +63,18 @@ class Graph(object):
         Returns:
             (str): Unique operator identifier.
         """
-        handle = OpHandle(name, op_cls, init_args, setup_args, self.graph_name)
+        if issubclass(op_cls, Graph):
+            handle = GraphHandle(name, op_cls, init_args, setup_args,
+                                 self.graph_name, self)
+        else:
+            handle = OpHandle(name, op_cls, init_args, setup_args,
+                              self.graph_name)
         op_id = handle.get_uid()
         assert (op_id not in self.op_handles), \
             'Duplicate operator name {}. Ensure name uniqueness ' \
             'or do not operator specify name'.format(handle.name)
+        if issubclass(op_cls, Graph):
+            self.graph_handles[op_id] = handle
         self.op_handles[op_id] = handle
         return op_id
 
@@ -72,11 +88,16 @@ class Graph(object):
         Args:
             input_ops (list of Op): Operators that publish on
         """
+        for i, op_id in enumerate(output_ops):
+            handle = self.op_handles[op_id]
+            if isinstance(handle, GraphHandle):
+                output_ops[i] = handle.input_op
+
         for op_id in input_ops:
             handle = self.op_handles[op_id]
             handle.dependant_ops += output_ops
 
-    def construct(self, input_ops):
+    def construct(self, input_ops, **kwargs):
         """Constructs a graph
 
         Args:
@@ -114,6 +135,8 @@ class Graph(object):
             framework (str): The name of the framework to use to execute the
                 operators. Either ROS or Ray.
         """
+        # 0. Setup subgraphs
+        self._setup_subgraphs()
 
         # 1. Build refined stream graph.
         self._build_refined_op_graph()
@@ -158,6 +181,13 @@ class Graph(object):
             # TODO(yika): FIX! Temporary solution to keep Ray master running.
             while True:
                 time.sleep(5)
+
+    def _setup_subgraphs(self):
+        """Set up subgraphs"""
+        # TODO(peter) fix this after graphs implement setup_streams
+        for graph_id, graph_handle in self.graph_handles.items():
+            graph_handle.setup_graph()
+            self.op_handles.pop(graph_id)
 
     def _build_refined_op_graph(self):
         """Refines the operator graph.
