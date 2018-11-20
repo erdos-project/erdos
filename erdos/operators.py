@@ -588,6 +588,8 @@ class NoopOp(Op):
 
     @staticmethod
     def setup_streams(input_streams, **kwargs):
+        # NOTE: if 2 input streams have identical names,
+        # outputs will be published on both streams
         input_streams.add_callback(NoopOp.on_msg)
         return [
             DataStream(s.data_type, s.name, s.labels)

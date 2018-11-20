@@ -2,13 +2,48 @@ from __future__ import print_function
 
 from absl import app
 from absl import flags
+import numpy as np
 
+try:
+    from std_msgs.msg import Int64
+except ModuleNotFoundError:
+    # ROS not installed
+    Int64 = int
+
+from erdos.data_stream import DataStream
 import erdos.graph
 from erdos.graph import Graph
+from erdos.op import Op
+from erdos.message import Message
+from erdos.timestamp import Timestamp
+from erdos.utils import frequency
 
-from sum_squares_test import IntegerOp, SquareOp, SumOp
+from sum_squares_test import SquareOp, SumOp
 
 FLAGS = flags.FLAGS
+
+
+class IntegerOp(Op):
+    """Operator which publishes an integer every second"""
+
+    def __init__(self, name, number, stream_name):
+        super(IntegerOp, self).__init__(name)
+        self.number = np.int64(number)
+        self.stream_name = stream_name
+
+    @staticmethod
+    def setup_streams(input_streams, stream_name="integer_out"):
+        return [DataStream(data_type=Int64, name=stream_name)]
+
+    @frequency(1)
+    def publish_random_number(self):
+        output_msg = Message(self.number, Timestamp(coordinates=[0]))
+        self.get_output_stream(self.stream_name).send(output_msg)
+        print("%s sent %d" % (self.name, self.number))
+
+    def execute(self):
+        self.publish_random_number()
+        self.spin()
 
 
 class SumSquaresGraph(Graph):
@@ -24,13 +59,27 @@ def main(argv):
     """Sums the squares of 2 numbers. """
 
     graph = erdos.graph.get_current_graph()
-    sub_graph = graph.add(SumSquaresGraph, name='sum_squares')
+    sub_graph = graph.add(SumSquaresGraph, name="sum_squares")
     # sub_graph = SumSquaresGraph(name="sum_squares", parent=graph)
 
     # Add operators
-    int1 = graph.add(IntegerOp, name='int1', init_args={'number': 1})
-    int2 = graph.add(IntegerOp, name='int2', init_args={'number': 2})
-    square_op = graph.add(SquareOp, name='default_square')
+    int1 = graph.add(
+        IntegerOp,
+        name="int1",
+        init_args={
+            "number": 1,
+            "stream_name": "int1_out"
+        },
+        setup_args={"stream_name": "int1_out"})
+    int2 = graph.add(
+        IntegerOp,
+        name="int2",
+        init_args={
+            "number": 2,
+            "stream_name": "int2_out"
+        },
+        setup_args={"stream_name": "int2_out"})
+    square_op = graph.add(SquareOp, name="default_square")
 
     # Connect operators
     graph.connect([int1, int2], [sub_graph])
