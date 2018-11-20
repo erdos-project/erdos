@@ -61,3 +61,6 @@ class Timestamp(object):
 
     def __ge__(self, timestamp):
         return not self.__lt__(timestamp)
+
+    def __hash__(self):
+        return hash(tuple(self.coordinates))
