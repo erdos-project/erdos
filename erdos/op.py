@@ -97,7 +97,10 @@ class Op(object):
 
     def _internal_setup_streams(self):
         """Setups input and output streams."""
-        for input_stream in self.input_streams:
-            input_stream.setup()
+        # Set up output streams before input streams.
+        # This prevents errors where the operator recieves a message, executes
+        # the callback, and sends a message before output streams are set up.
         for output_stream in self.output_streams.values():
             output_stream.setup()
+        for input_stream in self.input_streams:
+            input_stream.setup()
