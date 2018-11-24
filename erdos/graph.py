@@ -89,6 +89,12 @@ class Graph(object):
         Args:
             input_ops (list of Op): Operators that publish on
         """
+        # Check that all operators are children of the current graph
+        for op_id in input_ops + output_ops:
+            handle = self.op_handles[op_id]
+            assert handle.graph_name == self.graph_name, \
+                    'Can only connect operators for which graph {} is the parent'.format(self.graph_name)
+
         for op_id in input_ops:
             handle = self.op_handles[op_id]
             handle.dependant_ops += output_ops
