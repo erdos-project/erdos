@@ -2,7 +2,6 @@ from __future__ import print_function
 
 from absl import app
 from absl import flags
-import numpy as np
 
 try:
     from std_msgs.msg import Int64
@@ -10,13 +9,8 @@ except ModuleNotFoundError:
     # ROS not installed
     Int64 = int
 
-from erdos.data_stream import DataStream
 import erdos.graph
 from erdos.graph import Graph
-from erdos.op import Op
-from erdos.message import Message
-from erdos.timestamp import Timestamp
-from erdos.utils import frequency
 
 from sum_squares_test import IntegerOp, SquareOp, SumOp
 
@@ -33,8 +27,10 @@ class SquaredIntGraph(Graph):
 
 class SumSquaresGraph(Graph):
     def construct(self, input_ops):
-        square1_graph = self.add(SquaredIntGraph, name='square1', setup_args={'number': 1})
-        square2_graph = self.add(SquaredIntGraph, name='square2', setup_args={'number': 2})
+        square1_graph = self.add(
+            SquaredIntGraph, name='square1', setup_args={'number': 1})
+        square2_graph = self.add(
+            SquaredIntGraph, name='square2', setup_args={'number': 2})
         sum_op = self.add(SumOp, name='sum')
 
         self.connect([square1_graph, square2_graph], [sum_op])
