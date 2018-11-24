@@ -1,7 +1,9 @@
 from __future__ import print_function
 
+import time
 from absl import app
 from absl import flags
+from multiprocessing import Process
 
 try:
     from std_msgs.msg import Int64
@@ -38,7 +40,7 @@ class SumSquaresGraph(Graph):
         return [sum_op]
 
 
-def main(argv):
+def run_graph():
     """Sums the squares of 2 numbers. """
 
     # Set up graph
@@ -53,6 +55,13 @@ def main(argv):
 
     # Execute graph
     graph.execute(FLAGS.framework)
+
+
+def main(argv):
+    proc = Process(target=run_graph)
+    proc.start()
+    time.sleep(10)
+    proc.terminate()
 
 
 if __name__ == "__main__":

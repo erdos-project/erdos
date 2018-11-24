@@ -1,7 +1,9 @@
 from __future__ import print_function
 
+import time
 from absl import app
 from absl import flags
+from multiprocessing import Process
 import numpy as np
 
 try:
@@ -55,12 +57,11 @@ class SumSquaresGraph(Graph):
         return [sum_op]
 
 
-def main(argv):
+def run_graph(argv):
     """Sums the squares of 2 numbers. """
 
     graph = erdos.graph.get_current_graph()
     sub_graph = graph.add(SumSquaresGraph, name="sum_squares")
-    # sub_graph = SumSquaresGraph(name="sum_squares", parent=graph)
 
     # Add operators
     int1 = graph.add(
@@ -87,6 +88,13 @@ def main(argv):
 
     # Execute graph
     graph.execute(FLAGS.framework)
+
+
+def main():
+    proc = Process(target=run_graph)
+    proc.start()
+    time.sleep(10)
+    proc.terminate()
 
 
 if __name__ == "__main__":
