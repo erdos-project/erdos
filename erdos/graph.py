@@ -25,6 +25,9 @@ class Graph(object):
 
     Cyclical graphs are supported.
 
+    By default, each graph generates an input operator and an output operator
+    which are used to implement `graph.construct`.
+
     Attributes:
         operators (dict of str -> Op): A mapping of operator name to operator.
         framework (str): The name of the framework to use to execute the
@@ -43,8 +46,8 @@ class Graph(object):
         self.framework = "ray"
 
         # TODO(peter): fix this once the nested graph API switches to setup_streams
-        self.input_op = self.add(NoopOp)
-        self.output_op = self.add(NoopOp)
+        self.input_op = self.add(NoopOp, name='input_op')
+        self.output_op = self.add(NoopOp, name='output_op')
 
     def add(self, op_cls, name="", init_args=None, setup_args=None):
         """Adds an operator to the execution graph.
