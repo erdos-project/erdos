@@ -90,7 +90,7 @@ def run_graph(argv):
     graph.execute(FLAGS.framework)
 
 
-def main():
+def main(argv):
     proc = Process(target=run_graph)
     proc.start()
     time.sleep(10)
