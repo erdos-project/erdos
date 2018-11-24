@@ -13,6 +13,7 @@ python:
 
 before_script:
   - ./install_dependencies.sh
+  - pip install pytest
   - source /opt/ros/kinetic/setup.bash
   - export PYTHONPATH=$PYTHONPATH:$(pwd)
 
