@@ -13,6 +13,7 @@ from erdos.utils import log_graph_to_dot_file
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('ray_redis_address', '', 'Address of the Ray redis master')
+flags.DEFINE_bool('log_graph', False, 'True to enable graph dot file logging')
 
 
 class Graph(object):
@@ -128,8 +129,9 @@ class Graph(object):
             op_handle.framework = self.framework
 
         # 4. Logging
-        log_graph_to_dot_file('erdos.gv', self.op_handles.keys(),
-                              self._get_edges())
+        if FLAGS.log_graph:
+            log_graph_to_dot_file('erdos.gv', self.op_handles.keys(),
+                                  self._get_edges())
 
         # 5. Create executors in postorder.
         executors = self._create_executors()
