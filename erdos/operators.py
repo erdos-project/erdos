@@ -588,10 +588,17 @@ class NoopOp(Op):
 
     @staticmethod
     def setup_streams(input_streams, **kwargs):
-        # NOTE: if 2 input streams have identical names,
-        # outputs will be published on both streams
+        """Note: does not support duplicate stream names"""
+        stream_names = set()
+        output_streams = []
+        for input_stream in input_streams._streams:
+            # Make sure no 2 streams have identical names
+            assert input_stream.name not in stream_names, "NoopOp does not support multiple input streams with identical names"
+            stream_names.add(input_stream.name)
+            output_stream = DataStream(input_stream.data_type,
+                                       input_stream.name, input_stream.labels)
+            output_streams.append(output_stream)
+
         input_streams.add_callback(NoopOp.on_msg)
-        return [
-            DataStream(s.data_type, s.name, s.labels)
-            for s in input_streams._streams
-        ]
+
+        return output_streams
