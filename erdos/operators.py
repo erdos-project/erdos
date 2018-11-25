@@ -167,8 +167,7 @@ class FileWriterOp(Op):
         self._output_file.close()
 
     @staticmethod
-    def setup_streams(input_streams,
-                      filter_stream_lambda=None):
+    def setup_streams(input_streams, filter_stream_lambda=None):
         input_streams.filter(filter_stream_lambda).add_callback(
             FileWriterOp.on_msg)
         return []
@@ -581,3 +580,25 @@ class WindowOp(Op):
     def execute(self):
         self.fire_triggers()
         self.spin()
+
+
+class NoopOp(Op):
+    def on_msg(self, msg):
+        self.get_output_stream(msg.stream_name).send(msg)
+
+    @staticmethod
+    def setup_streams(input_streams, **kwargs):
+        """Note: does not support duplicate stream names"""
+        stream_names = set()
+        output_streams = []
+        for input_stream in input_streams._streams:
+            # Make sure no 2 streams have identical names
+            assert input_stream.name not in stream_names, "NoopOp does not support multiple input streams with identical names"
+            stream_names.add(input_stream.name)
+            output_stream = DataStream(input_stream.data_type,
+                                       input_stream.name, input_stream.labels)
+            output_streams.append(output_stream)
+
+        input_streams.add_callback(NoopOp.on_msg)
+
+        return output_streams

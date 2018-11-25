@@ -7,9 +7,11 @@ import time
 from absl import flags
 
 from erdos.op_handle import OpHandle
+from erdos.graph_handle import GraphHandle
 from erdos.data_streams import DataStreams
 from erdos.local.local_executor import LocalExecutor
 from erdos.utils import log_graph_to_dot_file
+from erdos.operators import NoopOp
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('ray_redis_address', '', 'Address of the Ray redis master')
@@ -24,6 +26,9 @@ class Graph(object):
 
     Cyclical graphs are supported.
 
+    By default, each graph generates an input operator and an output operator
+    which are used to implement `graph.construct`.
+
     Attributes:
         operators (dict of str -> Op): A mapping of operator name to operator.
         framework (str): The name of the framework to use to execute the
@@ -35,10 +40,15 @@ class Graph(object):
     def __init__(self, name="default", parent=None):
         self.graph_name = name if name else "{0}_{1}".format(
             self.__class__.__name__, hash(self))
+        self.parent = parent
         self.op_handles = {}
+        self.graph_handles = {}
         self.output_stream_to_op_id_sinks = {}
         self.framework = "ray"
-        self.parent = parent
+
+        # TODO(peter): fix this once the nested graph API switches to setup_streams
+        self.input_op = self.add(NoopOp, name='input_op')
+        self.output_op = self.add(NoopOp, name='output_op')
 
     def add(self, op_cls, name="", init_args=None, setup_args=None):
         """Adds an operator to the execution graph.
@@ -55,11 +65,18 @@ class Graph(object):
         Returns:
             (str): Unique operator identifier.
         """
-        handle = OpHandle(name, op_cls, init_args, setup_args, self.graph_name)
+        if issubclass(op_cls, Graph):
+            handle = GraphHandle(name, op_cls, init_args, setup_args,
+                                 self.graph_name, self)
+        else:
+            handle = OpHandle(name, op_cls, init_args, setup_args,
+                              self.graph_name)
         op_id = handle.get_uid()
         assert (op_id not in self.op_handles), \
             'Duplicate operator name {}. Ensure name uniqueness ' \
             'or do not operator specify name'.format(handle.name)
+        if issubclass(op_cls, Graph):
+            self.graph_handles[op_id] = handle
         self.op_handles[op_id] = handle
         return op_id
 
@@ -73,11 +90,17 @@ class Graph(object):
         Args:
             input_ops (list of Op): Operators that publish on
         """
+        # Check that all operators are children of the current graph
+        for op_id in input_ops + output_ops:
+            handle = self.op_handles[op_id]
+            assert handle.graph_name == self.graph_name, \
+                    'Can only connect operators for which graph {} is the parent'.format(self.graph_name)
+
         for op_id in input_ops:
             handle = self.op_handles[op_id]
             handle.dependant_ops += output_ops
 
-    def construct(self, input_ops):
+    def construct(self, input_ops, **kwargs):
         """Constructs a graph
 
         Args:
@@ -115,6 +138,8 @@ class Graph(object):
             framework (str): The name of the framework to use to execute the
                 operators. Either ROS or Ray.
         """
+        # 0. Setup subgraphs
+        self._flatten_subgraphs()
 
         # 1. Build refined stream graph.
         self._build_refined_op_graph()
@@ -160,6 +185,19 @@ class Graph(object):
             # TODO(yika): FIX! Temporary solution to keep Ray master running.
             while True:
                 time.sleep(5)
+
+    def _flatten_subgraphs(self):
+        """Set up subgraphs"""
+        # TODO(peter) fix this after graphs implement setup_streams
+        for graph_id, graph_handle in self.graph_handles.items():
+            # Instantiate child graph
+            subgraph = graph_handle.setup_graph()
+            # Flatten grandchildren
+            subgraph._flatten_subgraphs()
+            # Add child op handles
+            self.op_handles.update(subgraph.op_handles)
+            # Point graph_id to child's input op
+            self.op_handles[graph_id] = self.op_handles.pop(subgraph.input_op)
 
     def _build_refined_op_graph(self):
         """Refines the operator graph.

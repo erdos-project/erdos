@@ -21,6 +21,7 @@ class RayOutputDataStream(DataStream):
         """
         self._op.log_event(time.time(), msg.timestamp,
                            'send {}'.format(self.name))
+        msg.stream_name = self.name
         msg.stream_uid = self.uid
         for on_msg_func in self._dependant_op_on_msg:
             on_msg_func.remote(msg)
