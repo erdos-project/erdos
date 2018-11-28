@@ -25,7 +25,7 @@ class RayOperator(object):
     def __init__(self, op_handle):
         # Init ERDOS operator.
         try:
-            self._op = op_handle.op_cls(op_handle.name
+            self._op = op_handle.op_cls(op_handle.name,
                                         **op_handle.init_args)
             self._op.log_input_streams = op_handle.log_input_streams
             self._op.log_output_streams = op_handle.log_output_streams

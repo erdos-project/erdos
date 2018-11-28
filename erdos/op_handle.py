@@ -5,11 +5,11 @@ class OpHandle(object):
                  init_args,
                  setup_args,
                  graph_name,
+                 log_input_streams,
+                 log_output_streams,
                  framework='ray',
                  machine="",
-                 resources=None,
-                 log_input_streams=False,
-                 log_output_streams=False):
+                 resources=None):
         # Ensure op name uniqueness
         self.name = name if name else "{0}_{1}".format(
             op_cls.__class__.__name__, hash(self))

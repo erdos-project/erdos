@@ -96,6 +96,8 @@ class Op(object):
     def _init_logger(self, stream_uid):
         logger = logging.getLogger(stream_uid)
         logger.setLevel(logging.INFO)
+        stream_handler = logging.StreamHandler(sys.stdout)
+        logger.addHandler(stream_handler)
         filename = "{}.log".format(stream_uid)
         file_handler = logging.FileHandler(filename, "a")
         logger.addHandler(file_handler)
