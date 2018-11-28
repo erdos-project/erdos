@@ -95,23 +95,31 @@ class Op(object):
         pass
 
     def log_streams(self, stream_uid, msg):
-        if stream_uid not in self.loggers:
-            logger = logging.getLogger(self.name)
-            logger.setLevel(logging.INFO)
-            file_handler = logging.FileHandler(stream_uid + ".log", "a")
-            logger.addHandler(file_handler)
-            logger.propagate = False
-            self.loggers[stream_uid] = logger
         self.loggers[stream_uid].info(msg)
+
+    def _init_logger(self, stream_uid):
+        logger = logging.getLogger(stream_uid)
+        logger.setLevel(logging.INFO)
+        filename = "{}.log".format(stream_uid)
+        file_handler = logging.FileHandler(filename, "a")
+        logger.addHandler(file_handler)
+        logger.propagate = False
+        self.loggers[stream_uid] = logger
+        print("[Logger] Logging stream {} in file {}".format(stream_uid, filename))
 
     def _add_input_streams(self, input_streams):
         """Setups and updates all input streams."""
         self.input_streams = self.input_streams + input_streams
+        if self.log_input:
+            for stream in self.input_streams:
+                self._init_logger(stream.uid)
 
     def _add_output_streams(self, output_streams):
         """Updates the dictionary of output data streams."""
         for output_stream in output_streams:
             self.output_streams[output_stream.name] = output_stream
+            if self.log_input:
+                self._init_logger(output_stream.uid)
 
     def _internal_setup_streams(self):
         """Setups input and output streams."""
