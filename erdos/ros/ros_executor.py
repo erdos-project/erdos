@@ -37,6 +37,8 @@ class ROSExecutor(Executor):
         # Init op.
         try:
             op = self.op_handle.op_cls(self.op_handle.name,
+                                       log_input_streams=self.op_handle.log_input_streams,
+                                       log_output_streams=self.op_handle.log_output_streams,
                                        **self.op_handle.init_args)
             op.framework = self.op_handle.framework
         except TypeError as e:

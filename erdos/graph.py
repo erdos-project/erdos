@@ -74,7 +74,9 @@ class Graph(object):
                                  self.graph_name, self)
         else:
             handle = OpHandle(name, op_cls, init_args, setup_args,
-                              self.graph_name)
+                              self.graph_name,
+                              log_input_streams=log_input_streams,
+                              log_output_streams=log_output_streams)
         op_id = handle.get_uid()
         assert (op_id not in self.op_handles), \
             'Duplicate operator name {}. Ensure name uniqueness ' \

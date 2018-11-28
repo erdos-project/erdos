@@ -7,7 +7,9 @@ class OpHandle(object):
                  graph_name,
                  framework='ray',
                  machine="",
-                 resources=None):
+                 resources=None,
+                 log_input_streams=False,
+                 log_output_streams=False):
         # Ensure op name uniqueness
         self.name = name if name else "{0}_{1}".format(
             op_cls.__class__.__name__, hash(self))
@@ -26,6 +28,8 @@ class OpHandle(object):
         self.dependent_op_handles = {}
         self.executor_handle = None
         self.progress_tracker = None  # Unused now
+        self.log_input_streams = log_input_streams
+        self.log_output_streams = log_output_streams
 
     def get_uid(self):
         # TODO(yika): return a better handle than graph_name/op_name
