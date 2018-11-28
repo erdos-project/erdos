@@ -50,7 +50,11 @@ class Graph(object):
         self.input_op = self.add(NoopOp, name='input_op')
         self.output_op = self.add(NoopOp, name='output_op')
 
-    def add(self, op_cls, name="", init_args=None, setup_args=None):
+    def add(self, op_cls, name="",
+            init_args=None,
+            setup_args=None,
+            log_input_streams=False,
+            log_output_streams=False):
         """Adds an operator to the execution graph.
 
         Args:

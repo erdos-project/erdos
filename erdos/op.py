@@ -1,4 +1,5 @@
 import logging
+import sys
 from time import sleep
 
 
@@ -24,13 +25,20 @@ class Op(object):
         freq_actor: A Ray actor used for periodic tasks.
     """
 
-    def __init__(self, name):
+    def __init__(self, name,
+                 log_input_streams=False,
+                 log_output_streams=False):
         self.name = name
         self.input_streams = []
         self.output_streams = {}
         self.freq_actor = None
         self.progress_tracker = None
         self.framework = None
+
+        # Setup loggers.
+        self.log_input = log_input_streams
+        self.log_output = log_output_streams
+        self.loggers = {}
 
     def get_output_stream(self, name):
         """Returns the output stream matching name"""
@@ -85,6 +93,16 @@ class Op(object):
 
     def log_event(self, processing_time, timestamp, log_message=None):
         pass
+
+    def log_streams(self, stream_uid, msg):
+        if stream_uid not in self.loggers:
+            logger = logging.getLogger(self.name)
+            logger.setLevel(logging.INFO)
+            file_handler = logging.FileHandler(stream_uid + ".log", "a")
+            logger.addHandler(file_handler)
+            logger.propagate = False
+            self.loggers[stream_uid] = logger
+        self.loggers[stream_uid].info(msg)
 
     def _add_input_streams(self, input_streams):
         """Setups and updates all input streams."""
