@@ -25,19 +25,15 @@ class Op(object):
         freq_actor: A Ray actor used for periodic tasks.
     """
 
-    def __init__(self, name,
-                 log_input_streams=False,
-                 log_output_streams=False):
+    def __init__(self, name):
         self.name = name
         self.input_streams = []
         self.output_streams = {}
         self.freq_actor = None
         self.progress_tracker = None
         self.framework = None
-
-        # Setup loggers.
-        self.log_input = log_input_streams
-        self.log_output = log_output_streams
+        self.log_input = None
+        self.log_output = None
         self.loggers = {}
 
     def get_output_stream(self, name):

@@ -25,10 +25,10 @@ class RayOperator(object):
     def __init__(self, op_handle):
         # Init ERDOS operator.
         try:
-            self._op = op_handle.op_cls(op_handle.name,
-                                        log_input_streams=self.op_handle.log_input_streams,
-                                        log_output_streams=self.op_handle.log_output_streams,
+            self._op = op_handle.op_cls(op_handle.name
                                         **op_handle.init_args)
+            self._op.log_input_streams = op_handle.log_input_streams
+            self._op.log_output_streams = op_handle.log_output_streams
             self._op.framework = op_handle.framework
         except TypeError as e:
             if len(e.args) > 0 and e.args[0].startswith("__init__"):
