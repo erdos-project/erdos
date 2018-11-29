@@ -1,5 +1,6 @@
 import sys
 from time import sleep
+import logging
 
 from utils import setup_logging
 
@@ -94,31 +95,19 @@ class Op(object):
     def log_streams(self, stream_uid, msg):
         self.loggers[stream_uid].info(msg)
 
-    # def _init_logger(self, stream_uid):
-    #     logger = logging.getLogger(stream_uid)
-    #     logger.setLevel(logging.INFO)
-    #     stream_handler = logging.StreamHandler(sys.stdout)
-    #     logger.addHandler(stream_handler)
-    #     filename = "{}.log".format(stream_uid)
-    #     file_handler = logging.FileHandler(filename, "a")
-    #     logger.addHandler(file_handler)
-    #     logger.propagate = False
-    #     self.loggers[stream_uid] = logger
-    #     print("[Logger] Logging stream {} in file {}".format(stream_uid, filename))
-
     def _add_input_streams(self, input_streams):
         """Setups and updates all input streams."""
         self.input_streams = self.input_streams + input_streams
         if self.log_input:
             for stream in self.input_streams:
-                setup_logging(stream.uid, log_file="{}.log".format(stream.uid))
+                self.loggers[stream.uid] = setup_logging(stream.uid, log_file="{}.log".format(stream.uid))
 
     def _add_output_streams(self, output_streams):
         """Updates the dictionary of output data streams."""
-        for output_stream in output_streams:
-            self.output_streams[output_stream.name] = output_stream
+        for stream in output_streams:
+            self.output_streams[stream.name] = stream
             if self.log_input:
-                setup_logging(output_stream.uid, log_file="{}.log".format(output_stream.uid))
+                self.loggers[stream.uid] = setup_logging(stream.uid, log_file="{}.log".format(stream.uid))
 
     def _internal_setup_streams(self):
         """Setups input and output streams."""

@@ -76,6 +76,8 @@ def setup_logging(name, log_file=None):
     if log_file is None:
         handler = logging.StreamHandler()
     else:
+        temp = log_file.split('/')
+        log_file = '_'.join(temp)
         handler = logging.FileHandler(log_file)
     handler.setLevel(logging.DEBUG)
 
@@ -86,6 +88,7 @@ def setup_logging(name, log_file=None):
     logger = logging.getLogger(name)
     logger.addHandler(handler)
     logger.propagate = False
+    print("[Logger {}] logging in file {}.".format(name, log_file))
     return logger
 
 
