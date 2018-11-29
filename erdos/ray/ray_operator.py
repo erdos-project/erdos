@@ -47,7 +47,7 @@ class RayOperator(object):
         self._op.log_event(time.time(), msg.timestamp,
                            'receive {}'.format(msg.stream_name))
         if self._op.log_input:
-            self._op.log_streams(self.uid, msg)
+            self._op.log_streams(msg.stream_uid, msg)
         for cb in self._callbacks.get(msg.stream_uid, []):
             cb(msg)
 

@@ -20,6 +20,8 @@ python tests/nested_graph_test.py --framework=ros
 if [ $? -ne 0 ] ; then exit 1 ; fi
 python tests/subgraph_test.py --framework=ros
 if [ $? -ne 0 ] ; then exit 1 ; fi
+python tests/logging_test.py --framework=ros
+if [ $? -ne 0 ] ; then exit 1 ; fi
 
 # Test Ray
 python tests/communication_pattern_test.py --framework=ray --case=1-1
@@ -37,4 +39,6 @@ if [ $? -ne 0 ] ; then exit 1 ; fi
 python tests/nested_graph_test.py --framework=ray
 if [ $? -ne 0 ] ; then exit 1 ; fi
 python tests/subgraph_test.py --framework=ray
+if [ $? -ne 0 ] ; then exit 1 ; fi
+python tests/logging_test.py --framework=ray
 if [ $? -ne 0 ] ; then exit 1 ; fi
