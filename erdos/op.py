@@ -106,7 +106,7 @@ class Op(object):
         """Updates the dictionary of output data streams."""
         for stream in output_streams:
             self.output_streams[stream.name] = stream
-            if self.log_input:
+            if self.log_output:
                 self.loggers[stream.uid] = setup_logging(stream.uid, log_file="{}.log".format(stream.uid))
 
     def _internal_setup_streams(self):

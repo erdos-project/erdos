@@ -51,7 +51,6 @@ class SubscriberOp(Op):
     def __init__(self, name, spin=True):
         super(SubscriberOp, self).__init__(name)
         self._cnt = 0
-        self.counts = {}
         self.is_spin = spin
 
     @staticmethod
@@ -61,14 +60,9 @@ class SubscriberOp(Op):
 
     def on_msg(self, msg):
         data = msg if type(msg) is str else msg.data
-        received_cnt = int(data.split(" ")[1])
-
-        if received_cnt not in self.counts:
-            self.counts[received_cnt] = 1
-        else:
-            self.counts[received_cnt] += 1
-
+        output_msg = Message(data, Timestamp(coordinates=[0]))
         self._cnt += 1
+        self.get_output_stream('sub_out').send(output_msg)
         print('%s received %s' % (self.name, msg))
 
     def execute(self):
@@ -80,15 +74,28 @@ class SubscriberOp(Op):
 def run_graph(spin):
 
     graph = erdos.graph.get_current_graph()
-    pub = graph.add(PublisherOp, name='publisher', log_output_streams=True)
-    sub = graph.add(
-        SubscriberOp,
-        name='subscriber',
-        init_args={'spin': spin},
-        log_input_streams=True
-        )
-    graph.connect([pub], [sub])
+
+    # Log output of source op and input of sink op
+    source = graph.add(PublisherOp, name='publisher', log_output_streams=True)
+    internal = graph.add(SubscriberOp, name='subscriber',
+                         init_args={'spin': spin})
+    sink = graph.add(SubscriberOp, name='subscriber',
+                     init_args={'spin': spin},
+                     log_input_streams=True)
+
+    graph.connect([source], [internal])
+    graph.connect([internal], [sink])
     graph.execute(FLAGS.framework)
+
+    # Check correctness.
+    log_filename1 = 'default_publisher_pub_out.log'
+    log_filename2 = 'default_subscriber_sub_out.log'
+    assert os.path.isfile(log_filename1), '{} does not exist.'.format(log_filename1)
+    assert os.path.isfile(log_filename2), '{} does not exist'.format(log_filename2)
+    line_count1 = sum(1 for _ in open(log_filename1))
+    line_count2 = sum(1 for _ in open(log_filename2))
+    assert line_count1 == 5, '{} line number is {} not {}'.format(log_filename1, str(line_count1), '5')
+    assert line_count2 == 5, '{} line number is {} not {}'.format(log_filename2, str(line_count2), '5')
 
 
 def main(argv):
