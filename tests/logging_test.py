@@ -76,10 +76,10 @@ def run_graph(spin):
     graph = erdos.graph.get_current_graph()
 
     # Log output of source op and input of sink op
-    source = graph.add(PublisherOp, name='publisher', log_output_streams=True)
-    internal = graph.add(SubscriberOp, name='subscriber',
+    source = graph.add(PublisherOp, name='source', log_output_streams=True)
+    internal = graph.add(SubscriberOp, name='internal',
                          init_args={'spin': spin})
-    sink = graph.add(SubscriberOp, name='subscriber',
+    sink = graph.add(SubscriberOp, name='sink',
                      init_args={'spin': spin},
                      log_input_streams=True)
 
@@ -88,8 +88,8 @@ def run_graph(spin):
     graph.execute(FLAGS.framework)
 
     # Check correctness.
-    log_filename1 = 'default_publisher_pub_out.log'
-    log_filename2 = 'default_subscriber_sub_out.log'
+    log_filename1 = 'default_source_pub_out.log'
+    log_filename2 = 'default_internal_sub_out.log'
     assert os.path.isfile(log_filename1), '{} does not exist.'.format(log_filename1)
     assert os.path.isfile(log_filename2), '{} does not exist'.format(log_filename2)
     line_count1 = sum(1 for _ in open(log_filename1))
