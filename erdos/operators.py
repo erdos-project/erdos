@@ -48,10 +48,10 @@ class LogOp(Op):
 
     @staticmethod
     def setup_streams(input_streams):
-        input_streams.add_callback(LogOp.record_input)
+        input_streams.add_callback(LogOp.log_input)
         return []
 
-    def.record_input(self, msg):
+    def log_input(self, msg):
         self.logger.info(msg)
 
     def execute(self):
