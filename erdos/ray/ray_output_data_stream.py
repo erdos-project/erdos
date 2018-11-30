@@ -21,8 +21,8 @@ class RayOutputDataStream(DataStream):
         """
         self._op.log_event(time.time(), msg.timestamp,
                            'send {}'.format(self.name))
-        if self._op.log_output:
-            self._op.log_streams(self.uid, msg)
+        if self._op.record_output:
+            self._op.record_streams(self.uid, msg)
         msg.stream_name = self.name
         msg.stream_uid = self.uid
         for on_msg_func in self._dependant_op_on_msg:

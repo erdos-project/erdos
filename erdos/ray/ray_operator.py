@@ -27,8 +27,8 @@ class RayOperator(object):
         try:
             self._op = op_handle.op_cls(op_handle.name,
                                         **op_handle.init_args)
-            self._op.log_input = op_handle.record_inputs
-            self._op.log_output = op_handle.record_outputs
+            self._op.record_input = op_handle.record_inputs
+            self._op.record_output = op_handle.record_outputs
             self._op.framework = op_handle.framework
         except TypeError as e:
             if len(e.args) > 0 and e.args[0].startswith("__init__"):
@@ -46,8 +46,8 @@ class RayOperator(object):
         """Invokes corresponding callback for stream stream_name."""
         self._op.log_event(time.time(), msg.timestamp,
                            'receive {}'.format(msg.stream_name))
-        if self._op.log_input:
-            self._op.log_streams(msg.stream_uid, msg)
+        if self._op.record_input:
+            self._op.record_streams(msg.stream_uid, msg)
         for cb in self._callbacks.get(msg.stream_uid, []):
             cb(msg)
 

@@ -25,8 +25,8 @@ class ROSOutputDataStream(DataStream):
         """Sending a message on a ROS stream (i.e., publishes it)."""
         self.op.log_event(time.time(), msg.timestamp,
                           'send {}'.format(self.name))
-        if self.op.log_output:
-            self.op.log_streams(self.uid, msg)
+        if self.op.record_output:
+            self.op.record_streams(self.uid, msg)
         msg.stream_name = self.name
         msg = pickle.dumps(msg)
         self.publisher.publish(msg)

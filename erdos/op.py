@@ -34,8 +34,8 @@ class Op(object):
         self.freq_actor = None
         self.progress_tracker = None
         self.framework = None
-        self.log_input = None
-        self.log_output = None
+        self.record_input = None
+        self.record_output = None
         self.recorders = {}
 
     def get_output_stream(self, name):
@@ -92,13 +92,13 @@ class Op(object):
     def log_event(self, processing_time, timestamp, log_message=None):
         pass
 
-    def log_streams(self, stream_uid, msg):
+    def record_streams(self, stream_uid, msg):
         pickle.dump(msg, self.recorders[stream_uid])
 
     def _add_input_streams(self, input_streams):
         """Setups and updates all input streams."""
         self.input_streams = self.input_streams + input_streams
-        if self.log_input:
+        if self.record_input:
             for stream in self.input_streams:
                 self.recorders[stream.uid] = setup_recorder(stream.uid, stream.data_type)
 
@@ -106,7 +106,7 @@ class Op(object):
         """Updates the dictionary of output data streams."""
         for stream in output_streams:
             self.output_streams[stream.name] = stream
-            if self.log_output:
+            if self.record_output:
                 self.recorders[stream.uid] = setup_recorder(stream.uid, stream.data_type)
 
     def _internal_setup_streams(self):

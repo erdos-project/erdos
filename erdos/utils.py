@@ -122,7 +122,7 @@ def log_graph_to_dot_file(filename, nodes, edges):
 def setup_recorder(name, record_type):
     filename = '{}.pkl'.format(name)
     if '/' in name:  # Slash will be mistaken as path path
-        filename = '_'.join(name.split('/'))
+        filename = '_'.join(filename.split('/'))
     f = open(filename, "wb")
     record_info = "record name: {}; record type: {}".format(name, str(record_type))
     pickle.dump(record_info, f)

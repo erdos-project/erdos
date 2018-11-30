@@ -33,7 +33,7 @@ class ROSInputDataStream(DataStream):
         msg = pickle.loads(msg.data)
         self.op.log_event(time.time(), msg.timestamp,
                           'receive {}'.format(self.name))
-        if self.op.log_input:
-            self.op.log_streams(self.uid, msg)
+        if self.op.record_input:
+            self.op.record_streams(self.uid, msg)
         for on_msg_callback in self.callbacks:
             on_msg_callback(self.op, msg)
