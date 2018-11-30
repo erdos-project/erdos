@@ -27,8 +27,8 @@ class RayOperator(object):
         try:
             self._op = op_handle.op_cls(op_handle.name,
                                         **op_handle.init_args)
-            self._op.log_input = op_handle.log_input_streams
-            self._op.log_output = op_handle.log_output_streams
+            self._op.log_input = op_handle.record_inputs
+            self._op.log_output = op_handle.record_outputs
             self._op.framework = op_handle.framework
         except TypeError as e:
             if len(e.args) > 0 and e.args[0].startswith("__init__"):

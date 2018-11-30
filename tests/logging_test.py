@@ -76,12 +76,12 @@ def run_graph(spin):
     graph = erdos.graph.get_current_graph()
 
     # Log output of source op and input of sink op
-    source = graph.add(PublisherOp, name='source', log_output_streams=True)
+    source = graph.add(PublisherOp, name='source', record_outputs=True)
     internal = graph.add(SubscriberOp, name='internal',
                          init_args={'spin': spin})
     sink = graph.add(SubscriberOp, name='sink',
                      init_args={'spin': spin},
-                     log_input_streams=True)
+                     record_inputs=True)
 
     graph.connect([source], [internal])
     graph.connect([internal], [sink])

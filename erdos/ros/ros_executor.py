@@ -38,8 +38,8 @@ class ROSExecutor(Executor):
         try:
             op = self.op_handle.op_cls(self.op_handle.name,
                                        **self.op_handle.init_args)
-            op.log_input = self.op_handle.log_input_streams
-            op.log_output = self.op_handle.log_output_streams
+            op.log_input = self.op_handle.record_inputs
+            op.log_output = self.op_handle.record_outputs
             op.framework = self.op_handle.framework
         except TypeError as e:
             if len(e.args) > 0 and e.args[0].startswith("__init__"):

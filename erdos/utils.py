@@ -76,8 +76,8 @@ def setup_logging(name, log_file=None):
     if log_file is None:
         handler = logging.StreamHandler()
     else:
-        temp = log_file.split('/')
-        log_file = '_'.join(temp)
+        if '/' in log_file:  # Slash will be mistaken as path path in logger
+            log_file = '_'.join(log_file.split('/'))
         handler = logging.FileHandler(log_file)
     handler.setLevel(logging.DEBUG)
 
@@ -117,3 +117,10 @@ def log_graph_to_dot_file(filename, nodes, edges):
     # dot footer
     dot_file.write("}")
     dot_file.close()
+
+
+def setup_recorder(name):
+    if '/' in name:  # Slash will be mistaken as path path
+        name = '_'.join(name.split('/'))
+    f = open('{}.pkl'.format(name), "wb")
+    return f

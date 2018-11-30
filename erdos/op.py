@@ -1,8 +1,8 @@
-import sys
 from time import sleep
 import logging
+import pickle
 
-from utils import setup_logging
+from utils import setup_recorder
 
 
 class Op(object):
@@ -36,7 +36,7 @@ class Op(object):
         self.framework = None
         self.log_input = None
         self.log_output = None
-        self.loggers = {}
+        self.recorders = {}
 
     def get_output_stream(self, name):
         """Returns the output stream matching name"""
@@ -93,21 +93,21 @@ class Op(object):
         pass
 
     def log_streams(self, stream_uid, msg):
-        self.loggers[stream_uid].info(msg)
+        pickle.dump(msg, self.recorders[stream_uid])
 
     def _add_input_streams(self, input_streams):
         """Setups and updates all input streams."""
         self.input_streams = self.input_streams + input_streams
         if self.log_input:
             for stream in self.input_streams:
-                self.loggers[stream.uid] = setup_logging(stream.uid, log_file="{}.log".format(stream.uid))
+                self.recorders[stream.uid] = setup_recorder(stream.uid)
 
     def _add_output_streams(self, output_streams):
         """Updates the dictionary of output data streams."""
         for stream in output_streams:
             self.output_streams[stream.name] = stream
             if self.log_output:
-                self.loggers[stream.uid] = setup_logging(stream.uid, log_file="{}.log".format(stream.uid))
+                self.recorders[stream.uid] = setup_recorder(stream.uid)
 
     def _internal_setup_streams(self):
         """Setups input and output streams."""

@@ -5,8 +5,8 @@ class OpHandle(object):
                  init_args,
                  setup_args,
                  graph_name,
-                 log_input_streams,
-                 log_output_streams,
+                 record_inputs,
+                 record_outputs,
                  framework='ray',
                  machine="",
                  resources=None):
@@ -28,8 +28,8 @@ class OpHandle(object):
         self.dependent_op_handles = {}
         self.executor_handle = None
         self.progress_tracker = None  # Unused now
-        self.log_input_streams = log_input_streams
-        self.log_output_streams = log_output_streams
+        self.record_inputs = record_inputs
+        self.record_outputs = record_outputs
 
     def get_uid(self):
         # TODO(yika): return a better handle than graph_name/op_name

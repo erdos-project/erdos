@@ -53,8 +53,8 @@ class Graph(object):
     def add(self, op_cls, name="",
             init_args=None,
             setup_args=None,
-            log_input_streams=False,
-            log_output_streams=False):
+            record_inputs=False,
+            record_outputs=False):
         """Adds an operator to the execution graph.
 
         Args:
@@ -75,8 +75,8 @@ class Graph(object):
         else:
             handle = OpHandle(name, op_cls, init_args, setup_args,
                               self.graph_name,
-                              log_input_streams,
-                              log_output_streams)
+                              record_inputs,
+                              record_outputs)
         op_id = handle.get_uid()
         assert (op_id not in self.op_handles), \
             'Duplicate operator name {}. Ensure name uniqueness ' \
