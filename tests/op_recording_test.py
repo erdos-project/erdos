@@ -87,16 +87,6 @@ def run_graph(spin):
     graph.connect([internal], [sink])
     graph.execute(FLAGS.framework)
 
-    # Check correctness.
-    log_filename1 = 'default_source_pub_out.log'
-    log_filename2 = 'default_internal_sub_out.log'
-    assert os.path.isfile(log_filename1), '{} does not exist.'.format(log_filename1)
-    assert os.path.isfile(log_filename2), '{} does not exist'.format(log_filename2)
-    line_count1 = sum(1 for _ in open(log_filename1))
-    line_count2 = sum(1 for _ in open(log_filename2))
-    assert line_count1 == 5, '{} line number is {} not {}'.format(log_filename1, str(line_count1), '5')
-    assert line_count2 == 5, '{} line number is {} not {}'.format(log_filename2, str(line_count2), '5')
-
 
 def main(argv):
     spin = True

@@ -100,14 +100,14 @@ class Op(object):
         self.input_streams = self.input_streams + input_streams
         if self.log_input:
             for stream in self.input_streams:
-                self.recorders[stream.uid] = setup_recorder(stream.uid)
+                self.recorders[stream.uid] = setup_recorder(stream.uid, stream.data_type)
 
     def _add_output_streams(self, output_streams):
         """Updates the dictionary of output data streams."""
         for stream in output_streams:
             self.output_streams[stream.name] = stream
             if self.log_output:
-                self.recorders[stream.uid] = setup_recorder(stream.uid)
+                self.recorders[stream.uid] = setup_recorder(stream.uid, stream.data_type)
 
     def _internal_setup_streams(self):
         """Setups input and output streams."""

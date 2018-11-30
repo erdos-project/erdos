@@ -1,4 +1,5 @@
 import logging
+import pickle
 import time
 from functools import wraps
 from threading import Thread, Condition
@@ -88,7 +89,6 @@ def setup_logging(name, log_file=None):
     logger = logging.getLogger(name)
     logger.addHandler(handler)
     logger.propagate = False
-    print("[Logger {}] logging in file {}.".format(name, log_file))
     return logger
 
 
@@ -119,8 +119,11 @@ def log_graph_to_dot_file(filename, nodes, edges):
     dot_file.close()
 
 
-def setup_recorder(name):
+def setup_recorder(name, record_type):
+    filename = '{}.pkl'.format(name)
     if '/' in name:  # Slash will be mistaken as path path
-        name = '_'.join(name.split('/'))
-    f = open('{}.pkl'.format(name), "wb")
+        filename = '_'.join(name.split('/'))
+    f = open(filename, "wb")
+    record_info = "record name: {}; record type: {}".format(name, str(record_type))
+    pickle.dump(record_info, f)
     return f
