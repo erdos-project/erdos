@@ -1,9 +1,5 @@
-FROM nvidia/cudagl:9.2-devel-ubuntu16.04
+FROM nvidia/cudagl:9.0-devel-ubuntu16.04
 MAINTAINER Sukrit Kalra (sukrit.kalra@berkeley.edu)
-
-# Copy the erdos directory
-RUN mkdir -p /home/erdos/workspace/erdos/
-ADD . /home/erdos/workspace/erdos
 
 # Set up a erdos user first.
 RUN apt-get -y update && apt-get -y install sudo
@@ -16,6 +12,7 @@ RUN useradd -r -u ${uid} -g erdos erdos
 RUN echo "erdos ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/erdos
 RUN chmod 0440 /etc/sudoers.d/erdos
 RUN chown ${uid}:${gid} -R /home/erdos
+
 
 USER erdos
 ENV HOME /home/erdos
@@ -37,7 +34,14 @@ RUN sudo apt-get -y install python-rosinstall
 
 # Set up the pylot code.
 RUN sudo apt-get install -y python-pip
-RUN pip install absl-py ray gdown
+RUN pip install absl-py ray gdown open3d-original torch torchvision tensorflow-gpu==1.12
+
+# Get the erdos directory.
+RUN sudo apt-get -y install git
+RUN mkdir -p /home/erdos/workspace
+RUN cd /home/erdos/workspace && git clone --recursive https://github.com/erdos-project/erdos.git
+WORKDIR /home/erdos/workspace/erdos
+RUN cd /home/erdos/workspace/erdos && pip install -r requirements.txt
 
 # Retrieve CARLA
 RUN cd /home/erdos/workspace/ && /home/erdos/.local/bin/gdown https://drive.google.com/uc?id=18OaDbQ2K9Dcs25d-nIxpw3GPRHhG1r_2
@@ -47,9 +51,14 @@ ENV SDL_VIDEODRIVER offscreen
 
 # Get the models.
 RUN sudo apt-get install -y wget
-RUN cd /home/erdos/workspace/erdos/examples/pylot/dependencies/data && wget https://www.dropbox.com/s/i6v54gng0rao6ff/drn_d_22_cityscapes.pth && wget https://pjreddie.com/media/files/yolov3.weights
+RUN cd /home/erdos/workspace/erdos/examples/pylot/dependencies/ && ./get_models.sh
+
+# Export PYTHONPATH
 RUN echo "export PYTHONPATH=$PYTHONPATH:/home/erdos/workspace/erdos:/home/erdos/workspace/erdos/examples/pylot/dependencies:/home/erdos/workspace/CARLA_0.8.4/PythonClient" >> ~/.bashrc
+
 RUN pip install pillow scipy pid_controller protobuf
+
+# Install YOLO
 RUN sudo apt-get install -y python-opencv
 RUN cd /home/erdos/workspace && git clone https://github.com/madhawav/YOLO3-4-Py.git
 RUN cd /home/erdos/workspace/YOLO3-4-Py/ && sed -i 's/exist_ok=True//g' util.py
@@ -60,7 +69,6 @@ RUN echo "export GPU=1" >> ~/.bashrc
 RUN echo "export PATH=$PATH:/usr/local/cuda/bin" >> ~/.bashrc
 RUN cd /home/erdos/workspace/YOLO3-4-Py/ && python3 setup.py build_ext --inplace
 RUN cd /home/erdos/workspace/YOLO3-4-Py/ && pip install .
-RUN cd /home/erdos/workspace/erdos && pip install -r requirements.txt
 
 # Source the ROS setup script at the init of the shell.
 RUN echo "source /opt/ros/kinetic/setup.bash" >> ~/.bashrc
