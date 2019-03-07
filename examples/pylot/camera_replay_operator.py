@@ -15,14 +15,16 @@ class CameraReplayOperator(Op):
     def __init__(self, name):
         super(CameraReplayOperator, self).__init__(name)
         self._logger = setup_logging(self.name)
-        self._cnt = 0
+        self._cnt = 1
         self._image = None
 
     @staticmethod
     def setup_streams(input_streams, op_name):
-        return [DataStream(data_type=Image, name='{}_output'.format(op_name))]
+        return [DataStream(data_type=Image,
+                           name='{}_output'.format(op_name),
+                           labels={'camera': 'true'})]
 
-    @frequency(0.1)
+    @frequency(10)
     def publish_frame(self):
         """Publish mock camera frames."""
         cv_image = self.read_image(self._cnt)
@@ -40,6 +42,7 @@ class CameraReplayOperator(Op):
 
     def read_image(self, cnt):
         img = cv2.imread('images/carla{}.jpg'.format(cnt))
+#        img = cv2.imread('images/car-cops/{:08d}.jpg'.format(cnt))
         return img
 
     def execute(self):

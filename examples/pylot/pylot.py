@@ -10,7 +10,8 @@ from detection_operator import DetectionOperator
 from fusion_operator import FusionOperator
 from fusion_verification_operator import FusionVerificationOperator
 from lidar_visualizer_op import LidarVisualizerOperator
-from object_tracker_operator import ObjectTrackerOperator
+from tracker_crt_operator import TrackerCRTOperator
+from tracker_cv2_operator import TrackerCV2Operator
 from planner.planner_operator import PlannerOperator
 from segmentation_operator import SegmentationOperator
 from segmented_video_operator import SegmentedVideoOperator
@@ -33,6 +34,7 @@ flags.DEFINE_bool('obj_detection', False,
                   'True to enable object detection operator')
 flags.DEFINE_bool('obj_tracking', False,
                   'True to enable object tracking operator')
+flags.DEFINE_string('tracker_type', 'cv2', 'Tracker type: cv2 | crt')
 flags.DEFINE_bool('fusion', False, 'True to enable fusion operator')
 flags.DEFINE_bool('traffic_light_det', False,
                   'True to enable traffic light detection operator')
@@ -211,9 +213,12 @@ def main(argv):
         graph.connect(camera_ops, [obj_detector_op])
 
         if FLAGS.obj_tracking:
-            tracker_op = graph.add(
-                ObjectTrackerOperator, name='object_tracker')
-            graph.connect([obj_detector_op], [tracker_op])
+            tracker_op = None
+            if FLAGS.tracker_type == 'cv2':
+                tracker_op = graph.add(TrackerCV2Operator, name='tracker')
+            elif FLAGS.tracker_type == 'crt':
+                tracker_op = graph.add(TrackerCRTOperator, name='tracker')
+            graph.connect(camera_ops + [obj_detector_op], [tracker_op])
 
         if FLAGS.fusion and not FLAGS.replay:
             fusion_op = graph.add(FusionOperator, name='fusion')

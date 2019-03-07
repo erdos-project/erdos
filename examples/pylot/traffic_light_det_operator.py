@@ -15,7 +15,7 @@ class TrafficLightDetOperator(Op):
         super(TrafficLightDetOperator, self).__init__(name)
         self._logger = setup_logging(self.name, 'pylot.log')
         self._bridge = None
-        self._tf_sesion = None
+        self._tf_session = None
 
     @staticmethod
     def setup_streams(input_streams):
@@ -27,7 +27,7 @@ class TrafficLightDetOperator(Op):
         image_np = self._bridge.imgmsg_to_cv2(msg.data, "bgr8")
         # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
         image_np_expanded = np.expand_dims(image_np, axis=0)
-        (boxes, scores, classes, num) = self._tf_sesion.run(
+        (boxes, scores, classes, num) = self._tf_session.run(
             [
                 self._detection_boxes, self._detection_scores,
                 self._detection_classes, self._num_detections
@@ -49,7 +49,7 @@ class TrafficLightDetOperator(Op):
                 od_graph_def.ParseFromString(serialized_graph)
                 tf.import_graph_def(od_graph_def, name='')
 
-        self._tf_sesion = tf.Session(graph=self._detection_graph)
+        self._tf_session = tf.Session(graph=self._detection_graph)
         self._image_tensor = self._detection_graph.get_tensor_by_name(
             'image_tensor:0')
         self._detection_boxes = self._detection_graph.get_tensor_by_name(
@@ -62,4 +62,4 @@ class TrafficLightDetOperator(Op):
             'num_detections:0')
 
         self.spin()
-        self._tf_sesion.close()
+        self._tf_session.close()

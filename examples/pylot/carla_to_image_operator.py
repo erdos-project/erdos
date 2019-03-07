@@ -18,7 +18,9 @@ class CarlaToImageOperator(Op):
         if filter_name:
             input_streams = input_streams.filter_name(filter_name)
         input_streams.add_callback(CarlaToImageOperator.on_msg)
-        return [DataStream(data_type=Image, name='{}_output'.format(op_name))]
+        return [DataStream(data_type=Image,
+                           name='{}_output'.format(op_name),
+                           labels={'camera': 'true'})]
 
     def on_msg(self, msg):
         bgra_image = to_bgra_array(msg.data)
