@@ -38,6 +38,7 @@ class RayOperator(object):
         # Handle to the actor
         self._handle = None
         self._callbacks = {}
+        self._completion_callbacks = {}
 
     def on_msg(self, msg):
         """Invokes corresponding callback for stream stream_name."""
@@ -46,10 +47,22 @@ class RayOperator(object):
         for cb in self._callbacks.get(msg.stream_uid, []):
             cb(msg)
 
+    def on_completion_msg(self, msg):
+        """Invokes corresponding callback for stream stream_name."""
+        self._op.log_event(time.time(), msg.timestamp,
+                           'receive watermark {}'.format(msg.stream_name))
+        for cb in self._completion_callbacks.get(msg.stream_uid, []):
+            cb(msg)
+
     def register_callback(self, stream_uid, callback_name):
         """Registers a callback for a given stream."""
         cbs = self._callbacks.get(stream_uid, [])
         self._callbacks[stream_uid] = cbs + [getattr(self._op, callback_name)]
+
+    def register_completion_callback(self, stream_uid, callback_name):
+        """Registers a watermark completion callback for a given stream."""
+        callbacks = self._completion_callbacks.get(stream_uid, [])
+        self._completion_callbacks[stream_uid] = callbacks + [getattr(self._op, callback_name)]
 
     def on_frequency(self, func_name, *args):
         """Invokes operator func_name.

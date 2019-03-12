@@ -6,11 +6,12 @@ class Message(object):
            timestamp (Timestamp): The timestamp of the message.
     """
 
-    def __init__(self, data, timestamp, stream_name='default'):
+    def __init__(self, data, timestamp, stream_name='default', watermark = False):
         self.data = data
         self.timestamp = timestamp
         self.stream_name = stream_name
+        self.watermark = watermark
 
     def __str__(self):
-        return '{{stream: {}, timestamp: {}, data: {}}}'.format(
-            self.stream_name, self.timestamp, self.data)
+        return '{{stream: {}, timestamp: {}, watermark: {}, data: {}}}'.format(
+            self.stream_name, self.timestamp, self.watermark, self.data)

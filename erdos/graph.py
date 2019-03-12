@@ -333,10 +333,10 @@ class Graph(object):
     def _init_ray(self):
         import ray
         if FLAGS.ray_redis_address == '':
-            ray.init(redirect_output=True)
+            ray.init()
         else:
             ray.init(
-                redis_address=FLAGS.ray_redis_address, redirect_output=True)
+                redis_address=FLAGS.ray_redis_address)
             time.sleep(2)
 
     def _create_executors(self):
