@@ -34,7 +34,7 @@ RUN sudo apt-get -y install python-rosinstall
 
 # Set up the pylot code.
 RUN sudo apt-get install -y python-pip
-RUN pip install absl-py ray gdown open3d-original torch torchvision tensorflow-gpu==1.12
+RUN pip install absl-py ray gdown open3d-original torch==0.4.1 torchvision==0.2.1 tensorflow-gpu==1.12
 
 # Get the erdos directory.
 RUN sudo apt-get -y install git
