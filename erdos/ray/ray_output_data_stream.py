@@ -1,6 +1,7 @@
 import time
 
 from erdos.data_stream import DataStream
+from erdos.message import WatermarkMessage
 
 
 class RayOutputDataStream(DataStream):
@@ -22,7 +23,7 @@ class RayOutputDataStream(DataStream):
         """
         msg.stream_name = self.name
         msg.stream_uid = self.uid
-        if msg.watermark:
+        if isinstance(msg, WatermarkMessage):
             self._op.log_event(time.time(), msg.timestamp,
                            'watermark send {}'.format(self.name))
             for on_completion_func in self._dependant_op_on_completion:
