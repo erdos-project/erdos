@@ -26,11 +26,15 @@ class RayExecutor(Executor):
         # decorators will turn into "wrapper", so we extract the __name__ here
         for stream in self.op_handle.input_streams:
             stream.callbacks = set([f.__name__ for f in stream.callbacks])
+            stream.completion_callbacks = set(
+                             [f.__name__ for f in stream.completion_callbacks])
         for stream in self.op_handle.output_streams:
             stream.callbacks = set([f.__name__ for f in stream.callbacks])
+            stream.completion_callbacks = set(
+                             [f.__name__ for f in stream.completion_callbacks])
 
         # Create the Ray actor wrapping the ERDOS operator.
-        ray_op = RayOperator._submit([self.op_handle], {}, num_cpus, num_gpus,
+        ray_op = RayOperator._remote([self.op_handle], {}, num_cpus, num_gpus,
                                      resources)
         # Set the actor handle in the ray operator actor.
         ray.get(ray_op.set_handle.remote(ray_op))

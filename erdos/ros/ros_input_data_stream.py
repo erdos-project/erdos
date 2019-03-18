@@ -6,6 +6,7 @@ import rospy
 from std_msgs.msg import String
 
 from erdos.data_stream import DataStream
+from erdos.message import WatermarkMessage
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,7 @@ class ROSInputDataStream(DataStream):
             name=data_stream.name,
             labels=data_stream.labels,
             callbacks=data_stream.callbacks,
+            completion_callbacks=data_stream.completion_callbacks,
             uid=data_stream.uid)
         self.op = op
 
@@ -33,5 +35,9 @@ class ROSInputDataStream(DataStream):
         msg = pickle.loads(msg.data)
         self.op.log_event(time.time(), msg.timestamp,
                           'receive {}'.format(self.name))
-        for on_msg_callback in self.callbacks:
-            on_msg_callback(self.op, msg)
+        if isinstance(msg, WatermarkMessage):
+            for on_watermark_callback in self.completion_callbacks:
+                on_watermark_callback(self.op, msg)
+        else:
+            for on_msg_callback in self.callbacks:
+                on_msg_callback(self.op, msg)

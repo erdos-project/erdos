@@ -8,6 +8,7 @@ class RayInputDataStream(DataStream):
             name=data_stream.name,
             labels=data_stream.labels,
             callbacks=data_stream.callbacks,
+            completion_callbacks=data_stream.completion_callbacks,
             uid=data_stream.uid)
         self._actor_handle = actor_handle
 
@@ -15,3 +16,7 @@ class RayInputDataStream(DataStream):
         for on_msg_callback in self.callbacks:
             self._actor_handle.register_callback.remote(
                 self.uid, on_msg_callback)
+ 
+        for on_watermark_callback in self.completion_callbacks:
+            self._actor_handle.register_completion_callback.remote(
+                self.uid, on_watermark_callback)

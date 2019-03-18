@@ -13,6 +13,7 @@ class DataStream(object):
                  name="",
                  labels=None,
                  callbacks=None,
+                 completion_callbacks=None,
                  uid=None):
         self.name = name if name else "{0}_{1}".format(self.__class__.__name__,
                                                        hash(self))
@@ -31,6 +32,11 @@ class DataStream(object):
         else:
             self.callbacks = callbacks
 
+        if completion_callbacks is None:
+            self.completion_callbacks = set([])
+        else:
+            self.completion_callbacks = completion_callbacks
+
     def add_callback(self, on_msg_cb):
         """Registers a stream callback.
 
@@ -39,6 +45,15 @@ class DataStream(object):
                 receipt of a message.
         """
         self.callbacks.add(on_msg_cb)
+
+    def add_completion_callback(self, on_watermark_cb):
+        """ Registers a watermark callback.
+
+        Args:
+            on_watermark_cb (Message -> None): Callback to be invoked upon
+                the completion of a timestamp.
+        """
+        self.completion_callbacks.add(on_watermark_cb)
 
     def send(self, msg):
         """Send a message on the stream.

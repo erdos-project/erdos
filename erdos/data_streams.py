@@ -66,3 +66,14 @@ class DataStreams(object):
         for stream in self._streams:
             stream.add_callback(callback_func)
         return self
+
+    def add_completion_callback(self, callback_func):
+        """ Registers the callback function to be called upon
+            completion of a timestamp.
+
+        Returns:
+            (DataStreams): selected data streams.
+        """
+        for stream in self._streams:
+            stream.add_completion_callback(callback_func)
+        return self
