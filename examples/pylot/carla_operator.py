@@ -1,63 +1,80 @@
+from absl import flags
 import numpy as np
 from std_msgs.msg import Float64
 
 from carla.client import CarlaClient
 from carla.sensor import Camera, Lidar
 from carla.settings import CarlaSettings
+from carla.transform import Transform
 
 from erdos.data_stream import DataStream
 from erdos.message import Message
 from erdos.op import Op
 from erdos.timestamp import Timestamp
-from erdos.utils import frequency
+from erdos.utils import frequency, setup_logging
 
 import messages
 
-# FIXME: add_camera add_lidar problem
+FLAGS = flags.FLAGS
+flags.DEFINE_string('carla_host', 'localhost', 'Carla host.')
+flags.DEFINE_integer('carla_port', 2000, 'Carla port.')
+flags.DEFINE_bool('carla_synchronous_mode', True,
+                  'Run Carla in synchronous mode.')
+flags.DEFINE_integer('carla_num_vehicles', 20, 'Carla num vehicles.')
+flags.DEFINE_integer('carla_num_pedestrians', 40, 'Carla num pedestrians.')
+flags.DEFINE_bool('carla_high_quality', False,
+                  'True to enable high quality Carla simulations.')
+flags.DEFINE_integer('carla_weather', 2,
+                     'Carla weather preset; between 1 and 14')
+flags.DEFINE_bool('carla_random_player_start', True,
+                  'True to randomly assign a car to the player')
+flags.DEFINE_integer('carla_start_player_num', 0,
+                     'Number of the assigned start player')
 
 
 class CarlaOperator(Op):
     """Provides an ERDOS interface to the CARLA simulator.
 
     Args:
-        host (str): network location of CARLA server.
-        port (int): port of CARLA server.
         synchronous_mode (bool): whether the simulator will wait for control
             input from the client.
-        num_vehicles (int): number of non-player vehicles spawned.
-        num_pedestrians (int): number of non-player pedestrians spawned.
-        quality (str): "Low" or "Epic".
     """
 
-    def __init__(self,
-                 name,
-                 host='localhost',
-                 port=2000,
-                 synchronous_mode=True,
-                 num_vehicles=20,
-                 num_pedestrians=40,
-                 quality='Low'):
+    def __init__(self, name, camera_setups=[], lidar_stream_names=[]):
         super(CarlaOperator, self).__init__(name)
-        self.host = host
-        self.port = port
+        self._logger = setup_logging(self.name, FLAGS.log_file_name)
         self.message_num = 0
-
+        if FLAGS.carla_high_quality:
+            quality = 'Epic'
+        else:
+            quality = 'Low'
         self.settings = CarlaSettings()
         self.settings.set(
-            SynchronousMode=synchronous_mode,
+            SynchronousMode=FLAGS.carla_synchronous_mode,
             SendNonPlayerAgentsInfo=True,
-            NumberOfVehicles=num_vehicles,
-            NumberOfPedestrians=num_pedestrians,
-            WeatherId=np.random.choice([1, 3, 7, 8, 14]),
+            NumberOfVehicles=FLAGS.carla_num_vehicles,
+            NumberOfPedestrians=FLAGS.carla_num_pedestrians,
+            WeatherId=FLAGS.carla_weather,
             QualityLevel=quality)
         self.settings.randomize_seeds()
-        self.camera_streams = []
         self.lidar_streams = []
+        for (camera_stream_name, camera_type) in camera_setups:
+            self.__add_camera(name=camera_stream_name,
+                              postprocessing=camera_type)
+        for lidar_stream_name in lidar_stream_names:
+            self.__add_lidar(name=lidar_stream_name)
 
     @staticmethod
-    def setup_streams(input_streams):
+    def setup_streams(input_streams, camera_setups, lidar_stream_names):
         input_streams.add_callback(CarlaOperator.update_control)
+        camera_streams = [DataStream(name=camera,
+                                     labels={'sensor_type': 'camera',
+                                             'camera_type': camera_type})
+                          for (camera, camera_type) in camera_setups]
+        lidar_streams = [DataStream(name=lidar)
+                         for lidar in lidar_stream_names]
         return [
+            DataStream(name='world_transform'),
             DataStream(name='vehicle_pos'),
             DataStream(name='acceleration'),
             DataStream(data_type=Float64, name='forward_speed'),
@@ -69,18 +86,18 @@ class CarlaOperator(Op):
             DataStream(name='traffic_lights'),
             DataStream(name='pedestrians'),
             DataStream(name='vehicles'),
-            DataStream(name='traffic_signs')
-        ]
+            DataStream(name='traffic_signs'),
+        ] + camera_streams + lidar_streams
 
-    def add_camera(self,
-                   name,
-                   postprocessing,
-                   field_of_view=90.0,
-                   image_size=(800, 600),
-                   position=(0.3, 0, 1.3),
-                   rotation_pitch=0,
-                   rotation_roll=0,
-                   rotation_yaw=0):
+    def __add_camera(self,
+                     name,
+                     postprocessing,
+                     field_of_view=90.0,
+                     image_size=(800, 600),
+                     position=(0.3, 0, 1.3),
+                     rotation_pitch=0,
+                     rotation_roll=0,
+                     rotation_yaw=0):
         """Adds a camera and a corresponding output stream.
 
         Args:
@@ -101,21 +118,19 @@ class CarlaOperator(Op):
             RotationYaw=rotation_yaw)
 
         self.settings.add_sensor(camera)
-        output_stream = DataStream(name=name, labels={"sensor_type": "camera"})
-        self.camera_streams.append(output_stream)
 
-    def add_lidar(self,
-                  name,
-                  channels=32,
-                  max_range=50,
-                  points_per_second=100000,
-                  rotation_frequency=10,
-                  upper_fov_limit=10,
-                  lower_fov_limit=-30,
-                  position=(0, 0, 1.4),
-                  rotation_pitch=0,
-                  rotation_yaw=0,
-                  rotation_roll=0):
+    def __add_lidar(self,
+                    name,
+                    channels=32,
+                    max_range=50,
+                    points_per_second=100000,
+                    rotation_frequency=10,
+                    upper_fov_limit=10,
+                    lower_fov_limit=-30,
+                    position=(0, 0, 1.4),
+                    rotation_pitch=0,
+                    rotation_yaw=0,
+                    rotation_roll=0):
         """Adds a LIDAR sensor and a corresponding output stream.
 
         Args:
@@ -140,20 +155,26 @@ class CarlaOperator(Op):
         output_stream = DataStream(name=name, labels={"sensor_type": "lidar"})
         self.lidar_streams.append(output_stream)
 
+    # TODO(ionel): Set the frequency programmatically.
     @frequency(10)
     def step(self):
         measurements, sensor_data = self.client.read_data()
 
         # Send measurements
         player_measurements = measurements.player_measurements
-        timestamp = Timestamp(coordinates=[self.message_num])
-        self.message_num += 1
         vehicle_pos = ((player_measurements.transform.location.x,
                         player_measurements.transform.location.y,
                         player_measurements.transform.location.z),
                        (player_measurements.transform.orientation.x,
                         player_measurements.transform.orientation.y,
                         player_measurements.transform.orientation.z))
+
+        world_transform = Transform(player_measurements.transform)
+
+        timestamp = Timestamp(coordinates=[self.message_num])
+        self.message_num += 1
+        self.get_output_stream('world_transform').send(
+            Message(world_transform, timestamp))
         self.get_output_stream('vehicle_pos').send(
             Message(vehicle_pos, timestamp))
         acceleration = (player_measurements.acceleration.x,
@@ -181,24 +202,24 @@ class CarlaOperator(Op):
 
         for agent in measurements.non_player_agents:
             if agent.HasField('vehicle'):
-                pos = messages.Position(agent.vehicle.transform)
+                pos = messages.Transform(agent.vehicle.transform)
                 bb = messages.BoundingBox(agent.vehicle.bounding_box)
                 forward_speed = agent.vehicle.forward_speed
                 vehicle = messages.Vehicle(pos, bb, forward_speed)
                 vehicles.append(vehicle)
             elif agent.HasField('pedestrian'):
-                pos = messages.Position(agent.pedestrian.transform)
+                pos = messages.Transform(agent.pedestrian.transform)
                 bb = messages.BoundingBox(agent.pedestrian.bounding_box)
                 forward_speed = agent.pedestrian.forward_speed
                 pedestrian = messages.Pedestrian(pos, bb, forward_speed)
                 pedestrians.append(pedestrian)
             elif agent.HasField('traffic_light'):
-                transform = messages.Position(agent.traffic_light.transform)
+                transform = messages.Transform(agent.traffic_light.transform)
                 traffic_light = messages.TrafficLight(
                     transform, agent.traffic_light.state)
                 traffic_lights.append(traffic_light)
             elif agent.HasField('speed_limit_sign'):
-                transform = messages.Position(agent.speed_limit_sign.transform)
+                transform = messages.Transform(agent.speed_limit_sign.transform)
                 speed_sign = messages.SpeedLimitSign(
                     transform, agent.speed_limit_sign.speed_limit)
                 speed_limit_signs.append(speed_sign)
@@ -231,14 +252,16 @@ class CarlaOperator(Op):
             'hand_break': False,
             'reverse': False
         }
-        self.client = CarlaClient(self.host, self.port, timeout=10)
+        self.client = CarlaClient(FLAGS.carla_host, FLAGS.carla_port, timeout=10)
         self.client.connect()
         scene = self.client.load_settings(self.settings)
 
         # Choose one player start at random.
         number_of_player_starts = len(scene.player_start_spots)
-        player_start = np.random.randint(0, max(0,
-                                                number_of_player_starts - 1))
+        player_start = FLAGS.carla_start_player_num
+        if FLAGS.carla_random_player_start:
+            player_start = np.random.randint(
+                0, max(0, number_of_player_starts - 1))
 
         self.client.start_episode(player_start)
 

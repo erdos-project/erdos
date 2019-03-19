@@ -1,3 +1,4 @@
+from absl import flags
 import numpy as np
 import cv2
 from cv_bridge import CvBridge
@@ -10,11 +11,13 @@ from erdos.utils import frequency, setup_logging
 
 from sensor_msgs.msg import Image
 
+FLAGS = flags.FLAGS
+
 
 class CameraReplayOperator(Op):
     def __init__(self, name):
         super(CameraReplayOperator, self).__init__(name)
-        self._logger = setup_logging(self.name)
+        self._logger = setup_logging(self.name, FLAGS.log_file_name)
         self._cnt = 1
         self._image = None
 
@@ -24,11 +27,11 @@ class CameraReplayOperator(Op):
                            name='{}_output'.format(op_name),
                            labels={'camera': 'true'})]
 
-    @frequency(10)
+    @frequency(0.1)
     def publish_frame(self):
         """Publish mock camera frames."""
         cv_image = self.read_image(self._cnt)
-        self._image = self.bridge.cv2_to_imgmsg(cv_image, encoding="bgr8")
+        self._image = self.bridge.cv2_to_imgmsg(cv_image, encoding='bgr8')
         self._image.header.seq = self._cnt
         output_msg = Message(self._image, Timestamp(coordinates=[self._cnt]))
         self.get_output_stream('{}_output'.format(self.name)).send(output_msg)
