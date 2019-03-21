@@ -1,4 +1,3 @@
-from absl import flags
 import cv2
 
 from carla.image_converter import to_bgra_array
@@ -6,13 +5,11 @@ from carla.image_converter import to_bgra_array
 from erdos.op import Op
 from erdos.utils import setup_logging
 
-FLAGS = flags.FLAGS
-
 
 class VideoOperator(Op):
-    def __init__(self, name):
+    def __init__(self, name, log_file_name=None):
         super(VideoOperator, self).__init__(name)
-        self._logger = setup_logging(self.name, FLAGS.log_file_name)
+        self._logger = setup_logging(self.name, log_file_name)
 
     @staticmethod
     def setup_streams(input_streams, filter_name=None):

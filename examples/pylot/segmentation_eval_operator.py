@@ -1,4 +1,3 @@
-from absl import flags
 import numpy as np
 import PIL.Image as Image
 
@@ -7,14 +6,12 @@ from carla.image_converter import labels_to_cityscapes_palette
 from erdos.op import Op
 from erdos.utils import setup_logging
 
-FLAGS = flags.FLAGS
-
 
 class SegmentationEvalOperator(Op):
 
-    def __init__(self, name):
+    def __init__(self, name, log_file_name=None):
         super(SegmentationEvalOperator, self).__init__(name)
-        self._logger = setup_logging(self.name, FLAGS.log_file_name)
+        self._logger = setup_logging(self.name, log_file_name)
         self._ground_frames = []
         self._segmented_frames = []
 

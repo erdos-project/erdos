@@ -1,8 +1,8 @@
-from absl import flags
 import cv2
 from cv_bridge import CvBridge
 import numpy as np
 import PIL.Image as Image
+import time
 
 from dependencies.conv_reg_vot.simgeo import Rect
 import dependencies.conv_reg_vot.tracker as tracker
@@ -14,13 +14,16 @@ from erdos.utils import setup_logging
 
 from utils import add_bounding_box
 
-FLAGS = flags.FLAGS
-
 
 class TrackerCRTOperator(Op):
-    def __init__(self, name, output_stream_name):
+    def __init__(self,
+                 name,
+                 output_stream_name,
+                 flags,
+                 log_file_name=None):
         super(TrackerCRTOperator, self).__init__(name)
-        self._logger = setup_logging(self.name, FLAGS.log_file_name)
+        self._flags = flags
+        self._logger = setup_logging(self.name, log_file_name)
         self._output_stream_name = output_stream_name
         self.init_image = None
         self.init_bb = None
@@ -43,6 +46,7 @@ class TrackerCRTOperator(Op):
         return [DataStream(name=output_stream_name)]
 
     def on_frame_msg(self, msg):
+        start_time = time.time()
         if not self.initialized:
             self.init_image = self._bridge.imgmsg_to_cv2(msg.data, 'rgb8')
         else:
@@ -52,7 +56,7 @@ class TrackerCRTOperator(Op):
             ymax = bb_pred.y + bb_pred.h
             corners = (bb_pred.x, xmax, bb_pred.y, ymax)
 
-            if FLAGS.visualize_tracker_output:
+            if self._flags.visualize_tracker_output:
                 img = Image.fromarray(np.uint8(current_image)).convert('RGB')
                 add_bounding_box(img, corners)
                 # cv2.rectangle(current_image, (bb_pred.x, bb_pred.y), (xmax, ymax),
@@ -61,6 +65,10 @@ class TrackerCRTOperator(Op):
                 open_cv_image = open_cv_image[:, :, ::-1].copy()
                 cv2.imshow(self.name, open_cv_image)
                 cv2.waitKey(1)
+
+            runtime = time.time() - start_time
+            self._logger.info('Object tracker crt {} runtime {}'.format(
+                self.name, runtime))
 
             output_msg = Message([corners], msg.timestamp)
             self.get_output_stream(self._output_stream_name).send(output_msg)

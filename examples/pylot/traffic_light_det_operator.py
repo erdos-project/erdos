@@ -1,9 +1,9 @@
-from absl import flags
 from cv_bridge import CvBridge
 import cv2
 import numpy as np
-import tensorflow as tf
 import PIL.Image as Image
+import tensorflow as tf
+import time
 
 from erdos.data_stream import DataStream
 from erdos.message import Message
@@ -12,23 +12,21 @@ from erdos.utils import setup_logging
 
 from utils import add_bounding_box
 
-FLAGS = flags.FLAGS
-flags.DEFINE_float('traffic_light_det_min_score_threshold', 0.3,
-                   'Min score threshold for bounding box')
-flags.DEFINE_bool('visualize_traffic_light_output', False,
-                  'True to enable visualization of traffic light output')
-
 
 class TrafficLightDetOperator(Op):
-    def __init__(self, name, output_stream_name, model_path):
+    def __init__(self,
+                 name,
+                 output_stream_name,
+                 flags,
+                 log_file_name=None):
         super(TrafficLightDetOperator, self).__init__(name)
-        self._logger = setup_logging(self.name, FLAGS.log_file_name)
+        self._logger = setup_logging(self.name, log_file_name)
         self._output_stream_name = output_stream_name
         self._bridge = CvBridge()
         self._detection_graph = tf.Graph()
         with self._detection_graph.as_default():
             od_graph_def = tf.GraphDef()
-            with tf.gfile.GFile(model_path, 'rb') as fid:
+            with tf.gfile.GFile(self._flags.traffic_light_det_model_path, 'rb') as fid:
                 serialized_graph = fid.read()
                 od_graph_def.ParseFromString(serialized_graph)
                 tf.import_graph_def(od_graph_def, name='')
@@ -59,8 +57,10 @@ class TrafficLightDetOperator(Op):
                            labels={'traffic_lights': 'true'})]
 
     def on_frame(self, msg):
+        start_time = time.time()
         image_np = self._bridge.imgmsg_to_cv2(msg.data, 'rgb8')
-        # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
+        # Expand dimensions since the model expects images to have
+        # shape: [1, None, None, 3]
         image_np_expanded = np.expand_dims(image_np, axis=0)
         (boxes, scores, classes, num) = self._tf_session.run(
             [
@@ -85,7 +85,7 @@ class TrafficLightDetOperator(Op):
         output = []
         im_width, im_height = img.size
         while index < len(boxes) and index < len(scores):
-            if scores[index] > FLAGS.traffic_light_det_min_score_threshold:
+            if scores[index] > self._flags.traffic_light_det_min_score_threshold:
                 ymin = int(boxes[index][0] * im_height)
                 xmin = int(boxes[index][1] * im_width)
                 ymax = int(boxes[index][2] * im_height)
@@ -95,11 +95,15 @@ class TrafficLightDetOperator(Op):
                 add_bounding_box(img, corners)
             index += 1
 
-        if FLAGS.visualize_traffic_light_output:
+        if self._flags.visualize_traffic_light_output:
             open_cv_image = np.array(img)
             open_cv_image = open_cv_image[:, :, ::-1].copy()
             cv2.imshow(self.name, open_cv_image)
             cv2.waitKey(1)
+
+        runtime = time.time() - start_time
+        self._logger.info('Traffic light detector {} runtime {}'.format(
+            self.name, runtime))
 
         output_msg = Message(output, msg.timestamp)
         self.get_output_stream(self._output_stream_name).send(output_msg)

@@ -1,13 +1,9 @@
-from absl import flags
-
 from erdos.data_stream import DataStream
 from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import setup_logging
 
 import planner.planner_operator
-
-FLAGS = flags.FLAGS
 
 # Constants Used for the high level commands
 REACH_GOAL = 0.0
@@ -18,9 +14,9 @@ LANE_FOLLOW = 2.0
 
 
 class ControlOperator(Op):
-    def __init__(self, name):
+    def __init__(self, name, log_file_name=None):
         super(ControlOperator, self).__init__(name)
-        self._logger = setup_logging(self.name, FLAGS.log_file_name)
+        self._logger = setup_logging(self.name, log_file_name)
 
     @staticmethod
     def setup_streams(input_streams):

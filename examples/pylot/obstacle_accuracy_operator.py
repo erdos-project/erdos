@@ -1,4 +1,3 @@
-from absl import flags
 from cv_bridge import CvBridge
 import cv2
 import math
@@ -14,10 +13,6 @@ from erdos.utils import setup_logging
 import messages
 from utils import add_bounding_box, get_3d_world_position, map_ground_3D_transform_to_2D, map_ground_bounding_box_to_2D, point_cloud_from_rgbd
 
-FLAGS = flags.FLAGS
-flags.DEFINE_bool('visualize_ground_obstacles', False,
-                  'True to enable visualization of ground obstacles')
-
 
 class ObstacleAccuracyOperator(Op):
 
@@ -25,9 +20,12 @@ class ObstacleAccuracyOperator(Op):
                  name,
                  rgb_camera_name,
                  depth_camera_name,
+                 flags,
+                 log_file_name=None,
                  rgbd_max_range=1000):
         super(ObstacleAccuracyOperator, self).__init__(name)
-        self._logger = setup_logging(self.name, FLAGS.log_file_name)
+        self._flags = flags
+        self._logger = setup_logging(self.name, log_file_name)
         self._rgbd_max_range = rgbd_max_range
         self._bridge = CvBridge()
         self._world_transform = []
@@ -228,7 +226,7 @@ class ObstacleAccuracyOperator(Op):
                 # (x3d, y3d, z3d) = get_3d_world_position(
                 #     x, y, self._depth_img_size, depth_img, self._depth_transform, world_transform)
 
-        if FLAGS.visualize_ground_obstacles:
+        if self._flags.visualize_ground_obstacles:
             # Visualize bounding boxes.
             open_cv_image = np.array(rgb_img)
             open_cv_image = open_cv_image[:, :, ::-1].copy()

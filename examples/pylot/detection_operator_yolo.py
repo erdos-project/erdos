@@ -1,12 +1,10 @@
-import os
 import pickle
+import time
 
 from erdos.data_stream import DataStream
 from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import setup_logging
-
-from sensor_msgs.msg import Image
 
 from cv_bridge import CvBridge
 import cv2
@@ -44,6 +42,7 @@ class DetectionOperator(Op):
 
     def on_msg_camera_stream(self, msg):
         self._logger.info('%s received frame %s', self.name, msg.timestamp)
+        start_time = time.time()
         cv_img = self.bridge.imgmsg_to_cv2(msg.data, 'rgb8')
         img = pydarknet.Image(cv_img)
         results = self._net.detect(img)
@@ -52,6 +51,11 @@ class DetectionOperator(Op):
         # pickle.dump(results, bb_file)
         # bb_file.close()
         # output_msg = Message((msg.data, results), msg.timestamp)
+
+        runtime = time.time() - start_time
+        self._logger.info('Object detector {} runtime {}'.format(
+            self.name, runtime))
+
         output_msg = Message(results, msg.timestamp)
         self.get_output_stream(self._output_stream_name).send(output_msg)
         #self.notify_at(msg.timestamp)

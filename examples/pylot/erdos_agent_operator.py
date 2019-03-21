@@ -1,6 +1,6 @@
-from absl import flags
 import math
 import numpy as np
+import time
 
 from carla.sensor import Camera
 
@@ -16,20 +16,28 @@ from planner.waypointer import Waypointer
 from pid_controller.pid import PID
 from utils import get_3d_world_position
 
-FLAGS = flags.FLAGS
-
 
 class ERDOSAgentOperator(Op):
-    def __init__(self, name, city_name, goal_location, goal_orientation, depth_camera_name):
+    def __init__(self,
+                 name,
+                 city_name,
+                 goal_location,
+                 goal_orientation,
+                 depth_camera_name,
+                 flags,
+                 log_file_name=None):
         super(ERDOSAgentOperator, self).__init__(name)
-        self._logger = setup_logging(self.name, FLAGS.log_file_name)
+        self._flags = flags
+        self._logger = setup_logging(self.name, log_file_name)
         self._map = CarlaMap(city_name)
         self._goal_location = goal_location
         self._goal_orientation = goal_orientation
         self._wp_num_steer = 0.9  # Select WP - Reverse Order: 1 - closest, 0 - furthest
         self._wp_num_speed = 0.4  # Select WP - Reverse Order: 1 - closest, 0 - furthest
         self._waypointer = Waypointer(city_name)
-        self._pid = PID(p=FLAGS.pid_p, i=FLAGS.pid_i, d=FLAGS.pid_d)
+        self._pid = PID(p=self._flags.pid_p,
+                        i=self._flags.pid_i,
+                        d=self._flags.pid_d)
         self._world_transform = []
         self._depth_imgs = []
         self._traffic_lights = []
@@ -75,8 +83,10 @@ class ERDOSAgentOperator(Op):
     def setup_streams(input_streams, depth_camera_name):
         def is_traffic_lights_stream(stream):
             return stream.labels.get('traffic_lights', '') == 'true'
+
         def is_segmented_frame_stream(stream):
             return stream.labels.get('segmented', '') == 'true'
+
         def is_obstacles_stream(stream):
             return stream.labels.get('obstacles', '') == 'true'
 
@@ -107,9 +117,9 @@ class ERDOSAgentOperator(Op):
     def run_step(self):
         self._logger.info("Running step")
         # Return if we haven't yet received all vehicle info data.
-        if (self._vehicle_pos is None
-                or self._vehicle_acc is None
-                or self._vehicle_speed is None):
+        if (self._vehicle_pos is None or
+            self._vehicle_acc is None or
+            self._vehicle_speed is None):
             return
 
         if (len(self._obstacles) == 0 or
@@ -148,18 +158,30 @@ class ERDOSAgentOperator(Op):
             x = (corners[0] + corners[1]) / 2
             y = (corners[2] + corners[3]) / 2
             if label == 'person':
-                (x3d, y3d, z3d) = get_3d_world_position(
-                    x, y, self._depth_img_size, depth_img, self._depth_transform, world_transform)
+                (x3d, y3d, z3d) = get_3d_world_position(x, y,
+                                                        self._depth_img_size,
+                                                        depth_img,
+                                                        self._depth_transform,
+                                                        world_transform)
                 pedestrians.append((x3d, y3d))
             elif label == 'car' or label == 'bicycle' or label == 'motorcycle' or label == 'bus' or label == 'truck':
-                (x3d, y3d, z3d) = get_3d_world_position(
-                    x, y, self._depth_img_size, depth_img, self._depth_transform, world_transform)
+                (x3d, y3d, z3d) = get_3d_world_position(x, y,
+                                                        self._depth_img_size,
+                                                        depth_img,
+                                                        self._depth_transform,
+                                                        world_transform)
                 vehicles.append((x3d, y3d))
         self._obstacles = self._obstacles[1:]
 
+        start_time = time.time()
+
         wp_angle, wp_vector, wp_angle_speed, wp_vector_speed = agent_utils.get_waypoints(
-            self._goal_location, self._goal_orientation, self._vehicle_pos, self._waypointer,
-            self._wp_num_steer, self._wp_num_speed)
+            self._goal_location, self._goal_orientation, self._vehicle_pos,
+            self._waypointer, self._wp_num_steer, self._wp_num_speed)
+
+        runtime = time.time() - start_time
+        self._logger.info('Waypointer {} runtime {}'.format(
+            self.name, runtime))
 
         speed_factor, state = self.__stop_for_agents(
             wp_angle, wp_vector, vehicles, pedestrians, traffic_lights)
@@ -205,7 +227,8 @@ class ERDOSAgentOperator(Op):
         self.run_step()
         self.spin()
 
-    def __stop_for_agents(self, wp_angle, wp_vector, vehicles, pedestrians, traffic_lights):
+    def __stop_for_agents(
+            self, wp_angle, wp_vector, vehicles, pedestrians, traffic_lights):
         speed_factor = 1
         speed_factor_tl = 1
         speed_factor_p = 1
@@ -214,21 +237,31 @@ class ERDOSAgentOperator(Op):
         for vehicle in vehicles:
             if agent_utils.is_vehicle_on_same_lane(self._vehicle_pos, vehicle, self._map):
                 new_speed_factor_v = agent_utils.stop_vehicle(
-                    self._vehicle_pos, vehicle, wp_vector, speed_factor_v)
+                    self._vehicle_pos, vehicle, wp_vector, speed_factor_v, self._flags)
                 speed_factor_v = min(speed_factor_v, new_speed_factor_v)
 
         for pedestrian in pedestrians:
             if agent_utils.is_pedestrian_hitable(pedestrian, self._map):
                 new_speed_factor_p = agent_utils.stop_pedestrian(
-                    self._vehicle_pos, pedestrian, wp_vector, speed_factor_p)
+                    self._vehicle_pos,
+                    pedestrian,
+                    wp_vector,
+                    speed_factor_p,
+                    self._flags)
                 speed_factor_p = min(speed_factor_p, new_speed_factor_p)
 
         for tl in traffic_lights:
             if (agent_utils.is_traffic_light_active(self._vehicle_pos, tl, self._map) and
-                agent_utils.is_traffic_light_visible(self._vehicle_pos, tl)):
+                agent_utils.is_traffic_light_visible(self._vehicle_pos, tl, self._flags)):
                 tl_state = tl[2]
                 new_speed_factor_tl = agent_utils.stop_traffic_light(
-                    self._vehicle_pos, tl, tl_state,  wp_vector, wp_angle, speed_factor_tl)
+                    self._vehicle_pos,
+                    tl,
+                    tl_state,
+                    wp_vector,
+                    wp_angle,
+                    speed_factor_tl,
+                    self._flags)
                 speed_factor_tl = min(speed_factor_tl, new_speed_factor_tl)
 
         speed_factor = min(speed_factor_tl, speed_factor_p, speed_factor_v)
@@ -243,7 +276,7 @@ class ERDOSAgentOperator(Op):
     def get_control(self, wp_angle, wp_angle_speed, speed_factor,
                     current_speed):
         current_speed = max(current_speed, 0)
-        steer = FLAGS.steer_gain * wp_angle
+        steer = self._flags.steer_gain * wp_angle
         if steer > 0:
             steer = min(steer, 1)
         else:
@@ -251,7 +284,7 @@ class ERDOSAgentOperator(Op):
 
         # Don't go to fast around corners
         if math.fabs(wp_angle_speed) < 0.1:
-            target_speed_adjusted = FLAGS.target_speed * speed_factor
+            target_speed_adjusted = self._flags.target_speed * speed_factor
         elif math.fabs(wp_angle_speed) < 0.5:
             target_speed_adjusted = 20 * speed_factor
         else:
@@ -260,11 +293,11 @@ class ERDOSAgentOperator(Op):
         self._pid.target = target_speed_adjusted
         pid_gain = self._pid(feedback=current_speed)
         throttle = min(
-            max(FLAGS.default_throttle - 1.3 * pid_gain, 0),
-            FLAGS.throttle_max)
+            max(self._flags.default_throttle - 1.3 * pid_gain, 0),
+            self._flags.throttle_max)
 
         if pid_gain > 0.5:
-            brake = min(0.35 * pid_gain * FLAGS.brake_strength, 1)
+            brake = min(0.35 * pid_gain * self._flags.brake_strength, 1)
         else:
             brake = 0
 

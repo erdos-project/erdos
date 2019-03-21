@@ -1,4 +1,3 @@
-from absl import flags
 import numpy as np
 import cv2
 from cv_bridge import CvBridge
@@ -11,13 +10,11 @@ from erdos.utils import frequency, setup_logging
 
 from sensor_msgs.msg import Image
 
-FLAGS = flags.FLAGS
-
 
 class CameraReplayOperator(Op):
-    def __init__(self, name):
+    def __init__(self, name, log_file_name=None):
         super(CameraReplayOperator, self).__init__(name)
-        self._logger = setup_logging(self.name, FLAGS.log_file_name)
+        self._logger = setup_logging(self.name, log_file_name)
         self._cnt = 1
         self._image = None
 

@@ -1,8 +1,4 @@
-from absl import flags
-import math
 import numpy as np
-import os
-import sys
 
 from erdos.data_stream import DataStream
 from erdos.message import Message
@@ -10,9 +6,6 @@ from erdos.op import Op
 from erdos.utils import setup_logging
 
 import city_track
-
-FLAGS = flags.FLAGS
-
 
 # Constants Used for the high level commands
 REACH_GOAL = 0.0
@@ -31,9 +24,10 @@ class PlannerOperator(Op):
                  city_name,
                  goal_location,
                  goal_orientation,
+                 log_file_name=None,
                  name='planner'):
         super(PlannerOperator, self).__init__(name)
-        self._logger = setup_logging(self.name, FLAGS.log_file_name)
+        self._logger = setup_logging(self.name, log_file_name)
         self._city_name = city_name
         self._goal_location = goal_location
         self._goal_orientation = goal_orientation

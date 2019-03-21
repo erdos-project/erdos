@@ -1,9 +1,9 @@
-from absl import flags
 from cv_bridge import CvBridge
 import cv2
 import numpy as np
-import tensorflow as tf
 import PIL.Image as Image
+import tensorflow as tf
+import time
 
 from erdos.data_stream import DataStream
 from erdos.message import Message
@@ -12,24 +12,22 @@ from erdos.utils import setup_logging
 
 from utils import add_bounding_box, load_coco_labels
 
-FLAGS = flags.FLAGS
-flags.DEFINE_float('detector_min_score_threshold', 0.5,
-                   'Min score threshold for bounding box')
-flags.DEFINE_bool('visualize_detector_output', False,
-                  'True to enable visualization of detector output')
-flags.DEFINE_string('path_coco_labels', 'dependencies/data/coco.names',
-                    'Path to the COCO labels')
 
 class DetectionOperator(Op):
-    def __init__(self, name, output_stream_name, detector_model_path):
+    def __init__(self,
+                 name,
+                 output_stream_name,
+                 flags,
+                 log_file_name=None):
         super(DetectionOperator, self).__init__(name)
-        self._logger = setup_logging(self.name, FLAGS.log_file_name)
+        self._flags = flags
+        self._logger = setup_logging(self.name, log_file_name)
         self._output_stream_name = output_stream_name
         self._bridge = CvBridge()
         self._detection_graph = tf.Graph()
         with self._detection_graph.as_default():
             od_graph_def = tf.GraphDef()
-            with tf.gfile.GFile(detector_model_path, 'rb') as fid:
+            with tf.gfile.GFile(self._flags.detector_model_path, 'rb') as fid:
                 serialized_graph = fid.read()
                 od_graph_def.ParseFromString(serialized_graph)
                 tf.import_graph_def(od_graph_def, name='')
@@ -45,7 +43,7 @@ class DetectionOperator(Op):
             'detection_classes:0')
         self._num_detections = self._detection_graph.get_tensor_by_name(
             'num_detections:0')
-        self._coco_labels = load_coco_labels(FLAGS.path_coco_labels)
+        self._coco_labels = load_coco_labels(self._flags.path_coco_labels)
 
     @staticmethod
     def setup_streams(input_streams, output_stream_name):
@@ -56,10 +54,12 @@ class DetectionOperator(Op):
 
     def on_msg_camera_stream(self, msg):
         self._logger.info('%s received frame %s', self.name, msg.timestamp)
+        start_time = time.time()
         image_np = self._bridge.imgmsg_to_cv2(msg.data, 'rgb8')
-        # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
+        # Expand dimensions since the model expects images to have
+        # shape: [1, None, None, 3]
         image_np_expanded = np.expand_dims(image_np, axis=0)
-        (boxes, scores, detection_classes, num_detections) = self._tf_session.run(
+        (boxes, scores, classes, num_detections) = self._tf_session.run(
             [
                 self._detection_boxes, self._detection_scores,
                 self._detection_classes, self._num_detections
@@ -67,7 +67,7 @@ class DetectionOperator(Op):
             feed_dict={self._image_tensor: image_np_expanded})
 
         num_detections = int(num_detections[0])
-        classes = detection_classes[0][:num_detections]
+        classes = classes[0][:num_detections]
         labels = [self._coco_labels[label] for label in classes]
         boxes = boxes[0][:num_detections]
         scores = scores[0][:num_detections]
@@ -82,7 +82,7 @@ class DetectionOperator(Op):
         output = []
         im_width, im_height = img.size
         while index < len(boxes) and index < len(scores):
-            if scores[index] > FLAGS.detector_min_score_threshold:
+            if scores[index] > self._flags.detector_min_score_threshold:
                 ymin = int(boxes[index][0] * im_height)
                 xmin = int(boxes[index][1] * im_width)
                 ymax = int(boxes[index][2] * im_height)
@@ -92,12 +92,15 @@ class DetectionOperator(Op):
                 add_bounding_box(img, corners)
             index += 1
 
-        if FLAGS.visualize_detector_output:
+        if self._flags.visualize_detector_output:
             open_cv_image = np.array(img)
             open_cv_image = open_cv_image[:, :, ::-1].copy()
             cv2.imshow(self.name, open_cv_image)
             cv2.waitKey(1)
 
+        runtime = time.time() - start_time
+        self._logger.info('Object detector {} runtime {}'.format(
+            self.name, runtime))
         output_msg = Message(output, msg.timestamp)
         self.get_output_stream(self._output_stream_name).send(output_msg)
 

@@ -1,16 +1,13 @@
-from absl import flags
 from open3d import draw_geometries, read_point_cloud
 
 from erdos.op import Op
 from erdos.utils import setup_logging
 
-FLAGS = flags.FLAGS
-
 
 class LidarVisualizerOperator(Op):
-    def __init__(self, name):
+    def __init__(self, name, log_file_name=None):
         super(LidarVisualizerOperator, self).__init__(name)
-        self._logger = setup_logging(self.name, FLAGS.log_file_name)
+        self._logger = setup_logging(self.name, log_file_name)
         self.cnt = 0
 
     @staticmethod

@@ -1,4 +1,3 @@
-from absl import flags
 import numpy as np
 from std_msgs.msg import Float64
 
@@ -15,22 +14,6 @@ from erdos.utils import frequency, setup_logging
 
 import messages
 
-FLAGS = flags.FLAGS
-flags.DEFINE_string('carla_host', 'localhost', 'Carla host.')
-flags.DEFINE_integer('carla_port', 2000, 'Carla port.')
-flags.DEFINE_bool('carla_synchronous_mode', True,
-                  'Run Carla in synchronous mode.')
-flags.DEFINE_integer('carla_num_vehicles', 20, 'Carla num vehicles.')
-flags.DEFINE_integer('carla_num_pedestrians', 40, 'Carla num pedestrians.')
-flags.DEFINE_bool('carla_high_quality', False,
-                  'True to enable high quality Carla simulations.')
-flags.DEFINE_integer('carla_weather', 2,
-                     'Carla weather preset; between 1 and 14')
-flags.DEFINE_bool('carla_random_player_start', True,
-                  'True to randomly assign a car to the player')
-flags.DEFINE_integer('carla_start_player_num', 0,
-                     'Number of the assigned start player')
-
 
 class CarlaOperator(Op):
     """Provides an ERDOS interface to the CARLA simulator.
@@ -39,22 +22,27 @@ class CarlaOperator(Op):
         synchronous_mode (bool): whether the simulator will wait for control
             input from the client.
     """
-
-    def __init__(self, name, camera_setups=[], lidar_stream_names=[]):
+    def __init__(self,
+                 name,
+                 flags,
+                 camera_setups=[],
+                 lidar_stream_names=[],
+                 log_file_name=None):
         super(CarlaOperator, self).__init__(name)
-        self._logger = setup_logging(self.name, FLAGS.log_file_name)
+        self._flags = flags
+        self._logger = setup_logging(self.name, log_file_name)
         self.message_num = 0
-        if FLAGS.carla_high_quality:
+        if self._flags.carla_high_quality:
             quality = 'Epic'
         else:
             quality = 'Low'
         self.settings = CarlaSettings()
         self.settings.set(
-            SynchronousMode=FLAGS.carla_synchronous_mode,
+            SynchronousMode=self._flags.carla_synchronous_mode,
             SendNonPlayerAgentsInfo=True,
-            NumberOfVehicles=FLAGS.carla_num_vehicles,
-            NumberOfPedestrians=FLAGS.carla_num_pedestrians,
-            WeatherId=FLAGS.carla_weather,
+            NumberOfVehicles=self._flags.carla_num_vehicles,
+            NumberOfPedestrians=self._flags.carla_num_pedestrians,
+            WeatherId=self._flags.carla_weather,
             QualityLevel=quality)
         self.settings.randomize_seeds()
         self.lidar_streams = []
@@ -252,14 +240,16 @@ class CarlaOperator(Op):
             'hand_break': False,
             'reverse': False
         }
-        self.client = CarlaClient(FLAGS.carla_host, FLAGS.carla_port, timeout=10)
+        self.client = CarlaClient(self._flags.carla_host,
+                                  self._flags.carla_port,
+                                  timeout=10)
         self.client.connect()
         scene = self.client.load_settings(self.settings)
 
         # Choose one player start at random.
         number_of_player_starts = len(scene.player_start_spots)
-        player_start = FLAGS.carla_start_player_num
-        if FLAGS.carla_random_player_start:
+        player_start = self._flags.carla_start_player_num
+        if self._flags.carla_random_player_start:
             player_start = np.random.randint(
                 0, max(0, number_of_player_starts - 1))
 

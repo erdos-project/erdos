@@ -1,8 +1,8 @@
-from absl import flags
 import cv2
 from cv_bridge import CvBridge
 import numpy as np
 import PIL.Image as Image
+import time
 
 from erdos.data_stream import DataStream
 from erdos.message import Message
@@ -11,13 +11,16 @@ from erdos.utils import setup_logging
 
 from utils import add_bounding_box
 
-FLAGS = flags.FLAGS
-
 
 class TrackerCV2Operator(Op):
-    def __init__(self, name, output_stream_name):
+    def __init__(self,
+                 name,
+                 output_stream_name,
+                 flags,
+                 log_file_name=None):
         super(TrackerCV2Operator, self).__init__(name)
-        self._logger = setup_logging(self.name, FLAGS.log_file_name)
+        self._flags = flags
+        self._logger = setup_logging(self.name, log_file_name)
         self._output_stream_name = output_stream_name
         self._bridge = CvBridge()
         self._tracker = cv2.TrackerKCF_create()
@@ -39,6 +42,7 @@ class TrackerCV2Operator(Op):
         return [DataStream(name=output_stream_name)]
 
     def on_frame_msg(self, msg):
+        start_time = time.time()
         image_np = self._bridge.imgmsg_to_cv2(msg.data, 'rgb8')
         self._to_process.append(image_np)
         if self._initialized:
@@ -50,7 +54,7 @@ class TrackerCV2Operator(Op):
                     (xmin, ymin, w, h) = bbox
                     corners = (xmin, xmin + w, ymin, ymin + h)
 
-                    if FLAGS.visualize_tracker_output:
+                    if self._flags.visualize_tracker_output:
                         img = Image.fromarray(np.uint8(frame)).convert('RGB')
                         add_bounding_box(img, corners)
                         # cv2.rectangle(frame,  (xmin, ymin), (xmin + w, ymin + h),
@@ -61,10 +65,15 @@ class TrackerCV2Operator(Op):
                         cv2.waitKey(1)
 
                     output_msg = Message([corners], msg.timestamp)
-                    self.get_output_stream(self._output_stream_name).send(output_msg)
+                    self.get_output_stream(
+                        self._output_stream_name).send(output_msg)
 
             self._to_process = []
-                
+
+        runtime = time.time() - start_time
+        self._logger.info('Object tracker cv2 {} runtime {}'.format(
+            self.name, runtime))
+
     def on_objects_msg(self, msg):
         # TODO(ionel): Implement out bbox matching!
         # TODO(ionel): Frames and bbox are not always corectly associated.

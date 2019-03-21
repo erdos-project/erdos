@@ -1,4 +1,3 @@
-from absl import flags
 from cv_bridge import CvBridge
 
 from erdos.data_stream import DataStream
@@ -9,13 +8,11 @@ from erdos.utils import setup_logging
 from carla.image_converter import to_bgra_array
 from sensor_msgs.msg import Image
 
-FLAGS = flags.FLAGS
-
 
 class CarlaToImageOperator(Op):
-    def __init__(self, name):
+    def __init__(self, name, log_file_name=None):
         super(CarlaToImageOperator, self).__init__(name)
-        self._logger = setup_logging(self.name, FLAGS.log_file_name)
+        self._logger = setup_logging(self.name, log_file_name)
         self._bridge = CvBridge()
 
     @staticmethod

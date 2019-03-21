@@ -1,6 +1,6 @@
-from absl import flags
 from collections import deque
 import numpy as np
+import time
 
 from carla.image_converter import to_rgb_array
 
@@ -8,8 +8,6 @@ from erdos.data_stream import DataStream
 from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import frequency, setup_logging
-
-FLAGS = flags.FLAGS
 
 
 class FusionOperator(Op):
@@ -26,10 +24,11 @@ class FusionOperator(Op):
     def __init__(self,
                  name,
                  output_stream_name,
+                 log_file_name=None,
                  camera_fov=np.pi / 4,
                  rgbd_max_range=1000):
         super(FusionOperator, self).__init__(name)
-        self._logger = setup_logging(self.name, FLAGS.log_file_name)
+        self._logger = setup_logging(self.name, log_file_name)
         self._output_stream_name = output_stream_name
         self._segments = []
         self._objs = []
@@ -100,8 +99,10 @@ class FusionOperator(Op):
     @frequency(1)
     def fuse(self):
         # Return if we don't have car position, distances or objects.
-        if min(map(len,
-                   [self._car_positions, self._distances, self._objects])) == 0:
+        start_time = time.time()
+        if min(map(len, [self._car_positions,
+                         self._distances,
+                         self._objects])) == 0:
             return
         self.__discard_old_data()
         object_positions = self.__calc_object_positions(
@@ -110,6 +111,11 @@ class FusionOperator(Op):
             self._car_positions[0][1][0],
             np.arccos(self._car_positions[0][1][1][0]))
         timestamp = self._objects[0][0]
+
+        runtime = time.time() - start_time
+        self._logger.info('Fusion {} runtime {}'.format(
+            self.name, runtime))
+
         output_msg = Message(object_positions, timestamp)
         self.get_output_stream(self._output_stream_name).send(output_msg)
 
@@ -121,7 +127,8 @@ class FusionOperator(Op):
         self._logger.info("Received update objects")
         vehicle_bounds = []
         for corners, score, label in msg.data:
-            self._logger.info("%s received: %s %s %s ", self.name, corners, score, label)
+            self._logger.info("%s received: %s %s %s ",
+                              self.name, corners, score, label)
             # TODO(ionel): Deal with different types of labels.
             if label in {"truck", "car"}:
                 vehicle_bounds.append(corners)

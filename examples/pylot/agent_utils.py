@@ -1,48 +1,5 @@
-from absl import flags
 import math
 import numpy as np
-
-FLAGS = flags.FLAGS
-flags.DEFINE_bool('stop_for_traffic_lights', True,
-                  'True to enable traffic light stopping')
-flags.DEFINE_bool('stop_for_pedestrians', True,
-                  'True to enable pedestrian stopping')
-flags.DEFINE_bool('stop_for_vehicles', True,
-                  'True to enable vehicle stopping')
-# Traffic light stopping parameters.
-flags.DEFINE_integer('traffic_light_min_dist_thres', 9,
-                     'Min distance threshold traffic light')
-flags.DEFINE_integer('traffic_light_max_dist_thres', 20,
-                     'Max distance threshold traffic light')
-flags.DEFINE_float('traffic_light_angle_thres', 0.5,
-                   'Traffic light angle threshold')
-# Vehicle stopping parameters.
-flags.DEFINE_integer('vehicle_distance_thres', 15,
-                     'Vehicle distance threshold')
-flags.DEFINE_float('vehicle_angle_thres', 0.4,
-                   'Vehicle angle threshold')
-# Pedestrian stopping parameters.
-flags.DEFINE_integer('pedestrian_distance_hit_thres', 35,
-                     'Pedestrian hit zone distance threshold')
-flags.DEFINE_float('pedestrian_angle_hit_thres', 0.15,
-                   'Pedestrian hit zone angle threshold')
-flags.DEFINE_integer('pedestrian_distance_emergency_thres', 12,
-                     'Pedestrian emergency zone distance threshold')
-flags.DEFINE_float('pedestrian_angle_emergency_thres', 0.5,
-                   'Pedestrian emergency zone angle threshold')
-# PID controller parameters
-flags.DEFINE_float('pid_p', 0.25, 'PID p parameter')
-flags.DEFINE_float('pid_i', 0.20, 'PID i parameter')
-flags.DEFINE_float('pid_d', 0.0, 'PID d parameter')
-# Steering control parameters
-flags.DEFINE_float('default_throttle', 0.0, 'Default throttle')
-flags.DEFINE_float('throttle_max', 0.75, 'Max throttle')
-flags.DEFINE_integer('target_speed', 36,
-                     'Target speed, could be controlled by the speed limit')
-flags.DEFINE_float('steer_gain', 0.7, 'Gain on computed steering angle')
-flags.DEFINE_float('brake_strength', 1,
-                   'Strength for applying brake; between 0 and 1')
-flags.DEFINE_integer('coast_factor', 2, 'Factor to control coasting')
 
 
 def get_waypoints(goal_location, goal_orientation, vehicle_pos,
@@ -111,23 +68,24 @@ def is_pedestrian_hitable(pedestrian, city_map):
     return city_map.is_point_on_lane([x_pedestrian, y_pedestrian, 38])
 
 
-def is_pedestrian_on_hit_zone(p_dist, p_angle):
-    return (math.fabs(p_angle) < FLAGS.pedestrian_angle_hit_thres and
-            p_dist < FLAGS.pedestrian_distance_hit_thres)
+def is_pedestrian_on_hit_zone(p_dist, p_angle, flags):
+    return (math.fabs(p_angle) < flags.pedestrian_angle_hit_thres and
+            p_dist < flags.pedestrian_distance_hit_thres)
 
 
-def is_pedestrian_on_near_hit_zone(p_dist, p_angle):
-    return (math.fabs(p_angle) < FLAGS.pedestrian_angle_emergency_thres and
-            p_dist < FLAGS.pedestrian_distance_emergency_thres)
+def is_pedestrian_on_near_hit_zone(p_dist, p_angle, flags):
+    return (math.fabs(p_angle) < flags.pedestrian_angle_emergency_thres and
+            p_dist < flags.pedestrian_distance_emergency_thres)
 
 
-def is_traffic_light_visible(vehicle_pos, tl_pos):
+def is_traffic_light_visible(vehicle_pos, tl_pos, flags):
     _, tl_dist = get_world_vec_dist(
         vehicle_pos[0][0],
         vehicle_pos[0][1],
         tl_pos[0],
         tl_pos[1])
-    return tl_dist > FLAGS.traffic_light_min_dist_thres
+    return tl_dist > flags.traffic_light_min_dist_thres
+
 
 def is_traffic_light_active(vehicle_pos, tl_pos, city_map):
     x_vehicle = vehicle_pos[0][0]
@@ -190,7 +148,11 @@ def is_traffic_light_active(vehicle_pos, tl_pos, city_map):
             [closest_lane_point[0], closest_lane_point[1], 38])) < 1)
 
 
-def stop_pedestrian(vehicle_pos, pedestrian, wp_vector, speed_factor_p):
+def stop_pedestrian(vehicle_pos,
+                    pedestrian,
+                    wp_vector,
+                    speed_factor_p,
+                    flags):
     speed_factor_p_temp = 1
     x_pedestrian = pedestrian[0]
     y_pedestrian = pedestrian[1]
@@ -200,9 +162,9 @@ def stop_pedestrian(vehicle_pos, pedestrian, wp_vector, speed_factor_p):
         vehicle_pos[0][0],
         vehicle_pos[0][1])
     p_angle = get_angle(p_vector, wp_vector)
-    if is_pedestrian_on_hit_zone(p_dist, p_angle):
-        speed_factor_p_temp = p_dist / (FLAGS.coast_factor * FLAGS.pedestrian_distance_hit_thres)
-    if is_pedestrian_on_near_hit_zone(p_dist, p_angle):
+    if is_pedestrian_on_hit_zone(p_dist, p_angle, flags):
+        speed_factor_p_temp = p_dist / (flags.coast_factor * flags.pedestrian_distance_hit_thres)
+    if is_pedestrian_on_near_hit_zone(p_dist, p_angle, flags):
         speed_factor_p_temp = 0
     if (speed_factor_p_temp < speed_factor_p):
         speed_factor_p = speed_factor_p_temp
@@ -221,27 +183,28 @@ def is_vehicle_on_same_lane(vehicle_pos, obs_vehicle, city_map):
         city_map.get_lane_orientation_degrees([x_agent, y_agent, 38])) < 1)
 
 
-def stop_vehicle(vehicle_pos, vehicle, wp_vector, speed_factor_v):
+def stop_vehicle(vehicle_pos, vehicle, wp_vector, speed_factor_v, flags):
     x_vehicle = vehicle_pos[0][0]
     y_vehicle = vehicle_pos[0][1]
     x_agent = vehicle[0]
     y_agent = vehicle[1]
     speed_factor_v_temp = 1
-    v_vector, v_dist = get_world_vec_dist(x_agent, y_agent, x_vehicle, y_vehicle)
+    v_vector, v_dist = get_world_vec_dist(
+        x_agent, y_agent, x_vehicle, y_vehicle)
     v_angle = get_angle(v_vector, wp_vector)
 
-    if ((-0.5 * FLAGS.vehicle_angle_thres / FLAGS.coast_factor <
-         v_angle < FLAGS.vehicle_angle_thres / FLAGS.coast_factor and
-         v_dist < FLAGS.vehicle_distance_thres * FLAGS.coast_factor) or
-        (-0.5 * FLAGS.vehicle_angle_thres / FLAGS.coast_factor <
-         v_angle < FLAGS.vehicle_angle_thres and
-         v_dist < FLAGS.vehicle_distance_thres)):
+    if ((-0.5 * flags.vehicle_angle_thres / flags.coast_factor <
+         v_angle < flags.vehicle_angle_thres / flags.coast_factor and
+         v_dist < flags.vehicle_distance_thres * flags.coast_factor) or
+        (-0.5 * flags.vehicle_angle_thres / flags.coast_factor <
+         v_angle < flags.vehicle_angle_thres and
+         v_dist < flags.vehicle_distance_thres)):
         speed_factor_v_temp = v_dist / (
-            FLAGS.coast_factor * FLAGS.vehicle_distance_thres)
+            flags.coast_factor * flags.vehicle_distance_thres)
 
-    if (-0.5 * FLAGS.vehicle_angle_thres * FLAGS.coast_factor <
-        v_angle < FLAGS.vehicle_angle_thres * FLAGS.coast_factor and
-        v_dist < FLAGS.vehicle_distance_thres / FLAGS.coast_factor):
+    if (-0.5 * flags.vehicle_angle_thres * flags.coast_factor <
+        v_angle < flags.vehicle_angle_thres * flags.coast_factor and
+        v_dist < flags.vehicle_distance_thres / flags.coast_factor):
         speed_factor_v_temp = 0
 
     if speed_factor_v_temp < speed_factor_v:
@@ -250,28 +213,35 @@ def stop_vehicle(vehicle_pos, vehicle, wp_vector, speed_factor_v):
     return speed_factor_v
 
 
-def stop_traffic_light(vehicle_pos, tl_pos, tl_state, wp_vector, wp_angle, speed_factor_tl):
+def stop_traffic_light(vehicle_pos,
+                       tl_pos,
+                       tl_state,
+                       wp_vector,
+                       wp_angle,
+                       speed_factor_tl,
+                       flags):
     x_vehicle = vehicle_pos[0][0]
     y_vehicle = vehicle_pos[0][1]
     speed_factor_tl_temp = 1
     if tl_state != 0:  # Not green
         tl_x = tl_pos[0]
         tl_y = tl_pos[1]
-        tl_vector, tl_dist = get_world_vec_dist(tl_x, tl_y, x_vehicle, y_vehicle)
+        tl_vector, tl_dist = get_world_vec_dist(
+            tl_x, tl_y, x_vehicle, y_vehicle)
         tl_angle = get_angle(tl_vector, wp_vector)
 
-        if ((0 < tl_angle < FLAGS.traffic_light_angle_thres / FLAGS.coast_factor and
-             tl_dist < FLAGS.traffic_light_max_dist_thres * FLAGS.coast_factor) or
-            (0 < tl_angle < FLAGS.traffic_light_angle_thres and
-             tl_dist < FLAGS.traffic_light_max_dist_thres) and
+        if ((0 < tl_angle < flags.traffic_light_angle_thres / flags.coast_factor and
+             tl_dist < flags.traffic_light_max_dist_thres * flags.coast_factor) or
+            (0 < tl_angle < flags.traffic_light_angle_thres and
+             tl_dist < flags.traffic_light_max_dist_thres) and
             math.fabs(wp_angle) < 0.2):
 
             speed_factor_tl_temp = tl_dist / (
-                FLAGS.coast_factor *
-                FLAGS.traffic_light_max_dist_thres)
+                flags.coast_factor *
+                flags.traffic_light_max_dist_thres)
 
-        if ((0 < tl_angle < FLAGS.traffic_light_angle_thres * FLAGS.coast_factor and
-             tl_dist < FLAGS.traffic_light_max_dist_thres / FLAGS.coast_factor) and
+        if ((0 < tl_angle < flags.traffic_light_angle_thres * flags.coast_factor and
+             tl_dist < flags.traffic_light_max_dist_thres / flags.coast_factor) and
             math.fabs(wp_angle) < 0.2):
             speed_factor_tl_temp = 0
 
