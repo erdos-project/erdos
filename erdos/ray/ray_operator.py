@@ -10,6 +10,7 @@ from erdos.ray.frequency_actor import FrequencyActor
 from erdos.ray.ray_input_data_stream import RayInputDataStream
 from erdos.ray.ray_output_data_stream import RayOutputDataStream
 from erdos.utils import setup_logging
+from erdos.message import WatermarkMessage
 
 
 @ray.remote
@@ -53,6 +54,14 @@ class RayOperator(object):
                            'receive watermark {}'.format(msg.stream_name))
         for cb in self._completion_callbacks.get(msg.stream_uid, []):
             cb(msg)
+
+        # Finished calling the required callbacks. Send the watermark forward
+        # to the dependent operators.
+
+        # FIX (Ray Issue #4463): Remove when Ray issue is fixed.
+        watermark_msg = WatermarkMessage(msg.timestamp, msg.stream_name)
+        for output_stream in self._op.output_streams.values():
+            output_stream.send(watermark_msg)
 
     def register_callback(self, stream_uid, callback_name):
         """Registers a callback for a given stream."""
