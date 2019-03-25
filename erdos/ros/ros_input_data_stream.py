@@ -38,6 +38,10 @@ class ROSInputDataStream(DataStream):
         if isinstance(msg, WatermarkMessage):
             for on_watermark_callback in self.completion_callbacks:
                 on_watermark_callback(self.op, msg)
+
+            # Flow the watermark forward.
+            for output_stream in self.op.output_streams.values():
+                output_stream.send(msg)
         else:
             for on_msg_callback in self.callbacks:
                 on_msg_callback(self.op, msg)
