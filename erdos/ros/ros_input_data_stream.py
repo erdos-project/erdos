@@ -39,9 +39,15 @@ class ROSInputDataStream(DataStream):
             for on_watermark_callback in self.completion_callbacks:
                 on_watermark_callback(self.op, msg)
 
-            # Flow the watermark forward.
-            for output_stream in self.op.output_streams.values():
-                output_stream.send(msg)
+            # If no completion callbacks are found, let the watermarks flow
+            # automatically. If there is a completion callback, let the
+            # developer flow the watermarks.
+            # TODO (sukritk) :: Either define an API to know when the system
+            # has to flow watermarks, or figure out if the developer has already
+            # sent a watermark for a timestamp and don't send duplicates.
+            if len(self.completion_callbacks) == 0:
+                for output_stream in self.op.output_streams.values():
+                    output_stream.send(msg)
         else:
             for on_msg_callback in self.callbacks:
                 on_msg_callback(self.op, msg)

@@ -58,10 +58,12 @@ class RayOperator(object):
         # Finished calling the required callbacks. Send the watermark forward
         # to the dependent operators.
 
-        # FIX (Ray Issue #4463): Remove when Ray issue is fixed.
-        watermark_msg = WatermarkMessage(msg.timestamp, msg.stream_name)
-        for output_stream in self._op.output_streams.values():
-            output_stream.send(watermark_msg)
+        # TODO (sukritk) :: Same issue as erdos/ros/ros_input_data_stream.py
+        # TODO (sukritk) FIX (Ray Issue #4463): Remove when Ray issue is fixed.
+        if not self._completion_callbacks.get(msg.stream_uid):
+            watermark_msg = WatermarkMessage(msg.timestamp, msg.stream_name)
+            for output_stream in self._op.output_streams.values():
+                output_stream.send(watermark_msg)
 
     def register_callback(self, stream_uid, callback_name):
         """Registers a callback for a given stream."""
