@@ -8,6 +8,7 @@ from enum import Enum
 
 from erdos.data_stream import DataStream
 from erdos.message import Message
+from erdos.message import WatermarkMessage
 from erdos.op import Op
 from erdos.timestamp import Timestamp
 from erdos.utils import frequency
@@ -608,6 +609,7 @@ class NoopOp(Op):
 #   remaining messages from the same timestamp from the same stream.
 # - Waits until the deadline is over and then releases the results.
 
+
 class EarlyReleaseOperator(Op):
     def __init__(self, name, output_stream_name):
         super(EarlyReleaseOperator, self).__init__(name)
@@ -627,6 +629,18 @@ class EarlyReleaseOperator(Op):
             self.timestamp_to_stream_name_map[msg.timestamp] = msg.stream_name
             self.get_output_stream(self.output_stream_name).send(msg)
 
+    def on_completion_msg(self, msg):
+        stream_name = self.timestamp_to_stream_name_map.get(msg.timestamp)
+        if stream_name:
+            # The stream name exists. We should check if the watermark is from
+            # the stream. If yes, release, otherwise let it be.
+            if stream_name == msg.stream_name:
+                # TODO (sukritk) FIX (Ray #4463): Remove when Ray issue fixed.
+                watermark_msg = WatermarkMessage(msg.timestamp,
+                                                 msg.stream_name)
+                self.get_output_stream(
+                    self.output_stream_name).send(watermark_msg)
+
     @staticmethod
     def setup_streams(input_streams, output_stream_name):
         if len(input_streams) > 0:
@@ -635,8 +649,11 @@ class EarlyReleaseOperator(Op):
                 "All input streams into the ReleaseOperator " \
                 "should have the same data type"
             input_streams.add_callback(EarlyReleaseOperator.on_msg)
-            return [DataStream(input_streams[0].data_type,
-                               output_stream_name, input_streams[0].labels)]
+            input_streams.add_completion_callback(
+                EarlyReleaseOperator.on_completion_msg)
+            return [
+                DataStream(input_streams[0].data_type, output_stream_name,
+                           input_streams[0].labels)
+            ]
         else:
             return []
-
