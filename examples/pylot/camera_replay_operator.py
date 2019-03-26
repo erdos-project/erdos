@@ -12,9 +12,9 @@ from sensor_msgs.msg import Image
 
 
 class CameraReplayOperator(Op):
-    def __init__(self, name):
+    def __init__(self, name, log_file_name=None):
         super(CameraReplayOperator, self).__init__(name)
-        self._logger = setup_logging(self.name)
+        self._logger = setup_logging(self.name, log_file_name)
         self._cnt = 1
         self._image = None
 
@@ -24,11 +24,11 @@ class CameraReplayOperator(Op):
                            name='{}_output'.format(op_name),
                            labels={'camera': 'true'})]
 
-    @frequency(10)
+    @frequency(0.1)
     def publish_frame(self):
         """Publish mock camera frames."""
         cv_image = self.read_image(self._cnt)
-        self._image = self.bridge.cv2_to_imgmsg(cv_image, encoding="bgr8")
+        self._image = self.bridge.cv2_to_imgmsg(cv_image, encoding='bgr8')
         self._image.header.seq = self._cnt
         output_msg = Message(self._image, Timestamp(coordinates=[self._cnt]))
         self.get_output_stream('{}_output'.format(self.name)).send(output_msg)

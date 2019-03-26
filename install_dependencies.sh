@@ -6,6 +6,7 @@ sudo apt-key adv --keyserver hkp://ha.pool.sks-keyservers.net:80 --recv-key 421C
 sudo apt-get update
 sudo apt-get install -y --allow-unauthenticated ros-kinetic-ros-base
 echo "source /opt/ros/kinetic/setup.bash" >> ~/.bashrc
+sudo apt install python-cv-bridge
 
 # Install pip packages
 sudo apt-get install -y python-pip
