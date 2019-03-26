@@ -602,3 +602,41 @@ class NoopOp(Op):
         input_streams.add_callback(NoopOp.on_msg)
 
         return output_streams
+
+# We need the release operators with the following behaviors:
+# - Releases the timestamp message at the same time and releases the
+#   remaining messages from the same timestamp from the same stream.
+# - Waits until the deadline is over and then releases the results.
+
+class EarlyReleaseOperator(Op):
+    def __init__(self, name, output_stream_name):
+        super(EarlyReleaseOperator, self).__init__(name)
+        self.output_stream_name = output_stream_name
+        self.timestamp_to_stream_name_map = {}
+
+    def on_msg(self, msg):
+        stream_name = self.timestamp_to_stream_name_map.get(msg.timestamp)
+        if stream_name:
+            # Stream name exists, so we have seen a message from the same
+            # timestamp before. Release if it is from the same stream.
+            if stream_name == msg.stream_name:
+                self.get_output_stream(self.output_stream_name).send(msg)
+        else:
+            # Stream name does not exist. Add it to the map and release this
+            # message
+            self.timestamp_to_stream_name_map[msg.timestamp] = msg.stream_name
+            self.get_output_stream(self.output_stream_name).send(msg)
+
+    @staticmethod
+    def setup_streams(input_streams, output_stream_name):
+        if len(input_streams) > 0:
+            assert all(input_stream.data_type == input_streams[0].data_type \
+                       for input_stream in input_streams), \
+                "All input streams into the ReleaseOperator " \
+                "should have the same data type"
+            input_streams.add_callback(EarlyReleaseOperator.on_msg)
+            return [DataStream(input_streams[0].data_type,
+                               output_stream_name, input_streams[0].labels)]
+        else:
+            return []
+
