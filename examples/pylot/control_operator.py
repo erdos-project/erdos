@@ -14,9 +14,9 @@ LANE_FOLLOW = 2.0
 
 
 class ControlOperator(Op):
-    def __init__(self, name):
+    def __init__(self, name, log_file_name=None):
         super(ControlOperator, self).__init__(name)
-        self._logger = setup_logging(self.name)
+        self._logger = setup_logging(self.name, log_file_name)
 
     @staticmethod
     def setup_streams(input_streams):

@@ -1,31 +1,33 @@
 from cv_bridge import CvBridge
+import cv2
 import numpy as np
-import tensorflow as tf
 import PIL.Image as Image
-import PIL.ImageDraw as ImageDraw
-import PIL.ImageFont as ImageFont
-
+import tensorflow as tf
+import time
 
 from erdos.data_stream import DataStream
 from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import setup_logging
 
-MODEL_PATH = 'dependencies/ssd_mobilenet_v1_coco_2018_01_28/frozen_inference_graph.pb'
-#MODEL_PATH = 'dependencies/faster_rcnn_resnet101_coco_2018_01_28/frozen_inference_graph.pb'
+from utils import add_bounding_box, load_coco_labels
 
 
 class DetectionOperator(Op):
-    def __init__(self, name):
+    def __init__(self,
+                 name,
+                 output_stream_name,
+                 flags,
+                 log_file_name=None):
         super(DetectionOperator, self).__init__(name)
-        self._logger = setup_logging(self.name)
-        self._tf_session = None
+        self._flags = flags
+        self._logger = setup_logging(self.name, log_file_name)
+        self._output_stream_name = output_stream_name
         self._bridge = CvBridge()
-        self._min_score_threshold = 0.3
         self._detection_graph = tf.Graph()
         with self._detection_graph.as_default():
             od_graph_def = tf.GraphDef()
-            with tf.gfile.GFile(MODEL_PATH, 'rb') as fid:
+            with tf.gfile.GFile(self._flags.detector_model_path, 'rb') as fid:
                 serialized_graph = fid.read()
                 od_graph_def.ParseFromString(serialized_graph)
                 tf.import_graph_def(od_graph_def, name='')
@@ -41,55 +43,23 @@ class DetectionOperator(Op):
             'detection_classes:0')
         self._num_detections = self._detection_graph.get_tensor_by_name(
             'num_detections:0')
+        self._coco_labels = load_coco_labels(self._flags.path_coco_labels)
 
     @staticmethod
-    def setup_streams(input_streams):
+    def setup_streams(input_streams, output_stream_name):
         input_streams.add_callback(DetectionOperator.on_msg_camera_stream)
         # TODO(Ionel): specify data type here
-        return [DataStream(name='obj_stream')]
-
-    def add_bounding_box_text(self, draw, xmin, ymax, ymin, color, texts):
-        try:
-            font = ImageFont.truetype('arial.ttf', 24)
-        except IOError:
-            font = ImageFont.load_default()
-        # Check if there's space to add text at the top of the box.
-        text_str_heights = [font.getsize(text)[1] for text in texts]
-        # Each display_str has a top and bottom margin of 0.05x.
-        total_text_str_height = (1 + 2 * 0.05) * sum(text_str_heights)
-
-        if ymax > total_text_str_height:
-            text_bottom = ymax
-        else:
-            text_bottom = ymin + total_text_str_height
-        # Reverse list and print from bottom to top.
-        for text in texts[::-1]:
-            text_width, text_height = font.getsize(text)
-            margin = np.ceil(0.05 * text_height)
-            draw.rectangle(
-                [(xmin, text_bottom - text_height - 2 * margin),
-                 (xmin + text_width, text_bottom)],
-                fill=color)
-            draw.text(
-                (xmin + margin, text_bottom - text_height - margin),
-                text, fill='black', font=font)
-            text_bottom -= text_height - 2 * margin
-
-    def add_bounding_box(self, image, corners, color='red',
-                         thickness=4, texts=None):
-        draw = ImageDraw.Draw(image)
-        (xmin, xmax, ymin, ymax) = corners
-        draw.line([(xmin, ymax), (xmin, ymin), (xmax, ymin),
-                   (xmax, ymax), (xmin, ymax)], width=thickness, fill=color)
-        if texts:
-            self.add_bounding_box_text(draw, xmin, ymax, ymin, color, texts)
+        return [DataStream(name=output_stream_name,
+                           labels={'obstacles': 'true'})]
 
     def on_msg_camera_stream(self, msg):
         self._logger.info('%s received frame %s', self.name, msg.timestamp)
-        image_np = self._bridge.imgmsg_to_cv2(msg.data, "bgr8")
-        # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
+        start_time = time.time()
+        image_np = self._bridge.imgmsg_to_cv2(msg.data, 'rgb8')
+        # Expand dimensions since the model expects images to have
+        # shape: [1, None, None, 3]
         image_np_expanded = np.expand_dims(image_np, axis=0)
-        (boxes, scores, detection_classes, num_detections) = self._tf_session.run(
+        (boxes, scores, classes, num_detections) = self._tf_session.run(
             [
                 self._detection_boxes, self._detection_scores,
                 self._detection_classes, self._num_detections
@@ -97,33 +67,42 @@ class DetectionOperator(Op):
             feed_dict={self._image_tensor: image_np_expanded})
 
         num_detections = int(num_detections[0])
-        #classes = detection_classes[0].astype(np.uint8)
+        classes = classes[0][:num_detections]
+        labels = [self._coco_labels[label] for label in classes]
         boxes = boxes[0][:num_detections]
         scores = scores[0][:num_detections]
 
         self._logger.info('Object boxes {}'.format(boxes))
         self._logger.info('Object scores {}'.format(scores))
+        self._logger.info('Object labels {}'.format(labels))
 
         img = Image.fromarray(np.uint8(image_np)).convert('RGB')
 
         index = 0
-        output_boxes = []
+        output = []
         im_width, im_height = img.size
         while index < len(boxes) and index < len(scores):
-            if scores[index] > self._min_score_threshold:
-                ymin = boxes[index][0] * im_height
-                xmin = boxes[index][1] * im_width
-                ymax = boxes[index][2] * im_height
-                xmax = boxes[index][3] * im_width
+            if scores[index] > self._flags.detector_min_score_threshold:
+                ymin = int(boxes[index][0] * im_height)
+                xmin = int(boxes[index][1] * im_width)
+                ymax = int(boxes[index][2] * im_height)
+                xmax = int(boxes[index][3] * im_width)
                 corners = (xmin, xmax, ymin, ymax)
-                output_boxes.append(corners)
-                self.add_bounding_box(img, corners)
+                output.append((corners, scores[index], labels[index]))
+                add_bounding_box(img, corners)
             index += 1
 
-        # img.show()
+        if self._flags.visualize_detector_output:
+            open_cv_image = np.array(img)
+            open_cv_image = open_cv_image[:, :, ::-1].copy()
+            cv2.imshow(self.name, open_cv_image)
+            cv2.waitKey(1)
 
-        output_msg = Message(output_boxes, msg.timestamp)
-        self.get_output_stream('obj_stream').send(output_msg)
+        runtime = time.time() - start_time
+        self._logger.info('Object detector {} runtime {}'.format(
+            self.name, runtime))
+        output_msg = Message(output, msg.timestamp)
+        self.get_output_stream(self._output_stream_name).send(output_msg)
 
     def execute(self):
         self.spin()
