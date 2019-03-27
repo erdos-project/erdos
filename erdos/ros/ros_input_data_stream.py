@@ -24,6 +24,10 @@ class ROSInputDataStream(DataStream):
 
     def setup(self):
         """Initializes a ROS subscriber."""
+        # Populate the map with the correct stream names.
+        for input_stream in self.op.input_streams:
+            self.op._stream_to_high_watermark[input_stream.name] = None
+
         data_type = self.data_type if self.data_type else String
         # TODO(ionel): We currently transform messages to Strings because
         # we want to pass timestamp and stream info along with the message.
@@ -36,6 +40,35 @@ class ROSInputDataStream(DataStream):
         self.op.log_event(time.time(), msg.timestamp,
                           'receive {}'.format(self.name))
         if isinstance(msg, WatermarkMessage):
+            # Ensure that the watermark is monotonically increasing.
+            high_watermark = self.op._stream_to_high_watermark[msg.stream_name]
+            if not high_watermark:
+                # The first watermark, just set the dictionary with the value.
+                self.op._stream_to_high_watermark[
+                    msg.stream_name] = msg.timestamp
+            else:
+                if high_watermark >= msg.timestamp:
+                    raise Exception(
+                        "The watermark received in the msg {} is not "
+                        "higher than the watermark previously received "
+                        "on the same stream: {}".format(msg, high_watermark))
+                else:
+                    self.op._stream_to_high_watermark[msg.stream_name] = \
+                            msg.timestamp
+
+            # Now check if all other streams have a higher or equal watermark.
+            # If yes, flow this watermark. If not, return from this function
+            # Also, maintain the lowest watermark observed.
+            low_watermark = msg.timestamp
+            for stream, watermark in self.op._stream_to_high_watermark.items():
+                if stream != msg.stream_name:
+                    if not watermark or watermark < msg.timestamp:
+                        return
+                    if low_watermark > watermark:
+                        low_watermark = watermark
+            msg = WatermarkMessage(low_watermark)
+            
+            # Call the required callbacks.
             for on_watermark_callback in self.completion_callbacks:
                 on_watermark_callback(self.op, msg)
 
