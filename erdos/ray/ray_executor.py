@@ -18,7 +18,6 @@ class RayExecutor(Executor):
             self.op_handle.resources) if self.op_handle.resources else {}
         num_cpus = self.op_handle.resources.pop("CPU", None)
         num_gpus = self.op_handle.resources.pop("GPU", None)
-        print(self.op_handle.resources)
 
         # TODO (Yika): hacky solution for using decorator on callbacks
         # When we wrap op in ray operator, __name__ of callbacks that have
