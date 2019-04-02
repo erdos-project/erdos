@@ -50,7 +50,8 @@ class Graph(object):
         self.input_op = self.add(NoopOp, name='input_op')
         self.output_op = self.add(NoopOp, name='output_op')
 
-    def add(self, op_cls, name="", init_args=None, setup_args=None):
+    def add(self, op_cls, name="", init_args=None, setup_args=None,
+            resources=None):
         """Adds an operator to the execution graph.
 
         Args:
@@ -61,16 +62,18 @@ class Graph(object):
                 method.
             setup_args (dict): Arguments passed to the operator's
                 `setup_streams` method.
+            resources (dict): A dictionary of resources for placing the
+                operator when using Ray.
 
         Returns:
             (str): Unique operator identifier.
         """
         if issubclass(op_cls, Graph):
             handle = GraphHandle(name, op_cls, init_args, setup_args,
-                                 self.graph_name, self)
+                                 self.graph_name, self, resources=resources)
         else:
             handle = OpHandle(name, op_cls, init_args, setup_args,
-                              self.graph_name)
+                              self.graph_name, resources=resources)
         op_id = handle.get_uid()
         assert (op_id not in self.op_handles), \
             'Duplicate operator name {}. Ensure name uniqueness ' \

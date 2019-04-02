@@ -29,7 +29,7 @@ class MachineAOp(Op):
     def print_node(self):
         plasma_store_socket_name = (
             ray.worker.global_worker.plasma_client.store_socket_name)
-        node_name = node_directory[plasma_store_socket_name]
+        node_name = node_directory.get(plasma_store_socket_name, "unknown")
         print("MachineAOp is located on node {}".format(node_name))
 
     def execute(self):
@@ -49,7 +49,7 @@ class MachineBOp(Op):
     def print_node(self):
         plasma_store_socket_name = (
             ray.worker.global_worker.plasma_client.store_socket_name)
-        node_name = node_directory[plasma_store_socket_name]
+        node_name = node_directory.get(plasma_store_socket_name, "unknown")
         print("MachineBOp is located on node {}".format(node_name))
 
     def execute(self):
@@ -62,8 +62,10 @@ def main(argv):
     graph = erdos.graph.get_current_graph()
 
     # Add operators
-    machine_a_op = graph.add(MachineAOp, name='machine_a_op')
-    machine_b_op = graph.add(MachineBOp, name='machine_b_op')
+    machine_a_op = graph.add(MachineAOp, name='machine_a_op',
+                            resources={"machine_a": 1})
+    machine_b_op = graph.add(MachineBOp, name='machine_b_op',
+                            resources={"machine_b": 1})
 
     # Execute graph
     graph.execute("ray")
@@ -71,8 +73,8 @@ def main(argv):
 
 if __name__ == "__main__":
     cluster = Cluster(initialize_head=True)
-    a = cluster.add_node(resources={"machine_a": 100})
-    b = cluster.add_node(resources={"machine_b": 100})
+    a = cluster.add_node(resources={"machine_a": 100}, num_cpus=4)
+    b = cluster.add_node(resources={"machine_b": 100}, num_cpus=4)
 
     node_directory[a.plasma_store_socket_name] = "machine_a"
     node_directory[b.plasma_store_socket_name] = "machine_b"

@@ -6,7 +6,6 @@ class OpHandle(object):
                  setup_args,
                  graph_name,
                  framework='ray',
-                 machine="",
                  resources=None):
         # Ensure op name uniqueness
         self.name = name if name else "{0}_{1}".format(
@@ -20,7 +19,6 @@ class OpHandle(object):
         self.input_streams = []
         self.output_streams = []
         self.framework = framework
-        self.machine = machine
         self.resources = {} if resources is None else resources
         self.dependant_ops = []  # handle ids of dependant ops
         self.dependent_op_handles = {}
