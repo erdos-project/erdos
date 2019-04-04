@@ -13,6 +13,7 @@ from erdos.timestamp import Timestamp
 from erdos.utils import frequency, setup_logging
 
 import messages
+import ray
 
 
 class CarlaOperator(Op):
@@ -161,6 +162,7 @@ class CarlaOperator(Op):
 
         timestamp = Timestamp(coordinates=[self.message_num])
         self.message_num += 1
+        ray.register_custom_serializer(Message, use_pickle=True)
         self.get_output_stream('world_transform').send(
             Message(world_transform, timestamp))
         self.get_output_stream('vehicle_pos').send(

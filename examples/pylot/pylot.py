@@ -13,7 +13,10 @@ from fusion_operator import FusionOperator
 from fusion_verification_operator import FusionVerificationOperator
 from lidar_visualizer_operator import LidarVisualizerOperator
 from obstacle_accuracy_operator import ObstacleAccuracyOperator
-from tracker_crt_operator import TrackerCRTOperator
+try:
+    from tracker_crt_operator import TrackerCRTOperator
+except ImportError:
+    print("Error importing CRT tracker.")	
 from tracker_cv2_operator import TrackerCV2Operator
 from planner.planner_operator import PlannerOperator
 from segmentation_operator import SegmentationOperator
@@ -188,7 +191,8 @@ def add_detector_op(graph, camera_ops):
         setup_args={'output_stream_name': 'obj_stream'},
         init_args={'output_stream_name': 'obj_stream',
                    'flags': FLAGS,
-                   'log_file_name': FLAGS.log_file_name})
+                   'log_file_name': FLAGS.log_file_name},
+        _resources = {"GPU": 0.3})
     graph.connect(camera_ops, [obj_detector_op])
     return obj_detector_op
 
@@ -200,7 +204,8 @@ def add_traffic_light_op(graph, camera_ops):
         setup_args={'output_stream_name': 'traffic_lights'},
         init_args={'output_stream_name': 'traffic_lights',
                    'flags': FLAGS,
-                   'log_file_name': FLAGS.log_file_name})
+                   'log_file_name': FLAGS.log_file_name},
+        _resources = {"GPU": 0.3})
     graph.connect(camera_ops, [traffic_light_det_op])
     return traffic_light_det_op
 
@@ -254,7 +259,8 @@ def add_segmentation_op(graph, camera_ops):
         setup_args={'output_stream_name': 'segmented_stream'},
         init_args={'output_stream_name': 'segmented_stream',
                    'flags': FLAGS,
-                   'log_file_name': FLAGS.log_file_name})
+                   'log_file_name': FLAGS.log_file_name},
+        _resources = {"GPU": 0.3})
     graph.connect(camera_ops, [segmentation_op])
     return segmentation_op
 

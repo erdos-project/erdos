@@ -31,7 +31,8 @@ class TrafficLightDetOperator(Op):
                 od_graph_def.ParseFromString(serialized_graph)
                 tf.import_graph_def(od_graph_def, name='')
 
-        self._tf_session = tf.Session(graph=self._detection_graph)
+        self._gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
+        self._tf_session = tf.Session(graph=self._detection_graph, config=tf.ConfigProto(gpu_options=self._gpu_options))
         self._image_tensor = self._detection_graph.get_tensor_by_name(
             'image_tensor:0')
         self._detection_boxes = self._detection_graph.get_tensor_by_name(
@@ -111,4 +112,3 @@ class TrafficLightDetOperator(Op):
     def execute(self):
         self._logger.info('Executing %s', self.name)
         self.spin()
-        self._tf_session.close()

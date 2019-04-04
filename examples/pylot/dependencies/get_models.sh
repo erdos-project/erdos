@@ -10,6 +10,7 @@ tar -xvf faster_rcnn_resnet101_coco_2018_01_28.tar.gz
 wget http://download.tensorflow.org/models/object_detection/ssd_mobilenet_v1_coco_2018_01_28.tar.gz
 tar -xvf ssd_mobilenet_v1_coco_2018_01_28.tar.gz
 pip install gdown
-gdown http://drive.google.com/uc?id=0B1sg8Yyw1JCDOUNsYkpQTGdLYVU
-mkdir conv_reg_vot/vgg_model
-mv VGG_16_layers_py3.npz conv_reg_vot/vgg_model/
+~/.local/bin/gdown http://drive.google.com/uc?id=0B1sg8Yyw1JCDOUNsYkpQTGdLYVU
+cd ../
+mkdir -p conv_reg_vot/vgg_model
+mv data/VGG_16_layers_py3.npz conv_reg_vot/vgg_model/
