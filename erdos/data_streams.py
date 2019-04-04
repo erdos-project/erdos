@@ -77,3 +77,15 @@ class DataStreams(object):
         for stream in self._streams:
             stream.add_completion_callback(callback_func)
         return self
+
+    def __len__(self):
+        """ Returns the length of the DataStreams. """
+        return len(self._streams)
+
+    def __iter__(self):
+        """ Iterate over the DataStreams. """
+        return (stream for stream in self._streams)
+
+    def __getitem__(self, key):
+        """ Index into the DataStreams. """
+        return self._streams[key]

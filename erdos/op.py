@@ -31,6 +31,7 @@ class Op(object):
         self.freq_actor = None
         self.progress_tracker = None
         self.framework = None
+        self._stream_to_high_watermark = {}
 
     def get_output_stream(self, name):
         """Returns the output stream matching name"""
