@@ -8,9 +8,14 @@ class FluxOperatorState(Enum):
     PAUSE = 4
 
 
-class ControlMsgType(Enum):
-    FAILED_REPLICA = 1
-    FAILED_PRIMARY = 2
+class FluxControllerCommand(Enum):
+    FAIL_PRIMARY = 0
+    FAIL_REPLICA = 1
+    RECOVER = -1
+
+
+class SpecialCommand(Enum):
+    REVERSE = -2
 
 
 def is_ack_stream(stream):

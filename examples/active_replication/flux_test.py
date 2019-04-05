@@ -7,6 +7,8 @@ from flux_ingress_operator import FluxIngressOperator
 from flux_egress_operator import FluxEgressOperator
 from flux_consumer_operator import FluxConsumerOperator
 from flux_producer_operator import FluxProducerOperator
+from source import Source
+from sink import Sink
 
 import erdos.graph
 
@@ -21,20 +23,26 @@ def main(argv):
     # Define graph
     graph = erdos.graph.get_current_graph()
 
+    source_op = graph.add(
+        Source,
+        name='source'
+    )
+
+    sink_op = graph.add(
+        Sink,
+        name='sink'
+    )
+
     flux_ingress_op = graph.add(
         FluxIngressOperator,
         name='flux_ingress',
-        init_args={'primary_stream_name': 'primary_consumer',
-                   'secondary_stream_name': 'secondary_consumer',
-                   'primary_ack_stream_name': 'primary_ack',
-                   'secondary_ack_stream_name': 'secondary_ack'},
-        setup_args={'primary_stream_name': 'primary_consumer',
-                    'secondary_stream_name': 'secondary_consumer'})
+        init_args={'output_stream_names': ['primary_consumer', 'secondary_consumer']},
+        setup_args={'output_stream_names': ['primary_consumer', 'secondary_consumer']})
 
     flux_primary_consumer_op = graph.add(
         FluxConsumerOperator,
         name='flux_primary_consumer',
-        init_args={'primary': True,
+        init_args={'replica_num': 0,
                    'output_stream_name': 'primary_data_stream',
                    'ack_stream_name': 'primary_ack'},
         setup_args={'output_stream_name': 'primary_data_stream',
@@ -42,7 +50,7 @@ def main(argv):
     flux_secondary_consumer_op = graph.add(
         FluxConsumerOperator,
         name='flux_secondary_consumer',
-        init_args={'primary': False,
+        init_args={'replica_num': 1,
                    'output_stream_name': 'secondary_data_stream',
                    'ack_stream_name': 'secondary_ack'},
         setup_args={'output_stream_name': 'secondary_data_stream',
@@ -51,13 +59,13 @@ def main(argv):
     flux_primary_producer_op = graph.add(
         FluxProducerOperator,
         name='flux_primary_producer',
-        init_args={'primary': True,
+        init_args={'replica_num': 0,
                    'output_stream_name': 'primary_producer'},
         setup_args={'output_stream_name': 'primary_producer'})
     flux_secondary_producer_op = graph.add(
         FluxProducerOperator,
         name='flux_secondary_producer',
-        init_args={'primary': False,
+        init_args={'replica_num': 1,
                    'output_stream_name': 'secondary_producer'},
         setup_args={'output_stream_name': 'secondary_producer'})
 
@@ -73,48 +81,49 @@ def main(argv):
         FailureOperator,
         name='primary_failure',
         init_args={'output_stream_name': 'primary_failure',
-                   'primary': True},
+                   'replica_num': 0},
         setup_args={'output_stream_name': 'primary_failure'})
 
     secondary_failure_op = graph.add(
         FailureOperator,
         name='secondary_failure',
         init_args={'output_stream_name': 'secondary_failure',
-                   'primary': False},
+                   'replica_num': 1},
         setup_args={'output_stream_name': 'secondary_failure'})
 
-    # NOTE: The controller generates failure messages and input data.
     controller_op = graph.add(
         ControllerOperator,
         name='controller')
 
+    # Connect source to ingress
+    graph.connect([source_op], [flux_ingress_op])
+    
+    # Connect the ingress operator to the consumer replicas, vice versa for ACK
+    graph.connect([flux_ingress_op],
+                  [flux_primary_consumer_op, flux_secondary_consumer_op])
+    graph.connect([flux_primary_consumer_op, flux_secondary_consumer_op],
+                  [flux_ingress_op])
+
+    # Connect consumer => failure => producer
+    graph.connect([flux_primary_consumer_op], [primary_failure_op])
+    graph.connect([flux_secondary_consumer_op], [secondary_failure_op])
+    graph.connect([primary_failure_op], [flux_primary_producer_op])
+    graph.connect([secondary_failure_op], [flux_secondary_producer_op])
+
+    # Connect producer operators to the egress operator, and egress only to secondary
+    graph.connect([flux_primary_producer_op, flux_secondary_producer_op],
+                  [flux_egress_op])
+    graph.connect([flux_egress_op], [flux_secondary_producer_op])
+
+    # Connect egress to sink
+    graph.connect([flux_egress_op], [sink_op])
+
     # Connect the controller op to the operators that need to receive node
-    # failure messages.
+    # failure messages. Consumers don't need to receive
     graph.connect([controller_op],
                   [flux_ingress_op, flux_primary_producer_op,
                    flux_secondary_producer_op, flux_egress_op] +
                   [primary_failure_op, secondary_failure_op])
-    
-    # Connect the ingress operator to the consumer replicas.
-    graph.connect([flux_ingress_op],
-                  [flux_primary_consumer_op, flux_secondary_consumer_op])
-    # Connect the consumer replicas to the ingress operator so that it can
-    # listen on ACK streams.
-    graph.connect([flux_primary_consumer_op, flux_secondary_consumer_op],
-                  [flux_ingress_op])
-
-    graph.connect([flux_primary_consumer_op], [primary_failure_op])
-    graph.connect([flux_secondary_consumer_op], [secondary_failure_op])
-
-    graph.connect([primary_failure_op], [flux_primary_producer_op])
-    graph.connect([secondary_failure_op], [flux_secondary_producer_op])
-
-    # Connect the primary operators to the egress operator.
-    graph.connect([flux_primary_producer_op, flux_secondary_producer_op],
-                  [flux_egress_op])
-    # Connect the egress operator to the secondary; so that it can ACK
-    # messages.
-    graph.connect([flux_egress_op], [flux_secondary_producer_op])
 
     graph.execute(FLAGS.framework)
 

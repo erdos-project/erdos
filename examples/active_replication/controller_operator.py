@@ -12,17 +12,17 @@ import flux_utils
 class ControllerOperator(Op):
     def __init__(self,
                  name,
+                 fail_timeout=1,
                  log_file_name=None):
         super(ControllerOperator, self).__init__(name)
         self._logger = setup_logging(self.name, log_file_name)
         self._node_failed = False
-        self._seq_num = 0
+        self._timeout = fail_timeout
 
     @staticmethod
     def setup_streams(input_streams):
         input_streams.add_callback(ControllerOperator.on_failure_msg)
-        return [DataStream(name='input_stream'),
-                DataStream(name='controller_stream',
+        return [DataStream(name='controller_stream',
                            labels={'control_stream': 'true'})]
 
     # XXX(ionel): This method is not currently invoked.
@@ -36,21 +36,22 @@ class ControllerOperator(Op):
         self.get_output_stream('controller_stream').send(fail_msg)
 
     def execute(self):
-        # The controller introduces input messages as well. We do this in order
-        # to better control the experiment.
-        while self._seq_num < 100:
-            self._seq_num += 1
-            output_msg = Message(self._seq_num,
-                                 Timestamp(coordinates=[self._seq_num]))
-            self.get_output_stream('input_stream').send(output_msg)
-            time.sleep(0.1)
         # TODO(ionel): We should send the failure message on a failed stream,
         # and get a reply back so that we know the node is not processing or
         # issuing any new messages. Otherwise, we run into the risk of having
         # inconsistent state because we can't guarantees in-order delivery
         # across operators.
+        
         # Send failure message.
-        fail_msg = Message(flux_utils.FAILED_REPLICA,
-                           Timestamp(coordinates=[0]))
-        self.get_output_stream('controller_stream').send(fail_msg)
+        # time.sleep(10)
+        # # Fail primary and notify ingress, egress and consumers
+        # fail_replica_num = 0
+        # fail_msg = Message(fail_replica_num, Timestamp(coordinates=[0]))
+        # self.get_output_stream('controller_stream').send(fail_msg)
+
+        # Recover failed primary
+        # time.sleep(self._timeout)
+        # fail_msg = Message(0, Timestamp(coordinates=[0]))
+        # self.get_output_stream('controller_stream').send(fail_msg)
+
         self.spin()
