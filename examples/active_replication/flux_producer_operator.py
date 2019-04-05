@@ -32,12 +32,10 @@ class FluxProducerOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams, output_stream_name):
-        input_streams.filter(is_not_control_stream).filter(is_not_ack_stream).add_callback(
+        input_streams.filter(is_not_ack_stream).add_callback(
                 FluxProducerOperator.on_msg)
         input_streams.filter(is_ack_stream).add_callback(
             FluxProducerOperator.on_ack_msg)
-        input_streams.filter(is_control_stream).add_callback(
-            FluxProducerOperator.on_control_msg)
 
         return [DataStream(name=output_stream_name)]
 

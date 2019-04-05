@@ -14,12 +14,12 @@ class Buffer:
         # Move cursor to next undelivered tuple
         self.cursors[dest] += 1
 
-    def put(self, tuple, sn):
+    def put(self, data, sn):
         # Put input stream
         if len(self.queue) > 0:
             assert sn > self.queue[-1][0]
         ack_status = tuple([False for _ in range(self.n_dest)])
-        self.queue.append((sn, tuple, ack_status))
+        self.queue.append((sn, data, ack_status))
 
     def ack(self, sn, dest):
         for i in range(len(self.queue)):

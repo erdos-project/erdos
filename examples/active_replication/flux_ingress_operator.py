@@ -38,7 +38,7 @@ class FluxIngressOperator(Op):
     def on_msg(self, msg):
         self.input_lock.acquire()
         # Put msg in buffer
-        self.buffer.put(msg, self._input_msg_seq_num)
+        self.buffer.put(msg.data, self._input_msg_seq_num)
         # Send message to the two downstream Flux Consumer Operators
         msg.data = (self._input_msg_seq_num, msg.data)
         for stream_name in self._output_streams:

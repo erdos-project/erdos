@@ -36,8 +36,8 @@ def main(argv):
     flux_ingress_op = graph.add(
         FluxIngressOperator,
         name='flux_ingress',
-        init_args={'output_stream_names': ['primary_consumer', 'secondary_consumer']},
-        setup_args={'output_stream_names': ['primary_consumer', 'secondary_consumer']})
+        init_args={'output_stream_names': ('primary_consumer', 'secondary_consumer')},
+        setup_args={'output_stream_names': ('primary_consumer', 'secondary_consumer')})
 
     flux_primary_consumer_op = graph.add(
         FluxConsumerOperator,
