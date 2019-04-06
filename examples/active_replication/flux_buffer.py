@@ -25,9 +25,12 @@ class Buffer:
         for i in range(len(self.queue)):
             item = self.queue[i]
             if item[0] == sn:
-                item[2][dest] = True
-                if all(item[2]):
+                temp = list(item[2])
+                temp[dest] = True
+                if all(temp):
                     self.queue.pop(i)
+                else:
+                    self.queue[i] = (item[0], item[1], tuple(temp))
                 return True
         return False
 
@@ -36,15 +39,18 @@ class Buffer:
         self.n_dest -= 1
         self.cursors.pop(dest)
         for i in range(len(self.queue)):
-            self.queue[i][2] = tuple(list(self.queue[i][2]).pop(dest))
-            if all(self.queue[i][2]):
+            new_status = tuple(list(self.queue[i][2]).pop(dest))
+            if all(new_status):
                 self.queue.pop(i)
+            else:
+                self.queue[i] = (self.queue[i][0], self.queue[i][1], new_status)
 
     def reset(self):
         self.n_dest += 1
         self.cursors.append(0)
         for i in range(len(self.queue)):
-            self.queue[i][2] += (False,)
+            new_status = self.queue[i][2] + (False,)
+            self.queue[i] = (self.queue[i][0], self.queue[i][1], new_status)
 
     def _drop(self, i):
         # Drop if all ack status are either True or None (failed)

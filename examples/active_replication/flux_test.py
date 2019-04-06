@@ -36,8 +36,8 @@ def main(argv):
     flux_ingress_op = graph.add(
         FluxIngressOperator,
         name='flux_ingress',
-        init_args={'output_stream_names': ('primary_consumer', 'secondary_consumer')},
-        setup_args={'output_stream_names': ('primary_consumer', 'secondary_consumer')})
+        init_args={'output_stream_names': ('primary', 'secondary')},
+        setup_args={'output_stream_names': ('primary', 'secondary')})
 
     flux_primary_consumer_op = graph.add(
         FluxConsumerOperator,
@@ -96,6 +96,7 @@ def main(argv):
         name='controller')
 
     # Connect source to ingress
+    # graph.connect([source_op], [sink_op])
     graph.connect([source_op], [flux_ingress_op])
     
     # Connect the ingress operator to the consumer replicas, vice versa for ACK

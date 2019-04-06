@@ -263,7 +263,8 @@ class Graph(object):
         for op_id, op_handle in self.op_handles.items():
             op_handle.op_cls.setup_streams(
                 DataStreams(op_handle.input_streams), **op_handle.setup_args)
-
+        for op_id, op_handle in self.op_handles.items():
+            print(op_handle.name, [out.name for out in op_handle.output_streams])
         self._build_output_stream_sinks_graph()
 
     def _build_output_stream_sinks_graph(self):
