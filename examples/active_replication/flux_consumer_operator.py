@@ -48,11 +48,12 @@ class FluxConsumerOperator(Op):
     def on_control_msg(self, msg):
         self.lock.acquire()
         (control_num, replica_num) = msg.data
-        if control_num == flux_utils.FluxControllerCommand.FAIL and replica_num == self._replica_num:
+        if replica_num != self._replica_num:
+            pass
+        elif control_num == flux_utils.FluxControllerCommand.FAIL:
             self._logger.info("Failed by controller.")
             self._failed = True
-        elif self._failed and control_num == flux_utils.FluxControllerCommand.RECOVER \
-                and replica_num == self._replica_num:
+        elif self._failed and control_num == flux_utils.FluxControllerCommand.RECOVER:
             self._failed = False
         else:
             self._logger.fatal('Unexpected control message {}'.format(msg))
