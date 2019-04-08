@@ -4,7 +4,7 @@ from erdos.op import Op
 from erdos.utils import setup_logging
 import flux_utils
 from flux_utils import is_control_stream, is_not_control_stream
-
+import threading
 
 class FluxConsumerOperator(Op):
     def __init__(self,
@@ -19,6 +19,7 @@ class FluxConsumerOperator(Op):
         self._output_stream_name = output_stream_name
         self._ack_stream_name = ack_stream_name
         self._failed = False
+        self.lock = threading.Lock()
         
     @staticmethod
     def setup_streams(input_streams, output_stream_name, ack_stream_name):
@@ -32,6 +33,7 @@ class FluxConsumerOperator(Op):
                            labels={'ack_stream': 'true'})]
 
     def on_msg(self, msg):
+        self.lock.acquire()
         if not self._failed:
             # Remove ingress seq num
             # print('%s received %s' % (self.name, msg))
@@ -42,14 +44,17 @@ class FluxConsumerOperator(Op):
                 Message((self._replica_num, msg_seq_num), msg.timestamp))
             # 2) Forward the message
             self.get_output_stream(self._output_stream_name).send(msg)
+        self.lock.release()
 
     def on_control_msg(self, msg):
+        self.lock.acquire()
         control_num = int(msg.data)
         if self._replica_num == control_num:   # Fail
             self._logger.info("Failed by controller.")
             self._failed = True
         elif self._failed and control_num == flux_utils.FluxControllerCommand.RECOVER:
             self._failed = False
+        self.lock.release()
 
     def execute(self):
         self.spin()

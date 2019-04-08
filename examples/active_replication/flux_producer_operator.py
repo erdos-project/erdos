@@ -6,6 +6,8 @@ import flux_utils
 from flux_utils import is_ack_stream, is_not_ack_stream, is_not_back_pressure
 from flux_buffer import Buffer
 
+import threading
+
 
 class FluxProducerOperator(Op):
     def __init__(self,
@@ -24,6 +26,7 @@ class FluxProducerOperator(Op):
             # with the progress of primary op
             self._buffer = Buffer(1)
             self._ack_buffer = set()
+        self.lock = threading.Lock()
 
     @staticmethod
     def setup_streams(input_streams, output_stream_name):
@@ -37,13 +40,16 @@ class FluxProducerOperator(Op):
         return [DataStream(name=output_stream_name)]
 
     def on_msg(self, msg):
+        self.lock.acquire()
         # XXX(ionel): Need to ensure that we remove output_seq_num
         # during recovery.
         if self._replica_num == 0:  # Primary
             msg.data = (self._output_seq_num, msg.data)
             if self._ex_secondary:  # used to a secondary
-                if len(self._ack_buffer) > 0:   # behind progress
-                    assert self._output_seq_num in self._ack_buffer
+                if len(self._ack_buffer) > 0 and max(self._ack_buffer) > self._output_seq_num:   # behind progress
+                    lst = [str(a) for a in self._ack_buffer]
+                    lst = ",".join(lst)
+                    assert self._output_seq_num in self._ack_buffer, str(self._output_seq_num) + " not in " + lst
                     self._ack_buffer.remove(self._output_seq_num)
                 else:   # ahead of progress
                     self.get_output_stream(self._output_stream_name).send(msg)
@@ -55,8 +61,10 @@ class FluxProducerOperator(Op):
             else:
                 self._buffer.put(msg.data, self._output_seq_num, self._replica_num)
         self._output_seq_num += 1
+        self.lock.release()
 
     def on_ack_msg(self, msg):
+        self.lock.acquire()
         if msg.data == flux_utils.SpecialCommand.REVERSE:
             # Secondary receives a REVERSE message from egress
             # turn into a primary producer
@@ -79,6 +87,7 @@ class FluxProducerOperator(Op):
                 self._buffer.pop_oldest()
             else:   # behind
                 self._ack_buffer.add(msg_seq_num)
+        self.lock.release()
 
     def execute(self):
         self.spin()
