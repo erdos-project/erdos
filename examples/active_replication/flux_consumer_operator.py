@@ -2,6 +2,7 @@ from erdos.data_stream import DataStream
 from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import setup_logging
+import flux_utils
 
 
 class FluxConsumerOperator(Op):
@@ -16,6 +17,7 @@ class FluxConsumerOperator(Op):
         self._replica_num = replica_num
         self._output_stream_name = output_stream_name
         self._ack_stream_name = ack_stream_name
+        self._failed = False
         
     @staticmethod
     def setup_streams(input_streams, output_stream_name, ack_stream_name):
@@ -28,15 +30,23 @@ class FluxConsumerOperator(Op):
                            labels={'ack_stream': 'true'})]
 
     def on_msg(self, msg):
-        # Remove ingress seq num
-        # print('%s received %s' % (self.name, msg))
-        (msg_seq_num, data) = msg.data
-        msg.data = data
-        # 1) ACK the message
-        self.get_output_stream(self._ack_stream_name).send(
-            Message((self._replica_num, msg_seq_num), msg.timestamp))
-        # 2) Forward the message
-        self.get_output_stream(self._output_stream_name).send(msg)
+        if not self._failed:
+            # Remove ingress seq num
+            # print('%s received %s' % (self.name, msg))
+            (msg_seq_num, data) = msg.data
+            msg.data = data
+            # 1) ACK the message
+            self.get_output_stream(self._ack_stream_name).send(
+                Message((self._replica_num, msg_seq_num), msg.timestamp))
+            # 2) Forward the message
+            self.get_output_stream(self._output_stream_name).send(msg)
+
+    def on_control_msg(self, msg):
+        control_num = int(msg.data)
+        if self._replica_num == control_num:   # Fail
+            self._failed = True
+        elif self._failed and control_num == flux_utils.FluxControllerCommand.RECOVER:
+            self._failed = False
 
     def execute(self):
         self.spin()

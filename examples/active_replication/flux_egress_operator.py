@@ -43,21 +43,16 @@ class FluxEgressOperator(Op):
         # print('%s received %s' % (self.name, msg))
         msg_seq_num = msg.data[0]
         # Send ACK message to replica if we have one.
-        if self._num_replicas > 1:
-            self.get_output_stream(self._ack_stream_name).send(
-                Message(msg_seq_num, msg.timestamp))
+        self.get_output_stream(self._ack_stream_name).send(
+            Message(msg_seq_num, msg.timestamp))
         msg.data = msg.data[1]  # Remove the output sequence number
         # Forward output
         self.get_output_stream(self._output_stream_name).send(msg)
         # TODO(yika): optionally buffer data until sink sends ACK
 
     def on_control_msg(self, msg):
-        if msg.data == 0:
-            self._num_replicas -= 1
-        elif msg.data > 0:
-            self._num_replicas -= 1
-        if -1 < msg.data < self._num_replicas:
-            self._num_replicas -= 1
+        control_num = int(msg.data)
+        if -1 < control_num < self._num_replicas:
             # Send REVERSE msg to secondary
             msg.data = flux_utils.SpecialCommand.REVERSE
             self.get_output_stream(self._output_stream_name).send(msg)

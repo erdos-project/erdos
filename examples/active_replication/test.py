@@ -90,6 +90,10 @@ def main(argv):
         name='sink'
     )
 
+    controller_op = graph.add(
+        ControllerOperator,
+        name='controller')
+
     graph.connect([source_op], [flux_ingress_op])
     graph.connect([flux_ingress_op], [flux_primary_consumer_op, flux_secondary_consumer_op])
     graph.connect([flux_primary_consumer_op, flux_secondary_consumer_op], [flux_ingress_op])
@@ -99,6 +103,11 @@ def main(argv):
     graph.connect([secondary_failure_op], [flux_secondary_producer_op])
     graph.connect([flux_primary_producer_op, flux_secondary_producer_op], [flux_egress_op])
     graph.connect([flux_egress_op], [flux_secondary_producer_op, sink_op])
+
+    graph.connect([controller_op],
+                  [flux_ingress_op, flux_primary_consumer_op,
+                   flux_secondary_consumer_op, flux_egress_op] +
+                  [primary_failure_op, secondary_failure_op])
 
     graph.execute(FLAGS.framework)
 

@@ -31,11 +31,11 @@ class FailureOperator(Op):
             self.get_output_stream(self._output_stream_name).send(msg)
 
     def on_controller_msg(self, msg):
-        if self._replica_num == msg.data:   # Fail
+        control_num = int(msg.data)
+        if self._replica_num == control_num:   # Fail
             self._failed = True
-        elif self._failed and msg.data == flux_utils.FluxControllerCommand.RECOVER:
+        elif self._failed and control_num == flux_utils.FluxControllerCommand.RECOVER:
             self._failed = False
-            self._replica_num = 1   # recovered op becomes the replica
 
     def execute(self):
         self.spin()

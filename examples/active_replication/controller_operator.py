@@ -43,11 +43,12 @@ class ControllerOperator(Op):
         # across operators.
         
         # Send failure message.
-        # time.sleep(10)
-        # # Fail primary and notify ingress, egress and consumers
-        # fail_replica_num = 0
-        # fail_msg = Message(fail_replica_num, Timestamp(coordinates=[0]))
-        # self.get_output_stream('controller_stream').send(fail_msg)
+        time.sleep(3)
+        # Fail primary and notify ingress, egress and consumers
+        fail_replica_num = 0
+        fail_msg = Message(fail_replica_num, Timestamp(coordinates=[0]))
+        self.get_output_stream('controller_stream').send(fail_msg)
+        print("Control send failure message to primary")
 
         # Recover failed primary
         # time.sleep(self._timeout)

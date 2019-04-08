@@ -53,7 +53,7 @@ class FluxProducerOperator(Op):
             if self._output_seq_num in self._ack_buffer:    # ACK already received
                 self._ack_buffer.remove(self._output_seq_num)
             else:
-                self._buffer.put(msg.data, self._output_seq_num)
+                self._buffer.put(msg.data, self._output_seq_num, self._replica_num)
         self._output_seq_num += 1
 
     def on_ack_msg(self, msg):
@@ -73,7 +73,7 @@ class FluxProducerOperator(Op):
                 self._buffer.send_and_clear(self.get_output_stream(self._output_stream_name))
         else:   # Secondary receives ACK messages
             assert self._replica_num > 0
-            msg_seq_num = msg.data
+            msg_seq_num = int(msg.data)
             if self._buffer.size() > 0: # ahead
                 assert self._buffer.match_oldest(msg_seq_num) is True
                 self._buffer.pop_oldest()

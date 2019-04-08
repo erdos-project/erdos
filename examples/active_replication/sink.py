@@ -1,5 +1,6 @@
 from erdos.op import Op
 from erdos.utils import setup_logging
+from flux_utils import is_not_ack_stream
 
 
 class Sink(Op):
@@ -9,7 +10,7 @@ class Sink(Op):
 
     @staticmethod
     def setup_streams(input_streams):
-        input_streams.add_callback(Sink.on_msg)
+        input_streams.filter(is_not_ack_stream).add_callback(Sink.on_msg)
         return []
 
     def on_msg(self, msg):

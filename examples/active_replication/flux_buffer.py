@@ -3,51 +3,30 @@ class Buffer:
     def __init__(self, n_dest):
         self.n_dest = n_dest
         self.queue = list()  # TODO(yika): add upper bound on buffer size
-        self.cursors = [-1 for _ in range(n_dest)]  # first undelivered tuple
 
-    def peek(self, dest):
-        # return first undelivered tuple
-        if -1 < self.cursors[dest] < len(self.queue):
-            return self.queue[self.cursors[dest]]
-
-    def advance(self, dest):
-        # Move cursor to next undelivered tuple
-        self.cursors[dest] += 1
-
-    def put(self, data, sn):
+    def put(self, data, sn, dest):
         # Put input stream
         if len(self.queue) > 0:
-            assert sn > self.queue[-1][0]
-        ack_status = tuple([False for _ in range(self.n_dest)])
-        self.queue.append((sn, data, ack_status))
+            assert sn >= self.queue[-1][0]
+        self.queue.append((sn, data, dest))
 
     def ack(self, sn, dest):
         for i in range(len(self.queue)):
-            item = self.queue[i]
-            if item[0] == sn:
-                temp = list(item[2])
-                temp[dest] = True
-                if all(temp):
-                    self.queue.pop(i)
-                else:
-                    self.queue[i] = (item[0], item[1], tuple(temp))
+            if self.queue[i][0] == sn and self.queue[i][2] == dest:
+                self.queue.pop(i)
                 return True
         return False
 
     def ack_all(self, dest):
-        # called when dest faileds
-        self.n_dest -= 1
-        self.cursors.pop(dest)
-        for i in range(len(self.queue)):
-            new_status = tuple(list(self.queue[i][2]).pop(dest))
-            if all(new_status):
+        i = 0
+        while i < len(self.queue):
+            if self.queue[i][2] == dest:
                 self.queue.pop(i)
             else:
-                self.queue[i] = (self.queue[i][0], self.queue[i][1], new_status)
+                i += 1
 
     def reset(self):
         self.n_dest += 1
-        self.cursors.append(0)
         for i in range(len(self.queue)):
             new_status = self.queue[i][2] + (False,)
             self.queue[i] = (self.queue[i][0], self.queue[i][1], new_status)
@@ -72,3 +51,4 @@ class Buffer:
         for data in self.queue:
             pub.send(data[1])
         self.queue = list()
+

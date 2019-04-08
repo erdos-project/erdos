@@ -3,6 +3,7 @@ from erdos.op import Op
 from erdos.utils import setup_logging
 from flux_utils import is_ack_stream, is_control_stream, is_not_ack_stream, is_not_control_stream, is_not_back_pressure
 from flux_buffer import Buffer
+import flux_utils
 
 
 class FluxIngressOperator(Op):
@@ -17,6 +18,9 @@ class FluxIngressOperator(Op):
         self._output_streams = output_stream_names
         self._input_msg_seq_num = 0
         self.buffer = Buffer(num_replics)   # buffer to store unacknowledged tuples
+        self._status = {}
+        for i in range(self._num_replicas):
+            self._status[i] = flux_utils.FluxOperatorState.ACTIVE
 
     @staticmethod
     def setup_streams(input_streams, output_stream_names):
@@ -34,7 +38,9 @@ class FluxIngressOperator(Op):
     def on_msg(self, msg):
         # print('%s acknowledged %s' % (self.name, msg))
         # Put msg in buffer
-        self.buffer.put(msg.data, self._input_msg_seq_num)
+        for i in range(self._num_replicas):
+            if self._status[i] == flux_utils.FluxOperatorState.ACTIVE:
+                self.buffer.put(msg.data, self._input_msg_seq_num, i)
         # Send message to the two downstream Flux Consumer Operators
         msg.data = (self._input_msg_seq_num, msg.data)
         self.get_output_stream(self._output_streams).send(msg)
@@ -44,17 +50,17 @@ class FluxIngressOperator(Op):
     def on_ack_msg(self, msg):
         # TODO(yika): optionally send ack to source after dropping
         (dest, msg_seq_num) = msg.data
-        ack = self.buffer.ack(msg_seq_num, dest)
+        ack = self.buffer.ack(int(msg_seq_num), int(dest))
         if not ack:
-            self._logger.fatal('Received ACK on unexpected stream {}'.format(msg.stream_name))
+            self._logger.fatal('Received ACK on unexpected stream {}; dest: {}, seq:{}'
+                               .format(msg.stream_name, str(dest), str(msg_seq_num)))
 
     # invoked by controller
     def on_control_msg(self, msg):
-        failed_replica_num = msg.data
-        if -1 < failed_replica_num < self._num_replicas:
-            self._num_replicas -= 1
-            self._output_streams.pop(failed_replica_num)
-            self.buffer.ack_all(failed_replica_num)
+        control_num = int(msg.data)
+        if -1 < control_num < self._num_replicas:
+            self._status[control_num] = flux_utils.FluxOperatorState.DEAD
+            self.buffer.ack_all(control_num)
         assert self._num_replicas > 0
 
     def execute(self):
