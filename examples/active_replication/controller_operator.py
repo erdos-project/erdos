@@ -21,19 +21,8 @@ class ControllerOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams):
-        input_streams.add_callback(ControllerOperator.on_failure_msg)
         return [DataStream(name='controller_stream',
                            labels={'control_stream': 'true'})]
-
-    # XXX(ionel): This method is not currently invoked.
-    def on_failure_msg(self, msg):
-        assert self._node_failed is False
-        self._node_failed = True
-        # TODO(ionel): Investigate if the code works when we fail the primary.
-        # Notify the nodes that a node has failed.
-        fail_msg = Message(flux_utils.FAILED_REPLICA,
-                           Timestamp(coordinates=[0]))
-        self.get_output_stream('controller_stream').send(fail_msg)
 
     def execute(self):
         # TODO(ionel): We should send the failure message on a failed stream,
@@ -46,13 +35,13 @@ class ControllerOperator(Op):
         time.sleep(3)
         # Fail primary and notify ingress, egress and consumers
         fail_replica_num = 0
-        fail_msg = Message(fail_replica_num, Timestamp(coordinates=[0]))
+        fail_msg = Message((flux_utils.FluxControllerCommand.FAIL, fail_replica_num), Timestamp(coordinates=[0]))
         self.get_output_stream('controller_stream').send(fail_msg)
         print("Control send failure message to primary")
 
         # Recover failed primary
-        # time.sleep(self._timeout)
-        # fail_msg = Message(0, Timestamp(coordinates=[0]))
-        # self.get_output_stream('controller_stream').send(fail_msg)
+        time.sleep(self._timeout)
+        fail_msg = Message((flux_utils.FluxControllerCommand.RECOVER, fail_replica_num), Timestamp(coordinates=[0]))
+        self.get_output_stream('controller_stream').send(fail_msg)
 
         self.spin()

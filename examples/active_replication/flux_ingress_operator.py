@@ -63,11 +63,14 @@ class FluxIngressOperator(Op):
     # invoked by controller
     def on_control_msg(self, msg):
         self.lock.acquire()
-        control_num = int(msg.data)
-        if -1 < control_num < self._num_replicas:
-            self._status[control_num] = flux_utils.FluxOperatorState.DEAD
-            self.buffer.ack_all(control_num)
-        assert self._num_replicas > 0
+        (control_num, replica_num) = msg.data
+        if control_num == flux_utils.FluxControllerCommand.FAIL:
+            self._status[replica_num] = flux_utils.FluxOperatorState.DEAD
+            self.buffer.ack_all(replica_num)
+        elif control_num == flux_utils.FluxControllerCommand.RECOVER:
+            self._status[replica_num] = flux_utils.FluxOperatorState.ACTIVE
+        else:
+            self._logger.fatal('Unexpected control message {}'.format(msg))
         self.lock.release()
 
     def execute(self):

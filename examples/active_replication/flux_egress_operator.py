@@ -55,12 +55,15 @@ class FluxEgressOperator(Op):
 
     def on_control_msg(self, msg):
         self.lock.acquire()
-        control_num = int(msg.data)
-        if -1 < control_num < self._num_replicas:
+        (control_num, replica_num) = msg.data
+        if control_num == flux_utils.FluxControllerCommand.FAIL:
             # Send REVERSE msg to secondary
             msg.data = flux_utils.SpecialCommand.REVERSE
             self.get_output_stream(self._ack_stream_name).send(msg)
             self._logger.info("Sent REVERSE message to perform takeover.")
+        elif control_num == flux_utils.FluxControllerCommand.RECOVER:
+            #TODO(yika): implement catch-up
+            pass
         else:
             self._logger.fatal('Unexpected control message {}'.format(msg))
         self.lock.release()

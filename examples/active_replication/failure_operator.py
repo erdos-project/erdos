@@ -31,12 +31,15 @@ class FailureOperator(Op):
             self.get_output_stream(self._output_stream_name).send(msg)
 
     def on_controller_msg(self, msg):
-        control_num = int(msg.data)
-        if self._replica_num == control_num:   # Fail
-            self._failed = True
+        (control_num, replica_num) = msg.data
+        if control_num == flux_utils.FluxControllerCommand.FAIL and replica_num == self._replica_num:
             self._logger.info("Failed by controller.")
-        elif self._failed and control_num == flux_utils.FluxControllerCommand.RECOVER:
+            self._failed = True
+        elif self._failed and control_num == flux_utils.FluxControllerCommand.RECOVER \
+                and replica_num == self._replica_num:
             self._failed = False
+        else:
+            self._logger.fatal('Unexpected control message {}'.format(msg))
 
     def execute(self):
         self.spin()

@@ -47,12 +47,15 @@ class FluxConsumerOperator(Op):
 
     def on_control_msg(self, msg):
         self.lock.acquire()
-        control_num = int(msg.data)
-        if self._replica_num == control_num:   # Fail
+        (control_num, replica_num) = msg.data
+        if control_num == flux_utils.FluxControllerCommand.FAIL and replica_num == self._replica_num:
             self._logger.info("Failed by controller.")
             self._failed = True
-        elif self._failed and control_num == flux_utils.FluxControllerCommand.RECOVER:
+        elif self._failed and control_num == flux_utils.FluxControllerCommand.RECOVER \
+                and replica_num == self._replica_num:
             self._failed = False
+        else:
+            self._logger.fatal('Unexpected control message {}'.format(msg))
         self.lock.release()
 
     def execute(self):

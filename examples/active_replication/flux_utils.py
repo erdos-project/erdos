@@ -9,9 +9,8 @@ class FluxOperatorState(Enum):
 
 
 class FluxControllerCommand(Enum):
-    FAIL_PRIMARY = 0
-    FAIL_REPLICA = 1
-    RECOVER = -1
+    FAIL = -1
+    RECOVER = -2
 
 
 class SpecialCommand(Enum):
