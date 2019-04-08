@@ -26,6 +26,10 @@ def is_not_ack_stream(stream):
     return not is_ack_stream(stream)
 
 
+def is_not_back_pressure(stream):
+    return not stream.labels.get('back_pressure', '') == 'true'
+
+
 def is_control_stream(stream):
     return stream.labels.get('control_stream', '') == 'true'
 

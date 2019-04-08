@@ -27,6 +27,7 @@ class FailureOperator(Op):
         return [DataStream(name=output_stream_name)]
 
     def on_msg(self, msg):
+        print('%s received %s' % (self.name, msg))
         if not self._failed:
             self.get_output_stream(self._output_stream_name).send(msg)
 

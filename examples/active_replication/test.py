@@ -27,24 +27,48 @@ def main(argv):
         name='source'
     )
 
-    sink_op = graph.add(
-        Sink,
-        name='sink'
-    )
-
-    sink_op2 = graph.add(
-        Sink,
-        name='sink2'
-    )
-
     flux_ingress_op = graph.add(
         FluxIngressOperator,
         name='flux_ingress',
-        init_args={'output_stream_names': ('primary', 'secondary')},
-        setup_args={'output_stream_names': ('primary', 'secondary')})
+        init_args={'output_stream_names': 'ingress_out'},
+        setup_args={'output_stream_names': 'ingress_out'})
+
+    flux_primary_consumer_op = graph.add(
+        FluxConsumerOperator,
+        name='flux_primary_consumer',
+        init_args={'replica_num': 0,
+                   'output_stream_name': 'primary_data_stream',
+                   'ack_stream_name': 'primary_ack'},
+        setup_args={'output_stream_name': 'primary_data_stream',
+                    'ack_stream_name': 'primary_ack'})
+    flux_secondary_consumer_op = graph.add(
+        FluxConsumerOperator,
+        name='flux_secondary_consumer',
+        init_args={'replica_num': 1,
+                   'output_stream_name': 'secondary_data_stream',
+                   'ack_stream_name': 'secondary_ack'},
+        setup_args={'output_stream_name': 'secondary_data_stream',
+                    'ack_stream_name': 'secondary_ack'})
+
+    primary_failure_op = graph.add(
+        FailureOperator,
+        name='primary_failure',
+        init_args={'output_stream_name': 'primary_failure',
+                   'replica_num': 0},
+        setup_args={'output_stream_name': 'primary_failure'})
+
+    secondary_failure_op = graph.add(
+        FailureOperator,
+        name='secondary_failure',
+        init_args={'output_stream_name': 'secondary_failure',
+                   'replica_num': 1},
+        setup_args={'output_stream_name': 'secondary_failure'})
 
     graph.connect([source_op], [flux_ingress_op])
-    graph.connect([flux_ingress_op], [sink_op, sink_op2])
+    graph.connect([flux_ingress_op], [flux_primary_consumer_op, flux_secondary_consumer_op])
+    graph.connect([flux_primary_consumer_op, flux_secondary_consumer_op], [flux_ingress_op])
+    graph.connect([flux_primary_consumer_op], [primary_failure_op])
+    graph.connect([flux_secondary_consumer_op], [secondary_failure_op])
 
     graph.execute(FLAGS.framework)
 

@@ -22,12 +22,14 @@ class FluxConsumerOperator(Op):
 
         input_streams.add_callback(FluxConsumerOperator.on_msg)
 
-        return [DataStream(name=output_stream_name),
+        return [DataStream(name=output_stream_name,
+                           labels={'back_pressure': 'true'}),
                 DataStream(name=ack_stream_name,
                            labels={'ack_stream': 'true'})]
 
     def on_msg(self, msg):
         # Remove ingress seq num
+        # print('%s received %s' % (self.name, msg))
         (msg_seq_num, data) = msg.data
         msg.data = data
         # 1) ACK the message
