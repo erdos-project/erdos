@@ -18,7 +18,7 @@ class Source(Op):
         return [DataStream(name='input_stream')]
 
     def execute(self):
-        while self._seq_num < 20:
+        while self._seq_num < 10:
             output_msg = Message("data"+str(self._seq_num),
                                  Timestamp(coordinates=[self._seq_num]))
             self.get_output_stream('input_stream').send(output_msg)

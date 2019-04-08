@@ -64,11 +64,41 @@ def main(argv):
                    'replica_num': 1},
         setup_args={'output_stream_name': 'secondary_failure'})
 
+    flux_primary_producer_op = graph.add(
+        FluxProducerOperator,
+        name='flux_primary_producer',
+        init_args={'replica_num': 0,
+                   'output_stream_name': 'primary_producer'},
+        setup_args={'output_stream_name': 'primary_producer'})
+    flux_secondary_producer_op = graph.add(
+        FluxProducerOperator,
+        name='flux_secondary_producer',
+        init_args={'replica_num': 1,
+                   'output_stream_name': 'secondary_producer'},
+        setup_args={'output_stream_name': 'secondary_producer'})
+
+    flux_egress_op = graph.add(
+        FluxEgressOperator,
+        name='flux_egress',
+        init_args={'output_stream_name': 'egress_out',
+                   'ack_stream_name': 'ergress_ack'},
+        setup_args={'output_stream_name': 'egress_out',
+                    'ack_stream_name': 'ergress_ack'})
+
+    sink_op = graph.add(
+        Sink,
+        name='sink'
+    )
+
     graph.connect([source_op], [flux_ingress_op])
     graph.connect([flux_ingress_op], [flux_primary_consumer_op, flux_secondary_consumer_op])
     graph.connect([flux_primary_consumer_op, flux_secondary_consumer_op], [flux_ingress_op])
     graph.connect([flux_primary_consumer_op], [primary_failure_op])
     graph.connect([flux_secondary_consumer_op], [secondary_failure_op])
+    graph.connect([primary_failure_op], [flux_primary_producer_op])
+    graph.connect([secondary_failure_op], [flux_secondary_producer_op])
+    graph.connect([flux_primary_producer_op, flux_secondary_producer_op], [flux_egress_op])
+    graph.connect([flux_egress_op], [flux_secondary_producer_op])
 
     graph.execute(FLAGS.framework)
 

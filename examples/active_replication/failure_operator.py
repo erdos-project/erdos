@@ -3,7 +3,7 @@ from erdos.op import Op
 from erdos.utils import setup_logging
 
 import flux_utils
-from flux_utils import is_control_stream, is_not_control_stream
+from flux_utils import is_control_stream, is_flux_consumer_output
 
 
 class FailureOperator(Op):
@@ -20,14 +20,13 @@ class FailureOperator(Op):
         
     @staticmethod
     def setup_streams(input_streams, output_stream_name):
-        input_streams.filter(is_not_control_stream).add_callback(
+        input_streams.filter(is_flux_consumer_output).add_callback(
             FailureOperator.on_msg)
         input_streams.filter(is_control_stream).add_callback(
             FailureOperator.on_controller_msg)
         return [DataStream(name=output_stream_name)]
 
     def on_msg(self, msg):
-        print('%s received %s' % (self.name, msg))
         if not self._failed:
             self.get_output_stream(self._output_stream_name).send(msg)
 

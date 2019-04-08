@@ -30,6 +30,10 @@ def is_not_back_pressure(stream):
     return not stream.labels.get('back_pressure', '') == 'true'
 
 
+def is_flux_consumer_output(stream):
+    return stream.labels.get('back_pressure', '') == 'true'
+
+
 def is_control_stream(stream):
     return stream.labels.get('control_stream', '') == 'true'
 

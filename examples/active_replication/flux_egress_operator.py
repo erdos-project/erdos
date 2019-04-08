@@ -34,11 +34,13 @@ class FluxEgressOperator(Op):
         input_streams.filter(is_control_stream).add_callback(
             FluxEgressOperator.on_control_msg)
 
-        return [DataStream(name=output_stream_name),
+        return [DataStream(name=output_stream_name,
+                           labels={'back_pressure': 'true'}),
                 DataStream(name=ack_stream_name,
                            labels={'ack_stream': 'true'})]
 
     def on_msg(self, msg):
+        # print('%s received %s' % (self.name, msg))
         msg_seq_num = msg.data[0]
         # Send ACK message to replica if we have one.
         if self._num_replicas > 1:
