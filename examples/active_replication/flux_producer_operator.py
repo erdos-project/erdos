@@ -83,7 +83,6 @@ class FluxProducerOperator(Op):
         else:   # Secondary receives ACK messages
             msg_seq_num = int(msg.data)
             if self._buffer.size() > 0: # ahead
-                print("debug", msg_seq_num, self._buffer.queue)
                 assert self._buffer.match_oldest(msg_seq_num) is True
                 self._buffer.pop_oldest()
             else:   # behind

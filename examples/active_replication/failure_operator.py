@@ -23,7 +23,7 @@ class FailureOperator(Op):
         input_streams.filter(is_flux_consumer_output).add_callback(
             FailureOperator.on_msg)
         input_streams.filter(is_control_stream).add_callback(
-            FailureOperator.on_controller_msg)
+            FailureOperator.on_control_msg)
         return [DataStream(name=output_stream_name)]
 
     def on_msg(self, msg):
