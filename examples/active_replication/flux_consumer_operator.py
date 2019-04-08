@@ -3,6 +3,7 @@ from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import setup_logging
 import flux_utils
+from flux_utils import is_control_stream, is_not_control_stream
 
 
 class FluxConsumerOperator(Op):
@@ -22,7 +23,8 @@ class FluxConsumerOperator(Op):
     @staticmethod
     def setup_streams(input_streams, output_stream_name, ack_stream_name):
 
-        input_streams.add_callback(FluxConsumerOperator.on_msg)
+        input_streams.filter(is_not_control_stream).add_callback(FluxConsumerOperator.on_msg)
+        input_streams.filter(is_control_stream).add_callback(FluxConsumerOperator.on_control_msg)
 
         return [DataStream(name=output_stream_name,
                            labels={'back_pressure': 'true'}),
@@ -44,6 +46,7 @@ class FluxConsumerOperator(Op):
     def on_control_msg(self, msg):
         control_num = int(msg.data)
         if self._replica_num == control_num:   # Fail
+            self._logger.info("Failed by controller.")
             self._failed = True
         elif self._failed and control_num == flux_utils.FluxControllerCommand.RECOVER:
             self._failed = False

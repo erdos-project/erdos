@@ -34,6 +34,7 @@ class FailureOperator(Op):
         control_num = int(msg.data)
         if self._replica_num == control_num:   # Fail
             self._failed = True
+            self._logger.info("Failed by controller.")
         elif self._failed and control_num == flux_utils.FluxControllerCommand.RECOVER:
             self._failed = False
 

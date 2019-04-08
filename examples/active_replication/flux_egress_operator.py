@@ -55,7 +55,8 @@ class FluxEgressOperator(Op):
         if -1 < control_num < self._num_replicas:
             # Send REVERSE msg to secondary
             msg.data = flux_utils.SpecialCommand.REVERSE
-            self.get_output_stream(self._output_stream_name).send(msg)
+            self.get_output_stream(self._ack_stream_name).send(msg)
+            self._logger.info("Sent REVERSE message to perform takeover.")
         else:
             self._logger.fatal('Unexpected control message {}'.format(msg))
         

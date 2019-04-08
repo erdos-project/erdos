@@ -14,8 +14,7 @@ class Sink(Op):
         return []
 
     def on_msg(self, msg):
-        x = '%s received %s' % (self.name, msg)
-        print(x)
+        print('%s received %s' % (self.name, msg))
 
     def execute(self):
         self.spin()

@@ -62,6 +62,7 @@ class FluxProducerOperator(Op):
             # turn into a primary producer
             self._replica_num = 0
             self._ex_secondary = True
+            self._logger.info("Secondary producer took over.")
             # Need to ensure that no messages are lost or duplicated.
             # Check if the primary was running before the secondary (already
             # received ACKs for messages that the secondary hasn't produced
@@ -72,7 +73,6 @@ class FluxProducerOperator(Op):
                 # Secondary was ahead of the primary => send out buffered messages.
                 self._buffer.send_and_clear(self.get_output_stream(self._output_stream_name))
         else:   # Secondary receives ACK messages
-            assert self._replica_num > 0
             msg_seq_num = int(msg.data)
             if self._buffer.size() > 0: # ahead
                 assert self._buffer.match_oldest(msg_seq_num) is True
