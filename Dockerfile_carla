@@ -72,3 +72,6 @@ RUN cd /home/erdos/workspace/YOLO3-4-Py/ && pip install .
 
 # Source the ROS setup script at the init of the shell.
 RUN echo "source /opt/ros/kinetic/setup.bash" >> ~/.bashrc
+
+# Expose the required ports.
+EXPOSE 2000 2001 2002
