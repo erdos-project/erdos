@@ -16,8 +16,11 @@ class RayExecutor(Executor):
     def setup(self):
         resources = dict(
             self.op_handle.resources) if self.op_handle.resources else {}
-        if self.op_handle.machine:
-            resources[self.op_handle.machine] = 1
+        if self.op_handle.node:
+            for k, v in resources.items():
+                assert k in self.op_handle.node.available_resources
+                self.op_handle.node.available_resources[k] -= 1
+            resources[self.op_handle.node.server] = 1
         num_cpus = resources.pop("CPU", None)
         num_gpus = resources.pop("GPU", None)
 
@@ -47,6 +50,7 @@ class RayExecutor(Executor):
             self.op_handle.executor_handle.setup_streams.remote(
                 self.op_handle.dependent_op_handles))
         # Start the frequency actor associated to the Ray operator actor.
+        # TODO(peter): collocate the the frequency actor on the same machine
         ray.get(self.op_handle.executor_handle.setup_frequency_actor.remote())
         # Execute the operator. We do not call .get here because the executor
         # would block until the operator completes.
