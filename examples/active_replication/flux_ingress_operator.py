@@ -32,7 +32,7 @@ class FluxIngressOperator(Op):
         return [DataStream(name=output_stream_names)]
 
     def on_msg(self, msg):
-        print('%s acknowledged %s' % (self.name, msg))
+        # print('%s acknowledged %s' % (self.name, msg))
         # Put msg in buffer
         self.buffer.put(msg.data, self._input_msg_seq_num)
         # Send message to the two downstream Flux Consumer Operators

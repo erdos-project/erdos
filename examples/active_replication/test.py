@@ -98,7 +98,7 @@ def main(argv):
     graph.connect([primary_failure_op], [flux_primary_producer_op])
     graph.connect([secondary_failure_op], [flux_secondary_producer_op])
     graph.connect([flux_primary_producer_op, flux_secondary_producer_op], [flux_egress_op])
-    graph.connect([flux_egress_op], [flux_secondary_producer_op])
+    graph.connect([flux_egress_op], [flux_secondary_producer_op, sink_op])
 
     graph.execute(FLAGS.framework)
 

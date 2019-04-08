@@ -63,7 +63,7 @@ class Buffer:
         return len(self.queue)
 
     def match_oldest(self, sn):
-        return self.queue[0] == sn
+        return self.queue[0][0] == sn
 
     def pop_oldest(self):
         self.queue.pop(0)
