@@ -6,6 +6,7 @@ import flux_utils
 from flux_utils import is_control_stream, is_not_control_stream
 import threading
 
+
 class FluxConsumerOperator(Op):
     def __init__(self,
                  name,
@@ -33,7 +34,6 @@ class FluxConsumerOperator(Op):
                            labels={'ack_stream': 'true'})]
 
     def on_msg(self, msg):
-        self.lock.acquire()
         if not self._failed:
             # Remove ingress seq num
             # print('%s received %s' % (self.name, msg))
@@ -44,7 +44,6 @@ class FluxConsumerOperator(Op):
                 Message((self._replica_num, msg_seq_num), msg.timestamp))
             # 2) Forward the message
             self.get_output_stream(self._output_stream_name).send(msg)
-        self.lock.release()
 
     def on_control_msg(self, msg):
         self.lock.acquire()
