@@ -18,10 +18,12 @@ class FluxIngressOperator(Op):
         self._num_replicas = num_replics
         self._output_stream = output_stream_name
         self._input_msg_seq_num = 0
-        self.buffer = Buffer(num_replics)   # buffer to store unacknowledged tuples
+        self._buffer = Buffer(num_replics)   # buffer to store unacknowledged tuples
         self._status = {}
         for i in range(self._num_replicas):
             self._status[i] = flux_utils.FluxOperatorState.ACTIVE
+        # lock not necessary in current ROS/Ray executor,
+        # implemented in case we'll change into multi threaded spinner executor
         self._lock = threading.Lock()
 
     @staticmethod
@@ -42,7 +44,7 @@ class FluxIngressOperator(Op):
         # Put msg in buffer
         for i in range(self._num_replicas):
             if self._status[i] == flux_utils.FluxOperatorState.ACTIVE:
-                self.buffer.put(msg.data, self._input_msg_seq_num, i)
+                self._buffer.put(msg.data, self._input_msg_seq_num, i)
         # Send message to the two downstream Flux Consumer Operators
         msg.data = (self._input_msg_seq_num, msg.data)
         self.get_output_stream(self._output_stream).send(msg)
@@ -54,7 +56,7 @@ class FluxIngressOperator(Op):
         # TODO(yika): optionally send ack to source after dropping
         self._lock.acquire()
         (dest, msg_seq_num) = msg.data
-        ack = self.buffer.ack(int(msg_seq_num), int(dest))
+        ack = self._buffer.ack(int(msg_seq_num), int(dest))
         if not ack:
             self._logger.fatal('Received ACK on unexpected stream {}; dest: {}, seq:{}'
                                .format(msg.stream_name, str(dest), str(msg_seq_num)))
@@ -66,7 +68,7 @@ class FluxIngressOperator(Op):
         (control_num, replica_num) = msg.data
         if control_num == flux_utils.FluxControllerCommand.FAIL:
             self._status[replica_num] = flux_utils.FluxOperatorState.DEAD
-            self.buffer.ack_all(replica_num)
+            self._buffer.ack_all(replica_num)
         elif control_num == flux_utils.FluxControllerCommand.RECOVER:
             self._status[replica_num] = flux_utils.FluxOperatorState.ACTIVE
         else:
