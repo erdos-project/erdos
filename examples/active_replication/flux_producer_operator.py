@@ -53,7 +53,7 @@ class FluxProducerOperator(Op):
             else:
                 self.get_output_stream(self._output_stream_name).send(msg)
         else:
-            if self._output_seq_num == self._ack_buffer[0]:    # ACK already received
+            if len(self._ack_buffer) > 0 and self._output_seq_num == self._ack_buffer[0]:    # ACK already received
                 self._ack_buffer.popleft()
             else:
                 self._buffer.put(msg.data, self._output_seq_num, self._replica_num)
@@ -77,10 +77,10 @@ class FluxProducerOperator(Op):
             else:
                 # Secondary was ahead of the primary => send out buffered messages.
                 pub = self.get_output_stream(self._output_stream_name)
-                data = self._buffer.pop_oldest()[1]
+                data = self._buffer.pop_oldest()
                 while data is not None:
-                    pub.send(data)
-                    data = self._buffer.pop_oldest()[1]
+                    pub.send(data[1])
+                    data = self._buffer.pop_oldest()
         else:   # Secondary receives ACK messages
             msg_seq_num = int(msg.data)
             if self._buffer.size() > 0: # ahead

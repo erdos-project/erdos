@@ -42,6 +42,7 @@ class ControllerOperator(Op):
             print("Control send failure message to primary")
 
             if self._failure_duration_s is not None:
+                # TODO(yika): recovery does not work yet
                 # Recover failed replica
                 time.sleep(self._failure_duration_s)
                 fail_msg = Message((flux_utils.FluxControllerCommand.RECOVER, fail_replica_num), Timestamp(coordinates=[0]))

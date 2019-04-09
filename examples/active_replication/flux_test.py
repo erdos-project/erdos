@@ -30,8 +30,8 @@ def main(argv):
     flux_ingress_op = graph.add(
         FluxIngressOperator,
         name='flux_ingress',
-        init_args={'output_stream_names': 'ingress_out'},
-        setup_args={'output_stream_names': 'ingress_out'})
+        init_args={'output_stream_name': 'ingress_out'},
+        setup_args={'output_stream_name': 'ingress_out'})
 
     flux_primary_consumer_op = graph.add(
         FluxConsumerOperator,
@@ -93,8 +93,7 @@ def main(argv):
     controller_op = graph.add(
         ControllerOperator,
         name='controller',
-        init_args={'pre_failure_time_elapse_s': 3,
-                   'failure_duration_s': 1})
+        init_args={'pre_failure_time_elapse_s': 3})
 
     graph.connect([source_op], [flux_ingress_op])
     graph.connect([flux_ingress_op], [flux_primary_consumer_op, flux_secondary_consumer_op])
