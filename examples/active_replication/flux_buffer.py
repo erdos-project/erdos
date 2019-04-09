@@ -11,6 +11,7 @@ class Buffer:
             # last inserted item can have the same seq number but different destination
             assert sn >= self.queue[-1][0]
         self.queue.append((sn, data, dest))
+        # TODO(yika): alternatively we could replace dest with num_non_acknowledged
 
     def ack(self, sn, dest):
         # This is rarely O(N) becasue per single replica we get the ACK in sequence order,

@@ -18,17 +18,19 @@ class FluxProducerOperator(Op):
                  log_file_name=None):
         super(FluxProducerOperator, self).__init__(name)
         self._logger = setup_logging(self.name, log_file_name)
-        self._replica_num = replica_num
         # ex_secondary indicates if this primary producer was previously a secondary,
         # used for exactly-once-delivery at the beginning of the take-over
         self._ex_secondary = False
         self._output_stream_name = output_stream_name
         self._output_seq_num = 0
-        if replica_num > 0:
+        self._replica_num = replica_num
+        self._primary = True if self._replica_num == 0 else False
+        if not self._primary:
             # only replicas have these buffers to keep track
             # with the progress of primary op
             self._buffer = Buffer(1)
             self._ack_buffer = deque()
+            self._replica_num = 1
         self._lock = threading.Lock()
 
     @staticmethod
@@ -46,7 +48,7 @@ class FluxProducerOperator(Op):
         self._lock.acquire()
         # XXX(ionel): Need to ensure that we remove output_seq_num
         # during recovery.
-        if self._replica_num == 0:  # Primary
+        if self._primary:  # Primary
             msg.data = (self._output_seq_num, msg.data)
             if self._ex_secondary:  # used to a secondary
                 self._catch_up_progress(msg)
@@ -65,7 +67,7 @@ class FluxProducerOperator(Op):
         if msg.data == flux_utils.SpecialCommand.REVERSE:
             # Secondary receives a REVERSE message from egress
             # turn into a primary producer
-            self._replica_num = 0
+            self._primary = True
             self._ex_secondary = True
             self._logger.info("Secondary producer took over.")
             # Need to ensure that no messages are lost or duplicated.
