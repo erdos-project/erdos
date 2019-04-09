@@ -20,7 +20,7 @@ class FluxConsumerOperator(Op):
         self._output_stream_name = output_stream_name
         self._ack_stream_name = ack_stream_name
         self._failed = False
-        self.lock = threading.Lock()
+        self._lock = threading.Lock()
         
     @staticmethod
     def setup_streams(input_streams, output_stream_name, ack_stream_name):
@@ -46,18 +46,19 @@ class FluxConsumerOperator(Op):
             self.get_output_stream(self._output_stream_name).send(msg)
 
     def on_control_msg(self, msg):
-        self.lock.acquire()
+        self._lock.acquire()
         (control_num, replica_num) = msg.data
         if replica_num != self._replica_num:
             pass
         elif control_num == flux_utils.FluxControllerCommand.FAIL:
-            self._logger.info("Failed by controller.")
             self._failed = True
+            self._logger.info("Flux consumer op replica %d failed by controller." % replica_num)
         elif self._failed and control_num == flux_utils.FluxControllerCommand.RECOVER:
             self._failed = False
+            self._logger.info("Failed Flux consumer op replica %d recovered by controller." % replica_num)
         else:
             self._logger.fatal('Unexpected control message {}'.format(msg))
-        self.lock.release()
+        self._lock.release()
 
     def execute(self):
         self.spin()

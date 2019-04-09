@@ -7,10 +7,15 @@ class Buffer:
     def put(self, data, sn, dest):
         # Put input stream
         if len(self.queue) > 0:
+            # current seq number needs to be bigger or equal to the last inserted seq number
+            # last inserted item can have the same seq number but different destination
             assert sn >= self.queue[-1][0]
         self.queue.append((sn, data, dest))
 
     def ack(self, sn, dest):
+        # This is rarely O(N) becasue per single replica we get the ACK in sequence order,
+        # only if ACKs come from different replicas, we can get a little bit of asynchrony.
+        # Thus, we rarely iterate over more than the first few buffered messages.
         for i in range(len(self.queue)):
             if self.queue[i][0] == sn and self.queue[i][2] == dest:
                 self.queue.pop(i)
@@ -25,19 +30,6 @@ class Buffer:
             else:
                 i += 1
 
-    def reset(self):
-        self.n_dest += 1
-        for i in range(len(self.queue)):
-            new_status = self.queue[i][2] + (False,)
-            self.queue[i] = (self.queue[i][0], self.queue[i][1], new_status)
-
-    def _drop(self, i):
-        # Drop if all ack status are either True or None (failed)
-        for temp in self.queue[i][2]:
-            if temp is False:
-                return
-        self.queue.pop(i)
-
     def size(self):
         return len(self.queue)
 
@@ -45,10 +37,13 @@ class Buffer:
         return self.queue[0][0] == sn
 
     def pop_oldest(self):
-        self.queue.pop(0)
+        if self.size() == 0:
+            return None
+        return self.queue.pop(0)
 
-    def send_and_clear(self, pub):
-        for data in self.queue:
-            pub.send(data[1])
-        self.queue = list()
-
+    def reset(self):
+        # TODO(yika): for recovery, currently not used
+        self.n_dest += 1
+        for i in range(len(self.queue)):
+            new_status = self.queue[i][2] + (False,)
+            self.queue[i] = (self.queue[i][0], self.queue[i][1], new_status)

@@ -92,7 +92,9 @@ def main(argv):
 
     controller_op = graph.add(
         ControllerOperator,
-        name='controller')
+        name='controller',
+        init_args={'pre_failure_time_elapse_s': 3,
+                   'failure_duration_s': 1})
 
     graph.connect([source_op], [flux_ingress_op])
     graph.connect([flux_ingress_op], [flux_primary_consumer_op, flux_secondary_consumer_op])

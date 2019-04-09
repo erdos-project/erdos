@@ -27,6 +27,7 @@ class FailureOperator(Op):
         return [DataStream(name=output_stream_name)]
 
     def on_msg(self, msg):
+        # Message will not be processed if controller fails this op
         if not self._failed:
             self.get_output_stream(self._output_stream_name).send(msg)
 
@@ -35,10 +36,11 @@ class FailureOperator(Op):
         if replica_num != self._replica_num:
             pass
         elif control_num == flux_utils.FluxControllerCommand.FAIL:
-            self._logger.info("Failed by controller.")
             self._failed = True
+            self._logger.info("Failure op replica %d failed by controller." % replica_num)
         elif self._failed and control_num == flux_utils.FluxControllerCommand.RECOVER:
             self._failed = False
+            self._logger.info("Failed op replica %d recovered by controller." % replica_num)
         else:
             self._logger.fatal('Unexpected control message {}'.format(msg))
 
