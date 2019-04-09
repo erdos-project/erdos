@@ -88,12 +88,12 @@ def map_ground_bounding_box_to_2D(image,
         # 8 bounding box vertices relative to (0,0,0)
         bbox = np.array([
             [  ext.x,   ext.y,   ext.z],
-            [- ext.x,   ext.y,   ext.z],
             [  ext.x, - ext.y,   ext.z],
-            [- ext.x, - ext.y,   ext.z],
             [  ext.x,   ext.y, - ext.z],
-            [- ext.x,   ext.y, - ext.z],
             [  ext.x, - ext.y, - ext.z],
+            [- ext.x,   ext.y,   ext.z],
+            [- ext.x, - ext.y,   ext.z],
+            [- ext.x,   ext.y, - ext.z],
             [- ext.x, - ext.y, - ext.z]
         ])
 

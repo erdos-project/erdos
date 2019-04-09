@@ -1,8 +1,10 @@
+from itertools import combinations
 from cv_bridge import CvBridge
 import cv2
 import math
 import numpy as np
 import PIL.Image as Image
+import PIL.ImageDraw as ImageDraw
 
 from carla.image_converter import depth_to_array
 from carla.sensor import Camera
@@ -162,7 +164,7 @@ class ObstacleAccuracyOperator(Op):
         self._rgb_imgs = self._rgb_imgs[1:]
 
         for (pd_transform, bounding_box, fwd_speed) in pedestrians:
-            coords = map_ground_bounding_box_to_2D(rgb_img,
+            corners = map_ground_bounding_box_to_2D(rgb_img,
                                                    depth_array,
                                                    world_transform,
                                                    pd_transform,
@@ -170,15 +172,32 @@ class ObstacleAccuracyOperator(Op):
                                                    self._rgb_transform,
                                                    self._rgb_intrinsic,
                                                    self._rgb_img_size)
-            for coord in coords:
-                x = coord[0]
-                y = coord[1]
-                z = coord[2].flatten().item(0)
-                if self.have_same_depth(x, y, z, depth_array, 4.0):
-                    add_bounding_box(rgb_img, (x - 2, x + 2, y - 2, y + 2), color='green')
+
+            # The bounding_box_to_2D function does not return the coordinates
+            # in any certain order. We form all combinations of the coordinates
+            # and check for pairs where x1 != x2 and y1 != y2, as these are
+            # possible corners of a rectangle.
+            two_corners = []
+            for a, b in combinations(corners, r=2):
+                if abs(a[0] - b[0]) > 2 and abs(a[1] - b[1]) > 2:
+                    two_corners.append((a, b))
+
+            # Pick one of the pair of corners returned in the previous loop
+            # and use it to plot the rectangle.
+            if len(two_corners) >= 1:
+                corner1, corner2 = two_corners[0][0], two_corners[0][1]
+                middle_point = ((corner1[0] + corner2[0]) / 2,
+                                (corner1[1] + corner2[1]) / 2,
+                                corner1[2].flatten().item(0))
+                if self.have_same_depth(middle_point[0], middle_point[1],
+                                        middle_point[2], depth_array, 4.0):
+                    draw = ImageDraw.Draw(rgb_img)
+                    draw.rectangle((corner1[:2], corner2[:2]),
+                                   width=4,
+                                   outline='green')
 
         for (vec_transform, bounding_box, fwd_speed) in vehicles:
-            coords = map_ground_bounding_box_to_2D(rgb_img,
+            corners = map_ground_bounding_box_to_2D(rgb_img,
                                                    depth_array,
                                                    world_transform,
                                                    vec_transform,
@@ -186,12 +205,47 @@ class ObstacleAccuracyOperator(Op):
                                                    self._rgb_transform,
                                                    self._rgb_intrinsic,
                                                    self._rgb_img_size)
-            for coord in coords:
-                x = coord[0]
-                y = coord[1]
-                z = coord[2].flatten().item(0)
-                if self.have_same_depth(x, y, z, depth_array, 4.0):
-                    add_bounding_box(rgb_img, (x - 2, x + 2, y - 2, y + 2), color='blue')
+
+            if len(corners) == 8:
+                # The corners are represented in the cubic form and we
+                # seperate the 2 planes to get the corners of the front
+                # and the back rectangle.
+                corners_plane_1, corners_plane_2 = corners[:4], corners[4:]
+
+                # Figure out the lower-left and top-right corners from the 
+                # front plane.
+                min_corner = corners_plane_1[0]
+                max_corner_plane_1 = corners_plane_1[0]
+                for corner in corners_plane_1[1:]:
+                    if corner[0] < min_corner[0] + 1 and corner[
+                            1] < min_corner[1] + 1:
+                        min_corner = corner
+                    if corner[0] > max_corner_plane_1[0] - 1 and corner[
+                            1] > max_corner_plane_1[1] - 1:
+                        max_corner_plane_1 = corner
+
+                # Figure out the top right from the back plane.
+                max_corner = corners_plane_2[0]
+                for corner in corners_plane_2[1:]:
+                    if corner[0] > max_corner[0] - 1 and corner[
+                            1] > max_corner[1] - 1:
+                        max_corner = corner
+
+
+                # Find the middle point in the front plane.
+                corner1, corner2 = min_corner, max_corner_plane_1
+                middle_point = ((corner1[0] + corner2[0]) / 2,
+                                (corner1[1] + corner2[1]) / 2,
+                                corner1[2].flatten().item(0))
+                if self.have_same_depth(middle_point[0], middle_point[1],
+                                        middle_point[2], depth_array, 8.0):
+
+                    # Draw from the lower-left of the first plane to the top
+                    # right of the back plane.
+                    draw = ImageDraw.Draw(rgb_img)
+                    draw.rectangle((corner1[:2], max_corner[:2]),
+                                   width=4,
+                                   outline='blue')
 
         for (tl_transform, state) in traffic_lights:
             pos = map_ground_3D_transform_to_2D(rgb_img,
