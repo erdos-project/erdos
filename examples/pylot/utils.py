@@ -129,9 +129,9 @@ def map_ground_bounding_box_to_2D(image,
 
             # Add the points to the image.
             if pos2d[2] > 0: # If the point is in front of the camera.
-                x_2d = int(image_width - pos2d[0])
-                y_2d = int(image_height - pos2d[1])
-                if x_2d >= 0 and y_2d >= 0 and x_2d < image_width and y_2d < image_height:
+                x_2d = float(image_width - pos2d[0])
+                y_2d = float(image_height - pos2d[1])
+                if (x_2d >= 0 or y_2d >= 0) and (x_2d < image_width or y_2d < image_height):
                     coords.append((x_2d, y_2d, pos2d[2]))
 
         return coords

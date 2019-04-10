@@ -5,6 +5,7 @@ import math
 import numpy as np
 import PIL.Image as Image
 import PIL.ImageDraw as ImageDraw
+import PIL.ImageFont as ImageFont
 
 from carla.image_converter import depth_to_array
 from carla.sensor import Camera
@@ -19,9 +20,7 @@ from utils import add_bounding_box, get_3d_world_position, map_ground_3D_transfo
 class ObstacleAccuracyOperator(Op):
 
     def __init__(self,
-                 name,
-                 rgb_camera_name,
-                 depth_camera_name,
+                 name, rgb_camera_name, depth_camera_name,
                  flags,
                  log_file_name=None,
                  rgbd_max_range=1000):
@@ -41,6 +40,7 @@ class ObstacleAccuracyOperator(Op):
             name=rgb_camera_name, postprocessing='SceneFinal')
         (self._depth_intrinsic, self._depth_transform, self._depth_img_size) = self.__setup_camera_tranforms(
             name=depth_camera_name, postprocessing='SemanticSegmentation')
+        self.pedestrian_to_history_map = {}
 
     def __setup_camera_tranforms(self,
                                  name,
@@ -145,6 +145,7 @@ class ObstacleAccuracyOperator(Op):
             self._depth_imgs[0].timestamp,
             self._rgb_imgs[0].timestamp))
 
+        timestamp = self._pedestrians[0].timestamp
         world_transform = self._world_transform[0].data
         self._world_transform = self._world_transform[1:]
         pedestrians = self._pedestrians[0].data
@@ -163,6 +164,8 @@ class ObstacleAccuracyOperator(Op):
         rgb_img = Image.fromarray(np.uint8(image_np)).convert('RGB')
         self._rgb_imgs = self._rgb_imgs[1:]
 
+        pedestrian_corners = []
+        pedestrian_index = 1
         for (pd_transform, bounding_box, fwd_speed) in pedestrians:
             corners = map_ground_bounding_box_to_2D(rgb_img,
                                                    depth_array,
@@ -173,38 +176,159 @@ class ObstacleAccuracyOperator(Op):
                                                    self._rgb_intrinsic,
                                                    self._rgb_img_size)
 
-            # The bounding_box_to_2D function does not return the coordinates
-            # in any certain order. We form all combinations of the coordinates
-            # and check for pairs where x1 != x2 and y1 != y2, as these are
-            # possible corners of a rectangle.
-            two_corners = []
-            for a, b in combinations(corners, r=2):
-                if abs(a[0] - b[0]) > 2 and abs(a[1] - b[1]) > 2:
-                    two_corners.append((a, b))
+            if len(corners) == 8:
+                self._logger.info(
+                    "\n\nPrinting for pedestrian {} at timestamp {}".format(
+                        pedestrian_index, timestamp))
+                self._logger.info(
+                    "The ground truth bounding box is \n{}".format(
+                        bounding_box))
 
-            # Pick one of the pair of corners returned in the previous loop
-            # and use it to plot the rectangle.
-            if len(two_corners) >= 1:
-                corner1, corner2 = two_corners[0][0], two_corners[0][1]
-                middle_point = ((corner1[0] + corner2[0]) / 2,
-                                (corner1[1] + corner2[1]) / 2,
-                                corner1[2].flatten().item(0))
-                if self.have_same_depth(middle_point[0], middle_point[1],
-                                        middle_point[2], depth_array, 4.0):
-                    draw = ImageDraw.Draw(rgb_img)
-                    draw.rectangle((corner1[:2], corner2[:2]),
-                                   width=4,
-                                   outline='green')
+                # We get points in two planes. The second plane tracks the
+                # objects better.
+                corners_plane_2 = corners[4:]
+                self._logger.info(
+                    "The four corners in the second plane are: {}".format(
+                        corners_plane_2))
+
+                # Figure out the opposite ends of the rectangle.
+                # Our 2D mapping doesn't return perfect rectangular coordinates
+                # and also doesn't return them in clockwise order.
+                max_distance = 0
+                opp_ends_plane_2 = None
+                for (a, b) in combinations(corners_plane_2, r=2):
+                    if abs(a[0] - b[0]) <= 0.8 or abs(a[1] - b[1]) <= 0.8:
+                        # The points are too close, they may be lying on the
+                        # same axis. Move forward.
+                        pass
+                    else:
+                        # The points do not possibly lie on the same axis.
+                        # Choose the two points which are the farthest.
+                        distance = (b[0] - a[0])**2 + (b[1] - a[1])**2
+                        if distance > max_distance:
+                            max_distance = distance
+                            if a[0] < b[0] and a[1] < b[1]:
+                                opp_ends_plane_2 = (a, b)
+                            else:
+                                opp_ends_plane_2 = (b, a)
+
+                # Draw the image and mark it with the timestamp.
+                draw = ImageDraw.Draw(rgb_img)
+                draw.text((5, 5),
+                          "Timestamp: {}".format(timestamp),
+                          fill='black')
+
+                # We were able to find two points far enough to be considered
+                # as possible bounding boxes.
+                if opp_ends_plane_2:
+                    a, b = opp_ends_plane_2
+                    self._logger.info(
+                        "The minimum and the maximum in the second plane is: ")
+                    self._logger.info("Point 1: {}".format(a))
+                    self._logger.info("Point 2: {}".format(b))
+
+                    # Find the middle point of the rectangle.
+                    middle_point = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2,
+                                    b[2].flatten().item(0))
+                    if self.__inside_image(middle_point[0], middle_point[1],
+                                           self._rgb_img_size[0],
+                                           self._rgb_img_size[1]):
+                        # The middle point was inside the image, sample around
+                        # the image to see if the object inside is visible
+                        # in our view.
+                        sampling_points = [
+                            (middle_point[0] + 3, middle_point[1],
+                             middle_point[2]),
+                            (middle_point[0] + 1.5, middle_point[1] + 1.5,
+                             middle_point[2]),
+                            (middle_point[0] + 1.5, middle_point[1] - 1.5,
+                             middle_point[2]),
+                            (middle_point[0] - 3, middle_point[1],
+                             middle_point[2]),
+                            (middle_point[0] - 1.5, middle_point[1] + 1.5,
+                             middle_point[2]),
+                            (middle_point[0] - 1.5, middle_point[1] - 1.5,
+                             middle_point[2]),
+                            (middle_point[0], middle_point[1], middle_point[2])
+                        ]
+
+                        # Remove all the sampling points that fall outside
+                        # the image.
+                        inside_sampling = []
+                        for x, y, z in sampling_points:
+                            if self.__inside_image(x, y,
+                                                   self._rgb_img_size[0],
+                                                   self._rgb_img_size[1]):
+                                inside_sampling.append((x, y, z))
+
+                        # Find the number of points that have a depth within
+                        # a threshold from what is visible from our
+                        # perspective.
+                        results = [
+                            self.have_same_depth(x, y, z, depth_array, 8.0)
+                            for x, y, z in inside_sampling
+                        ]
+
+                        # BUG (sukritk) :: In the case of collisions, Carla
+                        # does not update the pedestrian bounding box and
+                        # we incorrectly draw the bounding box even if the
+                        # pedestrian is not in our field of view until the
+                        # world removes the pedestrian.
+                        if self.pedestrian_to_history_map.get(
+                                pedestrian_index):
+                            # If the pedestrian was inside the image in the
+                            # last timestamp, check if 40% of the points we
+                            # sampled are inside the image.
+                            if len(inside_sampling
+                                   ) >= 0.4 * len(sampling_points):
+                                pedestrian_corners.append((a[0], a[1], b[0],
+                                                           b[1]))
+                                draw.rectangle((tuple(map(int, a[:2])),
+                                                tuple(map(int, b[:2]))),
+                                               width=4,
+                                               outline='green')
+                                draw.text((a[0] + 1, a[1] + 1),
+                                          str(pedestrian_index))
+                                self._logger.info(
+                                    "[{}, {}] Pedestrian transform is: {}".
+                                    format(pedestrian_index, timestamp,
+                                           pd_transform))
+                            else:
+                                # Majority of the bounding box is out of the
+                                # image, do not draw the pedestrian.
+                                self.pedestrian_to_history_map[
+                                    pedestrian_index] = False
+                        else:
+                            # The pedestrian was not inside the image in the
+                            # last timestamp. If more than 40% of the points
+                            # inside the image have the same depth as visible
+                            # from our viewpoint, update the map.
+                            self.pedestrian_to_history_map[pedestrian_index] = \
+                                    results.count(True) >= 0.4 * len(results)
+                else:
+                    self._logger.info(
+                        "Could not find far enough points in second plane.")
+            else:
+                self._logger.info(
+                    "The pedestrian {} returned no coordinates.".format(
+                        pedestrian_index))
+            pedestrian_index += 1
+
+        # Compute the mIOU for the person category.
+        detection_bboxes = [
+            bbox for bbox, _, category in msg.data if category == 'person'
+        ]
+        if len(detection_bboxes) > 0 and len(pedestrian_corners) > 0:
+            person_miou = self.__compute_miou(detection_bboxes,
+                                              pedestrian_corners)
+            self._logger.info(
+                "The mIOU for the person category was: {}".format(person_miou))
 
         for (vec_transform, bounding_box, fwd_speed) in vehicles:
-            corners = map_ground_bounding_box_to_2D(rgb_img,
-                                                   depth_array,
-                                                   world_transform,
-                                                   vec_transform,
-                                                   bounding_box,
-                                                   self._rgb_transform,
-                                                   self._rgb_intrinsic,
-                                                   self._rgb_img_size)
+            corners = map_ground_bounding_box_to_2D(
+                rgb_img, depth_array, world_transform, vec_transform,
+                bounding_box, self._rgb_transform, self._rgb_intrinsic,
+                self._rgb_img_size)
 
             if len(corners) == 8:
                 # The corners are represented in the cubic form and we
@@ -212,7 +336,7 @@ class ObstacleAccuracyOperator(Op):
                 # and the back rectangle.
                 corners_plane_1, corners_plane_2 = corners[:4], corners[4:]
 
-                # Figure out the lower-left and top-right corners from the 
+                # Figure out the lower-left and top-right corners from the
                 # front plane.
                 min_corner = corners_plane_1[0]
                 max_corner_plane_1 = corners_plane_1[0]
@@ -231,14 +355,17 @@ class ObstacleAccuracyOperator(Op):
                             1] > max_corner[1] - 1:
                         max_corner = corner
 
-
                 # Find the middle point in the front plane.
                 corner1, corner2 = min_corner, max_corner_plane_1
                 middle_point = ((corner1[0] + corner2[0]) / 2,
                                 (corner1[1] + corner2[1]) / 2,
                                 corner1[2].flatten().item(0))
-                if self.have_same_depth(middle_point[0], middle_point[1],
-                                        middle_point[2], depth_array, 8.0):
+                if self.__inside_image(
+                        middle_point[0], middle_point[1],
+                        self._rgb_img_size[0],
+                        self._rgb_img_size[1]) and self.have_same_depth(
+                            middle_point[0], middle_point[1], middle_point[2],
+                            depth_array, 8.0):
 
                     # Draw from the lower-left of the first plane to the top
                     # right of the back plane.
@@ -274,9 +401,7 @@ class ObstacleAccuracyOperator(Op):
                 y = int(pos[1])
                 z = pos[2].flatten().item(0)
                 if self.have_same_depth(x, y, z, depth_array, 1.0):
-                    # TODO(ionel): Figure out bounding box size.
-                    add_bounding_box(rgb_img, (x - 2, x + 2, y - 2, y + 2), color='yellow')
-
+                    # TODO(ionel): Figure out bounding box size.  add_bounding_box(rgb_img, (x - 2, x + 2, y - 2, y + 2), color='yellow') 
                 # (x3d, y3d, z3d) = get_3d_world_position(
                 #     x, y, self._depth_img_size, depth_img, self._depth_transform, world_transform)
 
@@ -288,10 +413,34 @@ class ObstacleAccuracyOperator(Op):
             cv2.waitKey(1)
 
     def have_same_depth(self, x, y, z, depth_array, threshold):
+        x, y = int(x), int(y)
         return abs(depth_array[y][x] * 1000 - z) < threshold
 
     def execute(self):
         self.spin()
+
+    def __compute_miou(self, bboxes1, bboxes2):
+        bboxes1, bboxes2 = np.array(bboxes1), np.array(bboxes2)
+        x11, x12, y11, y12 = np.split(bboxes1, 4, axis=1)
+        x21, y21, x22, y22 = np.split(bboxes2, 4, axis=1)
+
+        xI1 = np.maximum(x11, np.transpose(x21))
+        xI2 = np.minimum(x12, np.transpose(x22))
+
+        yI1 = np.maximum(y11, np.transpose(y21))
+        yI2 = np.minimum(y12, np.transpose(y22))
+
+        inter_area = np.maximum((xI2 - xI1), 0) * np.maximum((yI2 - yI1), 0)
+
+        bboxes1_area = (x12 - x11) * (y12 - y11)
+        bboxes2_area = (x22 - x21) * (y22 - y21)
+
+        union = (bboxes1_area + np.transpose(bboxes2_area)) - inter_area
+
+        return inter_area / (union+0.0001)
+
+    def __inside_image(self, x, y, img_width, img_height):
+        return x >= 0 and y >= 0 and x < img_width and y < img_height
 
     def __compute_area(self, bbox):
         return (bbox[2] - bbox[0] + 1) * (bbox[3] - bbox[1] + 1)

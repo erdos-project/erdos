@@ -30,6 +30,12 @@ class Transform(object):
         self.populate_pb2(transform)
         return transform
 
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        return "location: {}, orientation: {}, rotation: {}".format(self.location, self.orientation, self.rotation) 
+
 class BoundingBox(object):
     def __init__(self, bb):
         self.transform = Transform(bb.transform)
@@ -42,6 +48,12 @@ class BoundingBox(object):
         bb.extent.y = self.extent[1]
         bb.extent.z = self.extent[2]
         return bb
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        return "transform: {}, x: {}, y: {}, z: {}".format(str(self.transform), *self.extent) 
 
 Vehicle = namedtuple('Vehicle', 'position, bounding_box, forward_speed')
 Pedestrian = namedtuple('Pedestrian', 'position, bounding_box, forward_speed')
