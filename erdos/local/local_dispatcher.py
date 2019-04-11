@@ -27,7 +27,7 @@ class LocalDispatcher(Dispatcher):
                 self._cleanup_processes()
                 return process.read()
 
-        return b""
+        raise Exception("Timeout while waiting for prompt")
 
     def _cleanup_processes(self):
         self.processes = list(filter(lambda p: p.isalive(), self.processes))

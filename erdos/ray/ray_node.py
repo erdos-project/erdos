@@ -1,7 +1,6 @@
 import json
 import logging
 import ray
-import re
 from absl import flags
 
 from erdos.ray.ray_operator import RayOperator
@@ -62,7 +61,8 @@ class RayNode(Node):
         op_handle.executor_handle = ray_op
 
     def execute_operator(self, op_handle):
-        assert op_handle in self.op_handles  # Setup the input/output streams of the ERDOS operator.
+        assert op_handle in self.op_handles
+        # Setup the input/output streams of the ERDOS operator.
         ray.get(
             op_handle.executor_handle.setup_streams.remote(
                 op_handle.dependent_op_handles))
