@@ -56,6 +56,12 @@ class Source(Op):
                 self.reset_progress(rollback_id)
                 self._logger.info("Rollback to SNAPSHOT ID %d" % rollback_id)
 
+    def checkpoint(self):
+        snapshot_id = self._state[-1]  # latest received seq num/timestamp
+        assert snapshot_id not in self._checkpoints
+        self._checkpoints[snapshot_id] = copy(self._state)
+        self._logger.info('checkpointed at latest stored data %d' % snapshot_id)
+
     def execute(self):
         while self._seq_num < self._num_messages:
             # Build state
@@ -66,17 +72,14 @@ class Source(Op):
             # Send msg and watermark
             output_msg = Message(self._seq_num,
                                  Timestamp(coordinates=[self._seq_num]))
-            watermark = WatermarkMessage(self._seq_num, stream_name="watermark")
+            watermark = WatermarkMessage(Timestamp(coordinates=[self._seq_num]))
             pub = self.get_output_stream('input_stream')
             pub.send(output_msg)
             pub.send(watermark)
 
-            # Checkpoint
+            # Checkpoint, source needs to write its own checkpoint
             if self._seq_num % self._checkpoint_freq == 0:
-                snapshot_id = self._state[-1]  # latest received seq num/timestamp
-                assert snapshot_id not in self._checkpoints
-                self._checkpoints[snapshot_id] = copy(self._state)
-                self._logger.info('checkpointed at latest stored data %d' % snapshot_id)
+                self.checkpoint()
 
             self._seq_num += 1
             time.sleep(self._time_gap)

@@ -1,11 +1,12 @@
 import time
 
 from erdos.data_stream import DataStream
-from erdos.message import Message
+from erdos.message import Message, WatermarkMessage
 from erdos.op import Op
 from erdos.timestamp import Timestamp
 from erdos.utils import setup_logging
 import checkpoint_util
+import sys
 
 
 class ControllerOperator(Op):
@@ -21,7 +22,8 @@ class ControllerOperator(Op):
     @staticmethod
     def setup_streams(input_streams):
         return [DataStream(name='controller_stream',
-                           labels={'control_stream': 'true'})]
+                           labels={'control_stream': 'true',
+                                   'no_watermark': 'true'})]
 
     def on_snapshot_msg(self, msg):
         # Controller receives snapshot ID from sink every sink takes one
@@ -29,12 +31,12 @@ class ControllerOperator(Op):
         self._logger.info('received sink SNAPSHOT ID %d' % self._sink_snapshot_id)
 
     def execute(self):
-        # Send failure message.
-        if self._pre_failure_time_elapse_s is not None:
-            time.sleep(self._pre_failure_time_elapse_s)
-            rollback_msg = Message((checkpoint_util.CheckpointControllerCommand.ROLLBACK, self._sink_snapshot_id),
-                               Timestamp(coordinates=[0]))
-            self.get_output_stream('controller_stream').send(rollback_msg)
-            self._logger.info("Control send rollback message to everyone")
+        # if self._pre_failure_time_elapse_s is not None:
+        #     time.sleep(self._pre_failure_time_elapse_s)
+        #     rollback_msg = Message((checkpoint_util.CheckpointControllerCommand.ROLLBACK, self._sink_snapshot_id),
+        #                        Timestamp(coordinates=[0]))
+        #     pub = self.get_output_stream('controller_stream')
+        #     pub.send(rollback_msg)
+        #     self._logger.info("Control send rollback message to everyone")
 
         self.spin()

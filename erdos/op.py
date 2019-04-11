@@ -36,6 +36,7 @@ class Op(object):
         self._checkpoint_freq = checkpoint_freq
         if self._checkpoint_enable:
             assert self._checkpoint_freq is not None
+        self._stream_ignore_watermarks = set()  # input streams that do not send watermarks
 
     def get_output_stream(self, name):
         """Returns the output stream matching name"""
@@ -117,4 +118,6 @@ class Op(object):
         for output_stream in self.output_streams.values():
             output_stream.setup()
         for input_stream in self.input_streams:
+            if input_stream.labels.get('no_watermark', 'false') == 'true':
+                self._stream_ignore_watermarks.add(input_stream.name)
             input_stream.setup()

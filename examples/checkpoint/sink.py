@@ -31,7 +31,7 @@ class Sink(Op):
             .add_callback(Sink.on_rollback_msg)
         input_streams.filter(checkpoint_util.is_not_control_stream) \
             .add_callback(Sink.on_msg)
-        return [DataStream(name="sink_snapshot")]
+        return [DataStream(name="sink_snapshot", labels={'no_watermark': 'true'})]
 
     def on_msg(self, msg):
         self._seq_num = int(msg.data)
