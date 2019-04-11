@@ -16,15 +16,16 @@ from obstacle_accuracy_operator import ObstacleAccuracyOperator
 try:
     from tracker_crt_operator import TrackerCRTOperator
 except ImportError:
-    print("Error importing CRT tracker.")	
+    print("Error importing CRT tracker.")
 from tracker_cv2_operator import TrackerCV2Operator
 from planner.planner_operator import PlannerOperator
 from segmentation_drn_operator import SegmentationDRNOperator
 try:
     from segmentation_dla_operator import SegmentationDLAOperator
 except ImportError:
-    print("Error importing DLA segmentation.")	
+    print("Error importing DLA segmentation.")
 from segmentation_eval_operator import SegmentationEvalOperator
+from segmentation_eval_ground_operator import SegmentationEvalGroundOperator
 from segmented_video_operator import SegmentedVideoOperator
 from traffic_light_det_operator import TrafficLightDetOperator
 from video_operator import VideoOperator
@@ -292,6 +293,17 @@ def add_segmentation_eval_op(graph, carla_op, segmentation_op,
     return segmentation_eval_op
 
 
+def add_segmentation_ground_eval_op(graph, carla_op, ground_stream_name):
+    seg_eval_op = graph.add(
+        SegmentationEvalGroundOperator,
+        name='segmentation_ground_eval',
+        init_args={'flags': FLAGS,
+                   'log_file_name': FLAGS.log_file_name},
+        setup_args={'ground_stream_name': ground_stream_name})
+    graph.connect([carla_op], [seg_eval_op])
+    return seg_eval_op
+
+
 def add_fusion_ops(graph, carla_op, obj_detector_op):
     fusion_op = graph.add(
         FusionOperator,
@@ -382,6 +394,10 @@ def main(argv):
             eval_segmentation_op = add_segmentation_eval_op(
                 graph, carla_op, segmentation_op,
                 'front_semantic_camera', 'segmented_stream')
+
+    if FLAGS.eval_ground_truth_segmentation:
+        segmentation_ground_eval_op = add_segmentation_ground_eval_op(
+            graph, carla_op, 'front_semantic_camera')
 
     if FLAGS.obj_detection:
         obj_detector_op = add_detector_op(graph, camera_ops)

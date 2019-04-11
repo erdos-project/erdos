@@ -121,6 +121,14 @@ flags.DEFINE_bool('visualize_detector_output', False,
 flags.DEFINE_bool('visualize_traffic_light_output', False,
                   'True to enable visualization of traffic light output')
 
+# Ground truth accuracy evaluation flags.
+flags.DEFINE_bool('eval_ground_truth_segmentation', True,
+                  'True to enable ground truth segmentation evaluation')
+flags.DEFINE_integer('eval_ground_truth_ignore_first', 5000,
+                     'Number of ms to ignore frames for (car is not moving initially)')
+flags.DEFINE_integer('eval_ground_truth_max_latency', 2000,
+                     'Max latency to evaluate in ground truth experiments')
+
 # Recording operators
 flags.DEFINE_bool('record_depth_camera', False, 'True to record depth camera')
 flags.DEFINE_bool('record_lidar', False, 'True to record lidar')
