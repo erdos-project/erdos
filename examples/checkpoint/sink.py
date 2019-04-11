@@ -67,14 +67,13 @@ class Sink(Op):
         (control_msg, rollback_id) = msg.data
         if control_msg == checkpoint_util.CheckpointControllerCommand.ROLLBACK:
             if rollback_id is None:
-                # Assume sink didn't process any messages, so start over
-                self._seq_num = None
-                self._state = deque()
-                self._checkpoints = dict()
-                self.reset_progress(Timestamp(coordinates=[0]))
-                self._logger.info("Rollback to START OVER")
+                self.rollback_to_beginning()
             else:
                 rollback_id = int(rollback_id)
+                # Find snapshot id that is the closest to and smaller/equal to the rollback_id
+                ids = sorted(self._checkpoints.keys())
+                ids = [id for id in ids if id <= rollback_id]
+                rollback_id = ids[-1]
                 self._seq_num = rollback_id + 1
                 self._state = self._checkpoints[rollback_id]
                 # Remove all snapshots later than the rollback point
@@ -83,6 +82,14 @@ class Sink(Op):
                         self._checkpoints.pop(k)
                 self.reset_progress(Timestamp(coordinates=[rollback_id]))
                 self._logger.info("Rollback to SNAPSHOT ID %d" % rollback_id)
+
+    def rollback_to_beginning(self):
+        # Assume sink didn't process any messages, so start over
+        self._seq_num = None
+        self._state = deque()
+        self._checkpoints = dict()
+        self.reset_progress(Timestamp(coordinates=[0]))
+        self._logger.info("Rollback to START OVER")
 
     def execute(self):
         self.spin()

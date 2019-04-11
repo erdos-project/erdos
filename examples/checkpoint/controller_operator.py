@@ -34,7 +34,9 @@ class ControllerOperator(Op):
     def execute(self):
         if self._pre_failure_time_elapse_s is not None:
             time.sleep(self._pre_failure_time_elapse_s)
-            rollback_msg = Message((checkpoint_util.CheckpointControllerCommand.ROLLBACK, self._sink_snapshot_id),
+            # Instead of sending actual failure, we rollback states to 5 messages ago
+            rollback_id = self._sink_snapshot_id - 5
+            rollback_msg = Message((checkpoint_util.CheckpointControllerCommand.ROLLBACK, rollback_id),
                                Timestamp(coordinates=[0]))
             pub = self.get_output_stream('controller_stream')
             pub.send(rollback_msg)
