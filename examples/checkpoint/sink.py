@@ -74,13 +74,13 @@ class Sink(Op):
                 ids = sorted(self._checkpoints.keys())
                 ids = [id for id in ids if id <= rollback_id]
                 rollback_id = ids[-1]
+                self.reset_progress(Timestamp(coordinates=[rollback_id]))
                 self._seq_num = rollback_id + 1
                 self._state = self._checkpoints[rollback_id]
                 # Remove all snapshots later than the rollback point
-                for k in self._checkpoints:
-                    if k > self._seq_num:
-                        self._checkpoints.pop(k)
-                self.reset_progress(Timestamp(coordinates=[rollback_id]))
+                pop_ids = [k for k in self._checkpoints if k > self._seq_num]
+                for id in pop_ids:
+                    self._checkpoints.pop(id)
                 self._logger.info("Rollback to SNAPSHOT ID %d" % rollback_id)
 
     def rollback_to_beginning(self):

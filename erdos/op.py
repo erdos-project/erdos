@@ -99,6 +99,7 @@ class Op(object):
     def reset_progress(self, timestamp):
         """ Reset the progress (watermark) of the operator """
         for input_stream in self.input_streams:
+            print("set progress from {} to {}".format(self._stream_to_high_watermark[input_stream.name], timestamp))
             self._stream_to_high_watermark[input_stream.name] = timestamp
 
     def _add_input_streams(self, input_streams):
