@@ -23,12 +23,12 @@ class Cluster(object):
         self.nodes.append(node)
 
     def initialize(self):
+        info = ray.init() # TODO: set resources for current node
+        self.ray_redis_address = info["redis_address"]
+
         for node in self.nodes:
             if isinstance(node, RayNode):
-                if not self.ray_redis_address:
-                    self.ray_redis_address = node.start_head()
-                else:
-                    node.setup(self.ray_redis_address)
+                node.setup(self.ray_redis_address)
             else:
                 raise NotImplementedError(
                     "Cannot setup other types of nodes yet")
