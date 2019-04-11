@@ -26,6 +26,7 @@ class ControllerOperator(Op):
     def on_snapshot_msg(self, msg):
         # Controller receives snapshot ID from sink every sink takes one
         self._sink_snapshot_id = int(msg.data)
+        self._logger.info('received sink SNAPSHOT ID %d' % self._sink_snapshot_id)
 
     def execute(self):
         # Send failure message.

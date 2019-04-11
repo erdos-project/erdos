@@ -55,6 +55,8 @@ class Sink(Op):
             snapshot_id = self._state[-1]  # latest received seq num/timestamp
             assert snapshot_id not in self._checkpoints
             self._checkpoints[snapshot_id] = copy(self._state)
+            self._logger.info('checkpointed at latest stored data %d' % snapshot_id)
+            
             # Send snapshot ID (latest received seq num) to controller
             snapshot_msg = Message(snapshot_id, timestamp=msg.timestamp)
             self.get_output_stream("sink_snapshot").send(snapshot_msg)
@@ -64,9 +66,10 @@ class Sink(Op):
         if control_msg == checkpoint_util.CheckpointControllerCommand.ROLLBACK:
             if rollback_id is None:
                 # Assume sink didn't process any messages, so start over
-                self._seq_num = 1
+                self._seq_num = None
                 self._state = deque()
                 self._checkpoints = dict()
+                self.reset_progress(0)
                 self._logger.info("Rollback to START OVER")
             else:
                 rollback_id = int(rollback_id)
@@ -76,6 +79,7 @@ class Sink(Op):
                 for k in self._checkpoints:
                     if k > self._seq_num:
                         self._checkpoints.pop(k)
+                self.reset_progress(rollback_id)
                 self._logger.info("Rollback to SNAPSHOT ID %d" % rollback_id)
 
     def execute(self):

@@ -48,6 +48,7 @@ class FailureOperator(Op):
             snapshot_id = self._state[-1]  # latest received seq num/timestamp
             assert snapshot_id not in self._checkpoints
             self._checkpoints[snapshot_id] = copy(self._state)
+            self._logger.info('checkpointed at latest stored data %d' % snapshot_id)
 
     def on_rollback_msg(self, msg):
         (control_msg, rollback_id) = msg.data
@@ -56,12 +57,19 @@ class FailureOperator(Op):
                 # Assume sink didn't process any messages, so start over
                 self._seq_num = None
                 self._state = deque()
-                self._logger.info("%s rollback to START OVER" % self.name)
+                self._checkpoints = dict()
+                self.reset_progress(0)
+                self._logger.info("Rollback to START OVER")
             else:
                 rollback_id = int(rollback_id)
                 self._seq_num = rollback_id + 1
                 self._state = self._checkpoints[rollback_id]
-                self._logger.info("%s rollback to SNAPSHOT ID %d" % (self.name, rollback_id))
+                # Remove all snapshots later than the rollback point
+                for k in self._checkpoints:
+                    if k > self._seq_num:
+                        self._checkpoints.pop(k)
+                self.reset_progress(rollback_id)
+                self._logger.info("Rollback to SNAPSHOT ID %d" % rollback_id)
 
     def execute(self):
         self.spin()
