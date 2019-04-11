@@ -45,12 +45,12 @@ class Sink(Op):
             elif self.last_received_num + 1 == self._seq_num:
                 self._logger.info('received %d' % self._seq_num)
                 self.last_received_num = self._seq_num
-                # Build state
-                if len(self._state) == self._state_size:  # state is full
-                    self._state.popleft()
-                self._state.append(self._seq_num)
             else:   # sink receives duplicates
                 self._logger.info('received DUPLICATE %d' % self._seq_num)
+            # Build state
+            if len(self._state) == self._state_size:  # state is full
+                self._state.popleft()
+            self._state.append(self._seq_num)
 
     def checkpoint(self):
         # Override base class checkpoint function
