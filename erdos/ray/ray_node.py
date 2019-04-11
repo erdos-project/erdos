@@ -31,7 +31,7 @@ class RayNode(Node):
         resources.update(self.total_resources)
 
         ray_start_command = ("ray start --redis-address {} --resources='{}'"
-                             .format(self.redis_address,
+                             .format(redis_address,
                                      json.dumps(resources)))
         self.run_command(ray_start_command)
 
