@@ -5,11 +5,14 @@ class Node(object):
     """Contains information relevant to a node in a cluster"""
 
     def __init__(self, server, username, ssh_key, resources=None):
+        # TODO: username and SSH key shouldn't be part of the node
         self.server = server
         self.username = username
         self.ssh_key = ssh_key
         self.total_resources = dict(resources) if resources else dict()
         self.available_resources = dict(self.total_resources)
+
+        self.op_handles = []
 
         self.dispatchers = []
         self.current_dispatcher = self._make_dispatcher()
@@ -23,8 +26,20 @@ class Node(object):
         """Runs commands and returns command prompt output"""
         self.current_dispatcher.run(command)
         return self.current_dispatcher.wait_for_prompt(
-                timeout=timeout).decode("utf-8")
+            timeout=timeout).decode("utf-8")
 
     def run_long_command_asnyc(self, command):
         dispatcher = self._make_dispatcher()
         dispatcher.run(command)
+
+    def setup(self):
+        raise NotImplementedError
+
+    def teardown(self):
+        raise NotImplementedError
+
+    def setup_operator(self, op_handle):
+        raise NotImplementedError
+
+    def execute_operator(self, op_handle):
+        raise NotImplementedError

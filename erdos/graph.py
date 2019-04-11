@@ -9,7 +9,7 @@ from absl import flags
 from erdos.op_handle import OpHandle
 from erdos.graph_handle import GraphHandle
 from erdos.data_streams import DataStreams
-from erdos.local.local_executor import LocalExecutor
+from erdos.executor import Executor
 from erdos.utils import log_graph_to_dot_file
 from erdos.operators import NoopOp
 
@@ -55,8 +55,14 @@ class Graph(object):
         self.input_op = self.add(NoopOp, name='input_op')
         self.output_op = self.add(NoopOp, name='output_op')
 
-    def add(self, op_cls, name="", init_args=None, setup_args=None,
-            input_streams=[], _resources=None):
+    def add(self,
+            op_cls,
+            name="",
+            init_args=None,
+            setup_args=None,
+            input_streams=[],
+            _node=None,
+            _resources=None):
         """Adds an operator to the execution graph.
 
         Args:
@@ -75,8 +81,14 @@ class Graph(object):
             handle = GraphHandle(name, op_cls, init_args, setup_args,
                                  self.graph_name, self)
         else:
-            handle = OpHandle(name, op_cls, init_args, setup_args,
-                              self.graph_name, resources = _resources)
+            handle = OpHandle(
+                name,
+                op_cls,
+                init_args,
+                setup_args,
+                self.graph_name,
+                node=_node,
+                resources=_resources)
         op_id = handle.get_uid()
         assert (op_id not in self.op_handles), \
             'Duplicate operator name {}. Ensure name uniqueness ' \
@@ -348,8 +360,7 @@ class Graph(object):
         if FLAGS.ray_redis_address == '':
             ray.init()
         else:
-            ray.init(
-                redis_address=FLAGS.ray_redis_address)
+            ray.init(redis_address=FLAGS.ray_redis_address)
             time.sleep(2)
 
     def _create_executors(self):
@@ -379,18 +390,11 @@ class Graph(object):
 
     def _create_executor(self, op_id):
         op_handle = self.op_handles[op_id]
-        if self.framework == 'ros':
-            from erdos.ros.ros_executor import ROSExecutor
-            ros_executor = ROSExecutor(op_handle)
-            return ros_executor
-        elif self.framework == 'ray':
-            from erdos.ray.ray_executor import RayExecutor
-            ray_executor = RayExecutor(op_handle)
-            return ray_executor
-        elif self.framework == 'local':
-            return LocalExecutor(op_handle.name)
-        else:
-            raise Exception('Unexpected framework {}'.format(self.framework))
+        if op_handle.node is None:
+            raise NotImplementedError(
+                'Assign the op {} to a node. Scheduler is not implemented yet'.
+                format(op_handle.name))
+        return Executor(op_handle, op_handle.node)
 
 
 DEFAULT_GRAPH = Graph()
