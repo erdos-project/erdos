@@ -145,15 +145,15 @@ class CarlaOperator(Op):
         output_stream = DataStream(name=name, labels={"sensor_type": "lidar"})
         self.lidar_streams.append(output_stream)
 
-    # TODO(ionel): Set the frequency programmatically.
-    @frequency(10)
-    def step(self):
-        start_time = time.time()
+
+    def read_carla_data(self):
+        read_start_time = time.time()
         measurements, sensor_data = self.client.read_data()
         measure_time = time.time()
+
         self._logger.info(
             'Got readings for game time {} and platform time {}'.format(
-            measurements.game_timestamp, measurements.platform_timestamp))
+                measurements.game_timestamp, measurements.platform_timestamp))
 
         # Send measurements
         player_measurements = measurements.player_measurements
@@ -220,7 +220,6 @@ class CarlaOperator(Op):
                     transform, agent.speed_limit_sign.speed_limit)
                 speed_limit_signs.append(speed_sign)
 
-
         vehicles_msg = Message(vehicles, timestamp)
         self.get_output_stream('vehicles').send(vehicles_msg)
         pedestrians_msg = Message(pedestrians, timestamp)
@@ -236,8 +235,24 @@ class CarlaOperator(Op):
 
         self.client.send_control(**self.control)
         end_time = time.time()
-        self._logger.info("Carla reading runtimes: {} {}".format((measure_time - start_time) * 1000,
-                                                                 (end_time - start_time) * 1000))
+
+        measurement_runtime = (measure_time - read_start_time) * 1000
+        total_runtime = (end_time - read_start_time) * 1000
+        self._logger.info("Carla measurement time {}; total time {}".format(
+            measurement_runtime, total_runtime))
+
+    def read_data_at_frequency(self):
+        period = 1.0 / self._flags.carla_step_frequency
+        trigger_at = time.time() + period
+        while True:
+            time_until_trigger = trigger_at - time.time()
+            if time_until_trigger > 0:
+                time.sleep(time_until_trigger)
+            else:
+                self._logger.error('Cannot read Carla data at frequency {}'.format(
+                    self._flags.carla_step_frequency))
+            self.read_carla_data()
+            trigger_at += period
 
     def update_control(self, msg):
         """Updates the control dict"""
@@ -267,5 +282,5 @@ class CarlaOperator(Op):
 
         self.client.start_episode(player_start)
 
-        self.step()
+        self.read_data_at_frequency()
         self.spin()
