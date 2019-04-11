@@ -26,7 +26,7 @@ class ROSOutputDataStream(DataStream):
         self.op.log_event(time.time(), msg.timestamp,
                           'send {}'.format(self.name))
         msg.stream_name = self.name
-        msg = pickle.dumps(msg)
+        msg = pickle.dumps(msg, protocol=pickle.HIGHEST_PROTOCOL)
         self.publisher.publish(msg)
 
     def setup(self):
