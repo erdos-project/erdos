@@ -17,6 +17,14 @@ CITYSCAPES_CLASSES = {
     12: [220, 220, 0]     # TrafficSigns
 }
 
+
+def transfrom_to_cityscapes(frame_array):
+    result = np.zeros((frame_array.shape[0], frame_array.shape[1], 3))
+    for key, value in CITYSCAPES_CLASSES.items():
+        result[np.where(frame_array == key)] = value
+    return result
+
+
 def compute_semantic_iou(ground_frame, predicted_frame):
     iou = {}
     for key, value in CITYSCAPES_CLASSES.items():
@@ -33,6 +41,7 @@ def compute_semantic_iou(ground_frame, predicted_frame):
             iou[key] = float(sum_intersection) / float(sum_union)
     mean_iou = np.mean(iou.values())
     return (mean_iou, iou)
+
 
 def compute_instance_iou(ground_frame, predicted_frame):
     # iIou = iTP/(iTP + FP + iFN)

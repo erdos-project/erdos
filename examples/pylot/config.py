@@ -16,6 +16,7 @@ flags.DEFINE_bool('segmentation', False,
                   'True to enable segmantation operator')
 flags.DEFINE_bool('segmentation_gpu', True,
                   'True, if segmentation should use a GPU')
+flags.DEFINE_string('segmentation_type', 'drn', 'Segmentation type: drn | dla')
 flags.DEFINE_bool('obj_detection', False,
                   'True to enable object detection operator')
 flags.DEFINE_string(

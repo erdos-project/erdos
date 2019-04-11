@@ -19,7 +19,11 @@ except ImportError:
     print("Error importing CRT tracker.")	
 from tracker_cv2_operator import TrackerCV2Operator
 from planner.planner_operator import PlannerOperator
-from segmentation_operator import SegmentationOperator
+from segmentation_drn_operator import SegmentationDRNOperator
+try:
+    from segmentation_dla_operator import SegmentationDLAOperator
+except ImportError:
+    print("Error importing DLA segmentation.")	
 from segmentation_eval_operator import SegmentationEvalOperator
 from segmented_video_operator import SegmentedVideoOperator
 from traffic_light_det_operator import TrafficLightDetOperator
@@ -253,14 +257,25 @@ def add_obstacle_accuracy_op(graph,
 
 
 def add_segmentation_op(graph, camera_ops):
-    segmentation_op = graph.add(
-        SegmentationOperator,
-        name='segmentation',
-        setup_args={'output_stream_name': 'segmented_stream'},
-        init_args={'output_stream_name': 'segmented_stream',
-                   'flags': FLAGS,
-                   'log_file_name': FLAGS.log_file_name},
-        _resources = {"GPU": 0.3})
+    segmentation_op = None
+    if FLAGS.segmentation_type == 'drn':
+        segmentation_op = graph.add(
+            SegmentationDRNOperator,
+            name='segmentation_drn',
+            setup_args={'output_stream_name': 'segmented_stream'},
+            init_args={'output_stream_name': 'segmented_stream',
+                       'flags': FLAGS,
+                       'log_file_name': FLAGS.log_file_name},
+            _resources = {"GPU": 0.3})
+    elif FLAGS.segmentation_type == 'dla':
+        segmentation_op = graph.add(
+            SegmentationDLAOperator,
+            name='segmentation_dla',
+            setup_args={'output_stream_name': 'segmented_stream'},
+            init_args={'output_stream_name': 'segmented_stream',
+                       'flags': FLAGS,
+                       'log_file_name': FLAGS.log_file_name},
+            _resources = {"GPU": 0.3})
     graph.connect(camera_ops, [segmentation_op])
     return segmentation_op
 

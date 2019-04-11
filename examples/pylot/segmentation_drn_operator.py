@@ -14,13 +14,13 @@ from erdos.utils import setup_logging
 from sensor_msgs.msg import Image
 
 
-class SegmentationOperator(Op):
+class SegmentationDRNOperator(Op):
     def __init__(self,
                  name,
                  output_stream_name,
                  flags,
                  log_file_name=None):
-        super(SegmentationOperator, self).__init__(name)
+        super(SegmentationDRNOperator, self).__init__(name)
         self._flags = flags
         self._logger = setup_logging(self.name, log_file_name)
         self._output_stream_name = output_stream_name
@@ -39,7 +39,8 @@ class SegmentationOperator(Op):
     @staticmethod
     def setup_streams(input_streams, output_stream_name):
         # Register a callback on the camera input stream.
-        input_streams.add_callback(SegmentationOperator.on_msg_camera_stream)
+        input_streams.add_callback(
+            SegmentationDRNOperator.on_msg_camera_stream)
         return [DataStream(data_type=Image,
                            name=output_stream_name,
                            labels={'segmented': 'true'})]
