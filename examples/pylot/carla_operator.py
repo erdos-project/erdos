@@ -1,5 +1,6 @@
 import numpy as np
 from std_msgs.msg import Float64
+import time
 
 from carla.client import CarlaClient
 from carla.sensor import Camera, Lidar
@@ -147,7 +148,12 @@ class CarlaOperator(Op):
     # TODO(ionel): Set the frequency programmatically.
     @frequency(10)
     def step(self):
+        start_time = time.time()
         measurements, sensor_data = self.client.read_data()
+        measure_time = time.time()
+        self._logger.info(
+            'Got readings for game time {} and platform time {}'.format(
+            measurements.game_timestamp, measurements.platform_timestamp))
 
         # Send measurements
         player_measurements = measurements.player_measurements
@@ -214,6 +220,7 @@ class CarlaOperator(Op):
                     transform, agent.speed_limit_sign.speed_limit)
                 speed_limit_signs.append(speed_sign)
 
+
         vehicles_msg = Message(vehicles, timestamp)
         self.get_output_stream('vehicles').send(vehicles_msg)
         pedestrians_msg = Message(pedestrians, timestamp)
@@ -228,6 +235,9 @@ class CarlaOperator(Op):
             self.get_output_stream(name).send(Message(measurement, timestamp))
 
         self.client.send_control(**self.control)
+        end_time = time.time()
+        self._logger.info("Carla reading runtimes: {} {}".format((measure_time - start_time) * 1000,
+                                                                 (end_time - start_time) * 1000))
 
     def update_control(self, msg):
         """Updates the control dict"""
