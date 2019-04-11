@@ -1,7 +1,10 @@
 import ray
+from absl import flags
 
 from erdos.cluster.node import Node
-from erdos.ray.ray_node import RayNode
+from erdos.ray.ray_node import RayNode, LocalRayNode
+
+FLAGS = flags.FLAGS
 
 
 class Cluster(object):
@@ -23,18 +26,43 @@ class Cluster(object):
         self.nodes.append(node)
 
     def initialize(self):
-        info = ray.init() # TODO: set resources for current node
-        self.ray_redis_address = info["redis_address"]
+        self._initialize_ray()
 
-        for node in self.nodes:
-            if isinstance(node, RayNode):
-                node.setup(self.ray_redis_address)
+    def _initialize_ray(self):
+        ray_nodes = [
+            n for n in self.nodes if isinstance(n, (RayNode, LocalRayNode))
+        ]
+        if len(ray_nodes) == 0:
+            return
+        local_ray_node = self._find_local_ray_node()
+
+        if local_ray_node is None:
+            # Set resources to 0 so no operators run on this node
+            if FLAGS.ray_redis_address == "":
+                info = ray.init(num_cpus=0, num_gpus=0)
+                self.ray_redis_address = info["redis_address"]
             else:
-                raise NotImplementedError(
-                    "Cannot setup other types of nodes yet")
+                ray.init(num_cpus=0,
+                         num_gpus=0,
+                         redis_address=FLAGS.ray_redis_address)
+                self.ray_redis_address = FLAGS.ray_redis_address
+        else:
+            self.ray_redis_address = local_ray_node.setup()
+            ray_nodes.remove(local_ray_node)
 
-        if self.ray_redis_address and not ray.is_initialized():
-            ray.init(redis_address=self.ray_redis_address)
+        for node in ray_nodes:
+            node.setup(self.ray_redis_address)
+
+    def _find_local_ray_node(self):
+        local_ray_nodes = [
+            n for n in self.nodes if isinstance(n, LocalRayNode)
+        ]
+        if len(local_ray_nodes) == 0:
+            return None
+        elif len(local_ray_nodes) == 1:
+            return local_ray_nodes[0]
+        else:
+            raise Exception("Multiple local Ray nodes are unsupported")
 
     def broadcast(self, command):
         for node in self.nodes:

@@ -2,37 +2,30 @@ import json
 import logging
 import ray
 import re
+from absl import flags
 
 from erdos.ray.ray_operator import RayOperator
 from erdos.cluster.node import Node
+
+FLAGS = flags.FLAGS
 
 logger = logging.getLogger(__name__)
 
 
 class RayNode(Node):
-    def start_head(self):
-        resources = {self.server: 512}
-        resources.update(self.total_resources)
-
-        ray_start_command = "ray start --head --resources '{}'".format(
-            json.dumps(resources))
-        response = self.run_command_sync(ray_start_command)
-
-        matches = re.findall('redis_address="[0-9.:]+"', response)
-        if len(matches) != 1:
-            raise Exception(
-                "Unable to parse redis address:\n{}".format(response))
-
-        redis_address = matches[0].split('"')[1]
-        return redis_address
-
     def setup(self, redis_address):
         resources = {self.server: 512}
         resources.update(self.total_resources)
 
-        ray_start_command = ("ray start --redis-address {} --resources='{}'"
-                             .format(redis_address,
-                                     json.dumps(resources)))
+        ray_start_command = "ray start --redis-address {} --resources='{}'"
+        if "CPU" in resources:
+            num_cpus = resources.pop("CPU")
+            ray_start_command += " --num-cpus {}".format(num_cpus)
+        if "GPU" in resources:
+            num_gpus = resources.pop("GPU")
+            ray_start_command += " --num-gpus {}".format(num_gpus)
+        ray_start_command = ray_start_command.format(redis_address,
+                                                     json.dumps(resources))
         self.run_command_sync(ray_start_command)
 
     def teardown(self):
@@ -61,7 +54,7 @@ class RayNode(Node):
                 [f.__name__ for f in stream.completion_callbacks])
 
         # Create the Ray actor wrapping the ERDOS operator.
-        op_handle.node = None # reset node for serialization
+        op_handle.node = None  # reset node for serialization
         ray_op = RayOperator._remote([op_handle], {}, num_cpus, num_gpus,
                                      resources)
         # Set the actor handle in the ray operator actor.
@@ -69,15 +62,42 @@ class RayNode(Node):
         op_handle.executor_handle = ray_op
 
     def execute_operator(self, op_handle):
-        assert op_handle in self.op_handles
-        # Setup the input/output streams of the ERDOS operator.
+        assert op_handle in self.op_handles  # Setup the input/output streams of the ERDOS operator.
         ray.get(
             op_handle.executor_handle.setup_streams.remote(
                 op_handle.dependent_op_handles))
         # Start the frequency actor associated to the Ray operator actor.
-        # TODO(peter): collocate the the frequency actor on the same machine
         ray.get(op_handle.executor_handle.setup_frequency_actor.remote())
         # Execute the operator. We do not call .get here because the executor
         # would block until the operator completes.
         logger.info('Executing {}'.format(op_handle.name))
         op_handle.executor_handle.execute.remote()
+
+
+class LocalRayNode(RayNode):
+    def __init__(self, resources=None):
+        super(LocalRayNode, self).__init__("127.0.0.1", "", "", resources)
+
+    def setup(self):
+        """Initializes Ray and returns the redis address"""
+        resources = {self.server: 512}
+        resources.update(self.total_resources)
+
+        ray_init_kwargs = {}
+        if "CPU" in resources:
+            num_cpus = resources.pop("CPU")
+            ray_init_kwargs["num_cpus"] = num_cpus
+        if "GPU" in resources:
+            num_gpus = resources.pop("GPU")
+            ray_init_kwargs["num_gpus"] = num_gpus
+        if FLAGS.ray_redis_address != "":
+            ray_init_kwargs["redis_address"] = FLAGS.ray_redis_address
+
+        info = ray.init(resources=resources, **ray_init_kwargs)
+        return info["redis_address"]
+
+    def teardown(self):
+        ray.shutdown()
+
+    def _make_dispatcher(self):
+        return None

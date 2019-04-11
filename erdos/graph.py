@@ -12,6 +12,7 @@ from erdos.data_streams import DataStreams
 from erdos.executor import Executor
 from erdos.utils import log_graph_to_dot_file
 from erdos.operators import NoopOp
+from erdos.cluster.cluster import Cluster
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('ray_redis_address', '', 'Address of the Ray redis master')
@@ -42,7 +43,7 @@ class Graph(object):
             parent.
     """
 
-    def __init__(self, name="default", parent=None, _node=None):
+    def __init__(self, name="default", parent=None, _node=None, _cluster=None):
         self.graph_name = name if name else "{0}_{1}".format(
             self.__class__.__name__, hash(self))
         self.parent = parent
@@ -51,6 +52,7 @@ class Graph(object):
         self.output_stream_to_op_id_sinks = {}
         self.framework = "ray"
         self.node = _node
+        self.cluster = _cluster
 
         # TODO(peter): fix this once the nested graph API switches to setup_streams
         self.input_op = self.add(NoopOp, name='input_op', _node=self.node)
@@ -82,14 +84,13 @@ class Graph(object):
             handle = GraphHandle(name, op_cls, init_args, setup_args,
                                  self.graph_name, self)
         else:
-            handle = OpHandle(
-                name,
-                op_cls,
-                init_args,
-                setup_args,
-                self.graph_name,
-                node=_node,
-                resources=_resources)
+            handle = OpHandle(name,
+                              op_cls,
+                              init_args,
+                              setup_args,
+                              self.graph_name,
+                              node=_node,
+                              resources=_resources)
         op_id = handle.get_uid()
         assert (op_id not in self.op_handles), \
             'Duplicate operator name {}. Ensure name uniqueness ' \
@@ -347,15 +348,21 @@ class Graph(object):
 
     def _init_frameworks(self):
         """Initialize the frameworks."""
-        return
-        if self.framework == "ros":
-            import rosgraph
-            if not rosgraph.is_master_online():
-                # Run roscore in a different process
-                subprocess.Popen("roscore")
-                time.sleep(2)
-        elif self.framework == "ray":
-            self._init_ray()
+        if self.cluster is None:
+            self.cluster = Cluster()
+            if self.framework == "ros":
+                # TODO(peter): fix this
+                import rosgraph
+                if not rosgraph.is_master_online():
+                    # Run roscore in a different process
+                    subprocess.Popen("roscore")
+                    time.sleep(2)
+            elif self.framework == "ray":
+                from erdos.ray.ray_node import LocalRayNode
+                self.node = LocalRayNode()
+                self.cluster.add_node(self.node)
+
+        self.cluster.initialize()
 
     def _init_ray(self):
         import ray
@@ -393,13 +400,14 @@ class Graph(object):
     def _create_executor(self, op_id):
         op_handle = self.op_handles[op_id]
         if op_handle.node is None:
-            if self.node is None:
-                raise NotImplementedError(
-                    ('Assign the op {} or graph {} to a node. '
-                     'Scheduler is not implemented yet').
-                    format(op_handle.name, self.graph_name))
+            if self.node is None and self.cluster is None:
+                raise Exception(
+                    ("Assign the op {} to a machine, or the graph {} to a "
+                     "cluster").format(op_handle.name, self.graph_name))
             else:
-                op_handle.node = self.node
+                # TODO: improve the scheduler
+                op_handle.node = self.node if self.node else self.cluster.nodes[
+                    0]
         return Executor(op_handle, op_handle.node)
 
 
