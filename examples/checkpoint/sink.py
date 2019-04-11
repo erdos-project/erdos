@@ -67,16 +67,21 @@ class Sink(Op):
         (control_msg, rollback_id) = msg.data
         if control_msg == checkpoint_util.CheckpointControllerCommand.ROLLBACK:
             if rollback_id is None:
+                # Sink did not snapshot anything
                 self.rollback_to_beginning()
             else:
                 rollback_id = int(rollback_id)
                 # Find snapshot id that is the closest to and smaller/equal to the rollback_id
                 ids = sorted(self._checkpoints.keys())
-                ids = [id for id in ids if id <= rollback_id]
-                rollback_id = ids[-1]
+                rollback_id = [id for id in ids if id <= rollback_id][-1]
+
+                # Reset watermark
                 self.reset_progress(Timestamp(coordinates=[rollback_id]))
+
+                # Rollback states
                 self._seq_num = rollback_id + 1
                 self._state = self._checkpoints[rollback_id]
+
                 # Remove all snapshots later than the rollback point
                 pop_ids = [k for k in self._checkpoints if k > self._seq_num]
                 for id in pop_ids:
