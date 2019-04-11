@@ -24,7 +24,7 @@ class Op(object):
         freq_actor: A Ray actor used for periodic tasks.
     """
 
-    def __init__(self, name):
+    def __init__(self, name, checkpoint_enable=False, checkpoint_freq=None):
         self.name = name
         self.input_streams = []
         self.output_streams = {}
@@ -32,6 +32,10 @@ class Op(object):
         self.progress_tracker = None
         self.framework = None
         self._stream_to_high_watermark = {}
+        self._checkpoint_enable = checkpoint_enable
+        self._checkpoint_freq = checkpoint_freq
+        if self._checkpoint_enable:
+            assert self._checkpoint_freq is not None
 
     def get_output_stream(self, name):
         """Returns the output stream matching name"""
@@ -85,6 +89,10 @@ class Op(object):
             logging.critical("Unexpected framework %s", self.framework)
 
     def log_event(self, processing_time, timestamp, log_message=None):
+        pass
+
+    def checkpoint(self):
+        """ User override """
         pass
 
     def reset_progress(self, timestamp):

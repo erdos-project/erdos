@@ -67,7 +67,12 @@ class ROSInputDataStream(DataStream):
                     if low_watermark > watermark:
                         low_watermark = watermark
             msg = WatermarkMessage(low_watermark)
-            
+
+            # Checkpoint
+            if self.op._checkpoint_enable:
+                if msg.timestamp % self.op._checkpoint_freq == 0:
+                    self.op.checkpoint()
+
             # Call the required callbacks.
             for on_watermark_callback in self.completion_callbacks:
                 on_watermark_callback(self.op, msg)

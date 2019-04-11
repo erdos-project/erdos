@@ -9,14 +9,16 @@ from collections import deque
 class FailureOperator(Op):
     def __init__(self,
                  name,
+                 checkpoint_enable=True,
                  checkpoint_freq=10,
                  state_size=10,
                  log_file_name=None):
-        super(FailureOperator, self).__init__(name)
+        super(FailureOperator, self).__init__(name,
+                                              checkpoint_enable=checkpoint_enable,
+                                              checkpoint_freq=checkpoint_freq)
         self._logger = setup_logging(self.name, log_file_name)
         self._state_size = state_size
         self._state = deque()
-        self._checkpoint_freq = checkpoint_freq
         self._checkpoints = dict()
         self._seq_num = None
 
@@ -29,26 +31,21 @@ class FailureOperator(Op):
         return [DataStream(name="failure_op_out")]
 
     def on_msg(self, msg):
-        if msg.stream_name == 'watermark':
-            self.on_watermark(msg)
-        else:
-            self._seq_num = int(msg.data)
-            # Build state
-            if len(self._state) == self._state_size:  # state is full
-                self._state.popleft()
-            self._state.append(self._seq_num)
+        self._seq_num = int(msg.data)
+        # Build state
+        if len(self._state) == self._state_size:  # state is full
+            self._state.popleft()
+        self._state.append(self._seq_num)
 
-            # Send msg
-            self.get_output_stream("failure_op_out").send(msg)
+        # Send msg
+        self.get_output_stream("failure_op_out").send(msg)
 
-    def on_watermark(self, msg):
-        # Deal with watermark and checkpoint
-        if self._seq_num % self._checkpoint_freq == 0:
-            # Checkpoint
-            snapshot_id = self._state[-1]  # latest received seq num/timestamp
-            assert snapshot_id not in self._checkpoints
-            self._checkpoints[snapshot_id] = copy(self._state)
-            self._logger.info('checkpointed at latest stored data %d' % snapshot_id)
+    def checkpoint(self):
+        # Override base class checkpoint function
+        snapshot_id = self._state[-1]  # latest received seq num/timestamp
+        assert snapshot_id not in self._checkpoints
+        self._checkpoints[snapshot_id] = copy(self._state)
+        self._logger.info('checkpointed at latest stored data %d' % snapshot_id)
 
     def on_rollback_msg(self, msg):
         (control_msg, rollback_id) = msg.data
