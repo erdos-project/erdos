@@ -3,6 +3,7 @@ from erdos.op import Op
 from erdos.utils import setup_logging
 from erdos.data_stream import DataStream
 from erdos.message import Message
+from erdos.timestamp import Timestamp
 from collections import deque
 import checkpoint_util
 
@@ -70,7 +71,7 @@ class Sink(Op):
                 self._seq_num = None
                 self._state = deque()
                 self._checkpoints = dict()
-                self.reset_progress(0)
+                self.reset_progress(Timestamp(coordinates=[0]))
                 self._logger.info("Rollback to START OVER")
             else:
                 rollback_id = int(rollback_id)
@@ -80,7 +81,7 @@ class Sink(Op):
                 for k in self._checkpoints:
                     if k > self._seq_num:
                         self._checkpoints.pop(k)
-                self.reset_progress(rollback_id)
+                self.reset_progress(Timestamp(coordinates=[rollback_id]))
                 self._logger.info("Rollback to SNAPSHOT ID %d" % rollback_id)
 
     def execute(self):

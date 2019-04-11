@@ -43,7 +43,7 @@ class Source(Op):
                 self._seq_num = 1
                 self._state = deque()
                 self._checkpoints = dict()
-                self.reset_progress(0)
+                self.reset_progress(Timestamp(coordinates=[0]))
                 self._logger.info("Rollback to START OVER")
             else:
                 rollback_id = int(rollback_id)
@@ -53,7 +53,7 @@ class Source(Op):
                 for k in self._checkpoints:
                     if k > self._seq_num:
                         self._checkpoints.pop(k)
-                self.reset_progress(rollback_id)
+                self.reset_progress(Timestamp(coordinates=[rollback_id]))
                 self._logger.info("Rollback to SNAPSHOT ID %d" % rollback_id)
 
     def checkpoint(self):

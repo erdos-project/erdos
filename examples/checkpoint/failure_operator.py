@@ -2,6 +2,7 @@ from copy import copy
 from erdos.data_stream import DataStream
 from erdos.op import Op
 from erdos.utils import setup_logging
+from erdos.timestamp import Timestamp
 import checkpoint_util
 from collections import deque
 
@@ -55,7 +56,7 @@ class FailureOperator(Op):
                 self._seq_num = None
                 self._state = deque()
                 self._checkpoints = dict()
-                self.reset_progress(0)
+                self.reset_progress(Timestamp(coordinates=[0]))
                 self._logger.info("Rollback to START OVER")
             else:
                 rollback_id = int(rollback_id)
@@ -65,7 +66,7 @@ class FailureOperator(Op):
                 for k in self._checkpoints:
                     if k > self._seq_num:
                         self._checkpoints.pop(k)
-                self.reset_progress(rollback_id)
+                self.reset_progress(Timestamp(coordinates=[rollback_id]))
                 self._logger.info("Rollback to SNAPSHOT ID %d" % rollback_id)
 
     def execute(self):

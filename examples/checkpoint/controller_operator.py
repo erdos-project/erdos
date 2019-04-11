@@ -21,6 +21,7 @@ class ControllerOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams):
+        input_streams.add_callback(ControllerOperator.on_snapshot_msg)
         return [DataStream(name='controller_stream',
                            labels={'control_stream': 'true',
                                    'no_watermark': 'true'})]
@@ -31,12 +32,12 @@ class ControllerOperator(Op):
         self._logger.info('received sink SNAPSHOT ID %d' % self._sink_snapshot_id)
 
     def execute(self):
-        # if self._pre_failure_time_elapse_s is not None:
-        #     time.sleep(self._pre_failure_time_elapse_s)
-        #     rollback_msg = Message((checkpoint_util.CheckpointControllerCommand.ROLLBACK, self._sink_snapshot_id),
-        #                        Timestamp(coordinates=[0]))
-        #     pub = self.get_output_stream('controller_stream')
-        #     pub.send(rollback_msg)
-        #     self._logger.info("Control send rollback message to everyone")
+        if self._pre_failure_time_elapse_s is not None:
+            time.sleep(self._pre_failure_time_elapse_s)
+            rollback_msg = Message((checkpoint_util.CheckpointControllerCommand.ROLLBACK, self._sink_snapshot_id),
+                               Timestamp(coordinates=[0]))
+            pub = self.get_output_stream('controller_stream')
+            pub.send(rollback_msg)
+            self._logger.info("Control send rollback message to everyone")
 
         self.spin()
