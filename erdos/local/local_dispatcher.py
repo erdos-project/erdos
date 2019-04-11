@@ -26,6 +26,7 @@ class LocalDispatcher(Dispatcher):
                 self.current_process = None
                 self._cleanup_processes()
                 return process.read()
+            time.sleep(0.1)
 
         raise Exception("Timeout while waiting for prompt")
 
