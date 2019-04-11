@@ -40,6 +40,6 @@ class ControllerOperator(Op):
                                Timestamp(coordinates=[0]))
             pub = self.get_output_stream('controller_stream')
             pub.send(rollback_msg)
-            self._logger.info("Control send rollback message to everyone")
+            self._logger.info("Control send rollback ID %d to everyone" % rollback_id)
 
         self.spin()
