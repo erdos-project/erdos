@@ -1,3 +1,4 @@
+from copy import copy
 from erdos.data_stream import DataStream
 from erdos.op import Op
 from erdos.utils import setup_logging
@@ -46,15 +47,21 @@ class FailureOperator(Op):
             # Checkpoint
             snapshot_id = self._state[-1]  # latest received seq num/timestamp
             assert snapshot_id not in self._checkpoints
-            self._checkpoints[snapshot_id] = self._state[:]
+            self._checkpoints[snapshot_id] = copy(self._state)
 
     def on_rollback_msg(self, msg):
         (control_msg, rollback_id) = msg.data
         if control_msg == checkpoint_util.CheckpointControllerCommand.ROLLBACK:
-            rollback_id = int(rollback_id)
-            self._seq_num = rollback_id + 1
-            self._state = self._checkpoints[rollback_id]
-            self._logger.info("%s rollback to SNAPSHOT ID %d" % (self.name, rollback_id))
+            if rollback_id is None:
+                # Assume sink didn't process any messages, so start over
+                self._seq_num = None
+                self._state = deque()
+                self._logger.info("%s rollback to START OVER" % self.name)
+            else:
+                rollback_id = int(rollback_id)
+                self._seq_num = rollback_id + 1
+                self._state = self._checkpoints[rollback_id]
+                self._logger.info("%s rollback to SNAPSHOT ID %d" % (self.name, rollback_id))
 
     def execute(self):
         self.spin()

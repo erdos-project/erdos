@@ -1,4 +1,5 @@
 import time
+from copy import copy
 from collections import deque
 from erdos.data_stream import DataStream
 from erdos.message import Message, WatermarkMessage
@@ -37,10 +38,21 @@ class Source(Op):
     def on_rollback_msg(self, msg):
         (control_msg, rollback_id) = msg.data
         if control_msg == checkpoint_util.CheckpointControllerCommand.ROLLBACK:
-            rollback_id = int(rollback_id)
-            self._seq_num = rollback_id + 1
-            self._state = self._checkpoints[rollback_id]
-            self._logger.info("%s rollback to SNAPSHOT ID %d" % (self.name, rollback_id))
+            if rollback_id is None:
+                # Assume sink didn't process any messages, so start over
+                self._seq_num = 1
+                self._state = deque()
+                self._checkpoints = dict()
+                self._logger.info("Rollback to START OVER")
+            else:
+                rollback_id = int(rollback_id)
+                self._seq_num = rollback_id + 1
+                self._state = self._checkpoints[rollback_id]
+                # Remove all snapshots later than the rollback point
+                for k in self._checkpoints:
+                    if k > self._seq_num:
+                        self._checkpoints.pop(k)
+                self._logger.info("Rollback to SNAPSHOT ID %d" % rollback_id)
 
     def execute(self):
         while self._seq_num < self._num_messages:
@@ -61,7 +73,7 @@ class Source(Op):
             if self._seq_num % self._checkpoint_freq == 0:
                 snapshot_id = self._state[-1]  # latest received seq num/timestamp
                 assert snapshot_id not in self._checkpoints
-                self._checkpoints[snapshot_id] = self._state[:]
+                self._checkpoints[snapshot_id] = copy(self._state)
 
             self._seq_num += 1
             time.sleep(self._time_gap)

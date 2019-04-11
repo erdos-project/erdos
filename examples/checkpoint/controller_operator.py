@@ -34,6 +34,6 @@ class ControllerOperator(Op):
             rollback_msg = Message((checkpoint_util.CheckpointControllerCommand.ROLLBACK, self._sink_snapshot_id),
                                Timestamp(coordinates=[0]))
             self.get_output_stream('controller_stream').send(rollback_msg)
-            print("Control send rollback message to everyone")
+            self._logger.info("Control send rollback message to everyone")
 
         self.spin()
