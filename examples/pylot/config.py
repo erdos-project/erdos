@@ -106,7 +106,7 @@ flags.DEFINE_bool('visualize_depth_camera', False,
                   'True to enable depth camera video operator')
 flags.DEFINE_bool('visualize_lidar', False,
                   'True to enable CARLA Lidar visualizer operator')
-flags.DEFINE_bool('visualize_rgb_camera', True,
+flags.DEFINE_bool('visualize_rgb_camera', False,
                   'True to enable RGB camera video operator')
 flags.DEFINE_bool('visualize_segmentation', False,
                   'True to enable CARLA segmented video operator')
@@ -122,7 +122,7 @@ flags.DEFINE_bool('visualize_traffic_light_output', False,
                   'True to enable visualization of traffic light output')
 
 # Ground truth accuracy evaluation flags.
-flags.DEFINE_bool('eval_ground_truth_segmentation', True,
+flags.DEFINE_bool('eval_ground_truth_segmentation', False,
                   'True to enable ground truth segmentation evaluation')
 flags.DEFINE_integer('eval_ground_truth_ignore_first', 5000,
                      'Number of ms to ignore frames for (car is not moving initially)')
