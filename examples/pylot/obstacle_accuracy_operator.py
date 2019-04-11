@@ -400,7 +400,7 @@ class ObstacleAccuracyOperator(Op):
                 x = int(pos[0])
                 y = int(pos[1])
                 z = pos[2].flatten().item(0)
-                if self.have_same_depth(x, y, z, depth_array, 1.0):
+                #if self.have_same_depth(x, y, z, depth_array, 1.0):
                     # TODO(ionel): Figure out bounding box size.  add_bounding_box(rgb_img, (x - 2, x + 2, y - 2, y + 2), color='yellow') 
                 # (x3d, y3d, z3d) = get_3d_world_position(
                 #     x, y, self._depth_img_size, depth_img, self._depth_transform, world_transform)
