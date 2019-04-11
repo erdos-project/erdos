@@ -42,7 +42,7 @@ class Graph(object):
             parent.
     """
 
-    def __init__(self, name="default", parent=None):
+    def __init__(self, name="default", parent=None, _node=None):
         self.graph_name = name if name else "{0}_{1}".format(
             self.__class__.__name__, hash(self))
         self.parent = parent
@@ -50,10 +50,11 @@ class Graph(object):
         self.graph_handles = {}
         self.output_stream_to_op_id_sinks = {}
         self.framework = "ray"
+        self.node = _node
 
         # TODO(peter): fix this once the nested graph API switches to setup_streams
-        self.input_op = self.add(NoopOp, name='input_op')
-        self.output_op = self.add(NoopOp, name='output_op')
+        self.input_op = self.add(NoopOp, name='input_op', _node=self.node)
+        self.output_op = self.add(NoopOp, name='output_op', _node=self.node)
 
     def add(self,
             op_cls,
@@ -346,6 +347,7 @@ class Graph(object):
 
     def _init_frameworks(self):
         """Initialize the frameworks."""
+        return
         if self.framework == "ros":
             import rosgraph
             if not rosgraph.is_master_online():
@@ -391,9 +393,13 @@ class Graph(object):
     def _create_executor(self, op_id):
         op_handle = self.op_handles[op_id]
         if op_handle.node is None:
-            raise NotImplementedError(
-                'Assign the op {} to a node. Scheduler is not implemented yet'.
-                format(op_handle.name))
+            if self.node is None:
+                raise NotImplementedError(
+                    ('Assign the op {} or graph {} to a node. '
+                     'Scheduler is not implemented yet').
+                    format(op_handle.name, self.graph_name))
+            else:
+                op_handle.node = self.node
         return Executor(op_handle, op_handle.node)
 
 

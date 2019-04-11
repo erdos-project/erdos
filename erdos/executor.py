@@ -7,4 +7,4 @@ class Executor(object):
         self.node.setup_operator(self.op_handle)
 
     def execute(self):
-        self.node.execte_operator(self.op_handle)
+        self.node.execute_operator(self.op_handle)

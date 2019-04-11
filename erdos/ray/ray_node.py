@@ -33,10 +33,10 @@ class RayNode(Node):
         ray_start_command = ("ray start --redis-address {} --resources='{}'"
                              .format(redis_address,
                                      json.dumps(resources)))
-        self.run_command(ray_start_command)
+        self.run_command_sync(ray_start_command)
 
     def teardown(self):
-        self.run_command("ray stop")
+        self.run_command_sync("ray stop")
 
     def setup_operator(self, op_handle):
         self.op_handles.append(op_handle)
@@ -44,6 +44,7 @@ class RayNode(Node):
         resources = op_handle.resources.copy() if op_handle.resources else {}
         for k, v in resources.items():
             self.available_resources[k] -= 1
+        resources[self.server] = 1
         num_cpus = resources.pop("CPU", None)
         num_gpus = resources.pop("GPU", None)
 
@@ -60,6 +61,7 @@ class RayNode(Node):
                 [f.__name__ for f in stream.completion_callbacks])
 
         # Create the Ray actor wrapping the ERDOS operator.
+        op_handle.node = None # reset node for serialization
         ray_op = RayOperator._remote([op_handle], {}, num_cpus, num_gpus,
                                      resources)
         # Set the actor handle in the ray operator actor.
@@ -71,11 +73,11 @@ class RayNode(Node):
         # Setup the input/output streams of the ERDOS operator.
         ray.get(
             op_handle.executor_handle.setup_streams.remote(
-                self.op_handle.dependent_op_handles))
+                op_handle.dependent_op_handles))
         # Start the frequency actor associated to the Ray operator actor.
         # TODO(peter): collocate the the frequency actor on the same machine
-        ray.get(self.op_handle.executor_handle.setup_frequency_actor.remote())
+        ray.get(op_handle.executor_handle.setup_frequency_actor.remote())
         # Execute the operator. We do not call .get here because the executor
         # would block until the operator completes.
-        logger.info('Executing {}'.format(self.op_handle.name))
-        self.op_handle.executor_handle.execute.remote()
+        logger.info('Executing {}'.format(op_handle.name))
+        op_handle.executor_handle.execute.remote()

@@ -21,6 +21,7 @@ class OpHandle(object):
         self.input_streams = []
         self.output_streams = []
         self.framework = framework
+        self.node = node
         self.resources = {} if resources is None else resources
         self.dependant_ops = []  # handle ids of dependant ops
         self.dependent_op_handles = {}
