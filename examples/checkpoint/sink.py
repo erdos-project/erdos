@@ -42,7 +42,7 @@ class Sink(Op):
             self._logger.info('received %d' % self._seq_num)
             self.last_received_num = self._seq_num
         else:   # sink receives duplicates
-            self._logger.info('received DUPLICATE %d' % self._seq_num)
+            self._logger.info('received DUPLICATE or WRONG-ORDER message %d' % self._seq_num)
         # Build state
         if len(self._state) == self._state_size:  # state is full
             self._state.popleft()
