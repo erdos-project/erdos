@@ -88,8 +88,8 @@ flags.DEFINE_string('carla_host', 'localhost', 'Carla host.')
 flags.DEFINE_integer('carla_port', 2000, 'Carla port.')
 flags.DEFINE_bool('carla_synchronous_mode', True,
                   'Run Carla in synchronous mode.')
-flags.DEFINE_integer('carla_step_frequency', 10,
-                     'Frequency of Carla data readings.')
+flags.DEFINE_float('carla_step_frequency', 10,
+                   'Frequency of Carla data readings.')
 flags.DEFINE_integer('carla_num_vehicles', 20, 'Carla num vehicles.')
 flags.DEFINE_integer('carla_num_pedestrians', 40, 'Carla num pedestrians.')
 flags.DEFINE_bool('carla_high_quality', False,

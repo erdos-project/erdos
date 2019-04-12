@@ -1,13 +1,14 @@
 from collections import deque
 import numpy as np
 import PIL.Image as Image
+import time
 
-from carla.image_converter import labels_to_cityscapes_palette
+from carla.image_converter import labels_to_array
 
 from erdos.op import Op
 from erdos.utils import setup_logging
 
-from segmentation_utils import compute_semantic_iou
+from segmentation_utils import tf_compute_semantic_iou, generate_masks, compute_semantic_iou_from_masks
 
 
 class SegmentationEvalGroundOperator(Op):
@@ -17,46 +18,62 @@ class SegmentationEvalGroundOperator(Op):
         self._flags = flags
         self._logger = setup_logging(self.name, log_file_name)
         self._time_delta = None
-        self._ground_frames = deque()
+        self._ground_masks = deque()
 
     @staticmethod
     def setup_streams(input_streams, ground_stream_name):
         input_streams.filter_name(ground_stream_name).add_callback(
             SegmentationEvalGroundOperator.on_ground_segmented_frame)
         return []
-        
+
     def on_ground_segmented_frame(self, msg):
         # We ignore the first several seconds of the simulation because the car
         # is not moving at beginning.
         if msg.timestamp.coordinates[0] > self._flags.eval_ground_truth_ignore_first:
-            # Process the frame to cityscape pallete.
-            ground_frame_array = labels_to_cityscapes_palette(msg.data)
-            msg.data = np.array(
-                Image.fromarray(np.uint8(ground_frame_array)).convert('RGB'))
+            start_time = time.time()
+            # We don't fully transform it to cityscapes palette to avoid
+            # introducing extra latency.
+            frame_array = labels_to_array(msg.data)
+            frame_masks = generate_masks(frame_array)
 
-            if len(self._ground_frames) > 0:
+            if len(self._ground_masks) > 0:
                 if self._time_delta is None:
                     self._time_delta = (msg.timestamp.coordinates[0] -
-                                        self._ground_frames[0].timestamp.coordinates[0])
+                                        self._ground_masks[0][0])
                 else:
                     # Check that no frames got dropped.
                     recv_time_delta = (msg.timestamp.coordinates[0] -
-                                       self._ground_frames[-1].timestamp.coordinates[0])
+                                       self._ground_masks[-1][0])
                     assert self._time_delta == recv_time_delta
 
                 # Pop the oldest frame if it's older than the max latency
                 # we're interested in.
-                if (msg.timestamp.coordinates[0] - self._ground_frames[0].timestamp.coordinates[0] >
+                if (msg.timestamp.coordinates[0] - self._ground_masks[0][0] >
                     self._flags.eval_ground_truth_max_latency):
-                    self._ground_frames.popleft()
+                    self._ground_masks.popleft()
 
-                for ground_frame in self._ground_frames:
-                    (mean_iou, class_iou) = compute_semantic_iou(ground_frame.data, msg.data)
-                    time_diff = msg.timestamp.coordinates[0] - ground_frame.timestamp.coordinates[0]
-                    self._logger.info('Latency {}; Mean IoU {}'.format(time_diff, mean_iou))
+                for timestamp, ground_masks in self._ground_masks:
+                    (mean_iou, class_iou) = compute_semantic_iou_from_masks(ground_masks, frame_masks)
+                    time_diff = msg.timestamp.coordinates[0] - timestamp
+                    self._logger.info(
+                        'Segmentation ground latency {} ; mean IoU {}'.format(
+                            time_diff, mean_iou))
+                    pedestrian_key = 4
+                    if pedestrian_key in class_iou:
+                        self._logger.info(
+                            'Segmentation ground latency {} ; pedestrian IoU {}'.format(
+                                time_diff, class_iou[pedestrian_key]))
+                    vehicle_key = 10
+                    if vehicle_key in class_iou:
+                        self._logger.info(
+                            'Segmentation ground latency {} ; vehicle IoU {}'.format(
+                                time_diff, class_iou[vehicle_key]))
 
             # Append the processed image to the buffer.
-            self._ground_frames.append(msg)
+            self._ground_masks.append((msg.timestamp.coordinates[0], frame_masks))
+
+            runtime = time.time() - start_time
+            self._logger.info('Segmentation eval ground runtime {}'.format(runtime))
 
     def execute(self):
         self.spin()
