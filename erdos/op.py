@@ -92,11 +92,22 @@ class Op(object):
     def log_event(self, processing_time, timestamp, log_message=None):
         pass
 
+    def checkpoint_condition(self, timestamp):
+        """
+        User Override: if holds True, checkpoint function will be invoked
+        :param timestamp: watermark timestamp
+        """
+        if timestamp.coordinates[0] % self._checkpoint_freq == 0:
+            return True
+        return False
+
     def checkpoint(self):
-        """ User override """
+        """ User override
+            If checkpoint_enable=True and , this function will be invoked upon every watermark message received
+        """
         pass
 
-    def reset_progress(self, timestamp):
+    def _reset_progress(self, timestamp):
         """ Reset the progress (watermark) of the operator """
         for input_stream in self.input_streams:
             if input_stream.name in self._stream_to_high_watermark:

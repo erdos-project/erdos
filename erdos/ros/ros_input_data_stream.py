@@ -75,7 +75,7 @@ class ROSInputDataStream(DataStream):
 
             # Checkpoint
             if self.op._checkpoint_enable:
-                if msg.timestamp.coordinates[0] % self.op._checkpoint_freq == 0:
+                if self.op.checkpoint_condition(msg.timestamp):
                     self.op.checkpoint()
 
             # Call the required callbacks.

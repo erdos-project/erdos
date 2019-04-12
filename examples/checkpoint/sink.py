@@ -21,7 +21,6 @@ class Sink(Op):
         self._logger = setup_logging(self.name, log_file_name)
         self._state_size = state_size
         self._state = deque()
-        self._checkpoint_freq = checkpoint_freq
         self._checkpoints = dict()
         self._seq_num = None
         self.last_received_num = None
@@ -36,21 +35,18 @@ class Sink(Op):
 
     def on_msg(self, msg):
         self._seq_num = int(msg.data)
-        if msg.stream_name == 'watermark':
-            self.on_watermark()
-        else:
-            # Check duplicate
-            if self.last_received_num is None:
-                self.last_received_num = self._seq_num
-            elif self.last_received_num + 1 == self._seq_num:
-                self._logger.info('received %d' % self._seq_num)
-                self.last_received_num = self._seq_num
-            else:   # sink receives duplicates
-                self._logger.info('received DUPLICATE %d' % self._seq_num)
-            # Build state
-            if len(self._state) == self._state_size:  # state is full
-                self._state.popleft()
-            self._state.append(self._seq_num)
+        # Check duplicate
+        if self.last_received_num is None:
+            self.last_received_num = self._seq_num
+        elif self.last_received_num + 1 == self._seq_num:
+            self._logger.info('received %d' % self._seq_num)
+            self.last_received_num = self._seq_num
+        else:   # sink receives duplicates
+            self._logger.info('received DUPLICATE %d' % self._seq_num)
+        # Build state
+        if len(self._state) == self._state_size:  # state is full
+            self._state.popleft()
+        self._state.append(self._seq_num)
 
     def checkpoint(self):
         # Override base class checkpoint function
@@ -76,7 +72,7 @@ class Sink(Op):
                 rollback_id = [id for id in ids if id <= rollback_id][-1]
 
                 # Reset watermark
-                self.reset_progress(Timestamp(coordinates=[rollback_id]))
+                self._reset_progress(Timestamp(coordinates=[rollback_id]))
 
                 # Rollback states
                 self._seq_num = rollback_id + 1
@@ -93,7 +89,7 @@ class Sink(Op):
         self._seq_num = None
         self._state = deque()
         self._checkpoints = dict()
-        self.reset_progress(Timestamp(coordinates=[0]))
+        self._reset_progress(Timestamp(coordinates=[0]))
         self._logger.info("Rollback to START OVER")
 
     def execute(self):

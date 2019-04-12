@@ -12,12 +12,15 @@ import checkpoint_util
 class Source(Op):
     def __init__(self,
                  name,
+                 checkpoint_enable=True,
                  checkpoint_freq=10,
                  state_size=10,
                  num_messages=50,
                  fps=10,
                  log_file_name=None):
-        super(Source, self).__init__(name)
+        super(Source, self).__init__(name,
+                                     checkpoint_enable=checkpoint_enable,
+                                     checkpoint_freq=checkpoint_freq)
         self._logger = setup_logging(self.name, log_file_name)
         self._seq_num = 1
         self._num_messages = num_messages
@@ -25,7 +28,6 @@ class Source(Op):
 
         self._state_size = state_size
         self._state = deque()
-        self._checkpoint_freq = checkpoint_freq
         self._checkpoints = dict()
 
 
@@ -49,7 +51,7 @@ class Source(Op):
                 rollback_id = [id for id in ids if id <= rollback_id][-1]
 
                 # Reset watermark
-                self.reset_progress(Timestamp(coordinates=[rollback_id]))
+                self._reset_progress(Timestamp(coordinates=[rollback_id]))
 
                 # Rollback states
                 self._seq_num = rollback_id + 1
@@ -66,8 +68,13 @@ class Source(Op):
         self._seq_num = 1
         self._state = deque()
         self._checkpoints = dict()
-        self.reset_progress(Timestamp(coordinates=[0]))
+        self._reset_progress(Timestamp(coordinates=[0]))
         self._logger.info("Rollback to START OVER")
+
+    def checkpoint_condition(self, timestamp):
+        if timestamp.coordinates[0] % self._checkpoint_freq == 0:
+            return True
+        return False
 
     def checkpoint(self):
         snapshot_id = self._state[-1]  # latest received seq num/timestamp

@@ -41,6 +41,11 @@ class FailureOperator(Op):
         # Send msg
         self.get_output_stream("failure_op_out").send(msg)
 
+    def checkpoint_condition(self, timestamp):
+        if timestamp.coordinates[0] % self._checkpoint_freq == 0:
+            return True
+        return False
+
     def checkpoint(self):
         # Override base class checkpoint function
         snapshot_id = self._state[-1]  # latest received seq num/timestamp
@@ -61,7 +66,7 @@ class FailureOperator(Op):
                 rollback_id = [id for id in ids if id <= rollback_id][-1]
 
                 # Reset watermark
-                self.reset_progress(Timestamp(coordinates=[rollback_id]))
+                self._reset_progress(Timestamp(coordinates=[rollback_id]))
 
                 # Rollback states
                 self._seq_num = rollback_id + 1
@@ -78,7 +83,7 @@ class FailureOperator(Op):
         self._seq_num = None
         self._state = deque()
         self._checkpoints = dict()
-        self.reset_progress(Timestamp(coordinates=[0]))
+        self._reset_progress(Timestamp(coordinates=[0]))
         self._logger.info("Rollback to START OVER")
 
     def execute(self):
