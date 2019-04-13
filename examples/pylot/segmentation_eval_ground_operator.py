@@ -72,7 +72,7 @@ class SegmentationEvalGroundOperator(Op):
             # Append the processed image to the buffer.
             self._ground_masks.append((msg.timestamp.coordinates[0], frame_masks))
 
-            runtime = time.time() - start_time
+            runtime = (time.time() - start_time) * 1000
             self._logger.info('Segmentation eval ground runtime {}'.format(runtime))
 
     def execute(self):

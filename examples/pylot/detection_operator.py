@@ -22,6 +22,7 @@ class DetectionOperator(Op):
         super(DetectionOperator, self).__init__(name)
         self._flags = flags
         self._logger = setup_logging(self.name, log_file_name)
+        self._last_seq_num = -1
         self._output_stream_name = output_stream_name
         self._bridge = CvBridge()
         self._detection_graph = tf.Graph()
@@ -57,6 +58,13 @@ class DetectionOperator(Op):
                            labels={'obstacles': 'true'})]
 
     def on_msg_camera_stream(self, msg):
+        if self._last_seq_num + 1 != msg.timestamp.coordinates[1]:
+            self._logger.error('Expected msg with seq num {} but received {}'.format(
+                (self._last_seq_num + 1), msg.timestamp.coordinates[1]))
+            if self._flags.fail_on_message_loss:
+                assert self._last_seq_num + 1 == msg.timestamp.coordinates[1]
+        self._last_seq_num = msg.timestamp.coordinates[1]
+
         self._logger.info('{} received frame {}'.format(self.name, msg.timestamp))
         start_time = time.time()
         image_np = self._bridge.imgmsg_to_cv2(msg.data, 'rgb8')

@@ -179,7 +179,7 @@ class ERDOSAgentOperator(Op):
             self._goal_location, self._goal_orientation, self._vehicle_pos,
             self._waypointer, self._wp_num_steer, self._wp_num_speed)
 
-        runtime = time.time() - start_time
+        runtime = (time.time() - start_time) * 1000
         self._logger.info('Waypointer {} runtime {}'.format(
             self.name, runtime))
 

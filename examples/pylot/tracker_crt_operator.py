@@ -30,6 +30,7 @@ class TrackerCRTOperator(Op):
         self.initialized = False
         self.tracker = None
         self._bridge = CvBridge()
+        self._last_seq_num = -1
 
     @staticmethod
     def setup_streams(input_streams, output_stream_name):
@@ -46,6 +47,13 @@ class TrackerCRTOperator(Op):
         return [DataStream(name=output_stream_name)]
 
     def on_frame_msg(self, msg):
+        if self._last_seq_num + 1 != msg.timestamp.coordinates[1]:
+            self._logger.error('Expected msg with seq num {} but received {}'.format(
+                (self._last_seq_num + 1), msg.timestamp.coordinates[1]))
+            if self._flags.fail_on_message_loss:
+                assert self._last_seq_num + 1 == msg.timestamp.coordinates[1]
+        self._last_seq_num = msg.timestamp.coordinates[1]
+
         start_time = time.time()
         if not self.initialized:
             self.init_image = self._bridge.imgmsg_to_cv2(msg.data, 'rgb8')

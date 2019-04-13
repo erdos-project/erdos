@@ -167,7 +167,8 @@ class CarlaOperator(Op):
 
         world_transform = Transform(player_measurements.transform)
 
-        timestamp = Timestamp(coordinates=[measurements.game_timestamp])
+        timestamp = Timestamp(
+            coordinates=[measurements.game_timestamp, self.message_num])
         self.message_num += 1
         ray.register_custom_serializer(Message, use_pickle=True)
         self.get_output_stream('world_transform').send(

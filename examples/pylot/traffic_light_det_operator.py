@@ -53,6 +53,7 @@ class TrafficLightDetOperator(Op):
             3: 'Yellow',
             4: 'Off'
         }
+        self._last_seq_num = -1
 
     @staticmethod
     def setup_streams(input_streams, output_stream_name):
@@ -62,6 +63,13 @@ class TrafficLightDetOperator(Op):
                            labels={'traffic_lights': 'true'})]
 
     def on_frame(self, msg):
+        if self._last_seq_num + 1 != msg.timestamp.coordinates[1]:
+            self._logger.error('Expected msg with seq num {} but received {}'.format(
+                (self._last_seq_num + 1), msg.timestamp.coordinates[1]))
+            if self._flags.fail_on_message_loss:
+                assert self._last_seq_num + 1 == msg.timestamp.coordinates[1]
+        self._last_seq_num = msg.timestamp.coordinates[1]
+
         start_time = time.time()
         image_np = self._bridge.imgmsg_to_cv2(msg.data, 'rgb8')
         # Expand dimensions since the model expects images to have

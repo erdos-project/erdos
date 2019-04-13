@@ -31,6 +31,7 @@ class SegmentationDLAOperator(Op):
         self._network.load_state_dict(torch.load('dependencies/dla/DLASeg.pth'))
         if self._flags.segmentation_gpu:
             self._network = self._network.cuda()
+        self._last_seq_num = -1
 
     @staticmethod
     def setup_streams(input_streams, output_stream_name):
@@ -41,6 +42,13 @@ class SegmentationDLAOperator(Op):
                            labels={'segmented': 'true'})]
 
     def on_msg_camera_stream(self, msg):
+        if self._last_seq_num + 1 != msg.timestamp.coordinates[1]:
+            self._logger.error('Expected msg with seq num {} but received {}'.format(
+                (self._last_seq_num + 1), msg.timestamp.coordinates[1]))
+            if self._flags.fail_on_message_loss:
+                assert self._last_seq_num + 1 == msg.timestamp.coordinates[1]
+        self._last_seq_num = msg.timestamp.coordinates[1]
+
         self._logger.info('%s received frame %s', self.name, msg.timestamp)
         start_time = time.time()
         image = self._bridge.imgmsg_to_cv2(msg.data, 'bgr8')

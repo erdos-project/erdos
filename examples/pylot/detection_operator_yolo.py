@@ -47,12 +47,12 @@ class DetectionOperator(Op):
         img = pydarknet.Image(cv_img)
         results = self._net.detect(img)
         #self.add_bounding_boxes(cv_img, results)
-        # bb_file = open('images/bounding_boxes{}'.format(msg.timestamp.coordinates[0]), 'wb')
+        # bb_file = open('images/bounding_boxes{}'.format(msg.timestamp.coordinates[1]), 'wb')
         # pickle.dump(results, bb_file)
         # bb_file.close()
         # output_msg = Message((msg.data, results), msg.timestamp)
 
-        runtime = time.time() - start_time
+        runtime = (time.time() - start_time) * 1000
         self._logger.info('Object detector {} runtime {}'.format(
             self.name, runtime))
 

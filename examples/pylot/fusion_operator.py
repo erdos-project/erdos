@@ -23,12 +23,14 @@ class FusionOperator(Op):
 
     def __init__(self,
                  name,
+                 flags,
                  output_stream_name,
                  log_file_name=None,
                  camera_fov=np.pi / 4,
                  rgbd_max_range=1000):
         super(FusionOperator, self).__init__(name)
         self._logger = setup_logging(self.name, log_file_name)
+        self._flags = flags
         self._output_stream_name = output_stream_name
         self._segments = []
         self._objs = []

@@ -128,7 +128,9 @@ def add_carla_to_image_op(graph, carla_op):
     carla_to_image_op = graph.add(
         CarlaToImageOperator,
         name='rgb_images',
-        init_args={'log_file_name': FLAGS.log_file_name},
+        init_args={
+            'flags': FLAGS,
+            'log_file_name': FLAGS.log_file_name},
         setup_args={
             'op_name': 'rgb_images',
             'filter_name': 'front_rgb_camera'
@@ -157,7 +159,8 @@ def add_camera_video_op(graph, carla_op, name, filter_name):
     video_op = graph.add(
         VideoOperator,
         name=name,
-        init_args={'log_file_name': FLAGS.log_file_name},
+        init_args={'flags': FLAGS,
+                   'log_file_name': FLAGS.log_file_name},
         setup_args={'filter_name': filter_name})
     graph.connect([carla_op], [video_op])
     return video_op
@@ -167,7 +170,8 @@ def add_segmented_video_op(graph, carla_op):
     segmented_video_op = graph.add(
         SegmentedVideoOperator,
         name='segmented_video',
-        init_args={'log_file_name': FLAGS.log_file_name},
+        init_args={'flags': FLAGS,
+                   'log_file_name': FLAGS.log_file_name},
         setup_args={'filter_name': 'front_semantic_camera'})
     graph.connect([carla_op], [segmented_video_op])
     return segmented_video_op
@@ -319,7 +323,8 @@ def add_fusion_ops(graph, carla_op, obj_detector_op):
         FusionOperator,
         name='fusion',
         setup_args={'output_stream_name': 'fusion_vehicles'},
-        init_args={'output_stream_name': 'fusion_vehicles',
+        init_args={'flags': FLAGS,
+                   'output_stream_name': 'fusion_vehicles',
                    'log_file_name': FLAGS.log_file_name})
     fusion_verification_op = graph.add(
         FusionVerificationOperator,

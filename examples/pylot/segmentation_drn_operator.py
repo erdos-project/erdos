@@ -36,6 +36,7 @@ class SegmentationDRNOperator(Op):
         # TODO(ionel): Automatically detect if GPU is available.
         if self._flags.segmentation_gpu:
             self._model = torch.nn.DataParallel(self._model).cuda()
+        self._last_seq_num = -1
 
     @staticmethod
     def setup_streams(input_streams, output_stream_name):
@@ -50,6 +51,13 @@ class SegmentationDRNOperator(Op):
         """Camera stream callback method.
         Invoked upon the receipt of a message on the camera stream.
         """
+        if self._last_seq_num + 1 != msg.timestamp.coordinates[1]:
+            self._logger.error('Expected msg with seq num {} but received {}'.format(
+                (self._last_seq_num + 1), msg.timestamp.coordinates[1]))
+            if self._flags.fail_on_message_loss:
+                assert self._last_seq_num + 1 == msg.timestamp.coordinates[1]
+        self._last_seq_num = msg.timestamp.coordinates[1]
+
         self._logger.info('{} received frame {}'.format(self.name, msg.timestamp))
         start_time = time.time()
         image = self._bridge.imgmsg_to_cv2(msg.data, 'bgr8')
