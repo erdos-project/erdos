@@ -48,9 +48,10 @@ class CarlaOperator(Op):
             QualityLevel=quality)
         self.settings.randomize_seeds()
         self.lidar_streams = []
-        for (camera_stream_name, camera_type) in camera_setups:
+        for (camera_stream_name, camera_type, image_size) in camera_setups:
             self.__add_camera(name=camera_stream_name,
-                              postprocessing=camera_type)
+                              postprocessing=camera_type,
+                              image_size=image_size)
         for lidar_stream_name in lidar_stream_names:
             self.__add_lidar(name=lidar_stream_name)
 
@@ -82,8 +83,8 @@ class CarlaOperator(Op):
     def __add_camera(self,
                      name,
                      postprocessing,
-                     field_of_view=90.0,
                      image_size=(800, 600),
+                     field_of_view=90.0,
                      position=(0.3, 0, 1.3),
                      rotation_pitch=0,
                      rotation_roll=0,

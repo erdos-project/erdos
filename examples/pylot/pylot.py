@@ -60,9 +60,15 @@ def add_carla_op(graph):
         name='carla',
         init_args={
             'flags': FLAGS,
-            'camera_setups': [('front_rgb_camera', 'SceneFinal'),
-                              ('front_depth_camera', 'Depth'),
-                              ('front_semantic_camera', 'SemanticSegmentation')],
+            'camera_setups': [('front_rgb_camera', 'SceneFinal',
+                               (FLAGS.carla_camera_image_width,
+                                FLAGS.carla_camera_image_height)),
+                              ('front_depth_camera', 'Depth',
+                               (FLAGS.carla_camera_image_width,
+                                FLAGS.carla_camera_image_height)),
+                              ('front_semantic_camera', 'SemanticSegmentation',
+                               (FLAGS.carla_camera_image_width,
+                                FLAGS.carla_camera_image_height))],
             'lidar_stream_names': [],
             'log_file_name': FLAGS.log_file_name
         },
@@ -198,7 +204,7 @@ def add_detector_op(graph, camera_ops):
         init_args={'output_stream_name': 'obj_stream',
                    'flags': FLAGS,
                    'log_file_name': FLAGS.log_file_name},
-        _resources = {"GPU": 0.3})
+        _resources = {"GPU": FLAGS.obj_detection_gpu_memory_fraction})
     graph.connect(camera_ops, [obj_detector_op])
     return obj_detector_op
 
@@ -211,7 +217,7 @@ def add_traffic_light_op(graph, camera_ops):
         init_args={'output_stream_name': 'traffic_lights',
                    'flags': FLAGS,
                    'log_file_name': FLAGS.log_file_name},
-        _resources = {"GPU": 0.3})
+        _resources = {"GPU": FLAGS.traffic_light_det_gpu_memory_fraction})
     graph.connect(camera_ops, [traffic_light_det_op])
     return traffic_light_det_op
 
@@ -233,7 +239,8 @@ def add_object_tracking_op(graph, camera_ops, obj_detector_op):
             setup_args={'output_stream_name': 'tracker_stream'},
             init_args={'output_stream_name': 'tracker_stream',
                        'flags': FLAGS,
-                       'log_file_name': FLAGS.log_file_name})
+                       'log_file_name': FLAGS.log_file_name},
+            _resources = {"GPU": FLAGS.obj_tracking_gpu_memory_fraction})
     graph.connect(camera_ops + [obj_detector_op], [tracker_op])
     return tracker_op
 
@@ -266,7 +273,8 @@ def add_segmentation_drn_op(graph, camera_ops):
         init_args={'output_stream_name': 'segmented_stream',
                    'flags': FLAGS,
                    'log_file_name': FLAGS.log_file_name},
-        _resources = {"GPU": 0.3})
+        _resources = {"GPU": FLAGS.segmentation_drn_gpu_memory_fraction})
+    graph.connect(camera_ops, [segmentation_op])
     return segmentation_op
 
 
@@ -278,7 +286,7 @@ def add_segmentation_dla_op(graph, camera_ops):
         init_args={'output_stream_name': 'segmented_stream',
                    'flags': FLAGS,
                    'log_file_name': FLAGS.log_file_name},
-        _resources = {"GPU": 0.3})
+        _resources = {"GPU": FLAGS.segmentation_dla_gpu_memory_fraction})
     graph.connect(camera_ops, [segmentation_op])
     return segmentation_op
 

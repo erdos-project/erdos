@@ -101,6 +101,10 @@ flags.DEFINE_bool('carla_random_player_start', True,
                   'True to randomly assign a car to the player')
 flags.DEFINE_integer('carla_start_player_num', 0,
                      'Number of the assigned start player')
+flags.DEFINE_integer('carla_camera_image_width', 800,
+                     'Carla camera image width')
+flags.DEFINE_integer('carla_camera_image_height', 600,
+                     'Carla camera image height')
 
 # Visualizing operators
 flags.DEFINE_bool('visualize_depth_camera', False,
@@ -130,6 +134,18 @@ flags.DEFINE_integer('eval_ground_truth_ignore_first', 5000,
 flags.DEFINE_integer('eval_ground_truth_max_latency', 2000,
                      'Max latency to evaluate in ground truth experiments')
 
+# GPU memory fractions.
+flags.DEFINE_float('obj_detection_gpu_memory_fraction', 0.3,
+                   'GPU memory fraction allocated to each obj detector operator')
+flags.DEFINE_float('obj_tracking_gpu_memory_fraction', 0.3,
+                   'GPU memory fraction allocated to each obj tracker operator')
+flags.DEFINE_float('traffic_light_det_gpu_memory_fraction', 0.3,
+                   'GPU memory fraction allocated to each traffic light detector')
+flags.DEFINE_float('segmentation_dla_gpu_memory_fraction', 0.2,
+                   'GPU memory fraction allocated to DLA segmentation')
+flags.DEFINE_float('segmentation_drn_gpu_memory_fraction', 0.2,
+                   'GPU memory fraction allocated to DRN segmentation')
+
 # Recording operators
 flags.DEFINE_bool('record_depth_camera', False, 'True to record depth camera')
 flags.DEFINE_bool('record_lidar', False, 'True to record lidar')
@@ -158,11 +174,11 @@ flags.register_multi_flags_validator(
     lambda flags_dict: not (flags_dict['replay'] and flags_dict['fusion']),
     message='--fusion cannot be set when --replay is set')
 flags.register_multi_flags_validator(
-    ['ground_agent_operator', 'obj_detection', 'traffic_light_det', 'segmentation'],
+    ['ground_agent_operator', 'obj_detection', 'traffic_light_det', 'segmentation_drn', 'segmentation_dla'],
     lambda flags_dict: (flags_dict['ground_agent_operator'] or
                         (flags_dict['obj_detection'] and
                          flags_dict['traffic_light_det'] and
-                         flags_dict['segmentation'])),
+                         (flags_dict['segmentation_drn'] or flags_dict['segmentation_dla']))),
     message='ERDOS agent requires obj detection, segmentation and traffic light detection')
 
 

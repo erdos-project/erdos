@@ -32,8 +32,11 @@ class DetectionOperator(Op):
                 od_graph_def.ParseFromString(serialized_graph)
                 tf.import_graph_def(od_graph_def, name='')
 
-        self._gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
-        self._tf_session = tf.Session(graph=self._detection_graph, config=tf.ConfigProto(gpu_options=self._gpu_options))
+        self._gpu_options = tf.GPUOptions(
+            per_process_gpu_memory_fraction=flags.obj_detection_gpu_memory_fraction)
+        self._tf_session = tf.Session(
+            graph=self._detection_graph,
+            config=tf.ConfigProto(gpu_options=self._gpu_options))
         self._image_tensor = self._detection_graph.get_tensor_by_name(
             'image_tensor:0')
         self._detection_boxes = self._detection_graph.get_tensor_by_name(
@@ -54,7 +57,7 @@ class DetectionOperator(Op):
                            labels={'obstacles': 'true'})]
 
     def on_msg_camera_stream(self, msg):
-        self._logger.info('%s received frame %s', self.name, msg.timestamp)
+        self._logger.info('{} received frame {}'.format(self.name, msg.timestamp))
         start_time = time.time()
         image_np = self._bridge.imgmsg_to_cv2(msg.data, 'rgb8')
         # Expand dimensions since the model expects images to have
@@ -99,8 +102,9 @@ class DetectionOperator(Op):
             cv2.imshow(self.name, open_cv_image)
             cv2.waitKey(1)
 
-        runtime = time.time() - start_time
-        self._logger.info('Object detector {} runtime {}'.format(
+        # Get runtime in ms.
+        runtime = (time.time() - start_time) * 1000
+        self._logger.info('Object detection {} runtime {}'.format(
             self.name, runtime))
         output_msg = Message(output, msg.timestamp)
         self.get_output_stream(self._output_stream_name).send(output_msg)

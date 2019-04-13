@@ -26,6 +26,7 @@ class SegmentationDLAOperator(Op):
         self._logger = setup_logging(self.name, log_file_name)
         self._output_stream_name = output_stream_name
         self._bridge = CvBridge()
+        # TODO(ionel): Figure out how to set GPU memory fraction.
         self._network = dla.DLASeg.DLASeg()
         self._network.load_state_dict(torch.load('dependencies/dla/DLASeg.pth'))
         if self._flags.segmentation_gpu:
@@ -55,7 +56,8 @@ class SegmentationDLAOperator(Op):
             cv2.imshow(self.name, img)
             cv2.waitKey(1)
 
-        runtime = time.time() - start_time
+        # Get runtime in ms.
+        runtime = (time.time() - start_time) * 1000
         self._logger.info('DLA segmentation {} runtime {}'.format(
             self.name, runtime))
 

@@ -22,6 +22,7 @@ class TrafficLightDetOperator(Op):
         super(TrafficLightDetOperator, self).__init__(name)
         self._logger = setup_logging(self.name, log_file_name)
         self._output_stream_name = output_stream_name
+        self._flags = flags
         self._bridge = CvBridge()
         self._detection_graph = tf.Graph()
         with self._detection_graph.as_default():
@@ -31,8 +32,11 @@ class TrafficLightDetOperator(Op):
                 od_graph_def.ParseFromString(serialized_graph)
                 tf.import_graph_def(od_graph_def, name='')
 
-        self._gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.333)
-        self._tf_session = tf.Session(graph=self._detection_graph, config=tf.ConfigProto(gpu_options=self._gpu_options))
+        self._gpu_options = tf.GPUOptions(
+            per_process_gpu_memory_fraction=flags.traffic_light_det_gpu_memory_fraction)
+        self._tf_session = tf.Session(
+            graph=self._detection_graph,
+            config=tf.ConfigProto(gpu_options=self._gpu_options))
         self._image_tensor = self._detection_graph.get_tensor_by_name(
             'image_tensor:0')
         self._detection_boxes = self._detection_graph.get_tensor_by_name(
@@ -102,7 +106,8 @@ class TrafficLightDetOperator(Op):
             cv2.imshow(self.name, open_cv_image)
             cv2.waitKey(1)
 
-        runtime = time.time() - start_time
+        # Get runtime in ms.
+        runtime = (time.time() - start_time) * 1000
         self._logger.info('Traffic light detector {} runtime {}'.format(
             self.name, runtime))
 

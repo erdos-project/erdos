@@ -112,7 +112,8 @@ class FusionOperator(Op):
             np.arccos(self._car_positions[0][1][1][0]))
         timestamp = self._objects[0][0]
 
-        runtime = time.time() - start_time
+        # Get runtime in ms.
+        runtime = (time.time() - start_time) * 1000
         self._logger.info('Fusion {} runtime {}'.format(
             self.name, runtime))
 

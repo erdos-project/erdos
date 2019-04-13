@@ -29,6 +29,7 @@ class SegmentationDRNOperator(Op):
         pretrained = "dependencies/data/drn_d_22_cityscapes.pth"
         self._pallete = drn.segment.CITYSCAPE_PALETTE
         self._bridge = CvBridge()
+        # TODO(ionel): Figure out how to set GPU memory fraction.
         self._model = DRNSeg(
             arch, classes, pretrained_model=None, pretrained=False)
         self._model.load_state_dict(torch.load(pretrained))
@@ -49,7 +50,7 @@ class SegmentationDRNOperator(Op):
         """Camera stream callback method.
         Invoked upon the receipt of a message on the camera stream.
         """
-        self._logger.info('%s received frame %s', self.name, msg.timestamp)
+        self._logger.info('{} received frame {}'.format(self.name, msg.timestamp))
         start_time = time.time()
         image = self._bridge.imgmsg_to_cv2(msg.data, 'bgr8')
         image = torch.from_numpy(image.transpose([2, 0,
@@ -66,7 +67,8 @@ class SegmentationDRNOperator(Op):
             cv2.imshow(self.name, img)
             cv2.waitKey(1)
 
-        runtime = time.time() - start_time
+        # Get runtime in ms.
+        runtime = (time.time() - start_time) * 1000
         self._logger.info('DRN segmentation {} runtime {}'.format(
             self.name, runtime))
 

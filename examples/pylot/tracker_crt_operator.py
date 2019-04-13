@@ -66,7 +66,8 @@ class TrackerCRTOperator(Op):
                 cv2.imshow(self.name, open_cv_image)
                 cv2.waitKey(1)
 
-            runtime = time.time() - start_time
+            # Get runtime in ms.
+            runtime = (time.time() - start_time) * 1000
             self._logger.info('Object tracker crt {} runtime {}'.format(
                 self.name, runtime))
 
@@ -80,6 +81,7 @@ class TrackerCRTOperator(Op):
             rect_coordinates = (int(xmin), int(ymin),
                                 int(xmax - xmin), int(ymax - ymin))
             if not self.initialized and self.init_image is not None:
+                # TODO(ionel): Set GPU memory fraction for the tracker.
                 self.tracker = tracker.ConvRegTracker()
                 self.tracker.init(self.init_image, Rect(*rect_coordinates))
                 self.initialized = True

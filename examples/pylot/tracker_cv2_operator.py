@@ -70,7 +70,8 @@ class TrackerCV2Operator(Op):
 
             self._to_process = []
 
-        runtime = time.time() - start_time
+        # Get runtime in ms.
+        runtime = (time.time() - start_time) * 1000
         self._logger.info('Object tracker cv2 {} runtime {}'.format(
             self.name, runtime))
 
