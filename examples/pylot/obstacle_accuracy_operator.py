@@ -11,7 +11,7 @@ from carla.image_converter import depth_to_array
 from carla.sensor import Camera
 
 from erdos.op import Op
-from erdos.utils import setup_logging
+from erdos.utils import setup_csv_logging, setup_logging
 
 import messages
 from utils import add_bounding_box, get_3d_world_position, map_ground_3D_transform_to_2D, map_ground_bounding_box_to_2D, point_cloud_from_rgbd
@@ -23,10 +23,12 @@ class ObstacleAccuracyOperator(Op):
                  name, rgb_camera_name, depth_camera_name,
                  flags,
                  log_file_name=None,
+                 csv_file_name=None,
                  rgbd_max_range=1000):
         super(ObstacleAccuracyOperator, self).__init__(name)
         self._flags = flags
         self._logger = setup_logging(self.name, log_file_name)
+        self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
         self._rgbd_max_range = rgbd_max_range
         self._bridge = CvBridge()
         self._world_transform = []

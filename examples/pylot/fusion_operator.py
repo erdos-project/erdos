@@ -7,7 +7,7 @@ from carla.image_converter import to_rgb_array
 from erdos.data_stream import DataStream
 from erdos.message import Message
 from erdos.op import Op
-from erdos.utils import frequency, setup_logging
+from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_ms
 
 
 class FusionOperator(Op):
@@ -26,10 +26,12 @@ class FusionOperator(Op):
                  flags,
                  output_stream_name,
                  log_file_name=None,
+                 csv_file_name=None,
                  camera_fov=np.pi / 4,
                  rgbd_max_range=1000):
         super(FusionOperator, self).__init__(name)
         self._logger = setup_logging(self.name, log_file_name)
+        self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
         self._flags = flags
         self._output_stream_name = output_stream_name
         self._segments = []
@@ -116,8 +118,8 @@ class FusionOperator(Op):
 
         # Get runtime in ms.
         runtime = (time.time() - start_time) * 1000
-        self._logger.info('Fusion {} runtime {}'.format(
-            self.name, runtime))
+        self._csv_logger.info('{},{},{}'.format(
+            time_epoch_ms(), self.name, runtime))
 
         output_msg = Message(object_positions, timestamp)
         self.get_output_stream(self._output_stream_name).send(output_msg)

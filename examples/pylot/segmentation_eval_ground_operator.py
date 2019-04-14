@@ -6,17 +6,18 @@ import time
 from carla.image_converter import labels_to_array
 
 from erdos.op import Op
-from erdos.utils import setup_logging
+from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
 from segmentation_utils import tf_compute_semantic_iou, generate_masks, compute_semantic_iou_from_masks
 
 
 class SegmentationEvalGroundOperator(Op):
 
-    def __init__(self, name, flags, log_file_name=None):
+    def __init__(self, name, flags, log_file_name=None, csv_file_name=None):
         super(SegmentationEvalGroundOperator, self).__init__(name)
         self._flags = flags
         self._logger = setup_logging(self.name, log_file_name)
+        self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
         self._time_delta = None
         self._ground_masks = deque()
 
@@ -52,22 +53,30 @@ class SegmentationEvalGroundOperator(Op):
                     self._flags.eval_ground_truth_max_latency):
                     self._ground_masks.popleft()
 
+                cur_time = time_epoch_ms()
                 for timestamp, ground_masks in self._ground_masks:
                     (mean_iou, class_iou) = compute_semantic_iou_from_masks(ground_masks, frame_masks)
                     time_diff = msg.timestamp.coordinates[0] - timestamp
                     self._logger.info(
                         'Segmentation ground latency {} ; mean IoU {}'.format(
                             time_diff, mean_iou))
+                    self._csv_logger.info('{},{},mIoU,{},{}'.format(
+                        cur_time, self.name, time_diff, mean_iou))
                     pedestrian_key = 4
                     if pedestrian_key in class_iou:
                         self._logger.info(
                             'Segmentation ground latency {} ; pedestrian IoU {}'.format(
                                 time_diff, class_iou[pedestrian_key]))
+                        self._csv_logger.info('{},{},pedestrianIoU,{},{}'.format(
+                            cur_time, self.name, time_diff, class_iou[pedestrian_key]))
+
                     vehicle_key = 10
                     if vehicle_key in class_iou:
                         self._logger.info(
                             'Segmentation ground latency {} ; vehicle IoU {}'.format(
                                 time_diff, class_iou[vehicle_key]))
+                        self._csv_logger.info('{},{},vehicleIoU,{},{}'.format(
+                            cur_time, self.name, time_diff, class_iou[vehicle_key]))
 
             # Append the processed image to the buffer.
             self._ground_masks.append((msg.timestamp.coordinates[0], frame_masks))

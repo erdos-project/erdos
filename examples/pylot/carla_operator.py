@@ -11,7 +11,7 @@ from erdos.data_stream import DataStream
 from erdos.message import Message
 from erdos.op import Op
 from erdos.timestamp import Timestamp
-from erdos.utils import frequency, setup_logging
+from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_ms
 
 import messages
 import ray
@@ -29,10 +29,12 @@ class CarlaOperator(Op):
                  flags,
                  camera_setups=[],
                  lidar_stream_names=[],
-                 log_file_name=None):
+                 log_file_name=None,
+                 csv_file_name=None):
         super(CarlaOperator, self).__init__(name)
         self._flags = flags
         self._logger = setup_logging(self.name, log_file_name)
+        self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
         self.message_num = 0
         if self._flags.carla_high_quality:
             quality = 'Epic'
@@ -85,7 +87,8 @@ class CarlaOperator(Op):
                      postprocessing,
                      image_size=(800, 600),
                      field_of_view=90.0,
-                     position=(0.3, 0, 1.3),
+#                     position=(0.3, 0, 1.3),
+                     position=(2.0, 0.0, 1.4),
                      rotation_pitch=0,
                      rotation_roll=0,
                      rotation_yaw=0):
@@ -240,8 +243,10 @@ class CarlaOperator(Op):
 
         measurement_runtime = (measure_time - read_start_time) * 1000
         total_runtime = (end_time - read_start_time) * 1000
-        self._logger.info("Carla measurement time {}; total time {}".format(
+        self._logger.info('Carla measurement time {}; total time {}'.format(
             measurement_runtime, total_runtime))
+        self._csv_logger.info('{},{},{},{}'.format(
+            time_epoch_ms(), self.name, measurement_runtime, total_runtime))
 
     def read_data_at_frequency(self):
         period = 1.0 / self._flags.carla_step_frequency

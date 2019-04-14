@@ -8,6 +8,8 @@ flags.DEFINE_bool('replay', False,
                   ('True if run in replay mode, otherwise run '
                    'Carla in server mode using `./CarlaUE4.sh -carla-server`'))
 flags.DEFINE_string('log_file_name', None, 'Name of the log file')
+flags.DEFINE_string('csv_log_file_name', None,
+                    'csv file into which to log runtime stats')
 flags.DEFINE_bool('fail_on_message_loss', True,
                   'True to enable operator failure when messages are lost')
 flags.DEFINE_bool('ground_agent_operator', True,

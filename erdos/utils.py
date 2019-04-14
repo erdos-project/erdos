@@ -89,6 +89,27 @@ def setup_logging(name, log_file=None):
     return logger
 
 
+def setup_csv_logging(name, log_file=None):
+    if log_file is None:
+        handler = logging.StreamHandler()
+    else:
+        handler = logging.FileHandler(log_file)
+    handler.setLevel(logging.DEBUG)
+
+    formatter = logging.Formatter(
+        fmt='%(message)s',
+        datefmt=None)
+    handler.setFormatter(formatter)
+    logger = logging.getLogger(name)
+    logger.addHandler(handler)
+    logger.propagate = False
+    return logger
+
+
+def time_epoch_ms():
+    return int(time.time() * 1000)
+
+
 def log_graph_to_dot_file(filename, nodes, edges):
     dot_file = open(filename, 'w')
     # dot header

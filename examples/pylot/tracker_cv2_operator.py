@@ -8,7 +8,7 @@ import time
 from erdos.data_stream import DataStream
 from erdos.message import Message
 from erdos.op import Op
-from erdos.utils import setup_logging
+from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
 from utils import add_bounding_box
 
@@ -18,10 +18,12 @@ class TrackerCV2Operator(Op):
                  name,
                  output_stream_name,
                  flags,
-                 log_file_name=None):
+                 log_file_name=None,
+                 csv_file_name=None):
         super(TrackerCV2Operator, self).__init__(name)
         self._flags = flags
         self._logger = setup_logging(self.name, log_file_name)
+        self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
         self._output_stream_name = output_stream_name
         self._bridge = CvBridge()
         self._tracker = cv2.TrackerKCF_create()
@@ -85,8 +87,8 @@ class TrackerCV2Operator(Op):
 
         # Get runtime in ms.
         runtime = (time.time() - start_time) * 1000
-        self._logger.info('Object tracker cv2 {} runtime {}'.format(
-            self.name, runtime))
+        self._csv_logger.info('{},{},"{}",{}'.format(
+            time_epoch_ms(), self.name, msg.timestamp, runtime))
 
     def on_objects_msg(self, msg):
         # TODO(ionel): Implement out bbox matching!

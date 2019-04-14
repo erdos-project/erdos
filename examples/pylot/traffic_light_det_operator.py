@@ -9,7 +9,7 @@ import time
 from erdos.data_stream import DataStream
 from erdos.message import Message
 from erdos.op import Op
-from erdos.utils import setup_logging
+from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
 from utils import add_bounding_box
 
@@ -19,9 +19,11 @@ class TrafficLightDetOperator(Op):
                  name,
                  output_stream_name,
                  flags,
-                 log_file_name=None):
+                 log_file_name=None,
+                 csv_file_name=None):
         super(TrafficLightDetOperator, self).__init__(name)
         self._logger = setup_logging(self.name, log_file_name)
+        self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
         self._output_stream_name = output_stream_name
         self._flags = flags
         self._bridge = CvBridge()
@@ -121,8 +123,8 @@ class TrafficLightDetOperator(Op):
 
         # Get runtime in ms.
         runtime = (time.time() - start_time) * 1000
-        self._logger.info('Traffic light detector {} runtime {}'.format(
-            self.name, runtime))
+        self._csv_logger.info('{},{},"{}",{}'.format(
+            time_epoch_ms(), self.name, msg.timestamp, runtime))
 
         output_msg = Message(output, msg.timestamp)
         self.get_output_stream(self._output_stream_name).send(output_msg)
