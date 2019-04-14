@@ -105,8 +105,8 @@ def add_erdos_agent_op(graph,
                        goal_orientation,
                        depth_camera_name,
                        segmentation_ops,
-                       obj_detector_op,
-                       traffic_light_det_op):
+                       obj_detector_ops,
+                       traffic_light_det_ops):
     agent_op = graph.add(
         ERDOSAgentOperator,
         name='erdos_agent',
@@ -121,7 +121,7 @@ def add_erdos_agent_op(graph,
         },
         setup_args={'depth_camera_name': depth_camera_name})
     graph.connect(
-        [carla_op, obj_detector_op, traffic_light_det_op] + segmentation_ops,
+        [carla_op] + traffic_light_det_ops + obj_detector_ops + segmentation_ops,
         [agent_op])
     graph.connect([agent_op], [carla_op])
     return agent_op
@@ -203,18 +203,43 @@ def add_record_carla_op(graph, carla_op):
     graph.connect([carla_op], [record_carla_op])
 
 
-def add_detector_op(graph, camera_ops):
+def add_detector_op_helper(graph, name, model_path, gpu_memory_fraction):
     obj_detector_op = graph.add(
         DetectionOperator,
-        name='detection',
+        name=name,
         setup_args={'output_stream_name': 'obj_stream'},
         init_args={'output_stream_name': 'obj_stream',
+                   'model_path': model_path,
                    'flags': FLAGS,
                    'log_file_name': FLAGS.log_file_name,
                    'csv_file_name': FLAGS.csv_log_file_name},
-        _resources = {"GPU": FLAGS.obj_detection_gpu_memory_fraction})
-    graph.connect(camera_ops, [obj_detector_op])
+        _resources = {"GPU": gpu_memory_fraction})
     return obj_detector_op
+
+
+def add_detector_ops(graph, camera_ops):
+    detector_ops = []
+    if FLAGS.detector_ssd_mobilenet_v1:
+        detector_ops.append(add_detector_op_helper(
+            graph,
+            'detector_ssd_mobilenet_v1',
+            'dependencies/data/ssd_mobilenet_v1_coco_2018_01_28/frozen_inference_graph.pb',
+            FLAGS.obj_detection_gpu_memory_fraction))
+    if FLAGS.detector_frcnn_resnet101:
+        detector_ops.append(add_detector_op_helper(
+            graph,
+            'detector_faster_rcnn_resnet101',
+            'dependencies/data/faster_rcnn_resnet101_coco_2018_01_28/frozen_inference_graph.pb',
+            FLAGS.obj_detection_gpu_memory_fraction))
+    if FLAGS.detector_ssd_resnet50_v1:
+        detector_ops.append(add_detector_op_helper(
+            graph,
+            'detector_ssd_resnet50_v1',
+            'dependencies/data/ssd_resnet50_v1_fpn_shared_box_predictor_640x640_coco14_sync_2018_07_03/frozen_inference_graph.pb',
+            FLAGS.obj_detection_gpu_memory_fraction))
+
+    graph.connect(camera_ops, detector_ops)
+    return detector_ops
 
 
 def add_traffic_light_op(graph, camera_ops):
@@ -231,7 +256,7 @@ def add_traffic_light_op(graph, camera_ops):
     return traffic_light_det_op
 
 
-def add_object_tracking_op(graph, camera_ops, obj_detector_op):
+def add_object_tracking_op(graph, camera_ops, obj_detector_ops):
     tracker_op = None
     if FLAGS.tracker_type == 'cv2':
         tracker_op = graph.add(
@@ -252,13 +277,13 @@ def add_object_tracking_op(graph, camera_ops, obj_detector_op):
                        'log_file_name': FLAGS.log_file_name,
                        'csv_file_name': FLAGS.csv_log_file_name},
             _resources = {"GPU": FLAGS.obj_tracking_gpu_memory_fraction})
-    graph.connect(camera_ops + [obj_detector_op], [tracker_op])
+    graph.connect(camera_ops + obj_detector_ops, [tracker_op])
     return tracker_op
 
 
 def add_obstacle_accuracy_op(graph,
                              camera_ops,
-                             obj_detector_op,
+                             obj_detector_ops,
                              carla_op,
                              rgb_camera_name,
                              depth_camera_name):
@@ -272,7 +297,7 @@ def add_obstacle_accuracy_op(graph,
                    'flags': FLAGS,
                    'log_file_name': FLAGS.log_file_name,
                    'csv_file_name': FLAGS.csv_log_file_name})
-    graph.connect(camera_ops + [obj_detector_op, carla_op],
+    graph.connect(camera_ops + obj_detector_ops + [carla_op],
                   [obstacle_accuracy_op])
     return obstacle_accuracy_op
 
@@ -330,7 +355,7 @@ def add_segmentation_ground_eval_op(graph, carla_op, ground_stream_name):
     return seg_eval_op
 
 
-def add_fusion_ops(graph, carla_op, obj_detector_op):
+def add_fusion_ops(graph, carla_op, obj_detector_ops):
     fusion_op = graph.add(
         FusionOperator,
         name='fusion',
@@ -343,7 +368,7 @@ def add_fusion_ops(graph, carla_op, obj_detector_op):
         FusionVerificationOperator,
         name='fusion_verifier',
         init_args={'log_file_name': FLAGS.log_file_name})
-    graph.connect([obj_detector_op, carla_op], [fusion_op])
+    graph.connect(obj_detector_ops + [carla_op], [fusion_op])
     graph.connect([fusion_op, carla_op], [fusion_verification_op])
     return (fusion_op, fusion_verification_op)
 
@@ -433,27 +458,29 @@ def main(argv):
                 graph, carla_op, segmentation_op,
                 'front_semantic_camera', 'segmented_stream')
 
+    obj_detector_ops = []
     if FLAGS.obj_detection:
-        obj_detector_op = add_detector_op(graph, camera_ops)
+        obj_detector_ops = add_detector_ops(graph, camera_ops)
 
         if FLAGS.evaluate_obj_detection:
             obstacle_accuracy_op = add_obstacle_accuracy_op(graph,
                                                             camera_ops,
-                                                            obj_detector_op,
+                                                            obj_detector_ops,
                                                             carla_op,
                                                             'front_rgb_camera',
                                                             'front_depth_camera')
 
         if FLAGS.obj_tracking:
-            tracker_op = add_object_tracking_op(graph, camera_ops, obj_detector_op)
+            tracker_op = add_object_tracking_op(graph, camera_ops, obj_detector_ops)
 
         if FLAGS.fusion:
             (fusion_op, fusion_verification_op) = add_fusion_ops(graph,
                                                                  carla_op,
-                                                                 obj_detector_op)
+                                                                 obj_detector_ops)
 
+    traffic_light_det_ops = []
     if FLAGS.traffic_light_det:
-        traffic_light_det_op = add_traffic_light_op(graph, camera_ops)
+        traffic_light_det_ops.append(add_traffic_light_op(graph, camera_ops))
 
     goal_location = (234.269989014, 59.3300170898, 39.4306259155)
     goal_orientation = (1.0, 0.0, 0.22)
@@ -472,8 +499,8 @@ def main(argv):
                                       goal_orientation,
                                       'front_depth_camera',
                                       segmentation_ops,
-                                      obj_detector_op,
-                                      traffic_light_det_op)
+                                      obj_detector_ops,
+                                      traffic_light_det_ops)
 
     graph.execute(FLAGS.framework)
 

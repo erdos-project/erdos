@@ -18,6 +18,7 @@ class DetectionOperator(Op):
     def __init__(self,
                  name,
                  output_stream_name,
+                 model_path,
                  flags,
                  log_file_name=None,
                  csv_file_name=None):
@@ -31,7 +32,7 @@ class DetectionOperator(Op):
         self._detection_graph = tf.Graph()
         with self._detection_graph.as_default():
             od_graph_def = tf.GraphDef()
-            with tf.gfile.GFile(self._flags.detector_model_path, 'rb') as fid:
+            with tf.gfile.GFile(model_path, 'rb') as fid:
                 serialized_graph = fid.read()
                 od_graph_def.ParseFromString(serialized_graph)
                 tf.import_graph_def(od_graph_def, name='')
