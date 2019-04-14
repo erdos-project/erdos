@@ -2,6 +2,7 @@ import cv2
 from cv_bridge import CvBridge
 import numpy as np
 import PIL.Image as Image
+import PIL.ImageDraw as ImageDraw
 import time
 
 from dependencies.conv_reg_vot.simgeo import Rect
@@ -67,6 +68,11 @@ class TrackerCRTOperator(Op):
             if self._flags.visualize_tracker_output:
                 img = Image.fromarray(np.uint8(current_image)).convert('RGB')
                 add_bounding_box(img, corners)
+                draw = ImageDraw.Draw(img)
+                draw.text((5, 5),
+                          "Timestamp: {}".format(msg.timestamp),
+                          fill='black')
+
                 # cv2.rectangle(current_image, (bb_pred.x, bb_pred.y), (xmax, ymax),
                 #               (255, 0, 0), 2, 1)
                 open_cv_image = np.array(img)

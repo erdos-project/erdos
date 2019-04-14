@@ -2,6 +2,7 @@ from cv_bridge import CvBridge
 import cv2
 import numpy as np
 import PIL.Image as Image
+import PIL.ImageDraw as ImageDraw
 import tensorflow as tf
 import time
 
@@ -109,6 +110,10 @@ class TrafficLightDetOperator(Op):
             index += 1
 
         if self._flags.visualize_traffic_light_output:
+            draw = ImageDraw.Draw(img)
+            draw.text((5, 5),
+                      "Timestamp: {}".format(msg.timestamp),
+                      fill='black')
             open_cv_image = np.array(img)
             open_cv_image = open_cv_image[:, :, ::-1].copy()
             cv2.imshow(self.name, open_cv_image)

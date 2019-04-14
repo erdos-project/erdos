@@ -3,6 +3,7 @@ from cv_bridge import CvBridge
 import dla.DLASeg
 import numpy as np
 import PIL.Image as PILImage
+import PIL.ImageDraw as ImageDraw
 from sensor_msgs.msg import Image
 import time
 import torch
@@ -61,7 +62,12 @@ class SegmentationDLAOperator(Op):
         img = np.array(pil_img)
         
         if self._flags.visualize_segmentation_output:
-            cv2.imshow(self.name, img)
+            draw = ImageDraw.Draw(pil_img)
+            draw.text((5, 5),
+                      "Timestamp: {}".format(msg.timestamp),
+                      fill='black')
+
+            cv2.imshow(self.name, np.array(pil_img))
             cv2.waitKey(1)
 
         # Get runtime in ms.

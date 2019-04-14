@@ -2,6 +2,9 @@ import cv2
 from cv_bridge import CvBridge
 import drn.segment
 from drn.segment import DRNSeg
+import numpy as np
+import PIL.Image as PILImage
+import PIL.ImageDraw as ImageDraw
 from torch.autograd import Variable
 import time
 import torch
@@ -72,7 +75,12 @@ class SegmentationDRNOperator(Op):
         img = self._pallete[pred.squeeze()]
 
         if self._flags.visualize_segmentation_output:
-            cv2.imshow(self.name, img)
+            pil_img = PILImage.fromarray(np.uint8(img)).convert('RGB')
+            draw = ImageDraw.Draw(pil_img)
+            draw.text((5, 5),
+                      "Timestamp: {}".format(msg.timestamp),
+                      fill='black')
+            cv2.imshow(self.name, np.array(pil_img))
             cv2.waitKey(1)
 
         # Get runtime in ms.

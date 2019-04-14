@@ -1,4 +1,7 @@
 import cv2
+import numpy as np
+import PIL.Image as PILImage
+import PIL.ImageDraw as ImageDraw
 
 from carla.image_converter import to_bgra_array
 
@@ -29,7 +32,13 @@ class VideoOperator(Op):
         self._last_seq_num = msg.timestamp.coordinates[1]
 
         frame_array = to_bgra_array(msg.data)
-        cv2.imshow(self.name, frame_array)
+
+        pil_img = PILImage.fromarray(np.uint8(frame_array)).convert('RGB')
+        draw = ImageDraw.Draw(pil_img)
+        draw.text((5, 5),
+                  "Timestamp: {}".format(msg.timestamp),
+                  fill='black')
+        cv2.imshow(self.name, np.array(pil_img))
         cv2.waitKey(1)
 
     def execute(self):
