@@ -27,8 +27,14 @@ def run_graph(argv):
     # Extract variables
     num_messages = int(FLAGS.num_msg)
     fps = int(FLAGS.fps)
-    fail_time = int(FLAGS.fail_time)
-    recovery_time = int(FLAGS.recovery_time)
+    if FLAGS.fail_time == 'None':
+        fail_time = None
+    else:
+        fail_time = int(FLAGS.fail_time)
+    if FLAGS.recovery_time == 'None':
+        recovery_time = None
+    else:
+        recovery_time = int(FLAGS.recovery_time)
 
     # Define graph
     graph = erdos.graph.get_current_graph()

@@ -22,9 +22,9 @@ class ControllerOperator(Op):
     def setup_streams(input_streams):
         input_streams.add_completion_callback(ControllerOperator.on_watermark_msg)
         return [DataStream(name='failure_stream',
-                           labels={'control_stream': 'true', 'no_watermark': 'true'}),
+                           labels={'failure': 'true', 'no_watermark': 'true'}),
                 DataStream(name='progress_stream',
-                           labels={'control_stream': 'true', 'no_watermark': 'true'})]
+                           labels={'progress': 'true', 'no_watermark': 'true'})]
 
     def on_watermark_msg(self, msg):
         # Controller receives snapshot ID from sink every sink takes one

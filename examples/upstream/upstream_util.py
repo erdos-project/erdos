@@ -7,9 +7,17 @@ class UpstreamControllerCommand(Enum):
     RECOVER = -3
 
 
-def is_control_stream(stream):
-    return stream.labels.get('control_stream', '') == 'true'
+def is_failure_stream(stream):
+    return stream.labels.get('failure', '') == 'true'
 
 
-def is_not_control_stream(stream):
-    return not is_control_stream(stream)
+def is_not_failure_stream(stream):
+    return not is_failure_stream(stream)
+
+
+def is_progress_stream(stream):
+    return stream.labels.get('progress', '') == 'true'
+
+
+def is_not_progress_stream(stream):
+    return not is_progress_stream(stream)

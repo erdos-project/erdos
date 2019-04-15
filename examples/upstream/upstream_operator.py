@@ -3,7 +3,6 @@ from erdos.op import Op
 from erdos.utils import setup_logging
 from collections import deque
 import upstream_util
-from upstream_util import is_not_control_stream, is_control_stream
 
 
 class UpstreamOperator(Op):
@@ -16,9 +15,12 @@ class UpstreamOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams):
-        input_streams.filter(is_control_stream)\
+        input_streams\
+            .filter(upstream_util.is_progress_stream)\
             .add_callback(UpstreamOperator.on_progress_msg)
-        input_streams.filter(is_not_control_stream)\
+        input_streams\
+            .filter(upstream_util.is_not_progress_stream)\
+            .filter(upstream_util.is_not_failure_stream)\
             .add_callback(UpstreamOperator.on_msg)
         return [DataStream(name="failure_op_out")]
 
@@ -30,7 +32,7 @@ class UpstreamOperator(Op):
 
     def on_progress_msg(self, msg):
         (control_msg, progress) = msg.data
-        if control_msg == upstream_util.CheckpointControllerCommand.PROGRESS:
+        if control_msg == upstream_util.UpstreamControllerCommand.PROGRESS:
             assert progress == self._buffer[0]  # because sink forwards 1 watermark after every msg received
             self._buffer.popleft()
 

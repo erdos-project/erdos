@@ -2,7 +2,6 @@ from erdos.data_stream import DataStream
 from erdos.op import Op
 from erdos.utils import setup_logging
 import upstream_util
-from upstream_util import is_control_stream, is_not_control_stream
 
 
 class FailureOperator(Op):
@@ -15,11 +14,12 @@ class FailureOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams):
-        input_streams\
-            .filter(is_not_control_stream)\
+        input_streams \
+            .filter(upstream_util.is_not_progress_stream) \
+            .filter(upstream_util.is_not_failure_stream) \
             .add_callback(FailureOperator.on_msg)
         input_streams\
-            .filter(is_control_stream)\
+            .filter(upstream_util.is_failure_stream)\
             .add_callback(FailureOperator.on_fail_msg)
         return [DataStream(name="failure_out")]
 
