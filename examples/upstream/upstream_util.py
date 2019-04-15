@@ -1,8 +1,10 @@
 from enum import Enum
 
 
-class CheckpointControllerCommand(Enum):
-    ROLLBACK = -1
+class UpstreamControllerCommand(Enum):
+    PROGRESS = -1
+    FAIL = -2
+    RECOVER = -3
 
 
 def is_control_stream(stream):
