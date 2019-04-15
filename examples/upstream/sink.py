@@ -1,5 +1,6 @@
 from erdos.op import Op
 from erdos.utils import setup_logging
+from erdos.data_stream import DataStream
 
 
 class Sink(Op):
@@ -11,7 +12,7 @@ class Sink(Op):
     @staticmethod
     def setup_streams(input_streams):
         input_streams.add_callback(Sink.on_msg)
-        return []
+        return [DataStream(name="sink_out")]
 
     def on_msg(self, msg):
         seq_num = int(msg.data)
