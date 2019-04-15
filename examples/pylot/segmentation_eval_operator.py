@@ -4,16 +4,17 @@ import PIL.Image as Image
 from carla.image_converter import labels_to_cityscapes_palette
 
 from erdos.op import Op
-from erdos.utils import setup_logging
+from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
 from segmentation_utils import compute_semantic_iou
 
 
 class SegmentationEvalOperator(Op):
 
-    def __init__(self, name, log_file_name=None):
+    def __init__(self, name, log_file_name=None, csv_file_name=None):
         super(SegmentationEvalOperator, self).__init__(name)
         self._logger = setup_logging(self.name, log_file_name)
+        self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
         self._ground_frames = []
         self._segmented_frames = []
 
@@ -45,8 +46,10 @@ class SegmentationEvalOperator(Op):
             ground_img = Image.fromarray(np.uint8(ground_frame_array)).convert('RGB')
             ground_img = np.array(ground_img)
             (mean_iou, class_iou) = compute_semantic_iou(ground_img, msg.data)
-            self._logger.info("IoU class scores: {}".format(class_iou))
-            self._logger.info("mean IoU score: {}".format(mean_iou))
+            self._logger.info('IoU class scores: {}'.format(class_iou))
+            self._logger.info('mean IoU score: {}'.format(mean_iou))
+            self._csv_logger.info('{},{},"{}",{}'.format(
+                time_epoch_ms(), self.name, msg.timestamp, mean_iou))
             index += 1
         if index > 0:
             self._ground_frames = self._ground_frames[index:]

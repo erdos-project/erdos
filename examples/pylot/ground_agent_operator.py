@@ -5,7 +5,7 @@ from erdos.data_stream import DataStream
 from erdos.message import Message
 from erdos.op import Op
 from erdos.timestamp import Timestamp
-from erdos.utils import frequency, setup_logging
+from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_ms
 
 import agent_utils
 from planner.map import CarlaMap
@@ -20,9 +20,11 @@ class GroundAgentOperator(Op):
                  goal_location,
                  goal_orientation,
                  flags,
-                 log_file_name=None):
+                 log_file_name=None,
+                 csv_file_name=None):
         super(GroundAgentOperator, self).__init__(name)
         self._logger = setup_logging(self.name, log_file_name)
+        self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
         self._map = CarlaMap(city_name)
         self._goal_location = goal_location
         self._goal_orientation = goal_orientation
@@ -94,9 +96,9 @@ class GroundAgentOperator(Op):
             self._goal_location, self._goal_orientation, self._vehicle_pos, self._waypointer,
             self._wp_num_steer, self._wp_num_speed)
 
-        runtime = time.time() - start_time
-        self._logger.info('Waypointer {} runtime {}'.format(
-            self.name, runtime))
+        runtime = (time.time() - start_time) * 1000
+        self._csv_logger.info('{},{},{}'.format(
+            time_epoch_ms(), self.name, runtime))
 
         speed_factor, state = self.stop_for_agents(
             wp_angle, wp_vector, self._vehicles, self._pedestrians,

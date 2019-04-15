@@ -60,11 +60,18 @@ def add_carla_op(graph):
         name='carla',
         init_args={
             'flags': FLAGS,
-            'camera_setups': [('front_rgb_camera', 'SceneFinal'),
-                              ('front_depth_camera', 'Depth'),
-                              ('front_semantic_camera', 'SemanticSegmentation')],
+            'camera_setups': [('front_rgb_camera', 'SceneFinal',
+                               (FLAGS.carla_camera_image_width,
+                                FLAGS.carla_camera_image_height)),
+                              ('front_depth_camera', 'Depth',
+                               (FLAGS.carla_camera_image_width,
+                                FLAGS.carla_camera_image_height)),
+                              ('front_semantic_camera', 'SemanticSegmentation',
+                               (FLAGS.carla_camera_image_width,
+                                FLAGS.carla_camera_image_height))],
             'lidar_stream_names': [],
-            'log_file_name': FLAGS.log_file_name
+            'log_file_name': FLAGS.log_file_name,
+            'csv_file_name': FLAGS.csv_log_file_name
         },
         setup_args={
             'camera_setups': [('front_rgb_camera', 'SceneFinal'),
@@ -84,7 +91,8 @@ def add_ground_agent_op(graph, carla_op, goal_location, goal_orientation):
             'goal_location': goal_location,
             'goal_orientation': goal_orientation,
             'flags': FLAGS,
-            'log_file_name': FLAGS.log_file_name
+            'log_file_name': FLAGS.log_file_name,
+            'csv_file_name': FLAGS.csv_log_file_name
         })
     graph.connect([carla_op], [agent_op])
     graph.connect([agent_op], [carla_op])
@@ -96,9 +104,9 @@ def add_erdos_agent_op(graph,
                        goal_location,
                        goal_orientation,
                        depth_camera_name,
-                       segmentation_op,
-                       obj_detector_op,
-                       traffic_light_det_op):
+                       segmentation_ops,
+                       obj_detector_ops,
+                       traffic_light_det_ops):
     agent_op = graph.add(
         ERDOSAgentOperator,
         name='erdos_agent',
@@ -108,11 +116,13 @@ def add_erdos_agent_op(graph,
             'goal_orientation': goal_orientation,
             'depth_camera_name': depth_camera_name,
             'flags': FLAGS,
-            'log_file_name': FLAGS.log_file_name
+            'log_file_name': FLAGS.log_file_name,
+            'csv_file_name': FLAGS.csv_log_file_name
         },
         setup_args={'depth_camera_name': depth_camera_name})
-    graph.connect([carla_op, segmentation_op, obj_detector_op, traffic_light_det_op],
-                  [agent_op])
+    graph.connect(
+        [carla_op] + traffic_light_det_ops + obj_detector_ops + segmentation_ops,
+        [agent_op])
     graph.connect([agent_op], [carla_op])
     return agent_op
 
@@ -121,7 +131,9 @@ def add_carla_to_image_op(graph, carla_op):
     carla_to_image_op = graph.add(
         CarlaToImageOperator,
         name='rgb_images',
-        init_args={'log_file_name': FLAGS.log_file_name},
+        init_args={
+            'flags': FLAGS,
+            'log_file_name': FLAGS.log_file_name},
         setup_args={
             'op_name': 'rgb_images',
             'filter_name': 'front_rgb_camera'
@@ -150,7 +162,8 @@ def add_camera_video_op(graph, carla_op, name, filter_name):
     video_op = graph.add(
         VideoOperator,
         name=name,
-        init_args={'log_file_name': FLAGS.log_file_name},
+        init_args={'flags': FLAGS,
+                   'log_file_name': FLAGS.log_file_name},
         setup_args={'filter_name': filter_name})
     graph.connect([carla_op], [video_op])
     return video_op
@@ -160,7 +173,8 @@ def add_segmented_video_op(graph, carla_op):
     segmented_video_op = graph.add(
         SegmentedVideoOperator,
         name='segmented_video',
-        init_args={'log_file_name': FLAGS.log_file_name},
+        init_args={'flags': FLAGS,
+                   'log_file_name': FLAGS.log_file_name},
         setup_args={'filter_name': 'front_semantic_camera'})
     graph.connect([carla_op], [segmented_video_op])
     return segmented_video_op
@@ -189,17 +203,43 @@ def add_record_carla_op(graph, carla_op):
     graph.connect([carla_op], [record_carla_op])
 
 
-def add_detector_op(graph, camera_ops):
+def add_detector_op_helper(graph, name, model_path, gpu_memory_fraction):
     obj_detector_op = graph.add(
         DetectionOperator,
-        name='detection',
+        name=name,
         setup_args={'output_stream_name': 'obj_stream'},
         init_args={'output_stream_name': 'obj_stream',
+                   'model_path': model_path,
                    'flags': FLAGS,
-                   'log_file_name': FLAGS.log_file_name},
-        _resources = {"GPU": 0.3})
-    graph.connect(camera_ops, [obj_detector_op])
+                   'log_file_name': FLAGS.log_file_name,
+                   'csv_file_name': FLAGS.csv_log_file_name},
+        _resources = {"GPU": gpu_memory_fraction})
     return obj_detector_op
+
+
+def add_detector_ops(graph, camera_ops):
+    detector_ops = []
+    if FLAGS.detector_ssd_mobilenet_v1:
+        detector_ops.append(add_detector_op_helper(
+            graph,
+            'detector_ssd_mobilenet_v1',
+            'dependencies/data/ssd_mobilenet_v1_coco_2018_01_28/frozen_inference_graph.pb',
+            FLAGS.obj_detection_gpu_memory_fraction))
+    if FLAGS.detector_frcnn_resnet101:
+        detector_ops.append(add_detector_op_helper(
+            graph,
+            'detector_faster_rcnn_resnet101',
+            'dependencies/data/faster_rcnn_resnet101_coco_2018_01_28/frozen_inference_graph.pb',
+            FLAGS.obj_detection_gpu_memory_fraction))
+    if FLAGS.detector_ssd_resnet50_v1:
+        detector_ops.append(add_detector_op_helper(
+            graph,
+            'detector_ssd_resnet50_v1',
+            'dependencies/data/ssd_resnet50_v1_fpn_shared_box_predictor_640x640_coco14_sync_2018_07_03/frozen_inference_graph.pb',
+            FLAGS.obj_detection_gpu_memory_fraction))
+
+    graph.connect(camera_ops, detector_ops)
+    return detector_ops
 
 
 def add_traffic_light_op(graph, camera_ops):
@@ -209,13 +249,14 @@ def add_traffic_light_op(graph, camera_ops):
         setup_args={'output_stream_name': 'traffic_lights'},
         init_args={'output_stream_name': 'traffic_lights',
                    'flags': FLAGS,
-                   'log_file_name': FLAGS.log_file_name},
-        _resources = {"GPU": 0.3})
+                   'log_file_name': FLAGS.log_file_name,
+                   'csv_file_name': FLAGS.csv_log_file_name},
+        _resources = {"GPU": FLAGS.traffic_light_det_gpu_memory_fraction})
     graph.connect(camera_ops, [traffic_light_det_op])
     return traffic_light_det_op
 
 
-def add_object_tracking_op(graph, camera_ops, obj_detector_op):
+def add_object_tracking_op(graph, camera_ops, obj_detector_ops):
     tracker_op = None
     if FLAGS.tracker_type == 'cv2':
         tracker_op = graph.add(
@@ -224,7 +265,8 @@ def add_object_tracking_op(graph, camera_ops, obj_detector_op):
             setup_args={'output_stream_name': 'tracker_stream'},
             init_args={'output_stream_name': 'tracker_stream',
                        'flags': FLAGS,
-                       'log_file_name': FLAGS.log_file_name})
+                       'log_file_name': FLAGS.log_file_name,
+                       'csv_file_name': FLAGS.csv_log_file_name})
     elif FLAGS.tracker_type == 'crt':
         tracker_op = graph.add(
             TrackerCRTOperator,
@@ -232,14 +274,16 @@ def add_object_tracking_op(graph, camera_ops, obj_detector_op):
             setup_args={'output_stream_name': 'tracker_stream'},
             init_args={'output_stream_name': 'tracker_stream',
                        'flags': FLAGS,
-                       'log_file_name': FLAGS.log_file_name})
-    graph.connect(camera_ops + [obj_detector_op], [tracker_op])
+                       'log_file_name': FLAGS.log_file_name,
+                       'csv_file_name': FLAGS.csv_log_file_name},
+            _resources = {"GPU": FLAGS.obj_tracking_gpu_memory_fraction})
+    graph.connect(camera_ops + obj_detector_ops, [tracker_op])
     return tracker_op
 
 
 def add_obstacle_accuracy_op(graph,
                              camera_ops,
-                             obj_detector_op,
+                             obj_detector_ops,
                              carla_op,
                              rgb_camera_name,
                              depth_camera_name):
@@ -251,32 +295,37 @@ def add_obstacle_accuracy_op(graph,
         init_args={'rgb_camera_name': rgb_camera_name,
                    'depth_camera_name': depth_camera_name,
                    'flags': FLAGS,
-                   'log_file_name': FLAGS.log_file_name})
-    graph.connect(camera_ops + [obj_detector_op, carla_op],
+                   'log_file_name': FLAGS.log_file_name,
+                   'csv_file_name': FLAGS.csv_log_file_name})
+    graph.connect(camera_ops + obj_detector_ops + [carla_op],
                   [obstacle_accuracy_op])
     return obstacle_accuracy_op
 
 
-def add_segmentation_op(graph, camera_ops):
-    segmentation_op = None
-    if FLAGS.segmentation_type == 'drn':
-        segmentation_op = graph.add(
-            SegmentationDRNOperator,
-            name='segmentation_drn',
-            setup_args={'output_stream_name': 'segmented_stream'},
-            init_args={'output_stream_name': 'segmented_stream',
-                       'flags': FLAGS,
-                       'log_file_name': FLAGS.log_file_name},
-            _resources = {"GPU": 0.3})
-    elif FLAGS.segmentation_type == 'dla':
-        segmentation_op = graph.add(
-            SegmentationDLAOperator,
-            name='segmentation_dla',
-            setup_args={'output_stream_name': 'segmented_stream'},
-            init_args={'output_stream_name': 'segmented_stream',
-                       'flags': FLAGS,
-                       'log_file_name': FLAGS.log_file_name},
-            _resources = {"GPU": 0.3})
+def add_segmentation_drn_op(graph, camera_ops):
+    segmentation_op = graph.add(
+        SegmentationDRNOperator,
+        name='segmentation_drn',
+        setup_args={'output_stream_name': 'segmented_stream'},
+        init_args={'output_stream_name': 'segmented_stream',
+                   'flags': FLAGS,
+                   'log_file_name': FLAGS.log_file_name,
+                   'csv_file_name': FLAGS.csv_log_file_name},
+        _resources = {"GPU": FLAGS.segmentation_drn_gpu_memory_fraction})
+    graph.connect(camera_ops, [segmentation_op])
+    return segmentation_op
+
+
+def add_segmentation_dla_op(graph, camera_ops):
+    segmentation_op = graph.add(
+        SegmentationDLAOperator,
+        name='segmentation_dla',
+        setup_args={'output_stream_name': 'segmented_stream'},
+        init_args={'output_stream_name': 'segmented_stream',
+                   'flags': FLAGS,
+                   'log_file_name': FLAGS.log_file_name,
+                   'csv_file_name': FLAGS.csv_log_file_name},
+        _resources = {"GPU": FLAGS.segmentation_dla_gpu_memory_fraction})
     graph.connect(camera_ops, [segmentation_op])
     return segmentation_op
 
@@ -286,7 +335,8 @@ def add_segmentation_eval_op(graph, carla_op, segmentation_op,
     segmentation_eval_op = graph.add(
         SegmentationEvalOperator,
         name='segmentation_eval',
-        init_args={'log_file_name': FLAGS.log_file_name},
+        init_args={'log_file_name': FLAGS.log_file_name,
+                   'csv_file_name': FLAGS.csv_log_file_name},
         setup_args={'ground_stream_name': ground_stream_name,
                     'segmented_stream_name': segmented_stream_name})
     graph.connect([carla_op, segmentation_op], [segmentation_eval_op])
@@ -298,24 +348,27 @@ def add_segmentation_ground_eval_op(graph, carla_op, ground_stream_name):
         SegmentationEvalGroundOperator,
         name='segmentation_ground_eval',
         init_args={'flags': FLAGS,
-                   'log_file_name': FLAGS.log_file_name},
+                   'log_file_name': FLAGS.log_file_name,
+                   'csv_file_name': FLAGS.csv_log_file_name},
         setup_args={'ground_stream_name': ground_stream_name})
     graph.connect([carla_op], [seg_eval_op])
     return seg_eval_op
 
 
-def add_fusion_ops(graph, carla_op, obj_detector_op):
+def add_fusion_ops(graph, carla_op, obj_detector_ops):
     fusion_op = graph.add(
         FusionOperator,
         name='fusion',
         setup_args={'output_stream_name': 'fusion_vehicles'},
-        init_args={'output_stream_name': 'fusion_vehicles',
-                   'log_file_name': FLAGS.log_file_name})
+        init_args={'flags': FLAGS,
+                   'output_stream_name': 'fusion_vehicles',
+                   'log_file_name': FLAGS.log_file_name,
+                   'csv_file_name': FLAGS.csv_log_file_name})
     fusion_verification_op = graph.add(
         FusionVerificationOperator,
         name='fusion_verifier',
         init_args={'log_file_name': FLAGS.log_file_name})
-    graph.connect([obj_detector_op, carla_op], [fusion_op])
+    graph.connect(obj_detector_ops + [carla_op], [fusion_op])
     graph.connect([fusion_op, carla_op], [fusion_verification_op])
     return (fusion_op, fusion_verification_op)
 
@@ -388,38 +441,46 @@ def main(argv):
     # planner_streams = planner_op([carla_op.get_output_stream('vehicle_pos')])
     # control_streams = control_op(planner_streams)
 
-    if FLAGS.segmentation:
-        segmentation_op = add_segmentation_op(graph, camera_ops)
+    segmentation_ops = []
+    if FLAGS.segmentation_drn:
+        segmentation_op = add_segmentation_drn_op(graph, camera_ops)
+        segmentation_ops.append(segmentation_op)
         if FLAGS.evaluate_segmentation:
             eval_segmentation_op = add_segmentation_eval_op(
                 graph, carla_op, segmentation_op,
                 'front_semantic_camera', 'segmented_stream')
 
-    if FLAGS.eval_ground_truth_segmentation:
-        segmentation_ground_eval_op = add_segmentation_ground_eval_op(
-            graph, carla_op, 'front_semantic_camera')
+    if FLAGS.segmentation_dla:
+        segmentation_op = add_segmentation_dla_op(graph, camera_ops)
+        segmentation_ops.append(segmentation_op)
+        if FLAGS.evaluate_segmentation:
+            eval_segmentation_op = add_segmentation_eval_op(
+                graph, carla_op, segmentation_op,
+                'front_semantic_camera', 'segmented_stream')
 
+    obj_detector_ops = []
     if FLAGS.obj_detection:
-        obj_detector_op = add_detector_op(graph, camera_ops)
+        obj_detector_ops = add_detector_ops(graph, camera_ops)
 
         if FLAGS.evaluate_obj_detection:
             obstacle_accuracy_op = add_obstacle_accuracy_op(graph,
                                                             camera_ops,
-                                                            obj_detector_op,
+                                                            obj_detector_ops,
                                                             carla_op,
                                                             'front_rgb_camera',
                                                             'front_depth_camera')
 
         if FLAGS.obj_tracking:
-            tracker_op = add_object_tracking_op(graph, camera_ops, obj_detector_op)
+            tracker_op = add_object_tracking_op(graph, camera_ops, obj_detector_ops)
 
         if FLAGS.fusion:
             (fusion_op, fusion_verification_op) = add_fusion_ops(graph,
                                                                  carla_op,
-                                                                 obj_detector_op)
+                                                                 obj_detector_ops)
 
+    traffic_light_det_ops = []
     if FLAGS.traffic_light_det:
-        traffic_light_det_op = add_traffic_light_op(graph, camera_ops)
+        traffic_light_det_ops.append(add_traffic_light_op(graph, camera_ops))
 
     goal_location = (234.269989014, 59.3300170898, 39.4306259155)
     goal_orientation = (1.0, 0.0, 0.22)
@@ -437,9 +498,9 @@ def main(argv):
                                       goal_location,
                                       goal_orientation,
                                       'front_depth_camera',
-                                      segmentation_op,
-                                      obj_detector_op,
-                                      traffic_light_det_op)
+                                      segmentation_ops,
+                                      obj_detector_ops,
+                                      traffic_light_det_ops)
 
     graph.execute(FLAGS.framework)
 

@@ -11,10 +11,10 @@ from carla.image_converter import depth_to_array
 from carla.sensor import Camera
 
 from erdos.op import Op
-from erdos.utils import setup_logging
+from erdos.utils import setup_csv_logging, setup_logging
 
 import messages
-from utils import add_bounding_box, get_3d_world_position, map_ground_3D_transform_to_2D, map_ground_bounding_box_to_2D, point_cloud_from_rgbd
+from utils import add_bounding_box, get_3d_world_position, map_ground_3D_transform_to_2D, map_ground_bounding_box_to_2D, point_cloud_from_rgbd, get_pedestrian_bounding_box, get_bounding_box_sampling_points, have_same_depth
 
 
 class ObstacleAccuracyOperator(Op):
@@ -23,10 +23,12 @@ class ObstacleAccuracyOperator(Op):
                  name, rgb_camera_name, depth_camera_name,
                  flags,
                  log_file_name=None,
+                 csv_file_name=None,
                  rgbd_max_range=1000):
         super(ObstacleAccuracyOperator, self).__init__(name)
         self._flags = flags
         self._logger = setup_logging(self.name, log_file_name)
+        self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
         self._rgbd_max_range = rgbd_max_range
         self._bridge = CvBridge()
         self._world_transform = []
@@ -165,20 +167,16 @@ class ObstacleAccuracyOperator(Op):
         self._rgb_imgs = self._rgb_imgs[1:]
 
         pedestrian_corners = []
-        pedestrian_index = 1
-        for (pd_transform, bounding_box, fwd_speed) in pedestrians:
-            corners = map_ground_bounding_box_to_2D(rgb_img,
-                                                   depth_array,
-                                                   world_transform,
-                                                   pd_transform,
-                                                   bounding_box,
-                                                   self._rgb_transform,
-                                                   self._rgb_intrinsic,
-                                                   self._rgb_img_size)
+        for (pedestrian_index, pd_transform, bounding_box,
+             fwd_speed) in pedestrians:
+            corners = map_ground_bounding_box_to_2D(
+                rgb_img, depth_array, world_transform, pd_transform,
+                bounding_box, self._rgb_transform, self._rgb_intrinsic,
+                self._rgb_img_size)
 
             if len(corners) == 8:
                 self._logger.info(
-                    "\n\nPrinting for pedestrian {} at timestamp {}".format(
+                    "Printing for pedestrian {} at timestamp {}".format(
                         pedestrian_index, timestamp))
                 self._logger.info(
                     "The ground truth bounding box is \n{}".format(
@@ -191,120 +189,57 @@ class ObstacleAccuracyOperator(Op):
                     "The four corners in the second plane are: {}".format(
                         corners_plane_2))
 
-                # Figure out the opposite ends of the rectangle.
-                # Our 2D mapping doesn't return perfect rectangular coordinates
-                # and also doesn't return them in clockwise order.
-                max_distance = 0
-                opp_ends_plane_2 = None
-                for (a, b) in combinations(corners_plane_2, r=2):
-                    if abs(a[0] - b[0]) <= 0.8 or abs(a[1] - b[1]) <= 0.8:
-                        # The points are too close, they may be lying on the
-                        # same axis. Move forward.
-                        pass
-                    else:
-                        # The points do not possibly lie on the same axis.
-                        # Choose the two points which are the farthest.
-                        distance = (b[0] - a[0])**2 + (b[1] - a[1])**2
-                        if distance > max_distance:
-                            max_distance = distance
-                            if a[0] < b[0] and a[1] < b[1]:
-                                opp_ends_plane_2 = (a, b)
-                            else:
-                                opp_ends_plane_2 = (b, a)
-
                 # Draw the image and mark it with the timestamp.
                 draw = ImageDraw.Draw(rgb_img)
                 draw.text((5, 5),
                           "Timestamp: {}".format(timestamp),
                           fill='black')
 
-                # We were able to find two points far enough to be considered
-                # as possible bounding boxes.
-                if opp_ends_plane_2:
-                    a, b = opp_ends_plane_2
-                    self._logger.info(
-                        "The minimum and the maximum in the second plane is: ")
-                    self._logger.info("Point 1: {}".format(a))
-                    self._logger.info("Point 2: {}".format(b))
+                ends = get_pedestrian_bounding_box(corners)
+                if ends:
+                    points = get_bounding_box_sampling_points(ends)
+                    # Filter the points inside the image.
+                    inside_image = [
+                        (x, y, z)
+                        for (x, y, z) in points if self.__inside_image(
+                            x, y, self._rgb_img_size[0], self._rgb_img_size[1])
+                    ]
 
-                    # Find the middle point of the rectangle.
-                    middle_point = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2,
-                                    b[2].flatten().item(0))
-                    if self.__inside_image(middle_point[0], middle_point[1],
-                                           self._rgb_img_size[0],
-                                           self._rgb_img_size[1]):
-                        # The middle point was inside the image, sample around
-                        # the image to see if the object inside is visible
-                        # in our view.
-                        sampling_points = [
-                            (middle_point[0] + 3, middle_point[1],
-                             middle_point[2]),
-                            (middle_point[0] + 1.5, middle_point[1] + 1.5,
-                             middle_point[2]),
-                            (middle_point[0] + 1.5, middle_point[1] - 1.5,
-                             middle_point[2]),
-                            (middle_point[0] - 3, middle_point[1],
-                             middle_point[2]),
-                            (middle_point[0] - 1.5, middle_point[1] + 1.5,
-                             middle_point[2]),
-                            (middle_point[0] - 1.5, middle_point[1] - 1.5,
-                             middle_point[2]),
-                            (middle_point[0], middle_point[1], middle_point[2])
-                        ]
-
-                        # Remove all the sampling points that fall outside
-                        # the image.
-                        inside_sampling = []
-                        for x, y, z in sampling_points:
-                            if self.__inside_image(x, y,
-                                                   self._rgb_img_size[0],
-                                                   self._rgb_img_size[1]):
-                                inside_sampling.append((x, y, z))
-
-                        # Find the number of points that have a depth within
-                        # a threshold from what is visible from our
-                        # perspective.
-                        results = [
-                            self.have_same_depth(x, y, z, depth_array, 8.0)
-                            for x, y, z in inside_sampling
-                        ]
-
-                        # BUG (sukritk) :: In the case of collisions, Carla
-                        # does not update the pedestrian bounding box and
-                        # we incorrectly draw the bounding box even if the
-                        # pedestrian is not in our field of view until the
-                        # world removes the pedestrian.
-                        if self.pedestrian_to_history_map.get(
-                                pedestrian_index):
-                            # If the pedestrian was inside the image in the
-                            # last timestamp, check if 40% of the points we
-                            # sampled are inside the image.
-                            if len(inside_sampling
-                                   ) >= 0.4 * len(sampling_points):
-                                pedestrian_corners.append((a[0], a[1], b[0],
-                                                           b[1]))
-                                draw.rectangle((tuple(map(int, a[:2])),
-                                                tuple(map(int, b[:2]))),
-                                               width=4,
-                                               outline='green')
-                                draw.text((a[0] + 1, a[1] + 1),
-                                          str(pedestrian_index))
-                                self._logger.info(
-                                    "[{}, {}] Pedestrian transform is: {}".
-                                    format(pedestrian_index, timestamp,
-                                           pd_transform))
-                            else:
-                                # Majority of the bounding box is out of the
-                                # image, do not draw the pedestrian.
-                                self.pedestrian_to_history_map[
-                                    pedestrian_index] = False
+                    # BUG (sukritk) :: In the case of collisions, Carla
+                    # does not update the pedestrian bounding box and
+                    # we incorrectly draw the bounding box even if the
+                    # pedestrian is not in our field of view until the
+                    # world removes the pedestrian.
+                    if self.pedestrian_to_history_map.get(pedestrian_index):
+                        # If the pedestrian was inside the image in the
+                        # last timestamp, check if 40% of the points we
+                        # sampled are inside the image.
+                        if len(inside_image) >= 0.4 * len(points):
+                            draw.rectangle((tuple(map(int, ends[0][:2])),
+                                            tuple(map(int, ends[1][:2]))),
+                                           width=4,
+                                           outline='green')
+                            draw.text((ends[0][0] + 1, ends[0][1] + 1),
+                                      str(pedestrian_index))
+                            self._logger.info(
+                                "[{}, {}] Pedestrian transform is: {}".format(
+                                    pedestrian_index, timestamp, pd_transform))
                         else:
-                            # The pedestrian was not inside the image in the
-                            # last timestamp. If more than 40% of the points
-                            # inside the image have the same depth as visible
-                            # from our viewpoint, update the map.
-                            self.pedestrian_to_history_map[pedestrian_index] = \
-                                    results.count(True) >= 0.4 * len(results)
+                            # Majority of the bounding box is out of the
+                            # image, do not draw the pedestrian.
+                            self.pedestrian_to_history_map[
+                                pedestrian_index] = False
+                    else:
+                        same_depth_points = [
+                            have_same_depth(x, y, z, depth_array, 8.0)
+                            for (x, y, z) in inside_image
+                        ]
+                        # The pedestrian was not inside the image in the
+                        # last timestamp. If more than 40% of the points
+                        # inside the image have the same depth as visible
+                        # from our viewpoint, update the map.
+                        self.pedestrian_to_history_map[pedestrian_index] = \
+                                same_depth_points.count(True) >= 0.4 * len(same_depth_points)
                 else:
                     self._logger.info(
                         "Could not find far enough points in second plane.")
@@ -312,17 +247,16 @@ class ObstacleAccuracyOperator(Op):
                 self._logger.info(
                     "The pedestrian {} returned no coordinates.".format(
                         pedestrian_index))
-            pedestrian_index += 1
 
         # Compute the mIOU for the person category.
-        detection_bboxes = [
-            bbox for bbox, _, category in msg.data if category == 'person'
-        ]
-        if len(detection_bboxes) > 0 and len(pedestrian_corners) > 0:
-            person_miou = self.__compute_miou(detection_bboxes,
-                                              pedestrian_corners)
-            self._logger.info(
-                "The mIOU for the person category was: {}".format(person_miou))
+        # detection_bboxes = [
+        # bbox for bbox, _, category in msg.data if category == 'person'
+        # ]
+        # if len(detection_bboxes) > 0 and len(pedestrian_corners) > 0:
+        # person_miou = self.__compute_miou(detection_bboxes,
+        # pedestrian_corners)
+        # self._logger.info(
+        # "The mIOU for the person category was: {}".format(person_miou))
 
         for (vec_transform, bounding_box, fwd_speed) in vehicles:
             corners = map_ground_bounding_box_to_2D(
@@ -401,7 +335,7 @@ class ObstacleAccuracyOperator(Op):
                 y = int(pos[1])
                 z = pos[2].flatten().item(0)
                 #if self.have_same_depth(x, y, z, depth_array, 1.0):
-                    # TODO(ionel): Figure out bounding box size.  add_bounding_box(rgb_img, (x - 2, x + 2, y - 2, y + 2), color='yellow') 
+                # TODO(ionel): Figure out bounding box size.  add_bounding_box(rgb_img, (x - 2, x + 2, y - 2, y + 2), color='yellow')
                 # (x3d, y3d, z3d) = get_3d_world_position(
                 #     x, y, self._depth_img_size, depth_img, self._depth_transform, world_transform)
 

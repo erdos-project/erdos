@@ -8,22 +8,28 @@ flags.DEFINE_bool('replay', False,
                   ('True if run in replay mode, otherwise run '
                    'Carla in server mode using `./CarlaUE4.sh -carla-server`'))
 flags.DEFINE_string('log_file_name', None, 'Name of the log file')
+flags.DEFINE_string('csv_log_file_name', None,
+                    'csv file into which to log runtime stats')
+flags.DEFINE_bool('fail_on_message_loss', True,
+                  'True to enable operator failure when messages are lost')
 flags.DEFINE_bool('ground_agent_operator', True,
                   'True to use the ground truth controller')
 
 # Modules to enable.
-flags.DEFINE_bool('segmentation', False,
-                  'True to enable segmantation operator')
+flags.DEFINE_bool('segmentation_drn', False,
+                  'True to enable DRN segmantation operator')
+flags.DEFINE_bool('segmentation_dla', False,
+                  'True to enable DLA segmantation operator')
 flags.DEFINE_bool('segmentation_gpu', True,
                   'True, if segmentation should use a GPU')
-flags.DEFINE_string('segmentation_type', 'drn', 'Segmentation type: drn | dla')
 flags.DEFINE_bool('obj_detection', False,
                   'True to enable object detection operator')
-flags.DEFINE_string(
-    'detector_model_path',
-    'dependencies/data/ssd_mobilenet_v1_coco_2018_01_28/frozen_inference_graph.pb',
-    'Path to the model protobuf')
-#DETECTOR_MODEL_PATH = 'dependencies/faster_rcnn_resnet101_coco_2018_01_28/frozen_inference_graph.pb'
+flags.DEFINE_bool('detector_ssd_mobilenet_v1', False,
+                  'True to enable SSD mobilenet v1 detector')
+flags.DEFINE_bool('detector_frcnn_resnet101', False,
+                  'True to enable faster RCNN resnet101 detector')
+flags.DEFINE_bool('detector_ssd_resnet50_v1', False,
+                  'True to enable SSD resnet50 v1 detector')
 flags.DEFINE_float('detector_min_score_threshold', 0.5,
                    'Min score threshold for bounding box')
 flags.DEFINE_string('path_coco_labels', 'dependencies/data/coco.names',
@@ -100,6 +106,10 @@ flags.DEFINE_bool('carla_random_player_start', True,
                   'True to randomly assign a car to the player')
 flags.DEFINE_integer('carla_start_player_num', 0,
                      'Number of the assigned start player')
+flags.DEFINE_integer('carla_camera_image_width', 800,
+                     'Carla camera image width')
+flags.DEFINE_integer('carla_camera_image_height', 600,
+                     'Carla camera image height')
 
 # Visualizing operators
 flags.DEFINE_bool('visualize_depth_camera', False,
@@ -129,6 +139,18 @@ flags.DEFINE_integer('eval_ground_truth_ignore_first', 5000,
 flags.DEFINE_integer('eval_ground_truth_max_latency', 2000,
                      'Max latency to evaluate in ground truth experiments')
 
+# GPU memory fractions.
+flags.DEFINE_float('obj_detection_gpu_memory_fraction', 0.3,
+                   'GPU memory fraction allocated to each obj detector operator')
+flags.DEFINE_float('obj_tracking_gpu_memory_fraction', 0.3,
+                   'GPU memory fraction allocated to each obj tracker operator')
+flags.DEFINE_float('traffic_light_det_gpu_memory_fraction', 0.3,
+                   'GPU memory fraction allocated to each traffic light detector')
+flags.DEFINE_float('segmentation_dla_gpu_memory_fraction', 0.2,
+                   'GPU memory fraction allocated to DLA segmentation')
+flags.DEFINE_float('segmentation_drn_gpu_memory_fraction', 0.2,
+                   'GPU memory fraction allocated to DRN segmentation')
+
 # Recording operators
 flags.DEFINE_bool('record_depth_camera', False, 'True to record depth camera')
 flags.DEFINE_bool('record_lidar', False, 'True to record lidar')
@@ -157,13 +179,21 @@ flags.register_multi_flags_validator(
     lambda flags_dict: not (flags_dict['replay'] and flags_dict['fusion']),
     message='--fusion cannot be set when --replay is set')
 flags.register_multi_flags_validator(
-    ['ground_agent_operator', 'obj_detection', 'traffic_light_det', 'segmentation'],
+    ['ground_agent_operator', 'obj_detection', 'traffic_light_det', 'segmentation_drn', 'segmentation_dla'],
     lambda flags_dict: (flags_dict['ground_agent_operator'] or
                         (flags_dict['obj_detection'] and
                          flags_dict['traffic_light_det'] and
-                         flags_dict['segmentation'])),
+                         (flags_dict['segmentation_drn'] or flags_dict['segmentation_dla']))),
     message='ERDOS agent requires obj detection, segmentation and traffic light detection')
-
+flags.register_multi_flags_validator(
+    ['obj_detection', 'detector_ssd_mobilenet_v1',
+     'detector_frcnn_resnet101', 'detector_ssd_resnet50_v1'],
+    lambda flags_dict: (not flags_dict['obj_detection'] or
+                        (flags_dict['obj_detection'] and
+                         (flags_dict['detector_ssd_mobilenet_v1'] or
+                          flags_dict['detector_frcnn_resnet101'] or
+                          flags_dict['detector_ssd_resnet50_v1']))),
+    message='a detector must be active when --obj_detection is set')
 
 def tracker_flag_validator(flags_dict):
     if flags_dict['obj_tracking']:
