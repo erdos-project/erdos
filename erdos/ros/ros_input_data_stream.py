@@ -64,19 +64,22 @@ class ROSInputDataStream(DataStream):
             # Also, maintain the lowest watermark observed.
             low_watermark = msg.timestamp
             for stream, watermark in self.op._stream_to_high_watermark.items():
-                # TODO(yika): big HACK on ignoring watermark sent on stream with label 'no_watermark' = true
-                if stream not in self.op._stream_ignore_watermarks:
-                    if stream != msg.stream_name:
-                        if not watermark or watermark < msg.timestamp:
-                            return
-                        if low_watermark > watermark:
-                            low_watermark = watermark
+                # TODO(yika): big HACK on ignoring watermark sent on stream
+                # with label 'no_watermark' = true
+                if (stream not in self.op._stream_ignore_watermarks and
+                    stream != msg.stream_name):
+                    if not watermark or watermark < msg.timestamp:
+                        return
+                    if low_watermark > watermark:
+                        low_watermark = watermark
             msg = WatermarkMessage(low_watermark)
 
-            # Checkpoint
-            if self.op._checkpoint_enable:
-                if self.op.checkpoint_condition(msg.timestamp):
-                    self.op.checkpoint()
+            # Checkpoint.
+            # Note: For correctness reasons, we can only flow watermarks after
+            # we checkpoint.
+            if (self.op._checkpoint_enable and
+                self.op.checkpoint_condition(msg.timestamp)):
+                self.op.checkpoint(msg.timestamp)
 
             # Call the required callbacks.
             for on_watermark_callback in self.completion_callbacks:

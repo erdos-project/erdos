@@ -71,12 +71,7 @@ class Source(Op):
         self._reset_progress(Timestamp(coordinates=[0]))
         self._logger.info("Rollback to START OVER")
 
-    def checkpoint_condition(self, timestamp):
-        if timestamp.coordinates[0] % self._checkpoint_freq == 0:
-            return True
-        return False
-
-    def checkpoint(self):
+    def checkpoint(self, timestamp):
         snapshot_id = self._state[-1]  # latest received seq num/timestamp
         assert snapshot_id not in self._checkpoints
         self._checkpoints[snapshot_id] = copy(self._state)
@@ -90,16 +85,16 @@ class Source(Op):
             self._state.append(self._seq_num)
 
             # Send msg and watermark
-            output_msg = Message(self._seq_num,
-                                 Timestamp(coordinates=[self._seq_num]))
-            watermark = WatermarkMessage(Timestamp(coordinates=[self._seq_num]))
+            timestamp = Timestamp(coordinates=[self._seq_num])
+            output_msg = Message(self._seq_num, timestamp)
+            watermark = WatermarkMessage(timestamp)
             pub = self.get_output_stream('input_stream')
             pub.send(output_msg)
             pub.send(watermark)
 
             # Checkpoint, source needs to write its own checkpoint
             if self._seq_num % self._checkpoint_freq == 0:
-                self.checkpoint()
+                self.checkpoint(timestamp)
 
             self._seq_num += 1
             time.sleep(self._time_gap)

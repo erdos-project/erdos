@@ -1,10 +1,11 @@
+import checkpoint_util
+from collections import deque
 from copy import copy
+
 from erdos.data_stream import DataStream
 from erdos.op import Op
 from erdos.utils import setup_logging
 from erdos.timestamp import Timestamp
-import checkpoint_util
-from collections import deque
 
 
 class FailureOperator(Op):
@@ -20,6 +21,8 @@ class FailureOperator(Op):
         self._logger = setup_logging(self.name, log_file_name)
         self._state_size = state_size
         self._state = deque()
+        # XXX(ionel): _checkpoints could be a queue, but we kept it a dict
+        # to be able to easily do asserts.
         self._checkpoints = dict()
         self._seq_num = None
 
@@ -46,37 +49,44 @@ class FailureOperator(Op):
             return True
         return False
 
-    def checkpoint(self):
+    def checkpoint(self, timestamp):
+        # TODO(ionel): Should use timestamp instead of snapshot_id.
         # Override base class checkpoint function
         snapshot_id = self._state[-1]  # latest received seq num/timestamp
         assert snapshot_id not in self._checkpoints
         self._checkpoints[snapshot_id] = copy(self._state)
-        self._logger.info('checkpointed at latest stored data %d' % snapshot_id)
+        self._logger.info('Checkpointed at {}'.format(timestamp))
+
+    def restore(self, timestamp):
+        if timestamp is None:
+            # Sink did not snapshot anything
+            self.rollback_to_beginning()
+        else:
+            # TODO(ionel): The logic for prunning checkpoints and resetting
+            # progress should happen in ERDOS, not in user land.
+            timestamp = int(timestamp)
+            # Find snapshot id that is the closest to and smaller/equal to the timestamp
+            ids = sorted(self._checkpoints.keys())
+            timestamp = [id for id in ids if id <= timestamp][-1]
+
+            # Reset watermark
+            self._reset_progress(Timestamp(coordinates=[timestamp]))
+
+            # Rollback states
+            self._seq_num = timestamp + 1
+            self._state = self._checkpoints[timestamp]
+
+            # Remove all snapshots later than the rollback point
+            pop_ids = [k for k in self._checkpoints if k > self._seq_num]
+            for id in pop_ids:
+                self._checkpoints.pop(id)
+            self._logger.info("Rollback to SNAPSHOT ID %d" % timestamp)
 
     def on_rollback_msg(self, msg):
         (control_msg, rollback_id) = msg.data
         if control_msg == checkpoint_util.CheckpointControllerCommand.ROLLBACK:
-            if rollback_id is None:
-                # Sink did not snapshot anything
-                self.rollback_to_beginning()
-            else:
-                rollback_id = int(rollback_id)
-                # Find snapshot id that is the closest to and smaller/equal to the rollback_id
-                ids = sorted(self._checkpoints.keys())
-                rollback_id = [id for id in ids if id <= rollback_id][-1]
-
-                # Reset watermark
-                self._reset_progress(Timestamp(coordinates=[rollback_id]))
-
-                # Rollback states
-                self._seq_num = rollback_id + 1
-                self._state = self._checkpoints[rollback_id]
-
-                # Remove all snapshots later than the rollback point
-                pop_ids = [k for k in self._checkpoints if k > self._seq_num]
-                for id in pop_ids:
-                    self._checkpoints.pop(id)
-                self._logger.info("Rollback to SNAPSHOT ID %d" % rollback_id)
+            # TODO(ionel): Should pass timestamp.
+            self.restore(rollback_id)
 
     def rollback_to_beginning(self):
         # Assume sink didn't process any messages, so start over

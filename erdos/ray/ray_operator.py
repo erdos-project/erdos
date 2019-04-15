@@ -74,14 +74,24 @@ class RayOperator(object):
         # Also, maintain the lowest watermark observed.
         low_watermark = msg.timestamp
         for stream, watermark in self._op._stream_to_high_watermark.items():
-            if stream != msg.stream_name:
+            # TODO(yika): big HACK on ignoring watermark sent on stream
+            # with label 'no_watermark' = true
+            if (stream not in self.op._stream_ignore_watermarks and
+                stream != msg.stream_name):
                 if not watermark or watermark < msg.timestamp:
                     return
                 if low_watermark > watermark:
                     low_watermark = watermark
         new_msg = WatermarkMessage(low_watermark)
         new_msg.stream_uid = msg.stream_uid
-        
+
+        # Checkpoint.
+        # Note: For correctness reasons, we can only flow watermarks after
+        # we checkpoint.
+        if (self.op._checkpoint_enable and
+            self.op.checkpoint_condition(msg.timestamp)):
+            self.op.checkpoint(msg.timestamp)
+
         # Call the required callbacks.
         for cb in self._completion_callbacks.get(new_msg.stream_uid, []):
             cb(new_msg)

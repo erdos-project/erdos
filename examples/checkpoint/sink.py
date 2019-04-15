@@ -48,7 +48,7 @@ class Sink(Op):
             self._state.popleft()
         self._state.append(self._seq_num)
 
-    def checkpoint(self):
+    def checkpoint(self, timestamp):
         # Override base class checkpoint function
         snapshot_id = self._state[-1]  # latest received seq num/timestamp
         assert snapshot_id not in self._checkpoints
@@ -59,30 +59,36 @@ class Sink(Op):
         snapshot_msg = Message(snapshot_id, timestamp=None)
         self.get_output_stream("sink_snapshot").send(snapshot_msg)
 
+    def restore(self, timestamp):
+        if timestamp is None:
+            # Sink did not snapshot anything
+            self.rollback_to_beginning()
+        else:
+            # TODO(ionel): The logic for prunning checkpoints and resetting
+            # progress should happen in ERDOS, not in user land.
+            timestamp = int(timestamp)
+            # Find snapshot id that is the closest to and smaller/equal to the timestamp
+            ids = sorted(self._checkpoints.keys())
+            timestamp = [id for id in ids if id <= timestamp][-1]
+
+            # Reset watermark
+            self._reset_progress(Timestamp(coordinates=[timestamp]))
+
+            # Rollback states
+            self._seq_num = timestamp + 1
+            self._state = self._checkpoints[timestamp]
+
+            # Remove all snapshots later than the rollback point
+            pop_ids = [k for k in self._checkpoints if k > self._seq_num]
+            for id in pop_ids:
+                self._checkpoints.pop(id)
+            self._logger.info("Rollback to SNAPSHOT ID %d" % timestamp)
+
     def on_rollback_msg(self, msg):
         (control_msg, rollback_id) = msg.data
         if control_msg == checkpoint_util.CheckpointControllerCommand.ROLLBACK:
-            if rollback_id is None:
-                # Sink did not snapshot anything
-                self.rollback_to_beginning()
-            else:
-                rollback_id = int(rollback_id)
-                # Find snapshot id that is the closest to and smaller/equal to the rollback_id
-                ids = sorted(self._checkpoints.keys())
-                rollback_id = [id for id in ids if id <= rollback_id][-1]
-
-                # Reset watermark
-                self._reset_progress(Timestamp(coordinates=[rollback_id]))
-
-                # Rollback states
-                self._seq_num = rollback_id + 1
-                self._state = self._checkpoints[rollback_id]
-
-                # Remove all snapshots later than the rollback point
-                pop_ids = [k for k in self._checkpoints if k > self._seq_num]
-                for id in pop_ids:
-                    self._checkpoints.pop(id)
-                self._logger.info("Rollback to SNAPSHOT ID %d" % rollback_id)
+            # TODO(ionel): Should pass timestamp.
+            self.restore(rollback_id)
 
     def rollback_to_beginning(self):
         # Assume sink didn't process any messages, so start over

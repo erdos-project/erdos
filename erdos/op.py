@@ -101,9 +101,25 @@ class Op(object):
             return True
         return False
 
-    def checkpoint(self):
-        """ User override
-            If checkpoint_enable=True and , this function will be invoked upon every watermark message received
+    def checkpoint(self, timestamp):
+        """ Provided by the user to checkpoint state.
+
+        Required user override.
+
+        Args:
+             timestamp: the timestamp at which which checkpoint_condition
+                 evaluated to True.
+        """
+        pass
+
+    def restore(self, timestamp):
+        """ Provided by the user to restore state from a checkpoint.
+
+        Required user override.
+
+        Args:
+             timestamp: the timestamp at which which checkpoint_condition
+                 evaluated to True.
         """
         pass
 
