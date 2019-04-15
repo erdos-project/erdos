@@ -68,7 +68,6 @@ class ROSInputDataStream(DataStream):
                 if stream not in self.op._stream_ignore_watermarks:
                     if stream != msg.stream_name:
                         if not watermark or watermark < msg.timestamp:
-                            print("Other input stream has watermark None or smaller than current timestamp")
                             return
                         if low_watermark > watermark:
                             low_watermark = watermark

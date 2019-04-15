@@ -70,7 +70,7 @@ def run_graph(argv):
     graph.connect([upstream_op], [failure_op])
     graph.connect([failure_op], [sink_op])
     graph.connect([sink_op], [controller_op])
-    graph.connect([controller_op], [upstream_op, failure_op])
+    graph.connect([controller_op], [upstream_op])
 
     # Execute Graph
     graph.execute(FLAGS.framework)

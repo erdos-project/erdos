@@ -1,7 +1,6 @@
 from erdos.data_stream import DataStream
 from erdos.op import Op
 from erdos.utils import setup_logging
-import upstream_util
 
 
 class FailureOperator(Op):
@@ -14,29 +13,11 @@ class FailureOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams):
-        input_streams \
-            .filter(upstream_util.is_not_progress_stream) \
-            .filter(upstream_util.is_not_failure_stream) \
-            .add_callback(FailureOperator.on_msg)
-        input_streams\
-            .filter(upstream_util.is_failure_stream)\
-            .add_callback(FailureOperator.on_fail_msg)
+        input_streams.add_callback(FailureOperator.on_msg)
         return [DataStream(name="failure_out")]
 
     def on_msg(self, msg):
-        if not self._failed:
-            # Send msg
-            self.get_output_stream("failure_out").send(msg)
-
-    def on_fail_msg(self, msg):
-        if msg.data == upstream_util.UpstreamControllerCommand.FAIL:
-            self._failed = True
-            self._logger.info("Failure op failed by controller.")
-        elif self._failed and msg.data == upstream_util.UpstreamControllerCommand.RECOVER:
-            self._failed = False
-            self._logger.info("Failed op recovered by controller.")
-        else:
-            self._logger.fatal('Unexpected control message {}'.format(msg))
+        self.get_output_stream("failure_out").send(msg)
 
     def execute(self):
         self.spin()
