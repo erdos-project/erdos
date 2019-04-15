@@ -29,7 +29,7 @@ class ControllerOperator(Op):
     def on_watermark_msg(self, msg):
         # Controller receives snapshot ID from sink every sink takes one
         progress = msg.timestamp.coordinates[0]
-        self._logger.info('received progress %d' % progress)
+        # self._logger.info('received progress %d' % progress)
         msg = Message((upstream_util.UpstreamControllerCommand.PROGRESS, progress),
                       Timestamp(coordinates=[0]))
         self.get_output_stream('progress_stream').send(msg)
