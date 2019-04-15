@@ -19,7 +19,7 @@ class Op(object):
         freq_actor: A Ray actor used for periodic tasks.
     """
 
-    def __init__(self, name, checkpoint_enable=False, checkpoint_freq=None):
+    def __init__(self, name):
         self.name = name
         self.input_streams = []
         self.output_streams = {}
@@ -27,11 +27,6 @@ class Op(object):
         self.progress_tracker = None
         self.framework = None
         self._stream_to_high_watermark = {}
-        self._checkpoint_enable = checkpoint_enable
-        self._checkpoint_freq = checkpoint_freq
-        if self._checkpoint_enable:
-            assert self._checkpoint_freq is not None
-        self._stream_ignore_watermarks = set()  # input streams that do not send watermarks
 
     def get_output_stream(self, name):
         """Returns the output stream matching name"""
@@ -83,27 +78,6 @@ class Op(object):
     def log_event(self, processing_time, timestamp, log_message=None):
         pass
 
-    def checkpoint_condition(self, timestamp):
-        """
-        User Override: if holds True, checkpoint function will be invoked
-        :param timestamp: watermark timestamp
-        """
-        if timestamp.coordinates[0] % self._checkpoint_freq == 0:
-            return True
-        return False
-
-    def checkpoint(self):
-        """ User override
-            If checkpoint_enable=True and , this function will be invoked upon every watermark message received
-        """
-        pass
-
-    def _reset_progress(self, timestamp):
-        """ Reset the progress (watermark) of the operator """
-        for input_stream in self.input_streams:
-            if input_stream.name in self._stream_to_high_watermark:
-                self._stream_to_high_watermark[input_stream.name] = timestamp
-
     def _add_input_streams(self, input_streams):
         """Setups and updates all input streams."""
         self.input_streams = self.input_streams + input_streams
@@ -121,6 +95,4 @@ class Op(object):
         for output_stream in self.output_streams.values():
             output_stream.setup()
         for input_stream in self.input_streams:
-            if input_stream.labels.get('no_watermark', 'false') == 'true':
-                self._stream_ignore_watermarks.add(input_stream.name)
             input_stream.setup()

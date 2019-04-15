@@ -35,14 +35,11 @@ class ROSInputDataStream(DataStream):
         rospy.Subscriber(self.uid, String, callback=self._on_msg)
 
     def _on_msg(self, msg):
-        #data = msg if self.data_type else pickle.loads(msg.data)
+        # data = msg if self.data_type else pickle.loads(msg.data)
         msg = pickle.loads(msg.data)
         self.op.log_event(time.time(), msg.timestamp,
                           'receive {}'.format(self.name))
         if isinstance(msg, WatermarkMessage):
-            if msg.stream_name in self.op._stream_ignore_watermarks:
-                # TODO(yika): big HACK on ignoring watermark sent on stream with label 'no_watermark' = true
-                return
             # Ensure that the watermark is monotonically increasing.
             high_watermark = self.op._stream_to_high_watermark[msg.stream_name]
             if not high_watermark:
@@ -57,26 +54,19 @@ class ROSInputDataStream(DataStream):
                         "on the same stream: {}".format(msg, high_watermark))
                 else:
                     self.op._stream_to_high_watermark[msg.stream_name] = \
-                            msg.timestamp
+                        msg.timestamp
 
             # Now check if all other streams have a higher or equal watermark.
             # If yes, flow this watermark. If not, return from this function
             # Also, maintain the lowest watermark observed.
             low_watermark = msg.timestamp
             for stream, watermark in self.op._stream_to_high_watermark.items():
-                # TODO(yika): big HACK on ignoring watermark sent on stream with label 'no_watermark' = true
-                if stream not in self.op._stream_ignore_watermarks:
-                    if stream != msg.stream_name:
-                        if not watermark or watermark < msg.timestamp:
-                            return
-                        if low_watermark > watermark:
-                            low_watermark = watermark
+                if stream != msg.stream_name:
+                    if not watermark or watermark < msg.timestamp:
+                        return
+                    if low_watermark > watermark:
+                        low_watermark = watermark
             msg = WatermarkMessage(low_watermark)
-
-            # Checkpoint
-            if self.op._checkpoint_enable:
-                if self.op.checkpoint_condition(msg.timestamp):
-                    self.op.checkpoint()
 
             # Call the required callbacks.
             for on_watermark_callback in self.completion_callbacks:
