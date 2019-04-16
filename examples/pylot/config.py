@@ -131,13 +131,21 @@ flags.DEFINE_bool('visualize_detector_output', False,
 flags.DEFINE_bool('visualize_traffic_light_output', False,
                   'True to enable visualization of traffic light output')
 
-# Ground truth accuracy evaluation flags.
+# Accuracy evaluation flags.
+flags.DEFINE_bool('evaluate_obj_detection', False,
+                  'True to enable object detection accuracy evaluation')
+flags.DEFINE_bool('evaluate_segmentation', False,
+                  'True to enable segmentation evaluation')
 flags.DEFINE_bool('eval_ground_truth_segmentation', False,
                   'True to enable ground truth segmentation evaluation')
 flags.DEFINE_integer('eval_ground_truth_ignore_first', 5000,
                      'Number of ms to ignore frames for (car is not moving initially)')
 flags.DEFINE_integer('eval_ground_truth_max_latency', 2000,
                      'Max latency to evaluate in ground truth experiments')
+flags.DEFINE_string('eval_segmentation_metric', 'mIoU',
+                    'Metric to evaluate segmentation on: mIoU | timely-mIoU')
+flags.DEFINE_bool('segmentation_eval_use_accuracy_model', False,
+                  'Enable to use a model for segmentation accuracy decay over time')
 
 # GPU memory fractions.
 flags.DEFINE_float('obj_detection_gpu_memory_fraction', 0.3,
@@ -161,10 +169,6 @@ flags.DEFINE_bool(
 
 # Other flags
 flags.DEFINE_integer('num_cameras', 5, 'Number of cameras.')
-flags.DEFINE_bool('evaluate_obj_detection', False,
-                  'True to enable object detection accuracy evaluation')
-flags.DEFINE_bool('evaluate_segmentation', False,
-                  'True to enable segmentation evaluation')
 
 # Flag validators.
 flags.register_validator('framework',

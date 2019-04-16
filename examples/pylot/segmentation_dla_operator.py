@@ -77,7 +77,7 @@ class SegmentationDLAOperator(Op):
         self._csv_logger.info('{},{},"{}",{}'.format(
             time_epoch_ms(), self.name, msg.timestamp, runtime))
 
-        output_msg = Message(img, msg.timestamp)
+        output_msg = Message((img, runtime), msg.timestamp)
         self.get_output_stream(self._output_stream_name).send(output_msg)
 
     def execute(self):

@@ -335,7 +335,8 @@ def add_segmentation_eval_op(graph, carla_op, segmentation_op,
     segmentation_eval_op = graph.add(
         SegmentationEvalOperator,
         name='segmentation_eval',
-        init_args={'log_file_name': FLAGS.log_file_name,
+        init_args={'flags': FLAGS,
+                   'log_file_name': FLAGS.log_file_name,
                    'csv_file_name': FLAGS.csv_log_file_name},
         setup_args={'ground_stream_name': ground_stream_name,
                     'segmented_stream_name': segmented_stream_name})
