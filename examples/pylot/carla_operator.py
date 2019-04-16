@@ -56,6 +56,8 @@ class CarlaOperator(Op):
                               image_size=image_size)
         for lidar_stream_name in lidar_stream_names:
             self.__add_lidar(name=lidar_stream_name)
+        self.agent_id_map = {}
+        self.pedestrian_count = 0
 
     @staticmethod
     def setup_streams(input_streams, camera_setups, lidar_stream_names):
@@ -87,7 +89,7 @@ class CarlaOperator(Op):
                      postprocessing,
                      image_size=(800, 600),
                      field_of_view=90.0,
-#                     position=(0.3, 0, 1.3),
+    #                     position=(0.3, 0, 1.3),
                      position=(2.0, 0.0, 1.4),
                      rotation_pitch=0,
                      rotation_roll=0,
@@ -209,10 +211,16 @@ class CarlaOperator(Op):
                 vehicle = messages.Vehicle(pos, bb, forward_speed)
                 vehicles.append(vehicle)
             elif agent.HasField('pedestrian'):
+                if not self.agent_id_map.get(agent.id):
+                    self.pedestrian_count += 1
+                    self.agent_id_map[agent.id] = self.pedestrian_count
+
+                pedestrian_index = self.agent_id_map[agent.id]
                 pos = messages.Transform(agent.pedestrian.transform)
                 bb = messages.BoundingBox(agent.pedestrian.bounding_box)
                 forward_speed = agent.pedestrian.forward_speed
-                pedestrian = messages.Pedestrian(pos, bb, forward_speed)
+                pedestrian = messages.Pedestrian(pedestrian_index, pos, bb,
+                                                 forward_speed)
                 pedestrians.append(pedestrian)
             elif agent.HasField('traffic_light'):
                 transform = messages.Transform(agent.traffic_light.transform)

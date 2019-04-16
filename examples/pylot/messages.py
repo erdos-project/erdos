@@ -56,6 +56,6 @@ class BoundingBox(object):
         return "transform: {}, x: {}, y: {}, z: {}".format(str(self.transform), *self.extent) 
 
 Vehicle = namedtuple('Vehicle', 'position, bounding_box, forward_speed')
-Pedestrian = namedtuple('Pedestrian', 'position, bounding_box, forward_speed')
+Pedestrian = namedtuple('Pedestrian', 'id, position, bounding_box, forward_speed')
 TrafficLight = namedtuple('TrafficLight', 'position, state')
 SpeedLimitSign = namedtuple('SpeedLimitSign', 'position, limit')
