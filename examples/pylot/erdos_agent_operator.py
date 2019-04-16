@@ -112,7 +112,10 @@ class ERDOSAgentOperator(Op):
         input_streams.filter(is_obstacles_stream).add_callback(
             ERDOSAgentOperator.on_obstacles_update)
 
-        return [DataStream(name='action_stream')]
+        # Set no watermark on the output stream so that we do not
+        # close the watermark loop with the carla operator.
+        return [DataStream(name='action_stream',
+                           labels={'no_watermark': 'true'})]
 
     # TODO(ionel): Set the frequency programmatically.
     @frequency(10)

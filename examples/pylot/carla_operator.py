@@ -8,7 +8,7 @@ from carla.settings import CarlaSettings
 from carla.transform import Transform
 
 from erdos.data_stream import DataStream
-from erdos.message import Message
+from erdos.message import Message, WatermarkMessage
 from erdos.op import Op
 from erdos.timestamp import Timestamp
 from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_ms
@@ -176,27 +176,38 @@ class CarlaOperator(Op):
             coordinates=[measurements.game_timestamp, self.message_num])
         self.message_num += 1
         ray.register_custom_serializer(Message, use_pickle=True)
+        ray.register_custom_serializer(WatermarkMessage, use_pickle=True)
+        watermark = WatermarkMessage(timestamp)
         self.get_output_stream('world_transform').send(
             Message(world_transform, timestamp))
+        self.get_output_stream('world_transform').send(watermark)
         self.get_output_stream('vehicle_pos').send(
             Message(vehicle_pos, timestamp))
+        self.get_output_stream('vehicle_pos').send(watermark)
         acceleration = (player_measurements.acceleration.x,
                         player_measurements.acceleration.y,
                         player_measurements.acceleration.z)
         self.get_output_stream('acceleration').send(
             Message(acceleration, timestamp))
+        self.get_output_stream('acceleration').send(watermark)
         self.get_output_stream('forward_speed').send(
             Message(player_measurements.forward_speed, timestamp))
+        self.get_output_stream('forward_speed').send(watermark)
         self.get_output_stream('vehicle_collisions').send(
             Message(player_measurements.collision_vehicles, timestamp))
+        self.get_output_stream('vehicle_collisions').send(watermark)
         self.get_output_stream('pedestrian_collisions').send(
             Message(player_measurements.collision_pedestrians, timestamp))
+        self.get_output_stream('pedestrian_collisions').send(watermark)
         self.get_output_stream('other_collisions').send(
             Message(player_measurements.collision_other, timestamp))
+        self.get_output_stream('other_collisions').send(watermark)
         self.get_output_stream('other_lane').send(
             Message(player_measurements.intersection_otherlane, timestamp))
+        self.get_output_stream('other_lane').send(watermark)
         self.get_output_stream('offroad').send(
             Message(player_measurements.intersection_offroad, timestamp))
+        self.get_output_stream('offroad').send(watermark)
 
         vehicles = []
         pedestrians = []
@@ -235,16 +246,21 @@ class CarlaOperator(Op):
 
         vehicles_msg = Message(vehicles, timestamp)
         self.get_output_stream('vehicles').send(vehicles_msg)
+        self.get_output_stream('vehicles').send(watermark)
         pedestrians_msg = Message(pedestrians, timestamp)
         self.get_output_stream('pedestrians').send(pedestrians_msg)
+        self.get_output_stream('pedestrians').send(watermark)
         traffic_lights_msg = Message(traffic_lights, timestamp)
         self.get_output_stream('traffic_lights').send(traffic_lights_msg)
+        self.get_output_stream('traffic_lights').send(watermark)
         traffic_sings_msg = Message(speed_limit_signs, timestamp)
         self.get_output_stream('traffic_signs').send(traffic_sings_msg)
+        self.get_output_stream('traffic_signs').send(watermark)
 
         # Send sensor data
         for name, measurement in sensor_data.items():
             self.get_output_stream(name).send(Message(measurement, timestamp))
+            self.get_output_stream(name).send(watermark)
 
         self.client.send_control(**self.control)
         end_time = time.time()

@@ -57,7 +57,10 @@ class GroundAgentOperator(Op):
             GroundAgentOperator.on_traffic_lights_update)
         input_streams.filter_name('traffic_signs').add_callback(
             GroundAgentOperator.on_traffic_signs_update)
-        return [DataStream(name='action_stream')]
+        # Set no watermark on the output stream so that we do not
+        # close the watermark loop with the carla operator.
+        return [DataStream(name='action_stream',
+                           labels={'no_watermark': 'true'})]
 
     def on_vehicle_pos_update(self, msg):
         self._logger.info("Received vehicle pos %s", msg)

@@ -30,9 +30,11 @@ class CameraReplayOperator(Op):
         cv_image = self.read_image(self._cnt)
         self._image = self.bridge.cv2_to_imgmsg(cv_image, encoding='bgr8')
         self._image.header.seq = self._cnt
-        output_msg = Message(self._image,
-                             Timestamp(coordinates=[self._cnt, self._cnt]))
+        timestamp = Timestamp(coordinates=[self._cnt, self._cnt])
+        output_msg = Message(self._image, timestamp)
         self.get_output_stream('{}_output'.format(self.name)).send(output_msg)
+        self.get_output_stream('{}_output'.format(self.name)).send(
+            WatermarkMessage(timestamp))
         self._cnt += 1
 
     def create_image(self):
