@@ -89,8 +89,8 @@ class CarlaOperator(Op):
                      postprocessing,
                      image_size=(800, 600),
                      field_of_view=90.0,
-    #                     position=(0.3, 0, 1.3),
-                     position=(2.0, 0.0, 1.4),
+                     #position=(0.3, 0, 1.3),
+                     position=(2.0, 0.0, 1.4), # Keep in sync with obstacle accuracy operator
                      rotation_pitch=0,
                      rotation_roll=0,
                      rotation_yaw=0):

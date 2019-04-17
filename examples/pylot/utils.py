@@ -211,14 +211,14 @@ def get_bounding_box_sampling_points(ends):
                     b[2].flatten().item(0))
     sampling_points = [
         middle_point, 
-        (middle_point[0] + 3, middle_point[1], middle_point[2]),
-        (middle_point[0] + 1.5, middle_point[1] + 1.5, middle_point[2]),
-        (middle_point[0] + 1.5, middle_point[1] - 1.5, middle_point[2]),
-        (middle_point[0] - 3, middle_point[1], middle_point[2]),
-        (middle_point[0] - 1.5, middle_point[1] + 1.5, middle_point[2]),
-        (middle_point[0] - 1.5, middle_point[1] - 1.5, middle_point[2])
+        (middle_point[0] + 2, middle_point[1], middle_point[2]),
+        (middle_point[0] + 1, middle_point[1] + 1, middle_point[2]),
+        (middle_point[0] + 1, middle_point[1] - 1, middle_point[2]),
+        (middle_point[0] - 2, middle_point[1], middle_point[2]),
+        (middle_point[0] - 1, middle_point[1] + 1, middle_point[2]),
+        (middle_point[0] - 1, middle_point[1] - 1, middle_point[2])
     ]
-    return sampling_points
+    return (middle_point, sampling_points)
 
 
 def have_same_depth(x, y, z, depth_array, threshold):

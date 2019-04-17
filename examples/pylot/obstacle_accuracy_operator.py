@@ -50,7 +50,7 @@ class ObstacleAccuracyOperator(Op):
                                  field_of_view=90.0,
                                  image_size=(800, 600),
 #                                 position=(0.3, 0, 1.3),
-                                 position=(2.0, 0.0, 1.4),
+                                 position=(2.0, 0.0, 1.4), # Keep in sync with carla operator.
                                  rotation_pitch=0,
                                  rotation_roll=0,
                                  rotation_yaw=0):
@@ -286,6 +286,20 @@ class ObstacleAccuracyOperator(Op):
                     # TODO(ionel): Figure out bounding box size.
                     add_bounding_box(rgb_img, (x - 2, x + 2, y - 2, y + 2), color='yellow')
 
+    def __select_max_bbox(self, ends):
+        (xmin, ymin) = tuple(map(int, ends[0][:2]))
+        (xmax, ymax) = tuple(map(int, ends[0][:2]))
+        corner = tuple(map(int, ends[1][:2]))
+        # XXX(ionel): This is not quite correct. We get the
+        # minimum and maximum x and y values, but these may
+        # not be valid points. However, it works because the
+        # bboxes are parallel to x and y axis.
+        xmin = min(xmin, corner[0])
+        ymin = min(ymin, corner[1])
+        xmax = max(xmax, corner[0])
+        ymax = max(ymax, corner[1])
+        return (xmin, xmax, ymin, ymax)
+
     def __get_pedestrians_bboxes(self, pedestrians, rgb_img, world_transform,
                                  depth_array):
         ped_bbox_id = []
@@ -310,43 +324,54 @@ class ObstacleAccuracyOperator(Op):
 
                 ends = get_pedestrian_bounding_box(corners)
                 if ends:
-                    points = get_bounding_box_sampling_points(ends)
-                    # Filter the points inside the image.
-                    inside_image = [
-                        (x, y, z)
-                        for (x, y, z) in points if self.__inside_image(
-                            x, y, self._rgb_img_size[0], self._rgb_img_size[1])
-                    ]
-
-                    # BUG (sukritk) :: In the case of collisions, Carla
-                    # does not update the pedestrian bounding box and
-                    # we incorrectly draw the bounding box even if the
-                    # pedestrian is not in our field of view until the
-                    # world removes the pedestrian.
-                    if self.pedestrian_to_history_map.get(pedestrian_index):
-                        # If the pedestrian was inside the image in the
-                        # last timestamp, check if 40% of the points we
-                        # sampled are inside the image.
-                        if len(inside_image) >= 0.4 * len(points):
-                            (xmin, ymin) = tuple(map(int, ends[0][:2]))
-                            (xmax, ymax) = tuple(map(int, ends[1][:2]))
+                    (middle_point, points) = get_bounding_box_sampling_points(ends)
+                    # Select bounding box if the middle point in inside the frame
+                    # and has the same depth
+                    if (self.__inside_image(middle_point[0],
+                                            middle_point[1],
+                                            self._rgb_img_size[0],
+                                            self._rgb_img_size[1]) and
+                        have_same_depth(middle_point[0],
+                                        middle_point[1],
+                                        middle_point[2],
+                                        depth_array,
+                                        1.5)):
+                        (xmin, xmax, ymin, ymax) = self.__select_max_bbox(ends)
+                        width = xmax - xmin
+                        height = ymax - ymin
+                        # Filter out the small bounding boxes (they're far away).
+                        # We use thresholds that are proportional to the image size.
+                        if (width > self._rgb_img_size[0] * 0.01 and
+                            height > self._rgb_img_size[1] * 0.01 and
+                            width * height > self._rgb_img_size[0] * self._rgb_img_size[1] * 0.0002):
                             ped_bbox_id.append((pedestrian_index, (xmin, xmax, ymin, ymax)))
-                        else:
-                            # Majority of the bounding box is out of the
-                            # image, do not return the pedestrian bbox.
-                            self.pedestrian_to_history_map[
-                                pedestrian_index] = False
                     else:
+                        # The mid point doesn't have the same depth. It can happen
+                        # for valid boxes when the mid point is between the legs.
+                        # In this case, we check that a fraction of the neighbouring
+                        # points have the same depth.
+                        # Filter the points inside the image.
+                        inside_image = [
+                            (x, y, z)
+                            for (x, y, z) in points if self.__inside_image(
+                                    x, y, self._rgb_img_size[0], self._rgb_img_size[1])
+                        ]
                         same_depth_points = [
-                            have_same_depth(x, y, z, depth_array, 8.0)
+                            have_same_depth(x, y, z, depth_array, 3.0)
                             for (x, y, z) in inside_image
                         ]
-                        # The pedestrian was not inside the image in the
-                        # last timestamp. If more than 40% of the points
-                        # inside the image have the same depth as visible
-                        # from our viewpoint, update the map.
-                        self.pedestrian_to_history_map[pedestrian_index] = \
-                                same_depth_points.count(True) >= 0.4 * len(same_depth_points)
+                        if same_depth_points.count(True) >= 0.4 * len(same_depth_points):
+                            (xmin, xmax, ymin, ymax) = self.__select_max_bbox(ends)
+                            width = xmax - xmin
+                            height = ymax - ymin
+                            width = xmax - xmin
+                            height = ymax - ymin
+                            # Filter out the small bounding boxes (they're far away).
+                            # We use thresholds that are proportional to the image size.
+                            if (width > self._rgb_img_size[0] * 0.01 and
+                                height > self._rgb_img_size[1] * 0.01 and
+                                width * height > self._rgb_img_size[0] * self._rgb_img_size[1] * 0.0002):
+                                ped_bbox_id.append((pedestrian_index, (xmin, xmax, ymin, ymax)))
                 else:
                     self._logger.info(
                         "Could not find far enough points in second plane.")
