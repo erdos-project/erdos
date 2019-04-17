@@ -41,7 +41,8 @@ class ROSInputDataStream(DataStream):
                           'receive {}'.format(self.name))
         if isinstance(msg, WatermarkMessage):
             if msg.stream_name in self.op._stream_ignore_watermarks:
-                # TODO(yika): big HACK on ignoring watermark sent on stream with label 'no_watermark' = true
+                # TODO(yika): big HACK on ignoring watermark sent on stream
+                # with label 'no_watermark' = true
                 return
             # Ensure that the watermark is monotonically increasing.
             high_watermark = self.op._stream_to_high_watermark[msg.stream_name]

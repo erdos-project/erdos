@@ -26,6 +26,7 @@ except ImportError:
     print("Error importing DLA segmentation.")
 from segmentation_eval_operator import SegmentationEvalOperator
 from segmentation_eval_ground_operator import SegmentationEvalGroundOperator
+from detection_eval_ground_operator import DetectionEvalGroundOperator
 from segmented_video_operator import SegmentedVideoOperator
 from traffic_light_det_operator import TrafficLightDetOperator
 from video_operator import VideoOperator
@@ -374,6 +375,20 @@ def add_fusion_ops(graph, carla_op, obj_detector_ops):
     return (fusion_op, fusion_verification_op)
 
 
+def add_eval_ground_truth_detector_op(graph, carla_op, camera_ops):
+    ground_truth_op = graph.add(
+        DetectionEvalGroundOperator,
+        name='eval_ground_detection',
+        init_args={
+            'flags': FLAGS,
+            'log_file_name': FLAGS.log_file_name,
+            'csv_file_name': FLAGS.csv_log_file_name
+        },
+    )
+    graph.connect([carla_op] + camera_ops, [ground_truth_op])
+    return ground_truth_op
+
+
 def main(argv):
 
     # Define graph
@@ -458,6 +473,12 @@ def main(argv):
             eval_segmentation_op = add_segmentation_eval_op(
                 graph, carla_op, segmentation_op,
                 'front_semantic_camera', 'segmented_stream')
+
+    # This operator evaluates the temporal decay of the ground truth of
+    # object detection across timestamps.
+    if FLAGS.eval_ground_truth_object_detection:
+        eval_ground_truth_detector_op = add_eval_ground_truth_detector_op(
+            graph, carla_op, camera_ops)
 
     obj_detector_ops = []
     if FLAGS.obj_detection:

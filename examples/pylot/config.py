@@ -138,6 +138,8 @@ flags.DEFINE_bool('evaluate_segmentation', False,
                   'True to enable segmentation evaluation')
 flags.DEFINE_bool('eval_ground_truth_segmentation', False,
                   'True to enable ground truth segmentation evaluation')
+flags.DEFINE_bool('eval_ground_truth_object_detection', True,
+                  'True to enable ground truth object detection evaluation.')
 flags.DEFINE_integer('eval_ground_truth_ignore_first', 5000,
                      'Number of ms to ignore frames for (car is not moving initially)')
 flags.DEFINE_integer('eval_ground_truth_max_latency', 2000,
