@@ -364,14 +364,6 @@ class Graph(object):
 
         self.cluster.initialize()
 
-    def _init_ray(self):
-        import ray
-        if FLAGS.ray_redis_address == '':
-            ray.init()
-        else:
-            ray.init(redis_address=FLAGS.ray_redis_address)
-            time.sleep(2)
-
     def _create_executors(self):
         visited = set([])
         executors = []
