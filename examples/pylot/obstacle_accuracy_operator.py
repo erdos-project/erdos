@@ -173,26 +173,6 @@ class ObstacleAccuracyOperator(Op):
     def execute(self):
         self.spin()
 
-    def __compute_miou(self, bboxes1, bboxes2):
-        bboxes1, bboxes2 = np.array(bboxes1), np.array(bboxes2)
-        x11, x12, y11, y12 = np.split(bboxes1, 4, axis=1)
-        x21, y21, x22, y22 = np.split(bboxes2, 4, axis=1)
-
-        xI1 = np.maximum(x11, np.transpose(x21))
-        xI2 = np.minimum(x12, np.transpose(x22))
-
-        yI1 = np.maximum(y11, np.transpose(y21))
-        yI2 = np.minimum(y12, np.transpose(y22))
-
-        inter_area = np.maximum((xI2 - xI1), 0) * np.maximum((yI2 - yI1), 0)
-
-        bboxes1_area = (x12 - x11) * (y12 - y11)
-        bboxes2_area = (x22 - x21) * (y22 - y21)
-
-        union = (bboxes1_area + np.transpose(bboxes2_area)) - inter_area
-
-        return inter_area / (union+0.0001)
-
     def __compute_area(self, bbox):
         return (bbox[2] - bbox[0] + 1) * (bbox[3] - bbox[1] + 1)
 

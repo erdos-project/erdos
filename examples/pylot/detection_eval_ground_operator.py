@@ -7,15 +7,18 @@ import time
 from cv_bridge import CvBridge
 from collections import deque
 
+from carla.image_converter import depth_to_array
+
 from erdos.op import Op
 from erdos.utils import setup_logging
 
-from detection_utils import get_2d_bbox_from_3d_box
+from detection_utils import compute_miou, get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform
 
 
 class DetectionEvalGroundOperator(Op):
     def __init__(self,
                  name,
+                 rgb_camera_setup,
                  flags,
                  log_file_name=None,
                  csv_file_name=None):
@@ -26,18 +29,29 @@ class DetectionEvalGroundOperator(Op):
         # Queue of incoming data.
         self._rgb_imgs = deque()
         self._world_transforms = deque()
+        self._depth_imgs = deque()
+        self._pedestrians = deque()
+        self._ground_bboxes = deque()
+        (camera_name, pp, img_size, pos) = rgb_camera_setup
+        (self._rgb_intrinsic, self._rgb_transform, self._rgb_img_size) = get_camera_intrinsic_and_transform(
+            name=camera_name, postprocessing=pp, image_size=img_size, position=pos)
         self._last_notification = -1
 
     @staticmethod
-    def setup_streams(input_streams):
+    def setup_streams(input_streams, depth_camera_name):
         def is_camera_stream(stream):
             return (stream.labels.get('camera', '') == 'true' and
                     stream.labels.get('ros', '') == 'true')
 
+        input_streams.filter_name(depth_camera_name).add_callback(
+            DetectionEvalGroundOperator.on_depth_camera_update)
         input_streams.filter(is_camera_stream).add_callback(
             DetectionEvalGroundOperator.on_rgb_camera_update)
         input_streams.filter_name('world_transform').add_callback(
             DetectionEvalGroundOperator.on_world_transform_update)
+        input_streams.filter_name('pedestrians').add_callback(
+            DetectionEvalGroundOperator.on_pedestrians_update)
+
         input_streams.add_completion_callback(
             DetectionEvalGroundOperator.on_notification)
         return []
@@ -56,24 +70,57 @@ class DetectionEvalGroundOperator(Op):
 
         # Get the data from the start of all the queues and make sure that
         # we did not miss any data.
-        (rgb_t, rgb_img) = self._rgb_imgs.popleft()
-        (transform_t, world_transform) = self._world_transforms.popleft()
+        depth_msg = self._depth_imgs.popleft()
+        rgb_msg = self._rgb_imgs.popleft()
+        world_trans_msg = self._world_transforms.popleft()
+        pedestrians_msg = self._pedestrians.popleft()
 
-        self._logger.info('Timestamps {} {} {}'.format(
-            msg.timestamp, rgb_t, transform_t))
-        assert rgb_t == msg.timestamp == transform_t
+        self._logger.info('Timestamps {} {} {} {}'.format(
+            depth_msg.timestamp, rgb_msg.timestamp,
+            world_trans_msg.timestamp, pedestrians_msg.timestamp))
+
+        assert (depth_msg.timestamp == rgb_msg.timestamp ==
+                world_trans_msg.timestamp == pedestrians_msg.timestamp)
+
+        rgb_img = self._bridge.imgmsg_to_cv2(rgb_msg.data, 'rgb8')
+        rgb_img = Image.fromarray(np.uint8(rgb_img)).convert('RGB')
+        depth_array = depth_to_array(depth_msg.data)
+        world_transform = world_trans_msg.data
+
+        bboxes = []
+        for (pedestrian_index, obj_transform, obj_bbox, _) in pedestrians_msg.data:
+            bbox = get_2d_bbox_from_3d_box(
+                rgb_img, depth_array, world_transform, obj_transform, obj_bbox,
+                self._rgb_transform, self._rgb_intrinsic, self._rgb_img_size, 1.5, 3.0)
+            if bbox is not None:
+                bboxes.append(bbox)
+
+        # Remove the buffered bboxes that are too old.
+        while (len(self._ground_bboxes) > 0 and
+               msg.timestamp.coordinates[0] - self._ground_bboxes[0][0].coordinates[0] >
+               self._flags.eval_ground_truth_max_latency):
+            self._ground_bboxes.popleft()
+
+        for (old_timestamp, old_bboxes) in self._ground_bboxes:
+            #miou = compute_miou(old_bboxes, bboxes)
+#            self._logger.info("Mean IoU {}".format(miou))
+            latency = msg.timestamp.coordinates[0] - old_timestamp.coordinates[0]
+#            self._logger.info("Computing mIoU for {} {}".format(msg.timestamp, old_timestamp))
+        # Buffer the new bounding boxes.
+        self._ground_bboxes.append((msg.timestamp, bboxes))
+
+    def on_depth_camera_update(self, msg):
+        if msg.timestamp.coordinates[0] > self._flags.eval_ground_truth_ignore_first:
+            self._depth_imgs.append(msg)
 
     def on_rgb_camera_update(self, rgb_msg):
-        self._logger.info('Received a camera update at {}'.format(
-            rgb_msg.timestamp))
         if rgb_msg.timestamp.coordinates[0] > self._flags.eval_ground_truth_ignore_first:
-            rgb_img = self._bridge.imgmsg_to_cv2(rgb_msg.data, 'rgb8')
-            rgb_img = Image.fromarray(np.uint8(rgb_img)).convert('RGB')
-            self._rgb_imgs.append((rgb_msg.timestamp, rgb_img))
+            self._rgb_imgs.append(rgb_msg)
 
     def on_world_transform_update(self, transform_msg):
-        self._logger.info('Received a world transform at {}'.format(
-            transform_msg.timestamp))
         if transform_msg.timestamp.coordinates[0] > self._flags.eval_ground_truth_ignore_first:
-            self._world_transforms.append((transform_msg.timestamp,
-                                           transform_msg.data))
+            self._world_transforms.append(transform_msg)
+
+    def on_pedestrians_update(self, msg):
+        if msg.timestamp.coordinates[0] > self._flags.eval_ground_truth_ignore_first:
+            self._pedestrians.append(msg)

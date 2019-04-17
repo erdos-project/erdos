@@ -363,11 +363,17 @@ def add_fusion_ops(graph, carla_op, obj_detector_ops):
     return (fusion_op, fusion_verification_op)
 
 
-def add_eval_ground_truth_detector_op(graph, carla_op, camera_ops):
+def add_eval_ground_truth_detector_op(graph,
+                                      carla_op,
+                                      camera_ops,
+                                      rgb_camera_setup,
+                                      depth_camera_name):
     ground_truth_op = graph.add(
         DetectionEvalGroundOperator,
         name='eval_ground_detection',
+        setup_args={'depth_camera_name': depth_camera_name},
         init_args={
+            'rgb_camera_setup': rgb_camera_setup,
             'flags': FLAGS,
             'log_file_name': FLAGS.log_file_name,
             'csv_file_name': FLAGS.csv_log_file_name
@@ -481,7 +487,7 @@ def main(argv):
     # object detection across timestamps.
     if FLAGS.eval_ground_truth_object_detection:
         eval_ground_truth_detector_op = add_eval_ground_truth_detector_op(
-            graph, carla_op, camera_ops)
+            graph, carla_op, camera_ops, rgb_camera_setup, 'front_depth_camera')
 
     obj_detector_ops = []
     if FLAGS.obj_detection:
