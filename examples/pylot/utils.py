@@ -169,7 +169,7 @@ def load_coco_labels(labels_path):
     return labels_map
 
 
-def get_pedestrian_bounding_box(corners):
+def get_bounding_box_from_corners(corners):
     """
     Gets the bounding box of the pedestrian given the corners of the plane.
     """
@@ -224,3 +224,81 @@ def get_bounding_box_sampling_points(ends):
 def have_same_depth(x, y, z, depth_array, threshold):
     x, y = int(x), int(y)
     return abs(depth_array[y][x] * 1000 - z) < threshold
+
+
+def inside_image(x, y, img_width, img_height):
+    return x >= 0 and y >= 0 and x < img_width and y < img_height
+
+
+def select_max_bbox(ends):
+    (xmin, ymin) = tuple(map(int, ends[0][:2]))
+    (xmax, ymax) = tuple(map(int, ends[0][:2]))
+    corner = tuple(map(int, ends[1][:2]))
+    # XXX(ionel): This is not quite correct. We get the
+    # minimum and maximum x and y values, but these may
+    # not be valid points. However, it works because the
+    # bboxes are parallel to x and y axis.
+    xmin = min(xmin, corner[0])
+    ymin = min(ymin, corner[1])
+    xmax = max(xmax, corner[0])
+    ymax = max(ymax, corner[1])
+    return (xmin, xmax, ymin, ymax)
+
+
+def get_2d_bbox_from_3d_box(
+        rgb_img, depth_array, world_transform, obj_transform,
+        bounding_box, rgb_transform, rgb_intrinsic, rgb_img_size,
+        middle_depth_threshold, neighbor_threshold):
+    corners = map_ground_bounding_box_to_2D(
+        rgb_img, depth_array, world_transform, obj_transform,
+        bounding_box, rgb_transform, rgb_intrinsic,
+        rgb_img_size)
+    if len(corners) == 8:
+        ends = get_bounding_box_from_corners(corners)
+        if ends:
+            (middle_point, points) = get_bounding_box_sampling_points(ends)
+            # Select bounding box if the middle point in inside the frame
+            # and has the same depth
+            if (inside_image(middle_point[0], middle_point[1],
+                             rgb_img_size[0], rgb_img_size[1]) and
+                have_same_depth(middle_point[0],
+                                middle_point[1],
+                                middle_point[2],
+                                depth_array,
+                                middle_depth_threshold)):
+                (xmin, xmax, ymin, ymax) = select_max_bbox(ends)
+                width = xmax - xmin
+                height = ymax - ymin
+                # Filter out the small bounding boxes (they're far away).
+                # We use thresholds that are proportional to the image size.
+                if (width > rgb_img_size[0] * 0.01 and
+                    height > rgb_img_size[1] * 0.01 and
+                    width * height > rgb_img_size[0] * rgb_img_size[1] * 0.0002):
+                    return (xmin, xmax, ymin, ymax)
+            else:
+                # The mid point doesn't have the same depth. It can happen
+                # for valid boxes when the mid point is between the legs.
+                # In this case, we check that a fraction of the neighbouring
+                # points have the same depth.
+                # Filter the points inside the image.
+                points_inside_image = [
+                    (x, y, z)
+                    for (x, y, z) in points if inside_image(
+                            x, y, rgb_img_size[0], rgb_img_size[1])
+                ]
+                same_depth_points = [
+                    have_same_depth(x, y, z, depth_array, neighbor_threshold)
+                            for (x, y, z) in points_inside_image
+                ]
+                if same_depth_points.count(True) >= 0.4 * len(same_depth_points):
+                    (xmin, xmax, ymin, ymax) = select_max_bbox(ends)
+                    width = xmax - xmin
+                    height = ymax - ymin
+                    width = xmax - xmin
+                    height = ymax - ymin
+                    # Filter out the small bounding boxes (they're far away).
+                    # We use thresholds that are proportional to the image size.
+                    if (width > rgb_img_size[0] * 0.01 and
+                        height > rgb_img_size[1] * 0.01 and
+                        width * height > rgb_img_size[0] * rgb_img_size[1] * 0.0002):
+                        return (xmin, xmax, ymin, ymax)

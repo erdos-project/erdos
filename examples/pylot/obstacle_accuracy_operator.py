@@ -14,7 +14,7 @@ from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging
 
 import messages
-from utils import add_bounding_box, get_3d_world_position, map_ground_3D_transform_to_2D, map_ground_bounding_box_to_2D, point_cloud_from_rgbd, get_pedestrian_bounding_box, get_bounding_box_sampling_points, have_same_depth
+import utils
 
 
 class ObstacleAccuracyOperator(Op):
@@ -208,10 +208,6 @@ class ObstacleAccuracyOperator(Op):
             cv2.imshow(self.name, open_cv_image)
             cv2.waitKey(1)
 
-    def have_same_depth(self, x, y, z, depth_array, threshold):
-        x, y = int(x), int(y)
-        return abs(depth_array[y][x] * 1000 - z) < threshold
-
     def execute(self):
         self.spin()
 
@@ -235,9 +231,6 @@ class ObstacleAccuracyOperator(Op):
 
         return inter_area / (union+0.0001)
 
-    def __inside_image(self, x, y, img_width, img_height):
-        return x >= 0 and y >= 0 and x < img_width and y < img_height
-
     def __compute_area(self, bbox):
         return (bbox[2] - bbox[0] + 1) * (bbox[3] - bbox[1] + 1)
 
@@ -255,180 +248,62 @@ class ObstacleAccuracyOperator(Op):
     def __get_traffic_light_bboxes(self, traffic_lights, rgb_img,
                                    world_transform, depth_array):
         for (tl_transform, state) in traffic_lights:
-            pos = map_ground_3D_transform_to_2D(rgb_img,
-                                                world_transform,
-                                                self._rgb_transform,
-                                                self._rgb_intrinsic,
-                                                self._rgb_img_size,
-                                                tl_transform)
+            pos = utils.map_ground_3D_transform_to_2D(rgb_img,
+                                                      world_transform,
+                                                      self._rgb_transform,
+                                                      self._rgb_intrinsic,
+                                                      self._rgb_img_size,
+                                                      tl_transform)
             if pos is not None:
                 x = int(pos[0])
                 y = int(pos[1])
                 z = pos[2].flatten().item(0)
-                if self.have_same_depth(x, y, z, depth_array, 1.0):
+                if utils.have_same_depth(x, y, z, depth_array, 1.0):
                     # TODO(ionel): Figure out bounding box size.
-                    add_bounding_box(rgb_img, (x - 2, x + 2, y - 2, y + 2), color='yellow')
+                    utils.add_bounding_box(rgb_img,
+                                           (x - 2, x + 2, y - 2, y + 2),
+                                           color='yellow')
 
     def __get_traffic_sign_bboxes(self, traffic_signs, rgb_img,
                                   world_transform, depth_array):
         for (ts_transform, speed_sign) in traffic_signs:
-            pos = map_ground_3D_transform_to_2D(rgb_img,
-                                                world_transform,
-                                                self._rgb_transform,
-                                                self._rgb_intrinsic,
-                                                self._rgb_img_size,
-                                                ts_transform)
+            pos = utils.map_ground_3D_transform_to_2D(rgb_img,
+                                                      world_transform,
+                                                      self._rgb_transform,
+                                                      self._rgb_intrinsic,
+                                                      self._rgb_img_size,
+                                                      ts_transform)
             if pos is not None:
                 x = int(pos[0])
                 y = int(pos[1])
                 z = pos[2].flatten().item(0)
-                if self.have_same_depth(x, y, z, depth_array, 1.0):
+                if utils.have_same_depth(x, y, z, depth_array, 1.0):
                     # TODO(ionel): Figure out bounding box size.
-                    add_bounding_box(rgb_img, (x - 2, x + 2, y - 2, y + 2), color='yellow')
-
-    def __select_max_bbox(self, ends):
-        (xmin, ymin) = tuple(map(int, ends[0][:2]))
-        (xmax, ymax) = tuple(map(int, ends[0][:2]))
-        corner = tuple(map(int, ends[1][:2]))
-        # XXX(ionel): This is not quite correct. We get the
-        # minimum and maximum x and y values, but these may
-        # not be valid points. However, it works because the
-        # bboxes are parallel to x and y axis.
-        xmin = min(xmin, corner[0])
-        ymin = min(ymin, corner[1])
-        xmax = max(xmax, corner[0])
-        ymax = max(ymax, corner[1])
-        return (xmin, xmax, ymin, ymax)
+                    utils.add_bounding_box(rgb_img,
+                                           (x - 2, x + 2, y - 2, y + 2),
+                                           color='yellow')
 
     def __get_pedestrians_bboxes(self, pedestrians, rgb_img, world_transform,
                                  depth_array):
         ped_bbox_id = []
         for (pedestrian_index, pd_transform, bounding_box,
              fwd_speed) in pedestrians:
-            corners = map_ground_bounding_box_to_2D(
+            bbox = utils.get_2d_bbox_from_3d_box(
                 rgb_img, depth_array, world_transform, pd_transform,
                 bounding_box, self._rgb_transform, self._rgb_intrinsic,
-                self._rgb_img_size)
-
-            if len(corners) == 8:
-                self._logger.info(
-                    "The ground truth bounding box is \n{}".format(
-                        bounding_box))
-
-                # We get points in two planes. The second plane tracks the
-                # objects better.
-                corners_plane_2 = corners[4:]
-                self._logger.info(
-                    "The four corners in the second plane are: {}".format(
-                        corners_plane_2))
-
-                ends = get_pedestrian_bounding_box(corners)
-                if ends:
-                    (middle_point, points) = get_bounding_box_sampling_points(ends)
-                    # Select bounding box if the middle point in inside the frame
-                    # and has the same depth
-                    if (self.__inside_image(middle_point[0],
-                                            middle_point[1],
-                                            self._rgb_img_size[0],
-                                            self._rgb_img_size[1]) and
-                        have_same_depth(middle_point[0],
-                                        middle_point[1],
-                                        middle_point[2],
-                                        depth_array,
-                                        1.5)):
-                        (xmin, xmax, ymin, ymax) = self.__select_max_bbox(ends)
-                        width = xmax - xmin
-                        height = ymax - ymin
-                        # Filter out the small bounding boxes (they're far away).
-                        # We use thresholds that are proportional to the image size.
-                        if (width > self._rgb_img_size[0] * 0.01 and
-                            height > self._rgb_img_size[1] * 0.01 and
-                            width * height > self._rgb_img_size[0] * self._rgb_img_size[1] * 0.0002):
-                            ped_bbox_id.append((pedestrian_index, (xmin, xmax, ymin, ymax)))
-                    else:
-                        # The mid point doesn't have the same depth. It can happen
-                        # for valid boxes when the mid point is between the legs.
-                        # In this case, we check that a fraction of the neighbouring
-                        # points have the same depth.
-                        # Filter the points inside the image.
-                        inside_image = [
-                            (x, y, z)
-                            for (x, y, z) in points if self.__inside_image(
-                                    x, y, self._rgb_img_size[0], self._rgb_img_size[1])
-                        ]
-                        same_depth_points = [
-                            have_same_depth(x, y, z, depth_array, 3.0)
-                            for (x, y, z) in inside_image
-                        ]
-                        if same_depth_points.count(True) >= 0.4 * len(same_depth_points):
-                            (xmin, xmax, ymin, ymax) = self.__select_max_bbox(ends)
-                            width = xmax - xmin
-                            height = ymax - ymin
-                            width = xmax - xmin
-                            height = ymax - ymin
-                            # Filter out the small bounding boxes (they're far away).
-                            # We use thresholds that are proportional to the image size.
-                            if (width > self._rgb_img_size[0] * 0.01 and
-                                height > self._rgb_img_size[1] * 0.01 and
-                                width * height > self._rgb_img_size[0] * self._rgb_img_size[1] * 0.0002):
-                                ped_bbox_id.append((pedestrian_index, (xmin, xmax, ymin, ymax)))
-                else:
-                    self._logger.info(
-                        "Could not find far enough points in second plane.")
-            else:
-                self._logger.info(
-                    "The pedestrian {} returned no coordinates.".format(
-                        pedestrian_index))
+                self._rgb_img_size, 1.5, 3.0)
+            if bbox is not None:
+                ped_bbox_id.append((pedestrian_index, bbox))
         return ped_bbox_id
 
     def __get_vehicles_bboxes(self, vehicles, rgb_img, world_transform,
                               depth_array):
         vec_bboxes = []
         for (vec_transform, bounding_box, fwd_speed) in vehicles:
-            corners = map_ground_bounding_box_to_2D(
+            bbox = utils.get_2d_bbox_from_3d_box(
                 rgb_img, depth_array, world_transform, vec_transform,
                 bounding_box, self._rgb_transform, self._rgb_intrinsic,
-                self._rgb_img_size)
-
-            if len(corners) == 8:
-                # The corners are represented in the cubic form and we
-                # seperate the 2 planes to get the corners of the front
-                # and the back rectangle.
-                corners_plane_1, corners_plane_2 = corners[:4], corners[4:]
-
-                # Figure out the lower-left and top-right corners from the
-                # front plane.
-                min_corner = corners_plane_1[0]
-                max_corner_plane_1 = corners_plane_1[0]
-                for corner in corners_plane_1[1:]:
-                    if corner[0] < min_corner[0] + 1 and corner[
-                            1] < min_corner[1] + 1:
-                        min_corner = corner
-                    if corner[0] > max_corner_plane_1[0] - 1 and corner[
-                            1] > max_corner_plane_1[1] - 1:
-                        max_corner_plane_1 = corner
-
-                # Figure out the top right from the back plane.
-                max_corner = corners_plane_2[0]
-                for corner in corners_plane_2[1:]:
-                    if corner[0] > max_corner[0] - 1 and corner[
-                            1] > max_corner[1] - 1:
-                        max_corner = corner
-
-                # Find the middle point in the front plane.
-                corner1, corner2 = min_corner, max_corner_plane_1
-                middle_point = ((corner1[0] + corner2[0]) / 2,
-                                (corner1[1] + corner2[1]) / 2,
-                                corner1[2].flatten().item(0))
-                if self.__inside_image(
-                        middle_point[0], middle_point[1],
-                        self._rgb_img_size[0],
-                        self._rgb_img_size[1]) and self.have_same_depth(
-                            middle_point[0], middle_point[1], middle_point[2],
-                            depth_array, 8.0):
-                    # Get bbox from the lower-left of the first plane to the top
-                    # right of the back plane.
-                    (xmin, ymin) = corner1[:2]
-                    (xmax, ymax) = max_corner[:2]
-                    vec_bboxes.append((xmin, xmax, ymin, ymax))
+                self._rgb_img_size, 3.0, 3.0)
+            if bbox is not None:
+                vec_bboxes.append(bbox)
         return vec_bboxes
