@@ -55,29 +55,19 @@ def add_camera_replay_ops(graph):
     return camera_ops
 
 
-def add_carla_op(graph):
+def add_carla_op(graph, camera_setups):
     carla_op = graph.add(
         CarlaOperator,
         name='carla',
         init_args={
             'flags': FLAGS,
-            'camera_setups': [('front_rgb_camera', 'SceneFinal',
-                               (FLAGS.carla_camera_image_width,
-                                FLAGS.carla_camera_image_height)),
-                              ('front_depth_camera', 'Depth',
-                               (FLAGS.carla_camera_image_width,
-                                FLAGS.carla_camera_image_height)),
-                              ('front_semantic_camera', 'SemanticSegmentation',
-                               (FLAGS.carla_camera_image_width,
-                                FLAGS.carla_camera_image_height))],
+            'camera_setups': camera_setups,
             'lidar_stream_names': [],
             'log_file_name': FLAGS.log_file_name,
             'csv_file_name': FLAGS.csv_log_file_name
         },
         setup_args={
-            'camera_setups': [('front_rgb_camera', 'SceneFinal'),
-                              ('front_depth_camera', 'Depth'),
-                              ('front_semantic_camera', 'SemanticSegmentation')],
+            'camera_setups': camera_setups,
             'lidar_stream_names': []
         })
     return carla_op
@@ -286,15 +276,13 @@ def add_obstacle_accuracy_op(graph,
                              camera_ops,
                              obj_detector_ops,
                              carla_op,
-                             rgb_camera_name,
+                             rgb_camera_setup,
                              depth_camera_name):
     obstacle_accuracy_op = graph.add(
         ObstacleAccuracyOperator,
         name='obstacle_accuracy',
-        setup_args={'rgb_camera_name': rgb_camera_name,
-                    'depth_camera_name': depth_camera_name},
-        init_args={'rgb_camera_name': rgb_camera_name,
-                   'depth_camera_name': depth_camera_name,
+        setup_args={'depth_camera_name': depth_camera_name},
+        init_args={'rgb_camera_setup': rgb_camera_setup,
                    'flags': FLAGS,
                    'log_file_name': FLAGS.log_file_name,
                    'csv_file_name': FLAGS.csv_log_file_name})
@@ -398,8 +386,23 @@ def main(argv):
         # Create camera operators.
         camera_ops = add_camera_replay_ops(graph)
     else:
+        rgb_camera_setup = ('front_rgb_camera',
+                            'SceneFinal',
+                            (FLAGS.carla_camera_image_width,
+                             FLAGS.carla_camera_image_height),
+                            (2.0, 0.0, 1.4))
+        camera_setups = [rgb_camera_setup,
+                         ('front_depth_camera', 'Depth',
+                          (FLAGS.carla_camera_image_width,
+                           FLAGS.carla_camera_image_height),
+                          (2.0, 0.0, 1.4)),
+                         ('front_semantic_camera', 'SemanticSegmentation',
+                          (FLAGS.carla_camera_image_width,
+                           FLAGS.carla_camera_image_height),
+                          (2.0, 0.0, 1.4))]
+
         # Define ops
-        carla_op = add_carla_op(graph)
+        carla_op = add_carla_op(graph, camera_setups)
 
         # TODO(ionel): control_op is not connected.
         control_op = graph.add(
@@ -489,7 +492,7 @@ def main(argv):
                                                             camera_ops,
                                                             obj_detector_ops,
                                                             carla_op,
-                                                            'front_rgb_camera',
+                                                            rgb_camera_setup,
                                                             'front_depth_camera')
 
         if FLAGS.obj_tracking:

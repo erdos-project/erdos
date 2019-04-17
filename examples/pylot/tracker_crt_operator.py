@@ -13,7 +13,7 @@ from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
-from utils import add_bounding_box
+from detection_utils import add_bounding_box
 
 
 class TrackerCRTOperator(Op):

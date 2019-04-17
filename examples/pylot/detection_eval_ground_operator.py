@@ -10,9 +10,15 @@ from collections import deque
 from erdos.op import Op
 from erdos.utils import setup_logging
 
+from detection_utils import get_2d_bbox_from_3d_box
+
 
 class DetectionEvalGroundOperator(Op):
-    def __init__(self, name, flags, log_file_name=None, csv_file_name=None):
+    def __init__(self,
+                 name,
+                 flags,
+                 log_file_name=None,
+                 csv_file_name=None):
         super(DetectionEvalGroundOperator, self).__init__(name)
         self._logger = setup_logging(self.name, log_file_name)
         self._flags = flags
@@ -43,6 +49,11 @@ class DetectionEvalGroundOperator(Op):
             assert self._last_notification + 1 == msg.timestamp.coordinates[1]
         self._last_notification = msg.timestamp.coordinates[1]
 
+        # Ignore the first several seconds of the simulation because the car is
+        # not moving at the beginning.
+        if msg.timestamp.coordinates[0] <= self._flags.eval_ground_truth_ignore_first:
+            return
+
         # Get the data from the start of all the queues and make sure that
         # we did not miss any data.
         (rgb_t, rgb_img) = self._rgb_imgs.popleft()
@@ -55,12 +66,14 @@ class DetectionEvalGroundOperator(Op):
     def on_rgb_camera_update(self, rgb_msg):
         self._logger.info('Received a camera update at {}'.format(
             rgb_msg.timestamp))
-        rgb_img = self._bridge.imgmsg_to_cv2(rgb_msg.data, 'rgb8')
-        rgb_img = Image.fromarray(np.uint8(rgb_img)).convert('RGB')
-        self._rgb_imgs.append((rgb_msg.timestamp, rgb_img))
+        if rgb_msg.timestamp.coordinates[0] > self._flags.eval_ground_truth_ignore_first:
+            rgb_img = self._bridge.imgmsg_to_cv2(rgb_msg.data, 'rgb8')
+            rgb_img = Image.fromarray(np.uint8(rgb_img)).convert('RGB')
+            self._rgb_imgs.append((rgb_msg.timestamp, rgb_img))
 
     def on_world_transform_update(self, transform_msg):
         self._logger.info('Received a world transform at {}'.format(
             transform_msg.timestamp))
-        self._world_transforms.append((transform_msg.timestamp,
-                                       transform_msg.data))
+        if transform_msg.timestamp.coordinates[0] > self._flags.eval_ground_truth_ignore_first:
+            self._world_transforms.append((transform_msg.timestamp,
+                                           transform_msg.data))

@@ -1,10 +1,12 @@
 from itertools import combinations
+import math
 import numpy as np
 from numpy.linalg import inv
 from open3d import draw_geometries, read_point_cloud
 import PIL.ImageDraw as ImageDraw
 import PIL.ImageFont as ImageFont
 
+from carla.sensor import Camera
 from carla.image_converter import depth_to_local_point_cloud
 from carla.transform import Transform
 
@@ -302,3 +304,34 @@ def get_2d_bbox_from_3d_box(
                         height > rgb_img_size[1] * 0.01 and
                         width * height > rgb_img_size[0] * rgb_img_size[1] * 0.0002):
                         return (xmin, xmax, ymin, ymax)
+
+
+def get_camera_intrinsic_and_transform(name,
+                                       postprocessing,
+                                       field_of_view=90.0,
+                                       image_size=(800, 600),
+                                       position=(2.0, 0.0, 1.4),
+                                       rotation_pitch=0,
+                                       rotation_roll=0,
+                                       rotation_yaw=0):
+    camera = Camera(
+        name,
+        PostProcessing=postprocessing,
+        FOV=field_of_view,
+        ImageSizeX=image_size[0],
+        ImageSizeY=image_size[1],
+        PositionX=position[0],
+        PositionY=position[1],
+        PositionZ=position[2],
+        RotationPitch=rotation_pitch,
+        RotationRoll=rotation_roll,
+        RotationYaw=rotation_yaw)
+
+    image_width = image_size[0]
+    image_height = image_size[1]
+    # (Intrinsic) K Matrix
+    intrinsic_mat = np.identity(3)
+    intrinsic_mat[0][2] = image_width / 2
+    intrinsic_mat[1][2] = image_height / 2
+    intrinsic_mat[0][0] = intrinsic_mat[1][1] = image_width / (2.0 * math.tan(90.0 * math.pi / 360.0))
+    return (intrinsic_mat, camera.get_unreal_transform(), (image_width, image_height))

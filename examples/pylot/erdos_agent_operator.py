@@ -14,7 +14,7 @@ import agent_utils
 from planner.map import CarlaMap
 from planner.waypointer import Waypointer
 from pid_controller.pid import PID
-from utils import get_3d_world_position
+from detection_utils import get_3d_world_position
 
 
 class ERDOSAgentOperator(Op):

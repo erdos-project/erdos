@@ -1,35 +1,31 @@
-from itertools import combinations
 from cv_bridge import CvBridge
 import cv2
-import math
 import numpy as np
 import PIL.Image as Image
 import PIL.ImageDraw as ImageDraw
 import PIL.ImageFont as ImageFont
 
 from carla.image_converter import depth_to_array
-from carla.sensor import Camera
 
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging
 
 import messages
-import utils
+import detection_utils
 
 
 class ObstacleAccuracyOperator(Op):
 
     def __init__(self,
-                 name, rgb_camera_name, depth_camera_name,
+                 name,
+                 rgb_camera_setup,
                  flags,
                  log_file_name=None,
-                 csv_file_name=None,
-                 rgbd_max_range=1000):
+                 csv_file_name=None):
         super(ObstacleAccuracyOperator, self).__init__(name)
         self._flags = flags
         self._logger = setup_logging(self.name, log_file_name)
         self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
-        self._rgbd_max_range = rgbd_max_range
         self._bridge = CvBridge()
         self._world_transforms = []
         self._pedestrians = []
@@ -38,46 +34,12 @@ class ObstacleAccuracyOperator(Op):
         self._traffic_signs = []
         self._depth_imgs = []
         self._rgb_imgs = []
-        (self._rgb_intrinsic, self._rgb_transform, self._rgb_img_size) = self.__setup_camera_tranforms(
-            name=rgb_camera_name, postprocessing='SceneFinal')
-        (self._depth_intrinsic, self._depth_transform, self._depth_img_size) = self.__setup_camera_tranforms(
-            name=depth_camera_name, postprocessing='SemanticSegmentation')
-        self.pedestrian_to_history_map = {}
-
-    def __setup_camera_tranforms(self,
-                                 name,
-                                 postprocessing,
-                                 field_of_view=90.0,
-                                 image_size=(800, 600),
-#                                 position=(0.3, 0, 1.3),
-                                 position=(2.0, 0.0, 1.4), # Keep in sync with carla operator.
-                                 rotation_pitch=0,
-                                 rotation_roll=0,
-                                 rotation_yaw=0):
-        camera = Camera(
-            name,
-            PostProcessing=postprocessing,
-            FOV=field_of_view,
-            ImageSizeX=image_size[0],
-            ImageSizeY=image_size[1],
-            PositionX=position[0],
-            PositionY=position[1],
-            PositionZ=position[2],
-            RotationPitch=rotation_pitch,
-            RotationRoll=rotation_roll,
-            RotationYaw=rotation_yaw)
-
-        image_width = image_size[0]
-        image_height = image_size[1]
-        # (Intrinsic) K Matrix
-        intrinsic_mat = np.identity(3)
-        intrinsic_mat[0][2] = image_width / 2
-        intrinsic_mat[1][2] = image_height / 2
-        intrinsic_mat[0][0] = intrinsic_mat[1][1] = image_width / (2.0 * math.tan(90.0 * math.pi / 360.0))
-        return (intrinsic_mat, camera.get_unreal_transform(), (image_width, image_height))
+        (camera_name, pp, img_size, pos) = rgb_camera_setup
+        (self._rgb_intrinsic, self._rgb_transform, self._rgb_img_size) = detection_utils.get_camera_intrinsic_and_transform(
+            name=camera_name, postprocessing=pp, image_size=img_size, position=pos)
 
     @staticmethod
-    def setup_streams(input_streams, rgb_camera_name, depth_camera_name):
+    def setup_streams(input_streams, depth_camera_name):
         def is_obstacles_stream(stream):
             return stream.labels.get('obstacles', '') == 'true'
 
@@ -248,47 +210,47 @@ class ObstacleAccuracyOperator(Op):
     def __get_traffic_light_bboxes(self, traffic_lights, rgb_img,
                                    world_transform, depth_array):
         for (tl_transform, state) in traffic_lights:
-            pos = utils.map_ground_3D_transform_to_2D(rgb_img,
-                                                      world_transform,
-                                                      self._rgb_transform,
-                                                      self._rgb_intrinsic,
-                                                      self._rgb_img_size,
-                                                      tl_transform)
+            pos = detection_utils.map_ground_3D_transform_to_2D(rgb_img,
+                                                                world_transform,
+                                                                self._rgb_transform,
+                                                                self._rgb_intrinsic,
+                                                                self._rgb_img_size,
+                                                                tl_transform)
             if pos is not None:
                 x = int(pos[0])
                 y = int(pos[1])
                 z = pos[2].flatten().item(0)
-                if utils.have_same_depth(x, y, z, depth_array, 1.0):
+                if detection_utils.have_same_depth(x, y, z, depth_array, 1.0):
                     # TODO(ionel): Figure out bounding box size.
-                    utils.add_bounding_box(rgb_img,
-                                           (x - 2, x + 2, y - 2, y + 2),
-                                           color='yellow')
+                    detection_utils.add_bounding_box(rgb_img,
+                                                     (x - 2, x + 2, y - 2, y + 2),
+                                                     color='yellow')
 
     def __get_traffic_sign_bboxes(self, traffic_signs, rgb_img,
                                   world_transform, depth_array):
         for (ts_transform, speed_sign) in traffic_signs:
-            pos = utils.map_ground_3D_transform_to_2D(rgb_img,
-                                                      world_transform,
-                                                      self._rgb_transform,
-                                                      self._rgb_intrinsic,
-                                                      self._rgb_img_size,
-                                                      ts_transform)
+            pos = detection_utils.map_ground_3D_transform_to_2D(rgb_img,
+                                                                world_transform,
+                                                                self._rgb_transform,
+                                                                self._rgb_intrinsic,
+                                                                self._rgb_img_size,
+                                                                ts_transform)
             if pos is not None:
                 x = int(pos[0])
                 y = int(pos[1])
                 z = pos[2].flatten().item(0)
-                if utils.have_same_depth(x, y, z, depth_array, 1.0):
+                if detection_utils.have_same_depth(x, y, z, depth_array, 1.0):
                     # TODO(ionel): Figure out bounding box size.
-                    utils.add_bounding_box(rgb_img,
-                                           (x - 2, x + 2, y - 2, y + 2),
-                                           color='yellow')
+                    detection_utils.add_bounding_box(rgb_img,
+                                                     (x - 2, x + 2, y - 2, y + 2),
+                                                     color='yellow')
 
     def __get_pedestrians_bboxes(self, pedestrians, rgb_img, world_transform,
                                  depth_array):
         ped_bbox_id = []
         for (pedestrian_index, pd_transform, bounding_box,
              fwd_speed) in pedestrians:
-            bbox = utils.get_2d_bbox_from_3d_box(
+            bbox = detection_utils.get_2d_bbox_from_3d_box(
                 rgb_img, depth_array, world_transform, pd_transform,
                 bounding_box, self._rgb_transform, self._rgb_intrinsic,
                 self._rgb_img_size, 1.5, 3.0)
@@ -300,7 +262,7 @@ class ObstacleAccuracyOperator(Op):
                               depth_array):
         vec_bboxes = []
         for (vec_transform, bounding_box, fwd_speed) in vehicles:
-            bbox = utils.get_2d_bbox_from_3d_box(
+            bbox = detection_utils.get_2d_bbox_from_3d_box(
                 rgb_img, depth_array, world_transform, vec_transform,
                 bounding_box, self._rgb_transform, self._rgb_intrinsic,
                 self._rgb_img_size, 3.0, 3.0)

@@ -50,10 +50,11 @@ class CarlaOperator(Op):
             QualityLevel=quality)
         self.settings.randomize_seeds()
         self.lidar_streams = []
-        for (camera_stream_name, camera_type, image_size) in camera_setups:
+        for (camera_stream_name, camera_type, image_size, pos) in camera_setups:
             self.__add_camera(name=camera_stream_name,
                               postprocessing=camera_type,
-                              image_size=image_size)
+                              image_size=image_size,
+                              position=pos)
         for lidar_stream_name in lidar_stream_names:
             self.__add_lidar(name=lidar_stream_name)
         self.agent_id_map = {}
@@ -65,7 +66,7 @@ class CarlaOperator(Op):
         camera_streams = [DataStream(name=camera,
                                      labels={'sensor_type': 'camera',
                                              'camera_type': camera_type})
-                          for (camera, camera_type) in camera_setups]
+                          for (camera, camera_type, _, _) in camera_setups]
         lidar_streams = [DataStream(name=lidar)
                          for lidar in lidar_stream_names]
         return [
@@ -89,8 +90,7 @@ class CarlaOperator(Op):
                      postprocessing,
                      image_size=(800, 600),
                      field_of_view=90.0,
-                     #position=(0.3, 0, 1.3),
-                     position=(2.0, 0.0, 1.4), # Keep in sync with obstacle accuracy operator
+                     position=(0.3, 0, 1.3),
                      rotation_pitch=0,
                      rotation_roll=0,
                      rotation_yaw=0):
