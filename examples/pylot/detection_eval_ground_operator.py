@@ -10,7 +10,7 @@ from collections import deque
 from carla.image_converter import depth_to_array
 
 from erdos.op import Op
-from erdos.utils import setup_logging
+from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
 from detection_utils import get_avg_precision_at_iou, get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform
 
@@ -24,6 +24,7 @@ class DetectionEvalGroundOperator(Op):
                  csv_file_name=None):
         super(DetectionEvalGroundOperator, self).__init__(name)
         self._logger = setup_logging(self.name, log_file_name)
+        self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
         self._flags = flags
         self._bridge = CvBridge()
         # Queue of incoming data.
@@ -94,6 +95,8 @@ class DetectionEvalGroundOperator(Op):
         world_transform = world_trans_msg.data
 
         bboxes = []
+        self._logger.info(
+            'Number of pedestrians {}'.format(len(pedestrians_msg.data)))
         for (pedestrian_index, obj_transform, obj_bbox,
              _) in pedestrians_msg.data:
             bbox = get_2d_bbox_from_3d_box(
@@ -118,16 +121,13 @@ class DetectionEvalGroundOperator(Op):
                 precisions.append(get_avg_precision_at_iou(
                     bboxes, old_bboxes, iou))
 
-            self._logger.info(
-               "The average precision between timestamp {} "
-               "and {} is {}".format(
-                   old_timestamp, msg.timestamp, 
-                   float(sum(precisions)) / len(precisions)))
-
-            self._logger.info(
-                "The latency is {} and the average precision is {}".format(
-                    latency, float(sum(precisions)) / len(precisions))) 
-
+            if (len(bboxes) > 0 or len(old_bboxes) > 0):
+                avg_precision = float(sum(precisions)) / len(precisions)
+                self._logger.info(
+                    "The latency is {} and the average precision is {}".format(
+                        latency, avg_precision))
+                self._csv_logger.info('{},{},{},{}'.format(
+                    time_epoch_ms(), self.name, latency, avg_precision))
 
         # Buffer the new bounding boxes.
         self._ground_bboxes.append((msg.timestamp, bboxes))
