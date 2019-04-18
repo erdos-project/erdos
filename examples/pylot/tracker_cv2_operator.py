@@ -85,7 +85,8 @@ class TrackerCV2Operator(Op):
             self._logger.info("Removing stale {} {}".format(
                 self._to_process[0][0], msg.timestamp))
             self._to_process.popleft()
-        if len(msg.data) > 0:
+        (detector_res, runtime) = msg.data
+        if len(detector_res) > 0:
             if len(self._to_process) > 0:
                 # Found the frame corresponding to the bounding boxes.
                 (timestamp, frame) = self._to_process.popleft()
@@ -97,7 +98,7 @@ class TrackerCV2Operator(Op):
                 self._logger.info(
                     'Restarting tracker with frame {}'.format(msg.timestamp))
                 # Add a tracker for each bbox.
-                for (corners, score, obstacle_class) in msg.data:
+                for (corners, score, obstacle_class) in detector_res:
                     (xmin, xmax, ymin, ymax) = corners
                     bbox = (xmin, ymin, xmax - xmin, ymax - ymin)
                     self._tracker.add(cv2.TrackerKCF_create(), frame, bbox)

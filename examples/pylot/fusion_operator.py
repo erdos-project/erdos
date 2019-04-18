@@ -131,7 +131,8 @@ class FusionOperator(Op):
         # Filter objects
         self._logger.info("Received update objects")
         vehicle_bounds = []
-        for corners, score, label in msg.data:
+        (detector_res, runtime) = msg.data
+        for corners, score, label in detector_res:
             self._logger.info("%s received: %s %s %s ",
                               self.name, corners, score, label)
             # TODO(ionel): Deal with different types of labels.

@@ -91,8 +91,9 @@ class TrackerCRTOperator(Op):
             self.get_output_stream(self._output_stream_name).send(output_msg)
 
     def on_objects_msg(self, msg):
-        if len(msg.data) > 0:
-            (corners, score, obstacle_class) = msg.data[0]
+        (detector_res, runtime) = msg.data
+        if len(detector_res) > 0:
+            (corners, score, obstacle_class) = detector_res[0]
             (xmin, xmax, ymin, ymax) = corners
             rect_coordinates = (int(xmin), int(ymin),
                                 int(xmax - xmin), int(ymax - ymin))

@@ -146,7 +146,8 @@ class ERDOSAgentOperator(Op):
         self._depth_imgs = self._depth_imgs[1:]
 
         traffic_lights = []
-        for (corners, score, label) in self._traffic_lights[0].data:
+        (tl_det_output, _) = self._traffic_lights[0].data
+        for (corners, score, label) in tl_det_output:
             x = (corners[0] + corners[1]) / 2
             y = (corners[2] + corners[3]) / 2
             (x3d, y3d, z3d) = get_3d_world_position(
@@ -159,7 +160,8 @@ class ERDOSAgentOperator(Op):
 
         vehicles = []
         pedestrians = []
-        for (corners, score, label) in self._obstacles[0].data:
+        (obstacles, _) = self._obstacles[0].data
+        for (corners, score, label) in obstacles:
             x = (corners[0] + corners[1]) / 2
             y = (corners[2] + corners[3]) / 2
             if label == 'person':

@@ -56,7 +56,7 @@ class DetectionOperator(Op):
         self._logger.info('Object detector {} runtime {}'.format(
             self.name, runtime))
 
-        output_msg = Message(results, msg.timestamp)
+        output_msg = Message((results, runtime), msg.timestamp)
         self.get_output_stream(self._output_stream_name).send(output_msg)
         #self.notify_at(msg.timestamp)
 

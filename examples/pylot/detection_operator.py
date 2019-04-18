@@ -122,7 +122,7 @@ class DetectionOperator(Op):
         runtime = (time.time() - start_time) * 1000
         self._csv_logger.info('{},{},"{}",{}'.format(
             time_epoch_ms(), self.name, msg.timestamp, runtime))
-        output_msg = Message(output, msg.timestamp)
+        output_msg = Message((output, runtime), msg.timestamp)
         self.get_output_stream(self._output_stream_name).send(output_msg)
 
     def execute(self):
