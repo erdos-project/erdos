@@ -358,6 +358,7 @@ def get_camera_intrinsic_and_transform(name,
     intrinsic_mat[0][0] = intrinsic_mat[1][1] = image_width / (2.0 * math.tan(90.0 * math.pi / 360.0))
     return (intrinsic_mat, camera.get_unreal_transform(), (image_width, image_height))
 
+
 def calculate_iou(ground_truth, prediction):
     """Calculate the IoU of a single predicted ground truth box."""
     x1_gt, x2_gt, y1_gt, y2_gt = ground_truth
@@ -382,6 +383,7 @@ def calculate_iou(ground_truth, prediction):
     gt_area = (x2_gt - x1_gt + 1) * (y2_gt - y1_gt + 1)
     pred_area = (x2_p - x1_p + 1) * (y2_p - y1_p + 1)
     return float(inter_area) / (gt_area + pred_area - inter_area)
+
 
 def get_prediction_results(ground_truths, predictions, iou_threshold):
     """Calculate the number of true positives, false positives and false
@@ -433,6 +435,7 @@ def get_prediction_results(ground_truths, predictions, iou_threshold):
 
     return true_pos, false_pos, false_neg
 
+
 def get_precision_recall(true_positives, false_positives, false_negatives):
     precision, recall = None, None
     if true_positives + false_positives == 0:
@@ -447,11 +450,44 @@ def get_precision_recall(true_positives, false_positives, false_negatives):
 
     return (precision, recall)
 
-def get_avg_precision_at_iou(ground_truths, predictions, iou_threshold):
+
+def get_precision_recall_at_iou(ground_truths, predictions, iou_threshold):
     true_pos, false_pos, false_neg = get_prediction_results(ground_truths,
             predictions, iou_threshold)
-    precision, recall = get_precision_recall(true_pos, false_pos, false_neg)
-    # Ideally, you would like to take multiple precision values at different
-    # recalls and average them, but we can't vary model confidence, so we just
-    # return the actual precision.
-    return precision
+    return get_precision_recall(true_pos, false_pos, false_neg)
+
+
+def get_pedestrian_mAP(ground_bboxes, detector_output):
+    """Return mAP with IoU threshold of 0.5"""
+    # Select the pedestrians.
+    confidence_bbox = []
+    for (corners, score, label) in detector_output:
+        if label == 'person':
+            confidence_bbox.append((score, corners))
+    # Sort bboxes descending by score.
+    confidence_bbox.sort()
+    confidence_bbox.reverse()
+    detected_bboxes = [bbox for (score, bbox) in confidence_bbox]
+    # Compute recall precision. The results are sorted in descending
+    # order by recall.
+    prec_rec = []
+    while (len(detected_bboxes) > 0):
+        # Get precision recall with 0.5 IoU threshold .
+        precision, recall = get_precision_recall_at_iou(ground_bboxes, detected_bboxes, 0.5)
+        prec_rec.append((precision, recall))
+        detected_bboxes.pop()
+    # Append (0, 0) to also cover the area from first recall point to 0 recall.
+    prec_rec.append((0, 0))
+    avg_precision = 0.0
+    max_precision = 0.0
+    max_precision = None
+    last_recall = None
+    for (precision, recall) in prec_rec:
+        if max_precision is None:
+            max_precision = precision
+            last_recall = recall
+        else:
+            avg_precision += (last_recall - recall) * max_precision
+            max_precision = max(max_precision, precision)
+            last_recall = recall
+    return avg_precision

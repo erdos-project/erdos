@@ -9,7 +9,7 @@ import PIL.ImageFont as ImageFont
 from carla.image_converter import depth_to_array
 
 from erdos.op import Op
-from erdos.utils import setup_csv_logging, setup_logging
+from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
 import messages
 import detection_utils
@@ -46,6 +46,7 @@ class ObstacleAccuracyOperator(Op):
         # Heap storing pairs of (ground/output time, game time).
         self._detector_start_end_times = []
         self._sim_interval = None
+        self._iou_thresholds = [0.1 * i for i in range(1, 10)]
 
     @staticmethod
     def setup_streams(input_streams, depth_camera_name):
@@ -115,17 +116,24 @@ class ObstacleAccuracyOperator(Op):
                 if self._flags.detection_eval_use_accuracy_model:
                     # Not using the detector's outputs => get ground bboxes.
                     start_bboxes = self.__get_ground_obstacles_at(start_time)
-                    # TODO(ionel): Call function that computes mAP.
-                    #compute_mAP(start_bboxes, end_bboxes)
-                    self._logger.info('Start bboxes {}'.format(start_bboxes))
-                    self._logger.info('End bboxes {}'.format(end_bboxes))
+                    if (len(start_bboxes) > 0 or len(end_bboxes) > 0):
+                        precisions = []
+                        for iou in self._iou_thresholds:
+                            (precision, _) = get_precision_recall_at_iou(
+                                end_bboxes, start_bboxes, iou)
+                            precisions.append(precision)
+                        avg_precision = float(sum(precisions)) / len(precisions)
+                        self._logger.info('precision-IoU is: {}'.format(avg_precision))
+                        self._csv_logger.info('{},{},{},{}'.format(
+                            time_epoch_ms(), self.name, 'precision-IoU', avg_precision))
                 else:
                     # Get detector output obstacles.
-                    det_bboxes = self.__get_obstacles_at(start_time)
-                    # TODO(ionel): Call function that computes mAP.
-                    #compute_mAP(det_bboxes, end_bboxes)
-                    self._logger.info('Detected bboxes {}'.format(det_bboxes))
-                    self._logger.info('End bboxes {}'.format(end_bboxes))
+                    det_output = self.__get_obstacles_at(start_time)
+                    if (len(det_output) > 0 or len(end_bboxes) > 0):
+                        mAP = detection_utils.get_pedestrian_mAP(end_bboxes, det_output)
+                        self._logger.info('mAP is: {}'.format(mAP))
+                        self._csv_logger.info('{},{},{},{}'.format(
+                            time_epoch_ms(), self.name, 'mAP', mAP))
                 self._logger.info('Computing accuracy for {} {}'.format(
                     end_time, start_time))
             else:
@@ -314,20 +322,6 @@ class ObstacleAccuracyOperator(Op):
 
         ped_bboxes = [bbox for (_, bbox) in ped_bbox_id]
         return (ped_bboxes, vec_bboxes)
-
-    def __compute_area(self, bbox):
-        return (bbox[2] - bbox[0] + 1) * (bbox[3] - bbox[1] + 1)
-
-    def __compute_accuracy(self, bbox1, bbox2):
-        x1 = max(bbox1[0], bbox2[0])
-        y1 = max(bbox1[1], bbox2[1])
-        x2 = min(bbox1[2], bbox2[2])
-        y2 = min(bbox1[3], bbox2[3])
-        intersection_area = max(0, x2 - x1 + 1) * max(0, y2 - y1 + 1)
-        bbox1_area = self.__compute_area(bbox1)
-        bbox2_area = self.__compute_area(bbox2)
-        iou = intersection_area / float(bbox1_area + bbox2_area - intersection_area)
-        return iou
 
     def __get_traffic_light_bboxes(self, traffic_lights, rgb_img,
                                    world_transform, depth_array):

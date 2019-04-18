@@ -12,7 +12,7 @@ from carla.image_converter import depth_to_array
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
-from detection_utils import get_avg_precision_at_iou, get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform
+from detection_utils import get_precision_recall_at_iou, get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform
 
 
 class DetectionEvalGroundOperator(Op):
@@ -113,12 +113,16 @@ class DetectionEvalGroundOperator(Op):
             self._ground_bboxes.popleft()
 
         for (old_timestamp, old_bboxes) in self._ground_bboxes:
+            # Ideally, you would like to take multiple precision values at different
+            # recalls and average them, but we can't vary model confidence, so we just
+            # return the actual precision.
             if (len(bboxes) > 0 or len(old_bboxes) > 0):
                 latency = msg.timestamp.coordinates[0] - old_timestamp.coordinates[0]
                 precisions = []
                 for iou in self._iou_thresholds:
-                    precisions.append(get_avg_precision_at_iou(
-                        bboxes, old_bboxes, iou))
+                    (precision, _) = get_precision_recall_at_iou(
+                        bboxes, old_bboxes, iou)
+                    precisions.append(precision)
                 self._logger.info("Precision {}".format(precisions))
                 avg_precision = float(sum(precisions)) / len(precisions)
                 self._logger.info(
