@@ -112,16 +112,14 @@ class DetectionEvalGroundOperator(Op):
                self._flags.eval_ground_truth_max_latency):
             self._ground_bboxes.popleft()
 
-
         for (old_timestamp, old_bboxes) in self._ground_bboxes:
-            latency = msg.timestamp.coordinates[0] - old_timestamp.coordinates[
-                0]
-            precisions = []
-            for iou in self._iou_thresholds:
-                precisions.append(get_avg_precision_at_iou(
-                    bboxes, old_bboxes, iou))
-
             if (len(bboxes) > 0 or len(old_bboxes) > 0):
+                latency = msg.timestamp.coordinates[0] - old_timestamp.coordinates[0]
+                precisions = []
+                for iou in self._iou_thresholds:
+                    precisions.append(get_avg_precision_at_iou(
+                        bboxes, old_bboxes, iou))
+                self._logger.info("Precision {}".format(precisions))
                 avg_precision = float(sum(precisions)) / len(precisions)
                 self._logger.info(
                     "The latency is {} and the average precision is {}".format(
