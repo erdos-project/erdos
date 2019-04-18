@@ -233,7 +233,7 @@ def get_bounding_box_sampling_points(ends):
     middle_point = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2,
                     b[2].flatten().item(0))
     sampling_points = [
-        middle_point, 
+        middle_point,
         (middle_point[0] + 2, middle_point[1], middle_point[2]),
         (middle_point[0] + 1, middle_point[1] + 1, middle_point[2]),
         (middle_point[0] + 1, middle_point[1] - 1, middle_point[2]),
@@ -313,7 +313,8 @@ def get_2d_bbox_from_3d_box(
                     have_same_depth(x, y, z, depth_array, neighbor_threshold)
                             for (x, y, z) in points_inside_image
                 ]
-                if same_depth_points.count(True) >= 0.4 * len(same_depth_points):
+                if len(same_depth_points) > 0 and \
+                        same_depth_points.count(True) >= 0.4 * len(same_depth_points):
                     (xmin, xmax, ymin, ymax) = select_max_bbox(ends)
                     width = xmax - xmin
                     height = ymax - ymin
@@ -356,3 +357,101 @@ def get_camera_intrinsic_and_transform(name,
     intrinsic_mat[1][2] = image_height / 2
     intrinsic_mat[0][0] = intrinsic_mat[1][1] = image_width / (2.0 * math.tan(90.0 * math.pi / 360.0))
     return (intrinsic_mat, camera.get_unreal_transform(), (image_width, image_height))
+
+def calculate_iou(ground_truth, prediction):
+    """Calculate the IoU of a single predicted ground truth box."""
+    x1_gt, x2_gt, y1_gt, y2_gt = ground_truth
+    x1_p, x2_p, y1_p, y2_p = prediction
+
+    if x1_p > x2_p or y1_p > y2_p:
+        raise AssertionError("Prediction box is malformed? {}".format(prediction))
+
+    if x1_gt > x2_gt or y1_gt > y2_gt:
+        raise AssertionError("Ground truth box is malformed? {}".format(ground_truth))
+
+    if x2_gt < x1_p or x2_p < x1_gt or y2_gt < y1_p or y2_p < y1_gt:
+        return 0.0
+
+    inter_x1 = max([x1_gt, x1_p]) 
+    inter_x2 = min([x2_gt, x2_p])
+
+    inter_y1 = max([y1_gt, y1_p])
+    inter_y2 = min([y2_gt, y2_p])
+
+    inter_area = (inter_x2 - inter_x1 + 1) * (inter_y2 - inter_y1 + 1)
+    gt_area = (x2_gt - x1_gt + 1) * (y2_gt - y1_gt + 1)
+    pred_area = (x2_p - x1_p + 1) * (y2_p - y1_p + 1)
+    return float(inter_area) / (gt_area + pred_area - inter_area)
+
+def get_prediction_results(ground_truths, predictions, iou_threshold):
+    """Calculate the number of true positives, false positives and false
+    negatives from the given ground truth and predictions."""
+    true_pos, false_pos, false_neg = None, None, None
+
+    # If there are no predictions, then everything is a false negative.
+    if len(predictions) == 0:
+        true_pos, false_pos = 0, 0
+        false_neg = len(ground_truths)
+        return true_pos, false_pos, false_neg
+
+    # If there is no ground truth, everything is a false positive.
+    if len(ground_truths) == 0:
+        true_pos, false_neg = 0, 0
+        false_pos = len(predictions)
+        return true_pos, false_pos, false_neg
+
+    # Iterate over the predictions and calculate the IOU of each prediction
+    # with each ground truth.
+    ious = []
+    for i, prediction in enumerate(predictions):
+        for j, ground_truth in enumerate(ground_truths):
+            iou = calculate_iou(prediction, ground_truth)
+            if iou > iou_threshold:
+                ious.append((i, j, iou))
+
+    # If no IOUs were over the threshold, return all predictions as false
+    # positives and all ground truths as false negatives.
+    if len(ious) == 0:
+        true_pos = 0
+        false_pos, false_neg = len(predictions), len(ground_truths)
+    else:
+        # Sort the IOUs and match each box only once.
+        ground_truths_matched, predictions_matched = set(), set()
+        matched = []
+        for prediction, ground_truth, iou in sorted(ious, key=lambda x: x[-1], reverse=True):
+            if ground_truth not in ground_truths_matched and prediction not in predictions_matched:
+                ground_truths_matched.add(ground_truth)
+                predictions_matched.add(prediction)
+                matched.append((prediction, ground_truth, iou))
+        
+        # The matches are the true positives.
+        true_pos = len(matched)
+        # The unmatched predictions are the false positives.
+        false_pos = len(predictions) - len(predictions_matched)
+        # The umatched ground truths are the false negatives.
+        false_neg = len(ground_truths) - len(ground_truths_matched)
+
+    return true_pos, false_pos, false_neg
+
+def get_precision_recall(true_positives, false_positives, false_negatives):
+    precision, recall = None, None
+    if true_positives + false_positives == 0:
+        precision = 0.0
+    else:
+        precision = true_positives / (true_positives + false_positives)
+
+    if true_positives + false_negatives == 0:
+        recall = 0.0
+    else:
+        recall = true_positives / (true_positives + false_negatives)
+
+    return (precision, recall)
+
+def get_avg_precision_at_iou(ground_truths, predictions, iou_threshold):
+    true_pos, false_pos, false_neg = get_prediction_results(ground_truths,
+            predictions, iou_threshold)
+    precision, recall = get_precision_recall(true_pos, false_pos, false_neg)
+    # Ideally, you would like to take multiple precision values at different
+    # recalls and average them, but we can't vary model confidence, so we just
+    # return the actual precision.
+    return precision
