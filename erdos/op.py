@@ -107,7 +107,7 @@ class Op(object):
             return True
         return False
 
-    def checkpoint(self):
+    def checkpoint(self, checkpoint_id):
         """ Provided by the user to checkpoint state.
 
         Required user override if checkpoint enabled.
