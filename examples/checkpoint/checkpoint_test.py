@@ -40,7 +40,6 @@ def run_graph(argv):
         name='source',
         init_args={'num_messages': num_messages,
                    'fps': fps,
-                   'state_size': state_size,
                    'checkpoint_freq': checkpoint_freq}
     )
 

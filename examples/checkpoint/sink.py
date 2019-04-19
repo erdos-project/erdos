@@ -47,23 +47,15 @@ class Sink(Op):
             self._state.popleft()
         self._state.append(seq_num)
 
-    def checkpoint(self, timestamp):
-        # Override base class checkpoint function
-        snapshot_id = self._state[-1]  # latest received seq num/timestamp
-        assert snapshot_id not in self._checkpoints
-        self._checkpoints[snapshot_id] = copy(self._state)
-        self._logger.info('checkpointed at latest stored data %d' % snapshot_id)
-
-        # Send snapshot ID (latest received seq num) to controller
-        snapshot_msg = Message(snapshot_id, timestamp=None)
-        self.get_output_stream("sink_snapshot").send(snapshot_msg)
-
     def checkpoint_condition(self, timestamp):
         if timestamp.coordinates[0] % self._checkpoint_freq == 0:
             return True
         return False
 
-    def checkpoint(self):
+    def checkpoint(self, checkpoint_id):
+        # Send snapshot ID (latest received seq num) to controller
+        snapshot_msg = Message(checkpoint_id, timestamp=None)
+        self.get_output_stream("sink_snapshot").send(snapshot_msg)
         return copy(self._state)
 
     def on_rollback_msg(self, msg):

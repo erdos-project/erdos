@@ -43,7 +43,7 @@ class FailureOperator(Op):
             return True
         return False
 
-    def checkpoint(self):
+    def checkpoint(self, checkpoint_id):
         return copy(self._state)
 
     def on_rollback_msg(self, msg):
