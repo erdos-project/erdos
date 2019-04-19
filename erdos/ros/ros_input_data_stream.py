@@ -1,12 +1,15 @@
 import logging
 import pickle
 import time
+from absl import flags
 
 import rospy
 from std_msgs.msg import String
 
 from erdos.data_stream import DataStream
 from erdos.message import WatermarkMessage
+
+FLAGS = flags.FLAGS
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +35,18 @@ class ROSInputDataStream(DataStream):
         # TODO(ionel): We currently transform messages to Strings because
         # we want to pass timestamp and stream info along with the message.
         # However, the extra serialization can add overheads. Fix!
-        rospy.Subscriber(self.uid, String, callback=self._on_msg)
+        if FLAGS.ros_non_dropping:
+            rospy.Subscriber(self.uid,
+                             String,
+                             callback=self._on_msg,
+                             queue_size=None)
+        else:
+            rospy.Subscriber(
+                self.uid,
+                String,
+                callback=self._on_msg,
+                queue_size=100,
+                buff_size=314572800)  # 100 x avg message size (assumed 3MB)
 
     def _on_msg(self, msg):
         #data = msg if self.data_type else pickle.loads(msg.data)

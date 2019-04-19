@@ -78,6 +78,7 @@ class SinkOperator(Op):
     def __init__(self, name):
         super(SinkOperator, self).__init__(name)
         self.timestamp_to_data_map = defaultdict(list)
+        self._expected_timestamp = 1
 
     @staticmethod
     def setup_streams(input_streams):
@@ -93,6 +94,9 @@ class SinkOperator(Op):
             msg.data)
 
     def on_watermark(self, msg):
+        # Check we didn't miss any watermarks.
+        assert self._expected_timestamp == msg.timestamp.coordinates[0]
+        self._expected_timestamp += 1
         print("[{}] Received the watermark for timestamp {}.".format(
             self.name, msg.timestamp.coordinates[0]))
         data_values = self.timestamp_to_data_map[msg.timestamp.coordinates[0]]
