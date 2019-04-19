@@ -14,7 +14,6 @@ class Source(Op):
                  name,
                  checkpoint_enable=True,
                  checkpoint_freq=10,
-                 state_size=10,
                  num_messages=50,
                  fps=10,
                  log_file_name=None):
@@ -26,9 +25,6 @@ class Source(Op):
         self._num_messages = num_messages
         self._time_gap = 1.0 / fps
 
-        self._state_size = state_size
-        self._state = deque()
-
     @staticmethod
     def setup_streams(input_streams):
         input_streams\
@@ -36,32 +32,14 @@ class Source(Op):
             .add_callback(Source.on_rollback_msg)
         return [DataStream(name='input_stream')]
 
-    def checkpoint(self):
-        return copy(self._state)
-
-    def checkpoint_condition(self, timestamp):
-        if timestamp.coordinates[0] % self._checkpoint_freq == 0:
-            return True
-        return False
-
     def on_rollback_msg(self, msg):
+        # XXX(Yika): fake rollback since source op does not really checkpoint
         (control_msg, rollback_id) = msg.data
         if control_msg == checkpoint_util.CheckpointControllerCommand.ROLLBACK:
-            state = self.restore(rollback_id)
-            if state is None:
-                self._state = deque()
-                self._seq_num = 1
-            else:
-                self._state = state
-                self._seq_num = rollback_id + 1
+            self._seq_num = rollback_id + 1
 
     def execute(self):
         while self._seq_num < self._num_messages:
-            # Build state
-            if len(self._state) == self._state_size:  # state is full
-                self._state.popleft()
-            self._state.append(self._seq_num)
-
             # Send msg and watermark
             timestamp = Timestamp(coordinates=[self._seq_num])
             output_msg = Message(self._seq_num, timestamp)
@@ -69,10 +47,5 @@ class Source(Op):
             pub = self.get_output_stream('input_stream')
             pub.send(output_msg)
             pub.send(watermark)
-
-            # Checkpoint, source needs to write its own checkpoint
-            if self._seq_num % self._checkpoint_freq == 0:
-                self.checkpoint(timestamp)
-
             self._seq_num += 1
             time.sleep(self._time_gap)
