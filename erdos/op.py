@@ -146,8 +146,9 @@ class Op(object):
         return self._checkpoints[checkpoint_id]
 
     def _checkpoint(self, checkpoint_id):
+        checkpoint_id = checkpoint_id.coordinates[0]
         assert checkpoint_id not in self._checkpoints, "Duplicated checkpoint ID."
-        state = self.checkpoint()
+        state = self.checkpoint(checkpoint_id)
         self._checkpoints[checkpoint_id] = state
 
     def _reset_progress(self, timestamp):
