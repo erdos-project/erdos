@@ -1,5 +1,6 @@
 import logging
 from time import sleep
+from erdos.timestamp import Timestamp
 
 
 class Op(object):
@@ -32,11 +33,16 @@ class Op(object):
         self.progress_tracker = None
         self.framework = None
         self._stream_to_high_watermark = {}
+        self._stream_ignore_watermarks = set()  # input streams that do not send watermarks
+
+        # Checkpoint variables
         self._checkpoint_enable = checkpoint_enable
         self._checkpoint_freq = checkpoint_freq
         if self._checkpoint_enable:
             assert self._checkpoint_freq is not None
-        self._stream_ignore_watermarks = set()  # input streams that do not send watermarks
+        # XXX(ionel): _checkpoints could be a queue, but we kept it a dict
+        # to be able to easily do asserts.
+        self._checkpoints = dict()
 
     def get_output_stream(self, name):
         """Returns the output stream matching name"""
@@ -101,18 +107,15 @@ class Op(object):
             return True
         return False
 
-    def checkpoint(self, timestamp):
+    def checkpoint(self):
         """ Provided by the user to checkpoint state.
 
-        Required user override.
-
-        Args:
-             timestamp: the timestamp at which which checkpoint_condition
-                 evaluated to True.
+        Required user override if checkpoint enabled.
+        Return a checkpoint id and a checkpoint state
         """
-        pass
+        return None
 
-    def restore(self, timestamp):
+    def restore(self, checkpoint_id):
         """ Provided by the user to restore state from a checkpoint.
 
         Required user override.
@@ -121,7 +124,31 @@ class Op(object):
              timestamp: the timestamp at which which checkpoint_condition
                  evaluated to True.
         """
-        pass
+        if checkpoint_id not in self._checkpoints:
+            # Find the closest checkpoint ID on the smaller side
+            ids = sorted(self._checkpoints.keys())
+            assert len(ids) > 0, "Nothing in checkpoints to be restored."
+            if checkpoint_id < ids[0]:
+                # restore to beginning stage
+                self._reset_progress(Timestamp(coordinates=[0]))
+                self._checkpoints = dict()
+                return None
+            checkpoint_id = [id for id in ids if id < checkpoint_id][-1]
+
+        # Remove all snapshots later than the rollback point
+        pop_ids = [k for k in self._checkpoints if k > checkpoint_id]
+        for id in pop_ids:
+            self._checkpoints.pop(id)
+
+        # Reset watermark
+        self._reset_progress(Timestamp(coordinates=[checkpoint_id]))
+
+        return self._checkpoints[checkpoint_id]
+
+    def _checkpoint(self, checkpoint_id):
+        assert checkpoint_id not in self._checkpoints, "Duplicated checkpoint ID."
+        state = self.checkpoint()
+        self._checkpoints[checkpoint_id] = state
 
     def _reset_progress(self, timestamp):
         """ Reset the progress (watermark) of the operator """

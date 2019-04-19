@@ -80,7 +80,7 @@ class ROSInputDataStream(DataStream):
             # we checkpoint.
             if (self.op._checkpoint_enable and
                 self.op.checkpoint_condition(msg.timestamp)):
-                self.op.checkpoint(msg.timestamp)
+                self.op._checkpoint(msg.timestamp)
 
             # Call the required callbacks.
             for on_watermark_callback in self.completion_callbacks:
