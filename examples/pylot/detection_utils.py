@@ -294,9 +294,11 @@ def get_2d_bbox_from_3d_box(
                 height = ymax - ymin
                 # Filter out the small bounding boxes (they're far away).
                 # We use thresholds that are proportional to the image size.
+                # XXX(ionel): Reduce thresholds to 0.01, 0.01, and 0.0002 if
+                # you want to include objects that are far away.
                 if (width > rgb_img_size[0] * 0.01 and
-                    height > rgb_img_size[1] * 0.01 and
-                    width * height > rgb_img_size[0] * rgb_img_size[1] * 0.0002):
+                    height > rgb_img_size[1] * 0.02 and
+                    width * height > rgb_img_size[0] * rgb_img_size[1] * 0.0004):
                     return (xmin, xmax, ymin, ymax)
             else:
                 # The mid point doesn't have the same depth. It can happen
@@ -322,9 +324,11 @@ def get_2d_bbox_from_3d_box(
                     height = ymax - ymin
                     # Filter out the small bounding boxes (they're far away).
                     # We use thresholds that are proportional to the image size.
+                    # XXX(ionel): Reduce thresholds to 0.01, 0.01, and 0.0002 if
+                    # you want to include objects that are far away.
                     if (width > rgb_img_size[0] * 0.01 and
-                        height > rgb_img_size[1] * 0.01 and
-                        width * height > rgb_img_size[0] * rgb_img_size[1] * 0.0002):
+                        height > rgb_img_size[1] * 0.02 and
+                        width * height > rgb_img_size[0] * rgb_img_size[1] * 0.0004):
                         return (xmin, xmax, ymin, ymax)
 
 
