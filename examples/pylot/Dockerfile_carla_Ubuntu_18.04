@@ -1,0 +1,77 @@
+FROM nvidia/10.0-cudnn7-runtime-ubuntu18.04
+MAINTAINER Sukrit Kalra (sukrit.kalra@berkeley.edu)
+
+# Set up a erdos user first.
+RUN apt-get -y update && apt-get -y install sudo
+ENV uid 1000
+ENV gid 1000
+
+RUN mkdir -p /home/erdos
+RUN groupadd erdos -g ${gid} 
+RUN useradd -r -u ${uid} -g erdos erdos
+RUN echo "erdos ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/erdos
+RUN chmod 0440 /etc/sudoers.d/erdos
+RUN chown ${uid}:${gid} -R /home/erdos
+
+
+USER erdos
+ENV HOME /home/erdos
+ENV SHELL /bin/bash
+WORKDIR /home/erdos
+
+# Install ROS
+# Get ROS Melodic for Ubuntu 18.04
+RUN sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list'
+RUN sudo apt-key adv --keyserver hkp://ha.pool.sks-keyservers.net:80 --recv-key 421C365BD9FF1F717815A3895523BAEEB01FA116
+RUN sudo apt-get update
+RUN sudo apt-get install -y --allow-unauthenticated ros-melodic-ros-base
+
+# Initialize rosdep
+RUN sudo rosdep init
+RUN rosdep update
+
+# Install rosinstall
+RUN sudo apt-get install -y python-rosinstall
+RUN sudo apt-get install -y python-cv-bridge
+
+# Set up the pylot code.
+RUN sudo apt-get install -y python-pip
+RUN pip install absl-py ray gdown open3d-original torch==0.4.1 torchvision==0.2.1 tensorflow-gpu==1.13.1 opencv-python opencv-contrib-python scipy pid_controller pillow  protobuf
+
+# Get the erdos directory.
+RUN sudo apt-get -y install git
+RUN mkdir -p /home/erdos/workspace
+RUN cd /home/erdos/workspace && git clone --recursive https://github.com/erdos-project/erdos.git
+WORKDIR /home/erdos/workspace/erdos
+RUN cd /home/erdos/workspace/erdos && pip install -r requirements.txt
+
+# Retrieve CARLA
+RUN cd /home/erdos/workspace/ && /home/erdos/.local/bin/gdown https://drive.google.com/uc?id=18OaDbQ2K9Dcs25d-nIxpw3GPRHhG1r_2
+RUN cd /home/erdos/workspace/ && mkdir -p CARLA_0.8.4 && mv CARLA_0.8.4.tar.gz CARLA_0.8.4/
+RUN cd /home/erdos/workspace/CARLA_0.8.4 && tar xvf CARLA_0.8.4.tar.gz && rm -rf CARLA_0.8.4.tar.gz
+ENV SDL_VIDEODRIVER offscreen
+
+# Get the Pylot models and code dependencies.
+RUN sudo apt-get install -y wget
+RUN cd /home/erdos/workspace/erdos/examples/pylot/dependencies/ && ./get_dependencies.sh
+
+# Export PYTHONPATH
+RUN echo "export PYTHONPATH=$PYTHONPATH:/home/erdos/workspace/erdos:/home/erdos/workspace/erdos/examples/pylot/dependencies:/home/erdos/workspace/CARLA_0.8.4/PythonClient" >> ~/.bashrc
+
+# Install YOLO
+RUN sudo apt-get install -y python-opencv
+RUN cd /home/erdos/workspace && git clone https://github.com/madhawav/YOLO3-4-Py.git
+RUN cd /home/erdos/workspace/YOLO3-4-Py/ && sed -i 's/exist_ok=True//g' util.py
+RUN echo "export CUDA_HOME=/usr/local/cuda" >> ~/.bashrc
+RUN sudo apt-get install -y python3-pip
+RUN pip3 install numpy cython
+RUN echo "export GPU=1" >> ~/.bashrc
+RUN echo "export PATH=$PATH:/usr/local/cuda/bin" >> ~/.bashrc
+RUN cd /home/erdos/workspace/YOLO3-4-Py/ && python3 setup.py build_ext --inplace
+RUN cd /home/erdos/workspace/YOLO3-4-Py/ && pip install .
+
+# Source the ROS setup script at the init of the shell.
+RUN echo "source /opt/ros/kinetic/setup.bash" >> ~/.bashrc
+
+# Expose the required ports.
+EXPOSE 2000 2001 2002

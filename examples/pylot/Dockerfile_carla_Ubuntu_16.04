@@ -23,23 +23,24 @@ WORKDIR /home/erdos
 # Get ROS Kinetic for Ubuntu 16.04
 RUN sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu xenial main" > /etc/apt/sources.list.d/ros-latest.list'
 RUN sudo apt-key adv --keyserver hkp://ha.pool.sks-keyservers.net:80 --recv-key 421C365BD9FF1F717815A3895523BAEEB01FA116 
-RUN sudo apt-get update && sudo apt-get -y install ros-kinetic-desktop-full
+RUN sudo apt-get update && RUN sudo apt-get install -y --allow-unauthenticated ros-kinetic-ros-base
 
 # Initialize rosdep
 RUN sudo rosdep init
 RUN rosdep update
 
 # Install rosinstall
-RUN sudo apt-get -y install python-rosinstall
+RUN sudo apt-get install -y python-rosinstall
+RUN sudo apt-get install -y python-cv-bridge
 
 # Set up the pylot code.
 RUN sudo apt-get install -y python-pip
-RUN pip install absl-py ray gdown open3d-original torch==0.4.1 torchvision==0.2.1 tensorflow-gpu==1.12 opencv-python opencv-contrib-python
+RUN pip install absl-py ray gdown open3d-original torch==0.4.1 torchvision==0.2.1 tensorflow-gpu==1.12 opencv-python opencv-contrib-python scipy pid_controller pillow protobuf
 
 # Get the erdos directory.
 RUN sudo apt-get -y install git
 RUN mkdir -p /home/erdos/workspace
-RUN cd /home/erdos/workspace && git clone --recursive https://github.com/erdos-project/erdos.git
+RUN cd /home/erdos/workspace && git clone https://github.com/erdos-project/erdos.git
 WORKDIR /home/erdos/workspace/erdos
 RUN cd /home/erdos/workspace/erdos && pip install -r requirements.txt
 
@@ -49,14 +50,12 @@ RUN cd /home/erdos/workspace/ && mkdir -p CARLA_0.8.4 && mv CARLA_0.8.4.tar.gz C
 RUN cd /home/erdos/workspace/CARLA_0.8.4 && tar xvf CARLA_0.8.4.tar.gz && rm -rf CARLA_0.8.4.tar.gz
 ENV SDL_VIDEODRIVER offscreen
 
-# Get the models.
+# Get the Pylot models and code dependencies.
 RUN sudo apt-get install -y wget
-RUN cd /home/erdos/workspace/erdos/examples/pylot/dependencies/ && ./get_models.sh
+RUN cd /home/erdos/workspace/erdos/examples/pylot/dependencies/ && ./get_dependencies.sh
 
 # Export PYTHONPATH
 RUN echo "export PYTHONPATH=$PYTHONPATH:/home/erdos/workspace/erdos:/home/erdos/workspace/erdos/examples/pylot/dependencies:/home/erdos/workspace/CARLA_0.8.4/PythonClient" >> ~/.bashrc
-
-RUN pip install pillow scipy pid_controller protobuf
 
 # Install YOLO
 RUN sudo apt-get install -y python-opencv

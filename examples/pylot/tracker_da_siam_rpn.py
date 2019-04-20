@@ -38,7 +38,7 @@ class TrackerDaSiamRPN(Op):
         self._to_process = deque()
         # Initialize the siam network.
         self._siam_net = SiamRPNvot()
-        self._siam_net.load_state_dict(torch.load('dependencies/DaSiamRPN/code/SiamRPNVOT.model'))
+        self._siam_net.load_state_dict(torch.load('dependencies/data/SiamRPNVOT.model'))
         self._siam_net.eval().cuda()
         self._last_seq_num = -1
         self._lock = threading.Lock()
