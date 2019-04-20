@@ -16,6 +16,11 @@ from erdos.operators import NoopOp
 FLAGS = flags.FLAGS
 flags.DEFINE_string('ray_redis_address', '', 'Address of the Ray redis master')
 flags.DEFINE_bool('log_graph', False, 'True to enable graph dot file logging')
+# XXX(ionel): We can't put ros_non_dropping in ros_input_data_stream because
+# the file is conditionally imported.
+flags.DEFINE_bool(
+    'ros_non_dropping', True,
+    'Use an infinite ROS receive buffer so that no messages are dropped')
 
 
 class Graph(object):

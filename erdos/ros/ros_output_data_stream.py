@@ -35,8 +35,12 @@ class ROSOutputDataStream(DataStream):
         # TODO(ionel): We currently transform messages to Strings because
         # we want to pass timestamp and stream info along with the message.
         # However, the extra serialization can add overheads. Fix!
+
+        # queue_size = None ensures that the subscriber is blocking in case
+        # its queue is full (i.e., when the operator publishes more data than
+        # it can be serialized and sent over the network).
         self.publisher = rospy.Publisher(
-            self.uid, String, latch=True, queue_size=10)
+            self.uid, String, latch=True, queue_size=None)
         # TODO(yika): hacky way to stall generator publisher in order to wait
         # for all other processes finish initiating
         time.sleep(1)
