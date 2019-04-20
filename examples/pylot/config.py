@@ -36,7 +36,8 @@ flags.DEFINE_string('path_coco_labels', 'dependencies/data/coco.names',
                     'Path to the COCO labels')
 flags.DEFINE_bool('obj_tracking', False,
                   'True to enable object tracking operator')
-flags.DEFINE_string('tracker_type', 'cv2', 'Tracker type: cv2 | crt')
+flags.DEFINE_string('tracker_type', 'cv2',
+                    'Tracker type: cv2 | crt | da_siam_rpn')
 flags.DEFINE_bool('fusion', False, 'True to enable fusion operator')
 flags.DEFINE_bool('traffic_light_det', False,
                   'True to enable traffic light detection operator')

@@ -17,6 +17,10 @@ try:
     from tracker_crt_operator import TrackerCRTOperator
 except ImportError:
     print("Error importing CRT tracker.")
+try:
+    from tracker_da_siam_rpn import TrackerDaSiamRPN
+except ImportError:
+    print("Error importing DaSiamRPN tracker.")
 from tracker_cv2_operator import TrackerCV2Operator
 from planner.planner_operator import PlannerOperator
 from segmentation_drn_operator import SegmentationDRNOperator
@@ -262,6 +266,16 @@ def add_object_tracking_op(graph, camera_ops, obj_detector_ops):
         tracker_op = graph.add(
             TrackerCRTOperator,
             name='tracker_crt',
+            setup_args={'output_stream_name': 'tracker_stream'},
+            init_args={'output_stream_name': 'tracker_stream',
+                       'flags': FLAGS,
+                       'log_file_name': FLAGS.log_file_name,
+                       'csv_file_name': FLAGS.csv_log_file_name},
+            _resources = {"GPU": FLAGS.obj_tracking_gpu_memory_fraction})
+    elif FLAGS.tracker_type == 'da_siam_rpn':
+        tracker_op = graph.add(
+            TrackerDaSiamRPN,
+            name='tracker_da_siam_rpn',
             setup_args={'output_stream_name': 'tracker_stream'},
             init_args={'output_stream_name': 'tracker_stream',
                        'flags': FLAGS,
