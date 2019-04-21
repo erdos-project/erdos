@@ -43,17 +43,20 @@ class FailureOperator(Op):
             return True
         return False
 
-    def checkpoint(self, checkpoint_id):
+    def checkpoint(self, timestamp):
         return copy(self._state)
 
+    def restore(self, timestamp, state):
+        if timestamp is None:
+            # Rollback to beginning
+            self._state = deque()
+        else:
+            self._state = state
+
     def on_rollback_msg(self, msg):
-        (control_msg, rollback_id) = msg.data
-        if control_msg == checkpoint_util.CheckpointControllerCommand.ROLLBACK:
-            state = self.restore(rollback_id)
-            if state is None:
-                self._state = deque()
-            else:
-                self._state = state
+        if msg.data == checkpoint_util.CheckpointControllerCommand.ROLLBACK:
+            # XXX(ionel): This method should be invoked by the system.
+            state = self._rollback(msg.timestamp)
 
     def execute(self):
         self.spin()

@@ -1,6 +1,6 @@
 import logging
+from collections import deque
 from time import sleep
-from erdos.timestamp import Timestamp
 
 
 class Op(object):
@@ -40,9 +40,7 @@ class Op(object):
         self._checkpoint_freq = checkpoint_freq
         if self._checkpoint_enable:
             assert self._checkpoint_freq is not None
-        # XXX(ionel): _checkpoints could be a queue, but we kept it a dict
-        # to be able to easily do asserts.
-        self._checkpoints = dict()
+        self._checkpoints = deque()
 
     def get_output_stream(self, name):
         """Returns the output stream matching name"""
@@ -107,7 +105,7 @@ class Op(object):
             return True
         return False
 
-    def checkpoint(self, checkpoint_id):
+    def checkpoint(self, timestamp):
         """ Provided by the user to checkpoint state.
 
         Required user override if checkpoint enabled.
@@ -115,7 +113,7 @@ class Op(object):
         """
         return None
 
-    def restore(self, checkpoint_id):
+    def restore(self, timestamp, state):
         """ Provided by the user to restore state from a checkpoint.
 
         Required user override.
@@ -124,34 +122,34 @@ class Op(object):
              timestamp: the timestamp at which which checkpoint_condition
                  evaluated to True.
         """
-        if checkpoint_id not in self._checkpoints:
-            # Find the closest checkpoint ID on the smaller side
-            ids = sorted(self._checkpoints.keys())
-            assert len(ids) > 0, "Nothing in checkpoints to be restored."
-            if checkpoint_id < ids[0]:
-                # restore to beginning stage
-                self._reset_progress(Timestamp(coordinates=[0]))
-                self._checkpoints = dict()
-                return None
-            checkpoint_id = [id for id in ids if id < checkpoint_id][-1]
+        pass
 
-        # Remove all snapshots later than the rollback point
-        pop_ids = [k for k in self._checkpoints if k > checkpoint_id]
-        for id in pop_ids:
-            self._checkpoints.pop(id)
+    def _rollback(self, timestamp):
+        state = None
+        checkpoint_timestamp = None
+        while (len(self._checkpoints) > 0):
+            (checkpoint_timestamp, state) = self._checkpoints.pop()
+            if checkpoint_timestamp <= timestamp:
+                break
+        assert (checkpoint_timestamp is None or
+                checkpoint_timestamp == timestamp), 'Could not find matching checkpoint'
+        self._reset_watermarks(timestamp)
+        self.restore(timestamp, state)
 
-        # Reset watermark
-        self._reset_progress(Timestamp(coordinates=[checkpoint_id]))
+    def _garbage_collect_checkpoints(self, timestamp):
+        """ Remove all checkpoints that have timestamp less than or equal to
+        timestamp.
+        """
+        while (len(self._checkpoints) > 0 and self._checkpoints[0] <= timestamp):
+            self._checkpoints.popleft()
 
-        return self._checkpoints[checkpoint_id]
+    def _checkpoint(self, timestamp):
+        assert (len(self._checkpoints) == 0 or
+                self._checkpoints[-1][0] < timestamp), 'Checkpoint is stale'
+        state = self.checkpoint(timestamp)
+        self._checkpoints.append((timestamp, state))
 
-    def _checkpoint(self, checkpoint_id):
-        checkpoint_id = checkpoint_id.coordinates[0]
-        assert checkpoint_id not in self._checkpoints, "Duplicated checkpoint ID."
-        state = self.checkpoint(checkpoint_id)
-        self._checkpoints[checkpoint_id] = state
-
-    def _reset_progress(self, timestamp):
+    def _reset_watermarks(self, timestamp):
         """ Reset the progress (watermark) of the operator """
         for input_stream in self.input_streams:
             if input_stream.name in self._stream_to_high_watermark:

@@ -1,6 +1,4 @@
 import time
-from copy import copy
-from collections import deque
 from erdos.data_stream import DataStream
 from erdos.message import Message, WatermarkMessage
 from erdos.op import Op
@@ -34,9 +32,8 @@ class Source(Op):
 
     def on_rollback_msg(self, msg):
         # XXX(Yika): fake rollback since source op does not really checkpoint
-        (control_msg, rollback_id) = msg.data
-        if control_msg == checkpoint_util.CheckpointControllerCommand.ROLLBACK:
-            self._seq_num = rollback_id + 1
+        if msg.data == checkpoint_util.CheckpointControllerCommand.ROLLBACK:
+            self._seq_num = msg.timestamp.coordinates[0] + 1
 
     def execute(self):
         while self._seq_num < self._num_messages:

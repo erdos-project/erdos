@@ -21,8 +21,7 @@ class Sink(Op):
         self._logger = setup_logging(self.name, log_file_name)
         self._state_size = state_size
         self._state = deque()
-        self._checkpoints = dict()
-        self.last_received_num = None
+        self._last_received_num = None
 
     @staticmethod
     def setup_streams(input_streams):
@@ -35,11 +34,11 @@ class Sink(Op):
     def on_msg(self, msg):
         seq_num = int(msg.data)
         # Check duplicate
-        if self.last_received_num is None:
-            self.last_received_num = seq_num
-        elif self.last_received_num + 1 == seq_num:
+        if self._last_received_num is None:
+            self._last_received_num = seq_num
+        elif self._last_received_num + 1 == seq_num:
             self._logger.info('received %d' % seq_num)
-            self.last_received_num = seq_num
+            self._last_received_num = seq_num
         else:   # sink receives duplicates
             self._logger.info('received DUPLICATE or WRONG-ORDER message %d' % seq_num)
         # Build state
@@ -52,20 +51,22 @@ class Sink(Op):
             return True
         return False
 
-    def checkpoint(self, checkpoint_id):
-        # Send snapshot ID (latest received seq num) to controller
-        snapshot_msg = Message(checkpoint_id, timestamp=None)
-        self.get_output_stream("sink_snapshot").send(snapshot_msg)
+    def checkpoint(self, timestamp):
+        # Send snapshot timestamp (latest received seq num) to controller
+        self.get_output_stream("sink_snapshot").send(Message(0, timestamp))
         return copy(self._state)
 
+    def restore(self, timestamp, state):
+        if timestamp is None:
+            # Rollback to beginning
+            self._state = deque()
+        else:
+            self._state = state
+
     def on_rollback_msg(self, msg):
-        (control_msg, rollback_id) = msg.data
-        if control_msg == checkpoint_util.CheckpointControllerCommand.ROLLBACK:
-            state = self.restore(rollback_id)
-            if state is None:
-                self._state = deque()
-            else:
-                self._state = state
+        if msg.data == checkpoint_util.CheckpointControllerCommand.ROLLBACK:
+            # XXX(ionel): This method should be invoked by the system.
+            state = self._rollback(msg.timestamp)
 
     def execute(self):
         self.spin()

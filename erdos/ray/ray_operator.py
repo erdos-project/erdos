@@ -90,7 +90,7 @@ class RayOperator(object):
         # we checkpoint.
         if (self._op._checkpoint_enable and
             self._op.checkpoint_condition(msg.timestamp)):
-            self._op.checkpoint(msg.timestamp)
+            self._op._checkpoint(msg.timestamp)
 
         # Call the required callbacks.
         for cb in self._completion_callbacks.get(new_msg.stream_uid, []):
