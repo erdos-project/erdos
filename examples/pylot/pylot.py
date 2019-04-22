@@ -13,15 +13,7 @@ from fusion_operator import FusionOperator
 from fusion_verification_operator import FusionVerificationOperator
 from lidar_visualizer_operator import LidarVisualizerOperator
 from obstacle_accuracy_operator import ObstacleAccuracyOperator
-try:
-    from tracker_crt_operator import TrackerCRTOperator
-except ImportError:
-    print("Error importing CRT tracker.")
-try:
-    from tracker_da_siam_rpn import TrackerDaSiamRPN
-except ImportError:
-    print("Error importing DaSiamRPN tracker.")
-from tracker_cv2_operator import TrackerCV2Operator
+from object_tracker_operator import ObjectTrackerOp
 from planner.planner_operator import PlannerOperator
 from segmentation_drn_operator import SegmentationDRNOperator
 try:
@@ -253,34 +245,27 @@ def add_traffic_light_op(graph, camera_ops):
 
 def add_object_tracking_op(graph, camera_ops, obj_detector_ops):
     tracker_op = None
+    name = 'tracker_' + FLAGS.tracker_type
+    setup_args = {'output_stream_name': 'tracker_stream'}
+    init_args = {'output_stream_name': 'tracker_stream',
+                 'tracker_type': FLAGS.tracker_type,
+                 'flags': FLAGS,
+                 'log_file_name': FLAGS.log_file_name,
+                 'csv_file_name': FLAGS.csv_log_file_name}
     if FLAGS.tracker_type == 'cv2':
+        # Doesn't require a GPU.
         tracker_op = graph.add(
-            TrackerCV2Operator,
-            name='tracker_cv2',
-            setup_args={'output_stream_name': 'tracker_stream'},
-            init_args={'output_stream_name': 'tracker_stream',
-                       'flags': FLAGS,
-                       'log_file_name': FLAGS.log_file_name,
-                       'csv_file_name': FLAGS.csv_log_file_name})
-    elif FLAGS.tracker_type == 'crt':
+            ObjectTrackerOp,
+            name=name,
+            setup_args=setup_args,
+            init_args=init_args)
+    else:
+        # Other trackers require a GPU.
         tracker_op = graph.add(
-            TrackerCRTOperator,
-            name='tracker_crt',
-            setup_args={'output_stream_name': 'tracker_stream'},
-            init_args={'output_stream_name': 'tracker_stream',
-                       'flags': FLAGS,
-                       'log_file_name': FLAGS.log_file_name,
-                       'csv_file_name': FLAGS.csv_log_file_name},
-            _resources = {"GPU": FLAGS.obj_tracking_gpu_memory_fraction})
-    elif FLAGS.tracker_type == 'da_siam_rpn':
-        tracker_op = graph.add(
-            TrackerDaSiamRPN,
-            name='tracker_da_siam_rpn',
-            setup_args={'output_stream_name': 'tracker_stream'},
-            init_args={'output_stream_name': 'tracker_stream',
-                       'flags': FLAGS,
-                       'log_file_name': FLAGS.log_file_name,
-                       'csv_file_name': FLAGS.csv_log_file_name},
+            ObjectTrackerOp,
+            name=name,
+            setup_args=setup_args,
+            init_args=init_args,
             _resources = {"GPU": FLAGS.obj_tracking_gpu_memory_fraction})
     graph.connect(camera_ops + obj_detector_ops, [tracker_op])
     return tracker_op

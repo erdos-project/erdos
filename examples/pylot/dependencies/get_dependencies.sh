@@ -18,8 +18,12 @@ pip install gdown
 ~/.local/bin/gdown https://doc-0s-6g-docs.googleusercontent.com/docs/securesc/ha0ro937gcuc7l7deffksulhg5h7mbp1/tomo4jo32befsdhi6qeaapdeep2v18np/1555783200000/04094321888119883640/*/18-LyMHVLhcx6qBWpUJEcPFoay1tSqURI?e=download --output SiamRPNBIG.model
 ~/.local/bin/gdown https://doc-0k-6g-docs.googleusercontent.com/docs/securesc/ha0ro937gcuc7l7deffksulhg5h7mbp1/dpfhmlqtdcbn0rfvqhbd0ofcg5aqphps/1555783200000/04094321888119883640/*/1_bIGtHYdAoTMS-hqOPE1j3KU-ON15cVV?e=download --output SiamRPNOTB.model
 cd ../
+
+# Get the CRV Tracker model and dependencies
 mkdir -p conv_reg_vot/vgg_model
 mv data/VGG_16_layers_py3.npz conv_reg_vot/vgg_model/
+pip install matplotlib
+sudo apt-get install python-tk
 
 # Download the DaSiamRPN code
 git clone https://github.com/ICGog/DaSiamRPN.git
