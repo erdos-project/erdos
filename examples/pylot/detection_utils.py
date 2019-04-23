@@ -1,3 +1,4 @@
+import cv2
 from itertools import combinations
 import math
 import numpy as np
@@ -9,6 +10,92 @@ import PIL.ImageFont as ImageFont
 from carla.sensor import Camera
 from carla.image_converter import depth_to_local_point_cloud
 from carla.transform import Transform
+
+
+coco_bbox_color_list = np.array(
+        [
+            1.000, 1.000, 1.000,
+            0.850, 0.325, 0.098,
+            0.929, 0.694, 0.125,
+            0.494, 0.184, 0.556,
+            0.466, 0.674, 0.188,
+            0.301, 0.745, 0.933,
+            0.635, 0.078, 0.184,
+            0.300, 0.300, 0.300,
+            0.600, 0.600, 0.600,
+            1.000, 0.000, 0.000,
+            1.000, 0.500, 0.000,
+            0.749, 0.749, 0.000,
+            0.000, 1.000, 0.000,
+            0.000, 0.000, 1.000,
+            0.667, 0.000, 1.000,
+            0.333, 0.333, 0.000,
+            0.333, 0.667, 0.000,
+            0.333, 1.000, 0.000,
+            0.667, 0.333, 0.000,
+            0.667, 0.667, 0.000,
+            0.667, 1.000, 0.000,
+            1.000, 0.333, 0.000,
+            1.000, 0.667, 0.000,
+            1.000, 1.000, 0.000,
+            0.000, 0.333, 0.500,
+            0.000, 0.667, 0.500,
+            0.000, 1.000, 0.500,
+            0.333, 0.000, 0.500,
+            0.333, 0.333, 0.500,
+            0.333, 0.667, 0.500,
+            0.333, 1.000, 0.500,
+            0.667, 0.000, 0.500,
+            0.667, 0.333, 0.500,
+            0.667, 0.667, 0.500,
+            0.667, 1.000, 0.500,
+            1.000, 0.000, 0.500,
+            1.000, 0.333, 0.500,
+            1.000, 0.667, 0.500,
+            1.000, 1.000, 0.500,
+            0.000, 0.333, 1.000,
+            0.000, 0.667, 1.000,
+            0.000, 1.000, 1.000,
+            0.333, 0.000, 1.000,
+            0.333, 0.333, 1.000,
+            0.333, 0.667, 1.000,
+            0.333, 1.000, 1.000,
+            0.667, 0.000, 1.000,
+            0.667, 0.333, 1.000,
+            0.667, 0.667, 1.000,
+            0.667, 1.000, 1.000,
+            1.000, 0.000, 1.000,
+            1.000, 0.333, 1.000,
+            1.000, 0.667, 1.000,
+            0.167, 0.000, 0.000,
+            0.333, 0.000, 0.000,
+            0.500, 0.000, 0.000,
+            0.667, 0.000, 0.000,
+            0.833, 0.000, 0.000,
+            1.000, 0.000, 0.000,
+            0.000, 0.167, 0.000,
+            0.000, 0.333, 0.000,
+            0.000, 0.500, 0.000,
+            0.000, 0.667, 0.000,
+            0.000, 0.833, 0.000,
+            0.000, 1.000, 0.000,
+            0.000, 0.000, 0.167,
+            0.000, 0.000, 0.333,
+            0.000, 0.000, 0.500,
+            0.000, 0.000, 0.667,
+            0.000, 0.000, 0.833,
+            0.000, 0.000, 1.000,
+            0.000, 0.000, 0.000,
+            0.143, 0.143, 0.143,
+            0.286, 0.286, 0.286,
+            0.429, 0.429, 0.429,
+            0.571, 0.571, 0.571,
+            0.714, 0.714, 0.714,
+            0.857, 0.857, 0.857,
+            0.000, 0.447, 0.741,
+            0.50, 0.5, 0
+        ]
+    ).astype(np.float32)
 
 
 def add_bounding_box_text(draw, xmin, ymax, ymin, color, texts):
@@ -191,6 +278,19 @@ def load_coco_labels(labels_path):
             index += 1
     return labels_map
 
+def load_coco_bbox_colors(coco_labels):
+    # Transform to RGB values.
+    bbox_color_list = coco_bbox_color_list.reshape((-1, 3)) * 255
+    # Transform to ints
+    bbox_colors = [(bbox_color_list[_]).astype(np.uint8) \
+                   for _ in range(len(bbox_color_list))]
+    bbox_colors = np.array(bbox_colors, dtype=np.uint8).reshape(
+        len(bbox_colors), 1, 1, 3)
+
+    colors = {}
+    for category, label in coco_labels.items():
+        colors[label] = bbox_colors[category - 1][0][0].tolist()
+    return colors
 
 def get_bounding_box_from_corners(corners):
     """
@@ -377,7 +477,7 @@ def calculate_iou(ground_truth, prediction):
     if x2_gt < x1_p or x2_p < x1_gt or y2_gt < y1_p or y2_p < y1_gt:
         return 0.0
 
-    inter_x1 = max([x1_gt, x1_p]) 
+    inter_x1 = max([x1_gt, x1_p])
     inter_x2 = min([x2_gt, x2_p])
 
     inter_y1 = max([y1_gt, y1_p])
@@ -429,7 +529,7 @@ def get_prediction_results(ground_truths, predictions, iou_threshold):
                 ground_truths_matched.add(ground_truth)
                 predictions_matched.add(prediction)
                 matched.append((prediction, ground_truth, iou))
-        
+
         # The matches are the true positives.
         true_pos = len(matched)
         # The unmatched predictions are the false positives.
@@ -495,3 +595,31 @@ def get_pedestrian_mAP(ground_bboxes, detector_output):
             max_precision = max(max_precision, precision)
             last_recall = recall
     return avg_precision
+
+
+def add_timestamp(timestamp, image_np):
+    txt_font = cv2.FONT_HERSHEY_SIMPLEX
+    timestamp_txt = '{}'.format(timestamp)
+    # Put timestamp text.
+    cv2.putText(image_np, timestamp_txt, (5, 15), txt_font, 0.5,
+                (0, 0, 0), thickness=1, lineType=cv2.LINE_AA)
+
+
+def visualize_bboxes(op_name, timestamp, image_np, detector_output, bbox_color_map):
+    txt_font = cv2.FONT_HERSHEY_SIMPLEX
+    add_timestamp(timestamp, image_np)
+    for (corners, confidence, label) in detector_output:
+        (xmin, xmax, ymin, ymax) = corners
+        label_confidence_txt = '{}{:.1f}'.format(label, confidence)
+        txt_size = cv2.getTextSize(label_confidence_txt, txt_font, 0.5, 2)[0]
+        color = bbox_color_map[label]
+        # Show bounding box.
+        cv2.rectangle(image_np, (xmin, ymin), (xmax, ymax), color, 2)
+        # Show text.
+        cv2.rectangle(image_np,
+                      (xmin, ymin - txt_size[1] - 2),
+                      (xmin + txt_size[0], ymin - 2), color, -1)
+        cv2.putText(image_np, label_confidence_txt, (xmin, ymin - 2),
+                    txt_font, 0.5, (0, 0, 0), thickness=1, lineType=cv2.LINE_AA)
+        cv2.imshow(op_name, image_np)
+        cv2.waitKey(1)

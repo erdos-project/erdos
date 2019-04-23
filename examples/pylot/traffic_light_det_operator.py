@@ -11,7 +11,7 @@ from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
-from detection_utils import add_bounding_box
+from detection_utils import load_coco_labels, load_coco_bbox_colors, visualize_bboxes
 
 
 class TrafficLightDetOperator(Op):
@@ -56,6 +56,10 @@ class TrafficLightDetOperator(Op):
             3: 'Yellow',
             4: 'Off'
         }
+        self._bbox_colors = {'Green': [0, 128, 0],
+                             'Red': [255, 0, 0],
+                             'Yellow': [255, 255, 0],
+                             'Off': [0, 0, 0]}
         self._last_seq_num = -1
 
     @staticmethod
@@ -96,6 +100,8 @@ class TrafficLightDetOperator(Op):
         self._logger.info('Traffic light labels {}'.format(labels))
         
         img = Image.fromarray(np.uint8(image_np)).convert('RGB')
+        open_cv_image = np.array(img)
+        image_np = open_cv_image[:, :, ::-1].copy()
 
         index = 0
         output = []
@@ -108,18 +114,11 @@ class TrafficLightDetOperator(Op):
                 xmax = int(boxes[index][3] * im_width)
                 corners = (xmin, xmax, ymin, ymax)
                 output.append((corners, scores[index], labels[index]))
-                add_bounding_box(img, corners)
             index += 1
 
         if self._flags.visualize_traffic_light_output:
-            draw = ImageDraw.Draw(img)
-            draw.text((5, 5),
-                      "Timestamp: {}".format(msg.timestamp),
-                      fill='black')
-            open_cv_image = np.array(img)
-            open_cv_image = open_cv_image[:, :, ::-1].copy()
-            cv2.imshow(self.name, open_cv_image)
-            cv2.waitKey(1)
+            visualize_bboxes(self.name, msg.timestamp, image_np, output,
+                             self._bbox_colors)
 
         # Get runtime in ms.
         runtime = (time.time() - start_time) * 1000

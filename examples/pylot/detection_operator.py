@@ -11,7 +11,7 @@ from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
-from detection_utils import add_bounding_box, load_coco_labels
+from detection_utils import load_coco_labels, load_coco_bbox_colors, visualize_bboxes
 
 
 class DetectionOperator(Op):
@@ -53,6 +53,7 @@ class DetectionOperator(Op):
         self._num_detections = self._detection_graph.get_tensor_by_name(
             'num_detections:0')
         self._coco_labels = load_coco_labels(self._flags.path_coco_labels)
+        self._bbox_colors = load_coco_bbox_colors(self._coco_labels)
 
     @staticmethod
     def setup_streams(input_streams, output_stream_name):
@@ -72,6 +73,7 @@ class DetectionOperator(Op):
         self._logger.info('{} received frame {}'.format(self.name, msg.timestamp))
         start_time = time.time()
         image_np = self._bridge.imgmsg_to_cv2(msg.data, 'rgb8')
+
         # Expand dimensions since the model expects images to have
         # shape: [1, None, None, 3]
         image_np_expanded = np.expand_dims(image_np, axis=0)
@@ -93,30 +95,25 @@ class DetectionOperator(Op):
         self._logger.info('Object labels {}'.format(labels))
 
         img = Image.fromarray(np.uint8(image_np)).convert('RGB')
+        open_cv_image = np.array(img)
+        image_np = open_cv_image[:, :, ::-1].copy()
 
         index = 0
         output = []
         im_width, im_height = img.size
         while index < len(boxes) and index < len(scores):
-            if scores[index] > self._flags.detector_min_score_threshold:
+            if scores[index] >= self._flags.detector_min_score_threshold:
                 ymin = int(boxes[index][0] * im_height)
                 xmin = int(boxes[index][1] * im_width)
                 ymax = int(boxes[index][2] * im_height)
                 xmax = int(boxes[index][3] * im_width)
                 corners = (xmin, xmax, ymin, ymax)
                 output.append((corners, scores[index], labels[index]))
-                add_bounding_box(img, corners)
             index += 1
 
         if self._flags.visualize_detector_output:
-            draw = ImageDraw.Draw(img)
-            draw.text((5, 5),
-                      "Timestamp: {}".format(msg.timestamp),
-                      fill='black')
-            open_cv_image = np.array(img)
-            open_cv_image = open_cv_image[:, :, ::-1].copy()
-            cv2.imshow(self.name, open_cv_image)
-            cv2.waitKey(1)
+            visualize_bboxes(self.name, msg.timestamp, image_np, output,
+                             self._bbox_colors)
 
         # Get runtime in ms.
         runtime = (time.time() - start_time) * 1000
