@@ -10,7 +10,7 @@ class Timestamp(object):
 
     def __init__(self, timestamp=None, coordinates=None):
         if timestamp is None:
-            assert coordinates is not None
+            assert coordinates is not None, 'Timestamp has empty coordinates'
             self.coordinates = coordinates
         else:
             self.coordinates = timestamp.coordinates

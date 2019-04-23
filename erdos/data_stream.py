@@ -22,8 +22,8 @@ class DataStream(object):
 
         if labels:  # both keys and values in a label must be a single string
             for k, v in labels.items():
-                assert type(k) == str
-                assert type(v) == str
+                assert type(k) == str, 'label key type must be str'
+                assert type(v) == str, 'label value type must be str'
             self.labels = labels
         else:
             self.labels = {}

@@ -42,19 +42,23 @@ class DataStreams(object):
         return DataStreams(result)
 
     def at_least(self, n):
-        assert len(self._streams) >= n
+        assert len(self._streams) >= n, \
+            'Expected at least {} streams, but found {}'.format(n, len(self._streams))
         return self
 
     def at_most(self, n):
-        assert len(self._streams) <= n
+        assert len(self._streams) <= n, \
+            'Expected at most {} streams, but found {}'.format(n, len(self._streams))
         return self
 
     def exact(self, n):
-        assert len(self._streams) == n
+        assert len(self._streams) == n, \
+            'Expected {} streams, but found {}'.format(n, len(self._streams))
         return self
 
     def between(self, min_n, max_n):
-        assert min_n <= len(self._streams) <= max_n
+        assert min_n <= len(self._streams) <= max_n, \
+            'Expected betweet [{}, {}] streams, but found {}'.format(min_n, max_n, len(self._streams))
         return self
 
     def add_callback(self, callback_func):
