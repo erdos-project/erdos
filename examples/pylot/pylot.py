@@ -35,6 +35,9 @@ from erdos.operators import RecordOp
 from erdos.operators import ReplayOp
 
 FLAGS = flags.FLAGS
+RGB_CAMERA_NAME = 'front_rgb_camera'
+DEPTH_CAMERA_NAME = 'front_depth_camera'
+SEGMENTED_CAMERA_NAME = 'front_semantic_camera'
 
 
 def add_camera_replay_ops(graph):
@@ -381,47 +384,18 @@ def add_eval_ground_truth_detector_op(graph,
     return ground_truth_op
 
 
-def main(argv):
-
-    # Define graph
-    graph = erdos.graph.get_current_graph()
-
-    rgb_camera_setup = ('front_rgb_camera',
-                        'SceneFinal',
-                        (FLAGS.carla_camera_image_width,
-                         FLAGS.carla_camera_image_height),
-                        (2.0, 0.0, 1.4))
-    camera_setups = [rgb_camera_setup,
-                     ('front_depth_camera', 'Depth',
-                      (FLAGS.carla_camera_image_width,
-                       FLAGS.carla_camera_image_height),
-                      (2.0, 0.0, 1.4)),
-                     ('front_semantic_camera', 'SemanticSegmentation',
-                      (FLAGS.carla_camera_image_width,
-                       FLAGS.carla_camera_image_height),
-                      (2.0, 0.0, 1.4))]
-
-    # Define ops
-    carla_op = add_carla_op(graph, camera_setups)
-
-    # TODO(ionel): control_op is not connected.
-    # control_op = graph.add(
-    #     ControlOperator,
-    #     name='control',
-    #     init_args={'log_file_name': FLAGS.log_file_name})
-
-    # Add visual operators.
+def add_visualization_operators(graph, carla_op):
     if FLAGS.visualize_rgb_camera:
         camera_video_op = add_camera_video_op(graph,
                                               carla_op,
                                               'rgb_camera',
-                                              'front_rgb_camera')
+                                              RGB_CAMERA_NAME)
 
     if FLAGS.visualize_depth_camera:
         depth_video_op = add_camera_video_op(graph,
                                              carla_op,
                                              'depth_camera_video',
-                                             'front_depth_camera')
+                                             DEPTH_CAMERA_NAME)
 
     if FLAGS.visualize_lidar:
         lidar_visualizer_op = add_lidar_visualizer_ops(graph, carla_op)
@@ -430,26 +404,57 @@ def main(argv):
         # Segmented camera. The stream comes from CARLA.
         segmented_video_op = add_segmented_video_op(graph, carla_op)
 
-    # Add recording operators.
+
+def add_recording_operators(graph, carla_op):
     if FLAGS.record_rgb_camera:
         record_rgb_op = add_record_op(graph,
                                       carla_op,
                                       'record_rgb_camera',
                                       'pylot_rgb_camera_data.erdos',
-                                      'front_rgb_camera')
+                                      RGB_CAMERA_NAME)
 
     if FLAGS.record_depth_camera:
         record_depth_camera_op = add_record_op(
             graph,
             'record_depth_camera',
             'pylot_depth_camera_data.erdos',
-            'front_depth_camera')
+            DEPTH_CAMERA_NAME)
 
     if FLAGS.record_lidar:
         record_lidar_op = add_lidar_record_op(graph, carla_op)
 
     if FLAGS.record_ground_truth:
         record_carla_op = add_record_carla_op(graph, carla_op)
+
+
+def main(argv):
+
+    # Define graph
+    graph = erdos.graph.get_current_graph()
+
+    rgb_camera_setup = (RGB_CAMERA_NAME,
+                        'SceneFinal',
+                        (FLAGS.carla_camera_image_width,
+                         FLAGS.carla_camera_image_height),
+                        (2.0, 0.0, 1.4))
+    camera_setups = [rgb_camera_setup,
+                     (DEPTH_CAMERA_NAME, 'Depth',
+                      (FLAGS.carla_camera_image_width,
+                       FLAGS.carla_camera_image_height),
+                      (2.0, 0.0, 1.4)),
+                     (SEGMENTED_CAMERA_NAME, 'SemanticSegmentation',
+                      (FLAGS.carla_camera_image_width,
+                       FLAGS.carla_camera_image_height),
+                      (2.0, 0.0, 1.4))]
+
+    # Add operators to the graph.
+    carla_op = add_carla_op(graph, camera_setups)
+
+    # Add visual operators.
+    add_visualization_operators(graph, carla_op)
+
+    # Add recording operators.
+    add_recording_operators(graph, carla_op)
 
     # XXX(ionel): This planner is not currently in use.
     # planner_op = PlannerOperator('Town01', goal_location, goal_orientation)
@@ -463,7 +468,7 @@ def main(argv):
         if FLAGS.evaluate_segmentation:
             eval_segmentation_op = add_segmentation_eval_op(
                 graph, carla_op, segmentation_op,
-                'front_semantic_camera', 'segmented_stream')
+                SEGMENTED_CAMERA_NAME, 'segmented_stream')
 
     if FLAGS.segmentation_dla:
         segmentation_op = add_segmentation_dla_op(graph, carla_op)
@@ -471,17 +476,17 @@ def main(argv):
         if FLAGS.evaluate_segmentation:
             eval_segmentation_op = add_segmentation_eval_op(
                 graph, carla_op, segmentation_op,
-                'front_semantic_camera', 'segmented_stream')
+                SEGMENTED_CAMERA_NAME, 'segmented_stream')
 
     if FLAGS.eval_ground_truth_segmentation:
         eval_ground_truth_segmentation_op = add_segmentation_ground_eval_op(
-            graph, carla_op, 'front_semantic_camera')
+            graph, carla_op, SEGMENTED_CAMERA_NAME)
 
     # This operator evaluates the temporal decay of the ground truth of
     # object detection across timestamps.
     if FLAGS.eval_ground_truth_object_detection:
         eval_ground_truth_detector_op = add_eval_ground_truth_detector_op(
-            graph, carla_op, rgb_camera_setup, 'front_depth_camera')
+            graph, carla_op, rgb_camera_setup, DEPTH_CAMERA_NAME)
 
     obj_detector_ops = []
     if FLAGS.obj_detection:
@@ -492,7 +497,7 @@ def main(argv):
                                                             obj_detector_ops,
                                                             carla_op,
                                                             rgb_camera_setup,
-                                                            'front_depth_camera')
+                                                            DEPTH_CAMERA_NAME)
 
         if FLAGS.obj_tracking:
             tracker_op = add_object_tracking_op(graph, carla_op, obj_detector_ops)
@@ -521,7 +526,7 @@ def main(argv):
                                       carla_op,
                                       goal_location,
                                       goal_orientation,
-                                      'front_depth_camera',
+                                      DEPTH_CAMERA_NAME,
                                       segmentation_ops,
                                       obj_detector_ops,
                                       traffic_light_det_ops)

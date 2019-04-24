@@ -8,7 +8,7 @@ from erdos.data_stream import DataStream
 from erdos.message import Message
 from erdos.op import Op
 from erdos.timestamp import Timestamp
-from erdos.utils import frequency, setup_csv_logging, setup_logging
+from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_ms
 
 import agent_utils
 from planner.map import CarlaMap
@@ -97,7 +97,7 @@ class ERDOSAgentOperator(Op):
         input_streams.filter(pylot_utils.is_ground_forward_speed_stream).add_callback(
             ERDOSAgentOperator.on_forward_speed_update)
 
-        input_streams.filter(is_traffic_lights_stream).add_callback(
+        input_streams.filter(pylot_utils.is_traffic_lights_stream).add_callback(
             ERDOSAgentOperator.on_traffic_lights_update)
         input_streams.filter(pylot_utils.is_segmented_camera_stream).add_callback(
             ERDOSAgentOperator.on_segmented_frame)
