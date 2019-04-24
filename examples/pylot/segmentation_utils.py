@@ -18,6 +18,9 @@ CITYSCAPES_CLASSES = {
     11: [102, 102, 156],  # Walls
     12: [220, 220, 0]     # TrafficSigns
 }
+# XXX(ionel): Note! These Carla cityscapes classes do not cover all
+# the classes from CITYSCAPES. Hence, we can't compare segmentation
+# outputs to ground truth.
 
 
 def transfrom_to_cityscapes(frame_array):

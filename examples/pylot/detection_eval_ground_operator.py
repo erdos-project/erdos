@@ -4,7 +4,6 @@ import PIL.Image as Image
 import PIL.ImageDraw as ImageDraw
 import time
 
-from cv_bridge import CvBridge
 from collections import deque
 
 from carla.image_converter import depth_to_array
@@ -13,6 +12,7 @@ from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
 from detection_utils import get_precision_recall_at_iou, get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform
+import utils
 
 
 class DetectionEvalGroundOperator(Op):
@@ -26,9 +26,8 @@ class DetectionEvalGroundOperator(Op):
         self._logger = setup_logging(self.name, log_file_name)
         self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
         self._flags = flags
-        self._bridge = CvBridge()
         # Queue of incoming data.
-        self._rgb_imgs = deque()
+        self._bgr_imgs = deque()
         self._world_transforms = deque()
         self._depth_imgs = deque()
         self._pedestrians = deque()
@@ -45,17 +44,14 @@ class DetectionEvalGroundOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams, depth_camera_name):
-        def is_camera_stream(stream):
-            return (stream.labels.get('camera', '') == 'true'
-                    and stream.labels.get('ros', '') == 'true')
-
-        input_streams.filter_name(depth_camera_name).add_callback(
-            DetectionEvalGroundOperator.on_depth_camera_update)
-        input_streams.filter(is_camera_stream).add_callback(
-            DetectionEvalGroundOperator.on_rgb_camera_update)
-        input_streams.filter_name('world_transform').add_callback(
+        input_streams.filter(utils.is_depth_camera_stream).filter_name(
+            depth_camera_name).add_callback(
+                DetectionEvalGroundOperator.on_depth_camera_update)
+        input_streams.filter(utils.is_camera_stream).add_callback(
+            DetectionEvalGroundOperator.on_bgr_camera_update)
+        input_streams.filter(utils.is_world_transform_stream).add_callback(
             DetectionEvalGroundOperator.on_world_transform_update)
-        input_streams.filter_name('pedestrians').add_callback(
+        input_streams.filter(utils.is_ground_pedestrians_stream).add_callback(
             DetectionEvalGroundOperator.on_pedestrians_update)
 
         input_streams.add_completion_callback(
@@ -78,31 +74,30 @@ class DetectionEvalGroundOperator(Op):
         # Get the data from the start of all the queues and make sure that
         # we did not miss any data.
         depth_msg = self._depth_imgs.popleft()
-        rgb_msg = self._rgb_imgs.popleft()
+        bgr_msg = self._bgr_imgs.popleft()
         world_trans_msg = self._world_transforms.popleft()
         pedestrians_msg = self._pedestrians.popleft()
 
         self._logger.info('Timestamps {} {} {} {}'.format(
-            depth_msg.timestamp, rgb_msg.timestamp, world_trans_msg.timestamp,
+            depth_msg.timestamp, bgr_msg.timestamp, world_trans_msg.timestamp,
             pedestrians_msg.timestamp))
 
-        assert (depth_msg.timestamp == rgb_msg.timestamp ==
+        assert (depth_msg.timestamp == bgr_msg.timestamp ==
                 world_trans_msg.timestamp == pedestrians_msg.timestamp)
 
-        rgb_img = self._bridge.imgmsg_to_cv2(rgb_msg.data, 'rgb8')
-        rgb_img = Image.fromarray(np.uint8(rgb_img)).convert('RGB')
         depth_array = depth_to_array(depth_msg.data)
         world_transform = world_trans_msg.data
 
         bboxes = []
-        self._logger.info(
-            'Number of pedestrians {}'.format(len(pedestrians_msg.data)))
+        self._logger.info('Number of pedestrians {}'.format(
+            len(pedestrians_msg.data)))
         for (pedestrian_index, obj_transform, obj_bbox,
              _) in pedestrians_msg.data:
-            bbox = get_2d_bbox_from_3d_box(
-                rgb_img, depth_array, world_transform, obj_transform, obj_bbox,
-                self._rgb_transform, self._rgb_intrinsic, self._rgb_img_size,
-                1.5, 3.0)
+            bbox = get_2d_bbox_from_3d_box(depth_array, world_transform,
+                                           obj_transform, obj_bbox,
+                                           self._rgb_transform,
+                                           self._rgb_intrinsic,
+                                           self._rgb_img_size, 1.5, 3.0)
             if bbox is not None:
                 bboxes.append(bbox)
 
@@ -139,10 +134,10 @@ class DetectionEvalGroundOperator(Op):
                 0] > self._flags.eval_ground_truth_ignore_first:
             self._depth_imgs.append(msg)
 
-    def on_rgb_camera_update(self, rgb_msg):
-        if rgb_msg.timestamp.coordinates[
+    def on_bgr_camera_update(self, bgr_msg):
+        if bgr_msg.timestamp.coordinates[
                 0] > self._flags.eval_ground_truth_ignore_first:
-            self._rgb_imgs.append(rgb_msg)
+            self._bgr_imgs.append(bgr_msg)
 
     def on_world_transform_update(self, transform_msg):
         if transform_msg.timestamp.coordinates[

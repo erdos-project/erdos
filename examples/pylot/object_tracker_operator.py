@@ -1,6 +1,5 @@
 from collections import deque
 import cv2
-from cv_bridge import CvBridge
 import numpy as np
 import PIL.Image as Image
 import PIL.ImageDraw as ImageDraw
@@ -12,7 +11,8 @@ from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
-from detection_utils import add_bounding_box
+from detection_utils import visualize_no_colors_bboxes
+from utils import is_camera_stream, is_obstacles_stream
 
 
 class ObjectTrackerOp(Op):
@@ -28,7 +28,6 @@ class ObjectTrackerOp(Op):
         self._logger = setup_logging(self.name, log_file_name)
         self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
         self._output_stream_name = output_stream_name
-        self._bridge = CvBridge()
         try:
             if tracker_type == 'cv2':
                 from trackers.cv2_tracker import MultiObjectCV2Tracker
@@ -52,12 +51,6 @@ class ObjectTrackerOp(Op):
 
     @staticmethod
     def setup_streams(input_streams, output_stream_name):
-        def is_obstacles_stream(stream):
-            return stream.labels.get('obstacles', '') == 'true'
-
-        def is_camera_stream(stream):
-            return stream.labels.get('camera', '') == 'true'
-
         input_streams.filter(is_obstacles_stream).add_callback(
             ObjectTrackerOp.on_objects_msg)
         input_streams.filter(is_camera_stream).add_callback(
@@ -76,7 +69,7 @@ class ObjectTrackerOp(Op):
 
         self._lock.acquire()
         start_time = time.time()
-        frame = self._bridge.imgmsg_to_cv2(msg.data, 'rgb8')
+        frame = msg.data
         # Store frames so that they can be re-processed once we receive the
         # next update from the detector.
         self._to_process.append((msg.timestamp, frame))
@@ -163,18 +156,4 @@ class ObjectTrackerOp(Op):
             self._ready_to_update = False
         else:
             if self._flags.visualize_tracker_output and not catch_up:
-                img = Image.fromarray(np.uint8(frame)).convert('RGB')
-                # Add bounding boxes
-                for bbox in bboxes:
-                    add_bounding_box(img, bbox)
-                    draw = ImageDraw.Draw(img)
-                    draw.text((5, 5),
-                              "Timestamp: {}".format(timestamp),
-                              fill='black')
-                    open_cv_image = np.array(img)
-                    open_cv_image = open_cv_image[:, :, ::-1]
-                    # XXX(ionel): For some reason cv2 hangs if we quickly send
-                    # frames one after another. This happens in the catch-up
-                    # phase. I deactivated visualizer during the catch-up phase.
-                    cv2.imshow(self.name, open_cv_image)
-                    cv2.waitKey(1)
+                visualize_no_colors_bboxes(self.name, timestamp, frame, bboxes)

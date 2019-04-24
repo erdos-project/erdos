@@ -30,6 +30,8 @@ flags.DEFINE_bool('detector_frcnn_resnet101', False,
                   'True to enable faster RCNN resnet101 detector')
 flags.DEFINE_bool('detector_ssd_resnet50_v1', False,
                   'True to enable SSD resnet50 v1 detector')
+flags.DEFINE_bool('detector_center_net', False,
+                  'True to enable CenterNet detector')
 flags.DEFINE_float('detector_min_score_threshold', 0.5,
                    'Min score threshold for bounding box')
 flags.DEFINE_string('path_coco_labels', 'dependencies/data/coco.names',
@@ -197,11 +199,12 @@ flags.register_multi_flags_validator(
                          (flags_dict['segmentation_drn'] or flags_dict['segmentation_dla']))),
     message='ERDOS agent requires obj detection, segmentation and traffic light detection')
 flags.register_multi_flags_validator(
-    ['obj_detection', 'detector_ssd_mobilenet_v1',
+    ['obj_detection', 'detector_center_net', 'detector_ssd_mobilenet_v1',
      'detector_frcnn_resnet101', 'detector_ssd_resnet50_v1'],
     lambda flags_dict: (not flags_dict['obj_detection'] or
                         (flags_dict['obj_detection'] and
-                         (flags_dict['detector_ssd_mobilenet_v1'] or
+                         (flags_dict['detector_center_net'] or
+                          flags_dict['detector_ssd_mobilenet_v1'] or
                           flags_dict['detector_frcnn_resnet101'] or
                           flags_dict['detector_ssd_resnet50_v1']))),
     message='a detector must be active when --obj_detection is set')

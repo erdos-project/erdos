@@ -11,7 +11,7 @@ import agent_utils
 from planner.map import CarlaMap
 from planner.waypointer import Waypointer
 from pid_controller.pid import PID
-
+import utils
 
 class GroundAgentOperator(Op):
     def __init__(self,
@@ -43,24 +43,23 @@ class GroundAgentOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams):
-        input_streams.filter_name('vehicle_pos').add_callback(
+        input_streams.filter(utils.is_ground_vehicle_pos_stream).add_callback(
             GroundAgentOperator.on_vehicle_pos_update)
-        input_streams.filter_name('acceleration').add_callback(
+        input_streams.filter(utils.is_ground_acceleration_stream).add_callback(
             GroundAgentOperator.on_vehicle_acceleration_update)
-        input_streams.filter_name('forward_speed').add_callback(
+        input_streams.filter(utils.is_ground_forward_speed_stream).add_callback(
             GroundAgentOperator.on_forward_speed_update)
-        input_streams.filter_name('pedestrians').add_callback(
+        input_streams.filter(utils.is_ground_pedestrians_stream).add_callback(
             GroundAgentOperator.on_pedestrians_update)
-        input_streams.filter_name('vehicles').add_callback(
+        input_streams.filter(utils.is_ground_vehicles_stream).add_callback(
             GroundAgentOperator.on_vehicles_update)
-        input_streams.filter_name('traffic_lights').add_callback(
+        input_streams.filter(utils.is_ground_traffic_lights_stream).add_callback(
             GroundAgentOperator.on_traffic_lights_update)
-        input_streams.filter_name('traffic_signs').add_callback(
+        input_streams.filter(utils.is_ground_traffic_signs_stream).add_callback(
             GroundAgentOperator.on_traffic_signs_update)
         # Set no watermark on the output stream so that we do not
         # close the watermark loop with the carla operator.
-        return [DataStream(name='action_stream',
-                           labels={'no_watermark': 'true'})]
+        return [utils.create_agent_action_stream()]
 
     def on_vehicle_pos_update(self, msg):
         self._logger.info("Received vehicle pos %s", msg)

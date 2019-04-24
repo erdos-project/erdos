@@ -1,8 +1,10 @@
 import numpy as np
 from std_msgs.msg import Float64
 import time
+import ray
 
 from carla.client import CarlaClient
+from carla.image_converter import to_bgra_array, to_rgb_array
 from carla.sensor import Camera, Lidar
 from carla.settings import CarlaSettings
 from carla.transform import Transform
@@ -14,7 +16,7 @@ from erdos.timestamp import Timestamp
 from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_ms
 
 import messages
-import ray
+import utils
 
 
 class CarlaOperator(Op):
@@ -259,8 +261,15 @@ class CarlaOperator(Op):
 
         # Send sensor data
         for name, measurement in sensor_data.items():
-            self.get_output_stream(name).send(Message(measurement, timestamp))
-            self.get_output_stream(name).send(watermark)
+            data_stream = self.get_output_stream(name)
+            if data_stream.get_label('camera_type') == 'SceneFinal':
+                # Transform the Carla RGB images to BGR.
+                data_stream.send(
+                    Message(utils.bgra_to_bgr(to_bgra_array(measurement)),
+                            timestamp))
+            else:
+                data_stream.send(Message(measurement, timestamp))
+            data_stream.send(watermark)
 
         self.client.send_control(**self.control)
         end_time = time.time()

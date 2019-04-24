@@ -1,4 +1,3 @@
-from cv_bridge import CvBridge
 import cv2
 import numpy as np
 import PIL.Image as Image
@@ -12,6 +11,7 @@ from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
 from detection_utils import load_coco_labels, load_coco_bbox_colors, visualize_bboxes
+from utils import bgr_to_rgb, rgb_to_bgr, create_traffic_lights_stream, is_camera_stream
 
 
 class TrafficLightDetOperator(Op):
@@ -26,7 +26,6 @@ class TrafficLightDetOperator(Op):
         self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
         self._output_stream_name = output_stream_name
         self._flags = flags
-        self._bridge = CvBridge()
         self._detection_graph = tf.Graph()
         with self._detection_graph.as_default():
             od_graph_def = tf.GraphDef()
@@ -64,10 +63,9 @@ class TrafficLightDetOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams, output_stream_name):
-        input_streams.add_callback(TrafficLightDetOperator.on_frame)
-        # TODO(ionel): Specify output stream type
-        return [DataStream(name=output_stream_name,
-                           labels={'traffic_lights': 'true'})]
+        input_streams.filter(is_camera_stream).add_callback(
+            TrafficLightDetOperator.on_frame)
+        return [create_traffic_lights_stream(output_stream_name)]
 
     def on_frame(self, msg):
         if self._last_seq_num + 1 != msg.timestamp.coordinates[1]:
@@ -78,7 +76,7 @@ class TrafficLightDetOperator(Op):
         self._last_seq_num = msg.timestamp.coordinates[1]
 
         start_time = time.time()
-        image_np = self._bridge.imgmsg_to_cv2(msg.data, 'rgb8')
+        image_np = bgr_to_rgb(msg.data)
         # Expand dimensions since the model expects images to have
         # shape: [1, None, None, 3]
         image_np_expanded = np.expand_dims(image_np, axis=0)
@@ -99,13 +97,10 @@ class TrafficLightDetOperator(Op):
         self._logger.info('Traffic light scores {}'.format(scores))
         self._logger.info('Traffic light labels {}'.format(labels))
         
-        img = Image.fromarray(np.uint8(image_np)).convert('RGB')
-        open_cv_image = np.array(img)
-        image_np = open_cv_image[:, :, ::-1].copy()
-
         index = 0
         output = []
-        im_width, im_height = img.size
+        im_width = image_np.shape[1]
+        im_height = image_np.shape[0]
         while index < len(boxes) and index < len(scores):
             if scores[index] > self._flags.traffic_light_det_min_score_threshold:
                 ymin = int(boxes[index][0] * im_height)
@@ -117,8 +112,8 @@ class TrafficLightDetOperator(Op):
             index += 1
 
         if self._flags.visualize_traffic_light_output:
-            visualize_bboxes(self.name, msg.timestamp, image_np, output,
-                             self._bbox_colors)
+            visualize_bboxes(self.name, msg.timestamp, rgb_to_bgr(image_np),
+                             output, self._bbox_colors)
 
         # Get runtime in ms.
         runtime = (time.time() - start_time) * 1000

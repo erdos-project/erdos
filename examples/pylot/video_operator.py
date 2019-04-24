@@ -7,6 +7,7 @@ from carla.image_converter import to_bgra_array
 
 from erdos.op import Op
 from erdos.utils import setup_logging
+from utils import add_timestamp, is_camera_stream
 
 
 class VideoOperator(Op):
@@ -20,7 +21,8 @@ class VideoOperator(Op):
     def setup_streams(input_streams, filter_name=None):
         if filter_name:
             input_streams = input_streams.filter_name(filter_name)
-        input_streams.add_callback(VideoOperator.display_frame)
+        input_streams.filter(is_camera_stream).add_callback(
+            VideoOperator.display_frame)
         return []
 
     def display_frame(self, msg):
@@ -31,14 +33,9 @@ class VideoOperator(Op):
                 assert self._last_seq_num + 1 == msg.timestamp.coordinates[1]
         self._last_seq_num = msg.timestamp.coordinates[1]
 
-        frame_array = to_bgra_array(msg.data)
-
-        pil_img = PILImage.fromarray(np.uint8(frame_array)).convert('RGB')
-        draw = ImageDraw.Draw(pil_img)
-        draw.text((5, 5),
-                  "Timestamp: {}".format(msg.timestamp),
-                  fill='black')
-        cv2.imshow(self.name, np.array(pil_img))
+        frame = msg.data
+        add_timestamp(msg.timestamp, frame)
+        cv2.imshow(self.name, frame)
         cv2.waitKey(1)
 
     def execute(self):

@@ -15,7 +15,7 @@ from planner.map import CarlaMap
 from planner.waypointer import Waypointer
 from pid_controller.pid import PID
 from detection_utils import get_3d_world_position
-
+import utils
 
 class ERDOSAgentOperator(Op):
     def __init__(self,
@@ -83,39 +83,29 @@ class ERDOSAgentOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams, depth_camera_name):
-        def is_traffic_lights_stream(stream):
-            return stream.labels.get('traffic_lights', '') == 'true'
-
-        def is_segmented_frame_stream(stream):
-            return stream.labels.get('segmented', '') == 'true'
-
-        def is_obstacles_stream(stream):
-            return stream.labels.get('obstacles', '') == 'true'
-
         input_streams.filter_name(depth_camera_name).add_callback(
             ERDOSAgentOperator.on_depth_camera_update)
 
         # XXX(ionel): We get the exact position from the simulator.
-        input_streams.filter_name('world_transform').add_callback(
+        input_streams.filter(utils.is_world_transform_stream).add_callback(
             ERDOSAgentOperator.on_world_transform_update)
-        input_streams.filter_name('vehicle_pos').add_callback(
+        input_streams.filter(utils.is_ground_vehicle_pos_stream).add_callback(
             ERDOSAgentOperator.on_vehicle_pos_update)
-        input_streams.filter_name('acceleration').add_callback(
+        input_streams.filter(utils.is_ground_acceleration_stream).add_callback(
             ERDOSAgentOperator.on_vehicle_acceleration_update)
-        input_streams.filter_name('forward_speed').add_callback(
+        input_streams.filter(utils.is_ground_forward_speed_stream).add_callback(
             ERDOSAgentOperator.on_forward_speed_update)
 
         input_streams.filter(is_traffic_lights_stream).add_callback(
             ERDOSAgentOperator.on_traffic_lights_update)
-        input_streams.filter(is_segmented_frame_stream).add_callback(
+        input_streams.filter(utils.is_segmented_camera_stream).add_callback(
             ERDOSAgentOperator.on_segmented_frame)
-        input_streams.filter(is_obstacles_stream).add_callback(
+        input_streams.filter(utils.is_obstacles_stream).add_callback(
             ERDOSAgentOperator.on_obstacles_update)
 
         # Set no watermark on the output stream so that we do not
         # close the watermark loop with the carla operator.
-        return [DataStream(name='action_stream',
-                           labels={'no_watermark': 'true'})]
+        return [utils.create_agent_action_stream()]
 
     # TODO(ionel): Set the frequency programmatically.
     @frequency(10)

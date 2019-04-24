@@ -1,5 +1,4 @@
 import cv2
-from cv_bridge import CvBridge
 import drn.segment
 from drn.segment import DRNSeg
 import numpy as np
@@ -14,7 +13,7 @@ from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
-from sensor_msgs.msg import Image
+from utils import add_timestamp, create_segmented_camera_stream, is_camera_stream, rgb_to_bgr, bgra_to_bgr
 
 
 class SegmentationDRNOperator(Op):
@@ -33,7 +32,6 @@ class SegmentationDRNOperator(Op):
         classes = 19
         pretrained = "dependencies/data/drn_d_22_cityscapes.pth"
         self._pallete = drn.segment.CITYSCAPE_PALETTE
-        self._bridge = CvBridge()
         # TODO(ionel): Figure out how to set GPU memory fraction.
         self._model = DRNSeg(
             arch, classes, pretrained_model=None, pretrained=False)
@@ -46,11 +44,9 @@ class SegmentationDRNOperator(Op):
     @staticmethod
     def setup_streams(input_streams, output_stream_name):
         # Register a callback on the camera input stream.
-        input_streams.add_callback(
+        input_streams.filter(is_camera_stream).add_callback(
             SegmentationDRNOperator.on_msg_camera_stream)
-        return [DataStream(data_type=Image,
-                           name=output_stream_name,
-                           labels={'segmented': 'true'})]
+        return [create_segmented_camera_stream(output_stream_name)]
 
     def on_msg_camera_stream(self, msg):
         """Camera stream callback method.
@@ -65,7 +61,7 @@ class SegmentationDRNOperator(Op):
 
         self._logger.info('{} received frame {}'.format(self.name, msg.timestamp))
         start_time = time.time()
-        image = self._bridge.imgmsg_to_cv2(msg.data, 'bgr8')
+        image = bgra_to_bgr(msg.data)
         image = torch.from_numpy(image.transpose([2, 0,
                                                   1])).unsqueeze(0).float()
         image_var = Variable(image, requires_grad=False, volatile=True)
@@ -74,15 +70,13 @@ class SegmentationDRNOperator(Op):
         _, pred = torch.max(final, 1)
 
         pred = pred.cpu().data.numpy()[0]
-        img = self._pallete[pred.squeeze()]
+        image_np = self._pallete[pred.squeeze()]
+        # After we apply the pallete, the image is in RGB format
+        image_np = rgb_to_bgr(image_np)
 
         if self._flags.visualize_segmentation_output:
-            pil_img = PILImage.fromarray(np.uint8(img)).convert('RGB')
-            draw = ImageDraw.Draw(pil_img)
-            draw.text((5, 5),
-                      "Timestamp: {}".format(msg.timestamp),
-                      fill='black')
-            cv2.imshow(self.name, np.array(pil_img))
+            add_timestamp(msg.timestamp, image_np)
+            cv2.imshow(self.name, image_np)
             cv2.waitKey(1)
 
         # Get runtime in ms.
@@ -90,7 +84,7 @@ class SegmentationDRNOperator(Op):
         self._csv_logger.info('{},{},"{}",{}'.format(
             time_epoch_ms(), self.name, msg.timestamp, runtime))
 
-        output_msg = Message((img, runtime), msg.timestamp)
+        output_msg = Message((image_np, runtime), msg.timestamp)
         self.get_output_stream(self._output_stream_name).send(output_msg)
 
     def execute(self):

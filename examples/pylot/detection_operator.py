@@ -1,4 +1,3 @@
-from cv_bridge import CvBridge
 import cv2
 import numpy as np
 import PIL.Image as Image
@@ -12,6 +11,7 @@ from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
 from detection_utils import load_coco_labels, load_coco_bbox_colors, visualize_bboxes
+from utils import create_obstacles_stream, is_camera_stream
 
 
 class DetectionOperator(Op):
@@ -28,7 +28,6 @@ class DetectionOperator(Op):
         self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
         self._last_seq_num = -1
         self._output_stream_name = output_stream_name
-        self._bridge = CvBridge()
         self._detection_graph = tf.Graph()
         with self._detection_graph.as_default():
             od_graph_def = tf.GraphDef()
@@ -57,10 +56,9 @@ class DetectionOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams, output_stream_name):
-        input_streams.add_callback(DetectionOperator.on_msg_camera_stream)
-        # TODO(Ionel): specify data type here
-        return [DataStream(name=output_stream_name,
-                           labels={'obstacles': 'true'})]
+        input_streams.filter(is_camera_stream).add_callback(
+            DetectionOperator.on_msg_camera_stream)
+        return [create_obstacles_stream(output_stream_name)]
 
     def on_msg_camera_stream(self, msg):
         if self._last_seq_num + 1 != msg.timestamp.coordinates[1]:
@@ -72,8 +70,8 @@ class DetectionOperator(Op):
 
         self._logger.info('{} received frame {}'.format(self.name, msg.timestamp))
         start_time = time.time()
-        image_np = self._bridge.imgmsg_to_cv2(msg.data, 'rgb8')
-
+        # The models expect BGR images.
+        image_np = msg.data
         # Expand dimensions since the model expects images to have
         # shape: [1, None, None, 3]
         image_np_expanded = np.expand_dims(image_np, axis=0)
@@ -94,13 +92,11 @@ class DetectionOperator(Op):
         self._logger.info('Object scores {}'.format(scores))
         self._logger.info('Object labels {}'.format(labels))
 
-        img = Image.fromarray(np.uint8(image_np)).convert('RGB')
-        open_cv_image = np.array(img)
-        image_np = open_cv_image[:, :, ::-1].copy()
-
         index = 0
         output = []
-        im_width, im_height = img.size
+        im_width = image_np.shape[1]
+        im_height = image_np.shape[0]
+
         while index < len(boxes) and index < len(scores):
             if scores[index] >= self._flags.detector_min_score_threshold:
                 ymin = int(boxes[index][0] * im_height)

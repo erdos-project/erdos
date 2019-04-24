@@ -1,5 +1,4 @@
 import cv2
-from cv_bridge import CvBridge
 import dla.DLASeg
 import numpy as np
 import PIL.Image as PILImage
@@ -14,6 +13,7 @@ from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
 from segmentation_utils import transfrom_to_cityscapes
+from utils import add_timestamp, create_segmented_camera_stream, is_camera_stream, rgb_to_bgr, bgra_to_bgr
 
 
 class SegmentationDLAOperator(Op):
@@ -28,7 +28,6 @@ class SegmentationDLAOperator(Op):
         self._logger = setup_logging(self.name, log_file_name)
         self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
         self._output_stream_name = output_stream_name
-        self._bridge = CvBridge()
         # TODO(ionel): Figure out how to set GPU memory fraction.
         self._network = dla.DLASeg.DLASeg()
         self._network.load_state_dict(torch.load('dependencies/dla/DLASeg.pth'))
@@ -39,10 +38,9 @@ class SegmentationDLAOperator(Op):
     @staticmethod
     def setup_streams(input_streams, output_stream_name):
         # Register a callback on the camera input stream.
-        input_streams.add_callback(SegmentationDLAOperator.on_msg_camera_stream)
-        return [DataStream(data_type=Image,
-                           name=output_stream_name,
-                           labels={'segmented': 'true'})]
+        input_streams.filter(is_camera_stream).add_callback(
+            SegmentationDLAOperator.on_msg_camera_stream)
+        return [create_segmented_camera_stream(output_stream_name)]
 
     def on_msg_camera_stream(self, msg):
         if self._last_seq_num + 1 != msg.timestamp.coordinates[1]:
@@ -54,22 +52,20 @@ class SegmentationDLAOperator(Op):
 
         self._logger.info('%s received frame %s', self.name, msg.timestamp)
         start_time = time.time()
-        image = self._bridge.imgmsg_to_cv2(msg.data, 'bgr8')
+        image = bgra_to_bgr(msg.data)
         image = np.expand_dims(image.transpose([2, 0, 1]), axis=0)
         tensor = torch.tensor(image).float().cuda() / 255.0
         output = self._network(tensor)
+        # XXX(ionel): Check if the model outputs Carla Cityscapes values or
+        # correct Cityscapes values.
         output = transfrom_to_cityscapes(
             torch.argmax(output, dim=1).cpu().numpy()[0])
-        pil_img = PILImage.fromarray(np.uint8(output)).convert('RGB')
-        img = np.array(pil_img)
+
+        output = rgb_to_bgr(output)
         
         if self._flags.visualize_segmentation_output:
-            draw = ImageDraw.Draw(pil_img)
-            draw.text((5, 5),
-                      "Timestamp: {}".format(msg.timestamp),
-                      fill='black')
-
-            cv2.imshow(self.name, np.array(pil_img))
+            add_timestamp(msg.timestamp, output)
+            cv2.imshow(self.name, output)
             cv2.waitKey(1)
 
         # Get runtime in ms.
@@ -77,7 +73,7 @@ class SegmentationDLAOperator(Op):
         self._csv_logger.info('{},{},"{}",{}'.format(
             time_epoch_ms(), self.name, msg.timestamp, runtime))
 
-        output_msg = Message((img, runtime), msg.timestamp)
+        output_msg = Message((output, runtime), msg.timestamp)
         self.get_output_stream(self._output_stream_name).send(output_msg)
 
     def execute(self):

@@ -9,6 +9,7 @@ from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_ms
 
+from utils import create_fusion_stream, is_depth_camera_stream, is_ground_vehicle_pos_stream, is_obstacles_stream
 
 class FusionOperator(Op):
     """Fusion Operator
@@ -45,19 +46,13 @@ class FusionOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams, output_stream_name):
-        def is_obstacles_stream(stream):
-            return stream.labels.get('obstacles', '') == 'true'
-
-        def is_depth_camera_stream(stream):
-            return stream.labels.get('camera_type', '') == 'Depth'
-
-        input_streams.filter_name("vehicle_pos").add_callback(
+        input_streams.filter(is_ground_vehicle_pos_stream).add_callback(
             FusionOperator.update_pos)
         input_streams.filter(is_obstacles_stream).add_callback(
             FusionOperator.update_objects)
         input_streams.filter(is_depth_camera_stream).add_callback(
             FusionOperator.update_distances)
-        return [DataStream(name=output_stream_name)]
+        return [create_fusion_stream(output_stream_name)]
 
     def __calc_object_positions(self,
                                 object_bounds,

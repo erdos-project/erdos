@@ -4,6 +4,8 @@ import numpy as np
 from erdos.op import Op
 from erdos.utils import setup_logging
 
+from utils import is_fusion_stream, is_ground_vehicles_stream
+
 
 class FusionVerificationOperator(Op):
     def __init__(self, name, log_file_name=None):
@@ -13,9 +15,9 @@ class FusionVerificationOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams):
-        input_streams.filter_name('vehicles').add_callback(
+        input_streams.filter(is_ground_vehicles_stream).add_callback(
             FusionVerificationOperator.on_vehicles_update)
-        input_streams.filter_name('fusion_vehicles').add_callback(
+        input_streams.filter(is_fusion_stream).add_callback(
             FusionVerificationOperator.on_fusion_update)
         return []
 

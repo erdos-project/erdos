@@ -6,16 +6,16 @@ import PIL.ImageDraw as ImageDraw
 import PIL.ImageFont as ImageFont
 from absl import app
 from absl import flags
-from cv_bridge import CvBridge
 from collections import deque
 
 from carla.image_converter import depth_to_array, labels_to_cityscapes_palette, to_rgb_array
 
 import config
 from carla_operator import CarlaOperator
-from detection_utils import get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform
+from detection_utils import get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform, visualize_ground_bboxes
 from ground_agent_operator import GroundAgentOperator
 from video_operator import VideoOperator
+import utils
 
 import erdos.graph
 from erdos.op import Op
@@ -31,17 +31,6 @@ flags.DEFINE_bool('record_segmentation', False,
 flags.DEFINE_bool('record_bounding_boxes', False,
                   'True to enable object bounding boxes data recording')
 
-def is_rgb_camera_stream(stream):
-    return stream.labels.get('camera_type', '') == 'SceneFinal'
-
-
-def is_segmented_camera_stream(stream):
-    return stream.labels.get('camera_type', '') == 'SemanticSegmentation'
-
-
-def is_depth_camera_stream(stream):
-    return stream.labels.get('camera_type', '') == 'Depth'
-
 
 class CameraLoggerOp(Op):
     def __init__(self, name, flags, log_file_name=None, csv_file_name=None):
@@ -49,26 +38,26 @@ class CameraLoggerOp(Op):
         self._flags = flags
         self._logger = setup_logging(self.name, log_file_name)
         self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
-        self._last_rgb_timestamp = -1
+        self._last_bgr_timestamp = -1
         self._last_segmented_timestamp = -1
 
     @staticmethod
     def setup_streams(input_streams):
-        input_streams.filter(is_rgb_camera_stream).add_callback(
-            CameraLoggerOp.on_rgb_frame)
-        input_streams.filter(is_segmented_camera_stream).add_callback(
+        input_streams.filter(utils.is_camera_stream).add_callback(
+            CameraLoggerOp.on_bgr_frame)
+        input_streams.filter(utils.is_ground_segmented_camera_stream).add_callback(
             CameraLoggerOp.on_segmented_frame)
         return []
 
-    def on_rgb_frame(self, msg):
+    def on_bgr_frame(self, msg):
         # Ensure we didn't skip a frame.
-        if self._last_rgb_timestamp != -1:
-            assert self._last_rgb_timestamp + 1 == msg.timestamp.coordinates[1]
-        self._last_rgb_timestamp = msg.timestamp.coordinates[1]
+        if self._last_bgr_timestamp != -1:
+            assert self._last_bgr_timestamp + 1 == msg.timestamp.coordinates[1]
+        self._last_bgr_timestamp = msg.timestamp.coordinates[1]
         # Write the image.
-        rgb_array = to_rgb_array(msg.data)
+        rgb_array = utils.bgr_to_rgb(msg.data)
         file_name = '{}carla-{}.png'.format(
-            self._flags.data_path, self._last_rgb_timestamp)
+            self._flags.data_path, self._last_bgr_timestamp)
         rgb_img = Image.fromarray(np.uint8(rgb_array))
         rgb_img.save(file_name)
     
@@ -79,7 +68,7 @@ class CameraLoggerOp(Op):
         self._last_segmented_timestamp = msg.timestamp.coordinates[1]
         # Write the segmented image.
         frame_array = labels_to_cityscapes_palette(msg.data)
-        img = Image.fromarray(np.uint8(frame_array)).convert('RGB')
+        img = Image.fromarray(np.uint8(frame_array))
         file_name = '{}carla-segmented-{}.png'.format(
             self._flags.data_path, self._last_segmented_timestamp)
         img.save(file_name)
@@ -96,9 +85,8 @@ class GroundTruthObjectLoggerOp(Op):
         self._logger = setup_logging(self.name, log_file_name)
         self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
         self._flags = flags
-        self._bridge = CvBridge()
         # Queue of incoming data.
-        self._rgb_imgs = deque()
+        self._bgr_imgs = deque()
         self._world_transforms = deque()
         self._depth_imgs = deque()
         self._pedestrians = deque()
@@ -114,15 +102,15 @@ class GroundTruthObjectLoggerOp(Op):
 
     @staticmethod
     def setup_streams(input_streams):
-        input_streams.filter(is_depth_camera_stream).add_callback(
+        input_streams.filter(utils.is_depth_camera_stream).add_callback(
             GroundTruthObjectLoggerOp.on_depth_camera_update)
-        input_streams.filter(is_rgb_camera_stream).add_callback(
-            GroundTruthObjectLoggerOp.on_rgb_camera_update)
-        input_streams.filter_name('world_transform').add_callback(
+        input_streams.filter(utils.is_camera_stream).add_callback(
+            GroundTruthObjectLoggerOp.on_bgr_camera_update)
+        input_streams.filter(utils.is_world_transform_stream).add_callback(
             GroundTruthObjectLoggerOp.on_world_transform_update)
-        input_streams.filter_name('pedestrians').add_callback(
+        input_streams.filter(utils.is_ground_pedestrians_stream).add_callback(
             GroundTruthObjectLoggerOp.on_pedestrians_update)
-        input_streams.filter_name('vehicles').add_callback(
+        input_streams.filter(utils.is_ground_vehicles_stream).add_callback(
             GroundTruthObjectLoggerOp.on_vehicles_update)
         input_streams.add_completion_callback(
             GroundTruthObjectLoggerOp.on_notification)
@@ -136,28 +124,26 @@ class GroundTruthObjectLoggerOp(Op):
         self._last_notification = msg.timestamp.coordinates[1]
 
         depth_msg = self._depth_imgs.popleft()
-        rgb_msg = self._rgb_imgs.popleft()
+        bgr_msg = self._bgr_imgs.popleft()
         world_trans_msg = self._world_transforms.popleft()
         pedestrians_msg = self._pedestrians.popleft()
         vehicles_msg = self._vehicles.popleft()
         self._logger.info('Timestamps {} {} {} {} {}'.format(
-            depth_msg.timestamp, rgb_msg.timestamp, world_trans_msg.timestamp,
+            depth_msg.timestamp, bgr_msg.timestamp, world_trans_msg.timestamp,
             pedestrians_msg.timestamp, vehicles_msg.timestamp))
 
-        assert (depth_msg.timestamp == rgb_msg.timestamp ==
+        assert (depth_msg.timestamp == bgr_msg.timestamp ==
                 world_trans_msg.timestamp == pedestrians_msg.timestamp ==
                 vehicles_msg.timestamp)
         
-        rgb_array = to_rgb_array(rgb_msg.data)
-        rgb_img = Image.fromarray(np.uint8(rgb_array))
         depth_array = depth_to_array(depth_msg.data)
         world_transform = world_trans_msg.data
 
         ped_bboxes = self.__get_pedestrians_bboxes(
-            pedestrians_msg.data, rgb_img, world_transform, depth_array)
+            pedestrians_msg.data, world_transform, depth_array)
 
         vec_bboxes = self.__get_vehicles_bboxes(
-            vehicles_msg.data, rgb_img, world_transform, depth_array)
+            vehicles_msg.data, world_transform, depth_array)
 
         bboxes = ped_bboxes + vec_bboxes
         # Write the bounding boxes.
@@ -167,20 +153,12 @@ class GroundTruthObjectLoggerOp(Op):
             json.dump(bboxes, outfile)
 
         if self._flags.visualize_ground_obstacles:
-            # Draw the image and mark it with the timestamp.
-            draw = ImageDraw.Draw(rgb_img)
-            draw.text((5, 5),
-                      "Timestamp: {}".format(msg.timestamp),
-                      fill='black')
-            for (_, corners) in ped_bboxes:
-                draw.rectangle(corners, width=4, outline='green')
-            for (_, corners) in vec_bboxes:
-                draw.rectangle(corners, width=4, outline='blue')
-            # Visualize bounding boxes.
-            open_cv_image = np.array(rgb_img)
-            open_cv_image = open_cv_image[:, :, ::-1]
-            cv2.imshow(self.name, open_cv_image)
-            cv2.waitKey(1)
+            ped_vis_bboxes = [(xmin, xmax, ymin, ymax)
+                              for (_, ((xmin, ymin), (xmax, ymax))) in ped_bboxes]
+            vec_vis_bboxes = [(xmin, xmax, ymin, ymax)
+                              for (_, ((xmin, ymin), (xmax, ymax))) in vec_bboxes]
+            visualize_ground_bboxes(self.name, bgr_msg.timestamp, bgr_msg.data,
+                                    ped_vis_bboxes, vec_vis_bboxes)
 
     def on_world_transform_update(self, msg):
         self._world_transforms.append(msg)
@@ -194,18 +172,18 @@ class GroundTruthObjectLoggerOp(Op):
     def on_depth_camera_update(self, msg):
         self._depth_imgs.append(msg)
 
-    def on_rgb_camera_update(self, msg):
-        self._rgb_imgs.append(msg)
+    def on_bgr_camera_update(self, msg):
+        self._bgr_imgs.append(msg)
 
     def execute(self):
         self.spin()
 
-    def __get_pedestrians_bboxes(self, pedestrians, rgb_img, world_transform,
+    def __get_pedestrians_bboxes(self, pedestrians, world_transform,
                                  depth_array):
         bboxes = []
         for (_, pd_transform, bounding_box, _) in pedestrians:
             bbox = get_2d_bbox_from_3d_box(
-                rgb_img, depth_array, world_transform, pd_transform,
+                depth_array, world_transform, pd_transform,
                 bounding_box, self._rgb_transform, self._rgb_intrinsic,
                 self._rgb_img_size, 1.5, 3.0)
             if bbox is not None:
@@ -213,12 +191,11 @@ class GroundTruthObjectLoggerOp(Op):
                 bboxes.append(('pedestrian', ((xmin, ymin), (xmax, ymax))))
         return bboxes
 
-    def __get_vehicles_bboxes(self, vehicles, rgb_img, world_transform,
-                              depth_array):
+    def __get_vehicles_bboxes(self, vehicles, world_transform, depth_array):
         vec_bboxes = []
         for (vec_transform, bounding_box, _) in vehicles:
             bbox = get_2d_bbox_from_3d_box(
-                rgb_img, depth_array, world_transform, vec_transform,
+                depth_array, world_transform, vec_transform,
                 bounding_box, self._rgb_transform, self._rgb_intrinsic,
                 self._rgb_img_size, 3.0, 3.0)
             if bbox is not None:
@@ -250,6 +227,7 @@ def add_ground_agent_op(graph, carla_op, goal_location, goal_orientation):
         GroundAgentOperator,
         name='ground_agent',
         init_args={
+            # TODO(ionel): Do not hardcode city name!
             'city_name': 'Town01',
             'goal_location': goal_location,
             'goal_orientation': goal_orientation,

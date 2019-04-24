@@ -7,6 +7,7 @@ from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
 from segmentation_utils import compute_semantic_iou
+from utils import is_ground_segmented_camera_stream, is_segmented_camera_stream
 
 
 class SegmentationEvalOperator(Op):
@@ -25,10 +26,11 @@ class SegmentationEvalOperator(Op):
     def setup_streams(input_streams,
                       ground_stream_name,
                       segmented_stream_name):
-        input_streams.filter_name(ground_stream_name).add_callback(
+        input_streams.filter(is_ground_segmented_camera_stream).add_callback(
             SegmentationEvalOperator.on_ground_segmented_frame)
-        input_streams.filter_name(segmented_stream_name).add_callback(
-            SegmentationEvalOperator.on_segmented_frame)
+        input_streams.filter(is_segmented_camera_stream) \
+                     .filter_name(segmented_stream_name) \
+                     .add_callback(SegmentationEvalOperator.on_segmented_frame)
         return []
 
     def on_ground_segmented_frame(self, msg):
@@ -122,7 +124,7 @@ class SegmentationEvalOperator(Op):
     def __compute_mean_iou(self, ground_frame, msg):
         ground_frame_array = labels_to_cityscapes_palette(
             self._ground_frames[0].data)
-        ground_img = Image.fromarray(np.uint8(ground_frame_array)).convert('RGB')
+        ground_img = Image.fromarray(np.uint8(ground_frame_array))
         ground_img = np.array(ground_img)
         (frame, runtime) = msg.data
         (mean_iou, class_iou) = compute_semantic_iou(ground_img, frame)

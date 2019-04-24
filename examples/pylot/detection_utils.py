@@ -11,6 +11,8 @@ from carla.sensor import Camera
 from carla.image_converter import depth_to_local_point_cloud
 from carla.transform import Transform
 
+from utils import add_timestamp
+
 
 coco_bbox_color_list = np.array(
         [
@@ -98,41 +100,11 @@ coco_bbox_color_list = np.array(
     ).astype(np.float32)
 
 
-def add_bounding_box_text(draw, xmin, ymax, ymin, color, texts):
-    try:
-        font = ImageFont.truetype('arial.ttf', 24)
-    except IOError:
-        font = ImageFont.load_default()
-    # Check if there's space to add text at the top of the box.
-    text_str_heights = [font.getsize(text)[1] for text in texts]
-    # Each display_str has a top and bottom margin of 0.05x.
-    total_text_str_height = (1 + 2 * 0.05) * sum(text_str_heights)
-
-    if ymax > total_text_str_height:
-        text_bottom = ymax
-    else:
-        text_bottom = ymin + total_text_str_height
-    # Reverse list and print from bottom to top.
-    for text in texts[::-1]:
-        text_width, text_height = font.getsize(text)
-        margin = np.ceil(0.05 * text_height)
-        draw.rectangle(
-            [(xmin, text_bottom - text_height - 2 * margin),
-             (xmin + text_width, text_bottom)],
-            fill=color)
-        draw.text(
-            (xmin + margin, text_bottom - text_height - margin),
-            text, fill='black', font=font)
-        text_bottom -= text_height - 2 * margin
-
-
-def add_bounding_box(image, corners, color='red', thickness=4, texts=None):
+def add_bounding_box(image, corners, color='red', thickness=4):
     draw = ImageDraw.Draw(image)
     (xmin, xmax, ymin, ymax) = corners
     draw.line([(xmin, ymax), (xmin, ymin), (xmax, ymin),
                (xmax, ymax), (xmin, ymax)], width=thickness, fill=color)
-    if texts:
-        add_bounding_box_text(draw, xmin, ymax, ymin, color, texts)
 
 
 def compute_miou(bboxes1, bboxes2):
@@ -156,8 +128,7 @@ def compute_miou(bboxes1, bboxes2):
     return inter_area / (union+0.0001)
 
 
-def map_ground_3D_transform_to_2D(image,
-                                  world_transform,
+def map_ground_3D_transform_to_2D(world_transform,
                                   rgb_transform,
                                   rgb_intrinsic,
                                   rgb_img_size,
@@ -181,8 +152,7 @@ def map_ground_3D_transform_to_2D(image,
     return None
 
 
-def map_ground_bounding_box_to_2D(image,
-                                  distance_img,
+def map_ground_bounding_box_to_2D(distance_img,
                                   world_transform,
                                   obstacle_transform,
                                   bounding_box,
@@ -369,11 +339,11 @@ def select_max_bbox(ends):
 
 
 def get_2d_bbox_from_3d_box(
-        rgb_img, depth_array, world_transform, obj_transform,
+        depth_array, world_transform, obj_transform,
         bounding_box, rgb_transform, rgb_intrinsic, rgb_img_size,
         middle_depth_threshold, neighbor_threshold):
     corners = map_ground_bounding_box_to_2D(
-        rgb_img, depth_array, world_transform, obj_transform,
+        depth_array, world_transform, obj_transform,
         bounding_box, rgb_transform, rgb_intrinsic,
         rgb_img_size)
     if len(corners) == 8:
@@ -597,12 +567,32 @@ def get_pedestrian_mAP(ground_bboxes, detector_output):
     return avg_precision
 
 
-def add_timestamp(timestamp, image_np):
-    txt_font = cv2.FONT_HERSHEY_SIMPLEX
-    timestamp_txt = '{}'.format(timestamp)
-    # Put timestamp text.
-    cv2.putText(image_np, timestamp_txt, (5, 15), txt_font, 0.5,
-                (0, 0, 0), thickness=1, lineType=cv2.LINE_AA)
+def visualize_no_colors_bboxes(op_name, timestamp, image_np, bboxes):
+    add_timestamp(timestamp, image_np)
+    for corners in bboxes:
+        (xmin, xmax, ymin, ymax) = corners
+        color = [128, 0, 0]
+        # Show bounding box.
+        cv2.rectangle(image_np, (xmin, ymin), (xmax, ymax), color, 2)
+    cv2.imshow(op_name, image_np)
+    cv2.waitKey(1)
+
+
+def visualize_ground_bboxes(op_name, timestamp, image_np, pedestrian_bboxes,
+                            vehicles_bboxes):
+    add_timestamp(timestamp, image_np)
+    for corners in pedestrian_bboxes:
+        (xmin, xmax, ymin, ymax) = corners
+        color = [0, 128, 0]
+        # Show bounding box.
+        cv2.rectangle(image_np, (xmin, ymin), (xmax, ymax), color, 2)
+    for corners in vehicles_bboxes:
+        (xmin, xmax, ymin, ymax) = corners
+        color = [128, 0, 0]
+        # Show bounding box.
+        cv2.rectangle(image_np, (xmin, ymin), (xmax, ymax), color, 2)
+    cv2.imshow(op_name, image_np)
+    cv2.waitKey(1)
 
 
 def visualize_bboxes(op_name, timestamp, image_np, detector_output, bbox_color_map):
@@ -621,5 +611,5 @@ def visualize_bboxes(op_name, timestamp, image_np, detector_output, bbox_color_m
                       (xmin + txt_size[0], ymin - 2), color, -1)
         cv2.putText(image_np, label_confidence_txt, (xmin, ymin - 2),
                     txt_font, 0.5, (0, 0, 0), thickness=1, lineType=cv2.LINE_AA)
-        cv2.imshow(op_name, image_np)
-        cv2.waitKey(1)
+    cv2.imshow(op_name, image_np)
+    cv2.waitKey(1)
