@@ -473,6 +473,10 @@ def main(argv):
                 graph, carla_op, segmentation_op,
                 'front_semantic_camera', 'segmented_stream')
 
+    if FLAGS.eval_ground_truth_segmentation:
+        eval_ground_truth_segmentation_op = add_segmentation_ground_eval_op(
+            graph, carla_op, 'front_semantic_camera')
+
     # This operator evaluates the temporal decay of the ground truth of
     # object detection across timestamps.
     if FLAGS.eval_ground_truth_object_detection:
