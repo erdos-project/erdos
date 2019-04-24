@@ -1,7 +1,4 @@
-import cv2
 import numpy as np
-import PIL.Image as Image
-import PIL.ImageDraw as ImageDraw
 import tensorflow as tf
 import time
 

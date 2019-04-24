@@ -1,9 +1,6 @@
 import cv2
 import dla.DLASeg
 import numpy as np
-import PIL.Image as PILImage
-import PIL.ImageDraw as ImageDraw
-from sensor_msgs.msg import Image
 import time
 import torch
 

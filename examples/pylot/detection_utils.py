@@ -100,13 +100,6 @@ coco_bbox_color_list = np.array(
     ).astype(np.float32)
 
 
-def add_bounding_box(image, corners, color='red', thickness=4):
-    draw = ImageDraw.Draw(image)
-    (xmin, xmax, ymin, ymax) = corners
-    draw.line([(xmin, ymax), (xmin, ymin), (xmax, ymin),
-               (xmax, ymax), (xmin, ymax)], width=thickness, fill=color)
-
-
 def compute_miou(bboxes1, bboxes2):
     bboxes1, bboxes2 = np.array(bboxes1), np.array(bboxes2)
     x11, x12, y11, y12 = np.split(bboxes1, 4, axis=1)

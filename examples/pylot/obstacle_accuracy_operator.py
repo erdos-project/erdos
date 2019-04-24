@@ -1,16 +1,10 @@
-import cv2
 import heapq
-import numpy as np
-import PIL.Image as Image
-import PIL.ImageDraw as ImageDraw
-import PIL.ImageFont as ImageFont
 
 from carla.image_converter import depth_to_array
 
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
-import messages
 import detection_utils
 import utils
 

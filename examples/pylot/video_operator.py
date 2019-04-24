@@ -1,9 +1,4 @@
 import cv2
-import numpy as np
-import PIL.Image as PILImage
-import PIL.ImageDraw as ImageDraw
-
-from carla.image_converter import to_bgra_array
 
 from erdos.op import Op
 from erdos.utils import setup_logging

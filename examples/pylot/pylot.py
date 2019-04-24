@@ -121,7 +121,10 @@ def add_erdos_agent_op(graph,
 
 def add_lidar_visualizer_op(graph, carla_op):
     lidar_visualizer_op = graph.add(
-        LidarVisualizerOperator, name='lidar_visualizer')
+        LidarVisualizerOperator,
+        name='lidar_visualizer',
+        init_args={'flags': FLAGS,
+                   'log_file_name': FLAGS.log_file_name})
     graph.connect([carla_op], [lidar_visualizer_op])
 
 

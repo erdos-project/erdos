@@ -1,9 +1,6 @@
-import cv2
 import json
 import numpy as np
 import PIL.Image as Image
-import PIL.ImageDraw as ImageDraw
-import PIL.ImageFont as ImageFont
 from absl import app
 from absl import flags
 from collections import deque
@@ -14,7 +11,6 @@ import config
 from carla_operator import CarlaOperator
 from detection_utils import get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform, visualize_ground_bboxes
 from ground_agent_operator import GroundAgentOperator
-from video_operator import VideoOperator
 import utils
 
 import erdos.graph

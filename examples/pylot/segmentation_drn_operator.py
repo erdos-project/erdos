@@ -1,9 +1,6 @@
 import cv2
 import drn.segment
 from drn.segment import DRNSeg
-import numpy as np
-import PIL.Image as PILImage
-import PIL.ImageDraw as ImageDraw
 from torch.autograd import Variable
 import time
 import torch

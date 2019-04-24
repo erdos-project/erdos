@@ -11,6 +11,7 @@ from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_
 
 from utils import create_fusion_stream, is_depth_camera_stream, is_ground_vehicle_pos_stream, is_obstacles_stream
 
+
 class FusionOperator(Op):
     """Fusion Operator
 

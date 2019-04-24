@@ -1,7 +1,4 @@
-import cv2
 import numpy as np
-import PIL.Image as Image
-import PIL.ImageDraw as ImageDraw
 import tensorflow as tf
 import time
 
@@ -68,7 +65,8 @@ class DetectionOperator(Op):
                 assert self._last_seq_num + 1 == msg.timestamp.coordinates[1]
         self._last_seq_num = msg.timestamp.coordinates[1]
 
-        self._logger.info('{} received frame {}'.format(self.name, msg.timestamp))
+        self._logger.info('{} received frame {}'.format(
+            self.name, msg.timestamp))
         start_time = time.time()
         # The models expect BGR images.
         image_np = msg.data

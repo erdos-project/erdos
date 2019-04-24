@@ -4,7 +4,7 @@ import time
 import ray
 
 from carla.client import CarlaClient
-from carla.image_converter import to_bgra_array, to_rgb_array
+from carla.image_converter import to_bgra_array
 from carla.sensor import Camera, Lidar
 from carla.settings import CarlaSettings
 from carla.transform import Transform
@@ -69,7 +69,8 @@ class CarlaOperator(Op):
                                      labels={'sensor_type': 'camera',
                                              'camera_type': camera_type})
                           for (camera, camera_type, _, _) in camera_setups]
-        lidar_streams = [DataStream(name=lidar)
+        lidar_streams = [DataStream(name=lidar,
+                                    labels={'sensor_type': 'lidar'})
                          for lidar in lidar_stream_names]
         return [
             DataStream(name='world_transform'),

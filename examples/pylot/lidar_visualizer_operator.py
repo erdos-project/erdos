@@ -3,17 +3,20 @@ from open3d import draw_geometries, read_point_cloud
 from erdos.op import Op
 from erdos.utils import setup_logging
 
+import utils
+
 
 class LidarVisualizerOperator(Op):
-    def __init__(self, name, log_file_name=None):
+    def __init__(self, name, flags, log_file_name=None):
         super(LidarVisualizerOperator, self).__init__(name)
         self._logger = setup_logging(self.name, log_file_name)
+        self._flags = flags
         self.cnt = 0
 
     @staticmethod
-    def setup_streams(input_streams, filter):
-        input_streams.filter_name(filter)\
-            .add_callback(LidarVisualizerOperator.display_point_cloud)
+    def setup_streams(input_streams):
+        input_streams.filter(utils.is_lidar_stream).add_callback(
+            LidarVisualizerOperator.display_point_cloud)
         return []
 
     def display_point_cloud(self, msg):

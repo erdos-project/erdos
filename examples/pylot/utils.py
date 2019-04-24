@@ -13,6 +13,10 @@ def is_depth_camera_stream(stream):
             stream.get_label('camera_type') == 'Depth')
 
 
+def is_lidar_stream(stream):
+    return stream.get_label('sensor_type') == 'lidar'
+
+
 # Ground streams
 def is_ground_segmented_camera_stream(stream):
     return (stream.get_label('sensor_type') == 'camera' and
@@ -37,6 +41,7 @@ def is_ground_traffic_signs_stream(stream):
 
 def is_ground_vehicle_pos_stream(stream):
     return stream.name == 'vehicle_pos'
+
 
 def is_world_transform_stream(stream):
     return stream.name == 'world_transform'
