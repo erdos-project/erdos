@@ -2,7 +2,7 @@ import cv2
 
 from erdos.op import Op
 from erdos.utils import setup_logging
-from utils import add_timestamp, is_camera_stream
+from pylot_utils import add_timestamp, is_camera_stream
 
 
 class VideoOperator(Op):

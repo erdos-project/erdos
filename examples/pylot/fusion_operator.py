@@ -9,7 +9,7 @@ from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_ms
 
-from utils import create_fusion_stream, is_depth_camera_stream, is_ground_vehicle_pos_stream, is_obstacles_stream
+from pylot_utils import create_fusion_stream, is_depth_camera_stream, is_ground_vehicle_pos_stream, is_obstacles_stream
 
 
 class FusionOperator(Op):

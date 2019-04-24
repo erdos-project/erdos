@@ -6,7 +6,7 @@ from carla.image_converter import labels_to_cityscapes_palette
 
 from erdos.op import Op
 from erdos.utils import setup_logging
-from utils import rgb_to_bgr, is_ground_segmented_camera_stream
+from pylot_utils import rgb_to_bgr, is_ground_segmented_camera_stream
 
 
 class SegmentedVideoOperator(Op):

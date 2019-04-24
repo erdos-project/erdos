@@ -8,7 +8,7 @@ from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
 from detection_utils import visualize_no_colors_bboxes
-from utils import is_camera_stream, is_obstacles_stream
+from pylot_utils import is_camera_stream, is_obstacles_stream
 
 
 class ObjectTrackerOp(Op):

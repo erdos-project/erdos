@@ -9,7 +9,7 @@ from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
 from segmentation_utils import tf_compute_semantic_iou, generate_masks, compute_semantic_iou_from_masks
-from utils import is_ground_segmented_camera_stream
+from pylot_utils import is_ground_segmented_camera_stream
 
 
 class SegmentationEvalGroundOperator(Op):

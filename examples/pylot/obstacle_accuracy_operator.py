@@ -6,7 +6,7 @@ from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
 import detection_utils
-import utils
+import pylot_utils
 
 
 class ObstacleAccuracyOperator(Op):
@@ -45,19 +45,19 @@ class ObstacleAccuracyOperator(Op):
     def setup_streams(input_streams, depth_camera_name):
         input_streams.filter_name(depth_camera_name).add_callback(
             ObstacleAccuracyOperator.on_depth_camera_update)
-        input_streams.filter(utils.is_camera_stream).add_callback(
+        input_streams.filter(pylot_utils.is_camera_stream).add_callback(
             ObstacleAccuracyOperator.on_bgr_camera_update)
-        input_streams.filter(utils.is_world_transform_stream).add_callback(
+        input_streams.filter(pylot_utils.is_world_transform_stream).add_callback(
             ObstacleAccuracyOperator.on_world_transform_update)
-        input_streams.filter(utils.is_ground_pedestrians_stream).add_callback(
+        input_streams.filter(pylot_utils.is_ground_pedestrians_stream).add_callback(
             ObstacleAccuracyOperator.on_pedestrians_update)
-        input_streams.filter(utils.is_ground_vehicles_stream).add_callback(
+        input_streams.filter(pylot_utils.is_ground_vehicles_stream).add_callback(
             ObstacleAccuracyOperator.on_vehicles_update)
-        input_streams.filter(utils.is_ground_traffic_lights_stream).add_callback(
+        input_streams.filter(pylot_utils.is_ground_traffic_lights_stream).add_callback(
             ObstacleAccuracyOperator.on_traffic_lights_update)
-        input_streams.filter(utils.is_ground_traffic_signs_stream).add_callback(
+        input_streams.filter(pylot_utils.is_ground_traffic_signs_stream).add_callback(
             ObstacleAccuracyOperator.on_traffic_signs_update)
-        input_streams.filter(utils.is_obstacles_stream).add_callback(
+        input_streams.filter(pylot_utils.is_obstacles_stream).add_callback(
             ObstacleAccuracyOperator.on_obstacles)
         # Register a watermark callback.
         input_streams.add_completion_callback(

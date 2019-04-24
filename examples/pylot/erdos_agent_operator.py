@@ -15,7 +15,7 @@ from planner.map import CarlaMap
 from planner.waypointer import Waypointer
 from pid_controller.pid import PID
 from detection_utils import get_3d_world_position
-import utils
+import pylot_utils
 
 
 class ERDOSAgentOperator(Op):
@@ -88,25 +88,25 @@ class ERDOSAgentOperator(Op):
             ERDOSAgentOperator.on_depth_camera_update)
 
         # XXX(ionel): We get the exact position from the simulator.
-        input_streams.filter(utils.is_world_transform_stream).add_callback(
+        input_streams.filter(pylot_utils.is_world_transform_stream).add_callback(
             ERDOSAgentOperator.on_world_transform_update)
-        input_streams.filter(utils.is_ground_vehicle_pos_stream).add_callback(
+        input_streams.filter(pylot_utils.is_ground_vehicle_pos_stream).add_callback(
             ERDOSAgentOperator.on_vehicle_pos_update)
-        input_streams.filter(utils.is_ground_acceleration_stream).add_callback(
+        input_streams.filter(pylot_utils.is_ground_acceleration_stream).add_callback(
             ERDOSAgentOperator.on_vehicle_acceleration_update)
-        input_streams.filter(utils.is_ground_forward_speed_stream).add_callback(
+        input_streams.filter(pylot_utils.is_ground_forward_speed_stream).add_callback(
             ERDOSAgentOperator.on_forward_speed_update)
 
         input_streams.filter(is_traffic_lights_stream).add_callback(
             ERDOSAgentOperator.on_traffic_lights_update)
-        input_streams.filter(utils.is_segmented_camera_stream).add_callback(
+        input_streams.filter(pylot_utils.is_segmented_camera_stream).add_callback(
             ERDOSAgentOperator.on_segmented_frame)
-        input_streams.filter(utils.is_obstacles_stream).add_callback(
+        input_streams.filter(pylot_utils.is_obstacles_stream).add_callback(
             ERDOSAgentOperator.on_obstacles_update)
 
         # Set no watermark on the output stream so that we do not
         # close the watermark loop with the carla operator.
-        return [utils.create_agent_action_stream()]
+        return [pylot_utils.create_agent_action_stream()]
 
     # TODO(ionel): Set the frequency programmatically.
     @frequency(10)

@@ -11,7 +11,7 @@ from carla.sensor import Camera
 from carla.image_converter import depth_to_local_point_cloud
 from carla.transform import Transform
 
-from utils import add_timestamp
+from pylot_utils import add_timestamp
 
 
 coco_bbox_color_list = np.array(

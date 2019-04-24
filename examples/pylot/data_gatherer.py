@@ -11,7 +11,7 @@ import config
 from carla_operator import CarlaOperator
 from detection_utils import get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform, visualize_ground_bboxes
 from ground_agent_operator import GroundAgentOperator
-import utils
+import pylot_utils
 
 import erdos.graph
 from erdos.op import Op
@@ -39,9 +39,9 @@ class CameraLoggerOp(Op):
 
     @staticmethod
     def setup_streams(input_streams):
-        input_streams.filter(utils.is_camera_stream).add_callback(
+        input_streams.filter(pylot_utils.is_camera_stream).add_callback(
             CameraLoggerOp.on_bgr_frame)
-        input_streams.filter(utils.is_ground_segmented_camera_stream).add_callback(
+        input_streams.filter(pylot_utils.is_ground_segmented_camera_stream).add_callback(
             CameraLoggerOp.on_segmented_frame)
         return []
 
@@ -51,7 +51,7 @@ class CameraLoggerOp(Op):
             assert self._last_bgr_timestamp + 1 == msg.timestamp.coordinates[1]
         self._last_bgr_timestamp = msg.timestamp.coordinates[1]
         # Write the image.
-        rgb_array = utils.bgr_to_rgb(msg.data)
+        rgb_array = pylot_utils.bgr_to_rgb(msg.data)
         file_name = '{}carla-{}.png'.format(
             self._flags.data_path, self._last_bgr_timestamp)
         rgb_img = Image.fromarray(np.uint8(rgb_array))
@@ -98,15 +98,15 @@ class GroundTruthObjectLoggerOp(Op):
 
     @staticmethod
     def setup_streams(input_streams):
-        input_streams.filter(utils.is_depth_camera_stream).add_callback(
+        input_streams.filter(pylot_utils.is_depth_camera_stream).add_callback(
             GroundTruthObjectLoggerOp.on_depth_camera_update)
-        input_streams.filter(utils.is_camera_stream).add_callback(
+        input_streams.filter(pylot_utils.is_camera_stream).add_callback(
             GroundTruthObjectLoggerOp.on_bgr_camera_update)
-        input_streams.filter(utils.is_world_transform_stream).add_callback(
+        input_streams.filter(pylot_utils.is_world_transform_stream).add_callback(
             GroundTruthObjectLoggerOp.on_world_transform_update)
-        input_streams.filter(utils.is_ground_pedestrians_stream).add_callback(
+        input_streams.filter(pylot_utils.is_ground_pedestrians_stream).add_callback(
             GroundTruthObjectLoggerOp.on_pedestrians_update)
-        input_streams.filter(utils.is_ground_vehicles_stream).add_callback(
+        input_streams.filter(pylot_utils.is_ground_vehicles_stream).add_callback(
             GroundTruthObjectLoggerOp.on_vehicles_update)
         input_streams.add_completion_callback(
             GroundTruthObjectLoggerOp.on_notification)

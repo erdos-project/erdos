@@ -12,7 +12,7 @@ from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
 from detection_utils import get_precision_recall_at_iou, get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform
-import utils
+import pylot_utils
 
 
 class DetectionEvalGroundOperator(Op):
@@ -44,14 +44,14 @@ class DetectionEvalGroundOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams, depth_camera_name):
-        input_streams.filter(utils.is_depth_camera_stream).filter_name(
+        input_streams.filter(pylot_utils.is_depth_camera_stream).filter_name(
             depth_camera_name).add_callback(
                 DetectionEvalGroundOperator.on_depth_camera_update)
-        input_streams.filter(utils.is_camera_stream).add_callback(
+        input_streams.filter(pylot_utils.is_camera_stream).add_callback(
             DetectionEvalGroundOperator.on_bgr_camera_update)
-        input_streams.filter(utils.is_world_transform_stream).add_callback(
+        input_streams.filter(pylot_utils.is_world_transform_stream).add_callback(
             DetectionEvalGroundOperator.on_world_transform_update)
-        input_streams.filter(utils.is_ground_pedestrians_stream).add_callback(
+        input_streams.filter(pylot_utils.is_ground_pedestrians_stream).add_callback(
             DetectionEvalGroundOperator.on_pedestrians_update)
 
         input_streams.add_completion_callback(

@@ -16,7 +16,7 @@ from erdos.timestamp import Timestamp
 from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_ms
 
 import messages
-import utils
+import pylot_utils
 
 
 class CarlaOperator(Op):
@@ -266,7 +266,7 @@ class CarlaOperator(Op):
             if data_stream.get_label('camera_type') == 'SceneFinal':
                 # Transform the Carla RGB images to BGR.
                 data_stream.send(
-                    Message(utils.bgra_to_bgr(to_bgra_array(measurement)),
+                    Message(pylot_utils.bgra_to_bgr(to_bgra_array(measurement)),
                             timestamp))
             else:
                 data_stream.send(Message(measurement, timestamp))
