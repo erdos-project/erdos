@@ -142,10 +142,14 @@ def is_traffic_light_active(vehicle_pos, tl_pos, city_map):
                 return None
 
     closest_lane_point = search_closest_lane_point(tl_x, tl_y, 0)
-    return (math.fabs(
-        city_map.get_lane_orientation_degrees([x_vehicle, y_vehicle, 38])
-        - city_map.get_lane_orientation_degrees(
-            [closest_lane_point[0], closest_lane_point[1], 38])) < 1)
+
+    if closest_lane_point is not None:
+        return (math.fabs(
+            city_map.get_lane_orientation_degrees([x_vehicle, y_vehicle, 38])
+            - city_map.get_lane_orientation_degrees(
+                [closest_lane_point[0], closest_lane_point[1], 38])) < 1)
+    else:
+        return None
 
 
 def stop_pedestrian(vehicle_pos,

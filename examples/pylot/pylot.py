@@ -237,8 +237,8 @@ def add_traffic_light_op(graph, carla_op):
     traffic_light_det_op = graph.add(
         TrafficLightDetOperator,
         name='traffic_light_detector',
-        setup_args={'output_stream_name': 'traffic_lights'},
-        init_args={'output_stream_name': 'traffic_lights',
+        setup_args={'output_stream_name': 'detected_traffic_lights'},
+        init_args={'output_stream_name': 'detected_traffic_lights',
                    'flags': FLAGS,
                    'log_file_name': FLAGS.log_file_name,
                    'csv_file_name': FLAGS.csv_log_file_name},
