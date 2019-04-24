@@ -93,3 +93,9 @@ class DataStreams(object):
     def __getitem__(self, key):
         """ Index into the DataStreams. """
         return self._streams[key]
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        return str([str(stream) for stream in self._streams])

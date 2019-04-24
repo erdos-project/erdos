@@ -76,6 +76,13 @@ class DataStream(object):
             callbacks=self.callbacks.copy(),
             uid=self.uid)
 
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        # TODO(ionel): Might want to return the UID here.
+        return self.name
+
     def get_label(self, key):
         """
         Retrieves the label for the given key. Returns None if the key
