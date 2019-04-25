@@ -1,4 +1,4 @@
-FROM nvidia/cudagl:9.0-devel-ubuntu16.04
+FROM nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04
 MAINTAINER Sukrit Kalra (sukrit.kalra@berkeley.edu)
 
 # Set up a erdos user first.
@@ -23,7 +23,8 @@ WORKDIR /home/erdos
 # Get ROS Kinetic for Ubuntu 16.04
 RUN sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu xenial main" > /etc/apt/sources.list.d/ros-latest.list'
 RUN sudo apt-key adv --keyserver hkp://ha.pool.sks-keyservers.net:80 --recv-key 421C365BD9FF1F717815A3895523BAEEB01FA116 
-RUN sudo apt-get update && RUN sudo apt-get install -y --allow-unauthenticated ros-kinetic-ros-base
+RUN sudo apt-get update
+RUN sudo apt-get install -y --allow-unauthenticated ros-kinetic-ros-base
 
 # Initialize rosdep
 RUN sudo rosdep init
@@ -44,15 +45,12 @@ RUN cd /home/erdos/workspace && git clone https://github.com/erdos-project/erdos
 WORKDIR /home/erdos/workspace/erdos
 RUN cd /home/erdos/workspace/erdos && pip install -r requirements.txt
 
-# Retrieve CARLA
-RUN cd /home/erdos/workspace/ && /home/erdos/.local/bin/gdown https://drive.google.com/uc?id=18OaDbQ2K9Dcs25d-nIxpw3GPRHhG1r_2
-RUN cd /home/erdos/workspace/ && mkdir -p CARLA_0.8.4 && mv CARLA_0.8.4.tar.gz CARLA_0.8.4/
-RUN cd /home/erdos/workspace/CARLA_0.8.4 && tar xvf CARLA_0.8.4.tar.gz && rm -rf CARLA_0.8.4.tar.gz
+# Set this env value to run carla in headless CARLA
 ENV SDL_VIDEODRIVER offscreen
 
 # Get the Pylot models and code dependencies.
 RUN sudo apt-get install -y wget
-RUN cd /home/erdos/workspace/erdos/examples/pylot/dependencies/ && ./get_dependencies.sh
+RUN cd /home/erdos/workspace/erdos/examples/pylot/scripts/ && ./get_dependencies.sh
 
 # Export PYTHONPATH
 RUN echo "export PYTHONPATH=$PYTHONPATH:/home/erdos/workspace/erdos:/home/erdos/workspace/erdos/examples/pylot/dependencies:/home/erdos/workspace/CARLA_0.8.4/PythonClient" >> ~/.bashrc
