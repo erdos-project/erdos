@@ -5,7 +5,7 @@ from absl import app
 from absl import flags
 from collections import deque
 
-from carla.image_converter import depth_to_array, labels_to_cityscapes_palette, to_rgb_array
+from carla.image_converter import depth_to_array, labels_to_cityscapes_palette, to_rgb_array, labels_to_array
 
 import config
 from carla_operator import CarlaOperator
@@ -22,10 +22,6 @@ FLAGS = flags.FLAGS
 # Flags that control what data is recorded.
 flags.DEFINE_string('data_path', 'data/',
                     'Path where to store Carla camera images')
-flags.DEFINE_bool('record_segmentation', False,
-                  'True to enable segmentation data recording')
-flags.DEFINE_bool('record_bounding_boxes', False,
-                  'True to enable object bounding boxes data recording')
 
 
 class CameraLoggerOp(Op):
@@ -41,8 +37,9 @@ class CameraLoggerOp(Op):
     def setup_streams(input_streams):
         input_streams.filter(pylot_utils.is_camera_stream).add_callback(
             CameraLoggerOp.on_bgr_frame)
-        input_streams.filter(pylot_utils.is_ground_segmented_camera_stream).add_callback(
-            CameraLoggerOp.on_segmented_frame)
+        input_streams.filter(
+            pylot_utils.is_ground_segmented_camera_stream).add_callback(
+                CameraLoggerOp.on_segmented_frame)
         return []
 
     def on_bgr_frame(self, msg):
@@ -56,7 +53,7 @@ class CameraLoggerOp(Op):
             self._flags.data_path, self._last_bgr_timestamp)
         rgb_img = Image.fromarray(np.uint8(rgb_array))
         rgb_img.save(file_name)
-    
+
     def on_segmented_frame(self, msg):
         # Ensure we didn't skip a frame.
         if self._last_segmented_timestamp != -1:
@@ -86,6 +83,7 @@ class GroundTruthObjectLoggerOp(Op):
         self._world_transforms = deque()
         self._depth_imgs = deque()
         self._pedestrians = deque()
+        self._segmented_imgs = deque()
         self._vehicles = deque()
         (camera_name, pp, img_size, pos) = rgb_camera_setup
         (self._rgb_intrinsic, self._rgb_transform,
@@ -102,12 +100,18 @@ class GroundTruthObjectLoggerOp(Op):
             GroundTruthObjectLoggerOp.on_depth_camera_update)
         input_streams.filter(pylot_utils.is_camera_stream).add_callback(
             GroundTruthObjectLoggerOp.on_bgr_camera_update)
-        input_streams.filter(pylot_utils.is_world_transform_stream).add_callback(
-            GroundTruthObjectLoggerOp.on_world_transform_update)
-        input_streams.filter(pylot_utils.is_ground_pedestrians_stream).add_callback(
-            GroundTruthObjectLoggerOp.on_pedestrians_update)
-        input_streams.filter(pylot_utils.is_ground_vehicles_stream).add_callback(
-            GroundTruthObjectLoggerOp.on_vehicles_update)
+        input_streams.filter(
+            pylot_utils.is_ground_segmented_camera_stream).add_callback(
+                GroundTruthObjectLoggerOp.on_segmented_frame)
+        input_streams.filter(
+            pylot_utils.is_world_transform_stream).add_callback(
+                GroundTruthObjectLoggerOp.on_world_transform_update)
+        input_streams.filter(
+            pylot_utils.is_ground_pedestrians_stream).add_callback(
+                GroundTruthObjectLoggerOp.on_pedestrians_update)
+        input_streams.filter(
+            pylot_utils.is_ground_vehicles_stream).add_callback(
+                GroundTruthObjectLoggerOp.on_vehicles_update)
         input_streams.add_completion_callback(
             GroundTruthObjectLoggerOp.on_notification)
         return []
@@ -121,17 +125,19 @@ class GroundTruthObjectLoggerOp(Op):
 
         depth_msg = self._depth_imgs.popleft()
         bgr_msg = self._bgr_imgs.popleft()
+        segmented_msg = self._segmented_imgs.popleft()
         world_trans_msg = self._world_transforms.popleft()
         pedestrians_msg = self._pedestrians.popleft()
         vehicles_msg = self._vehicles.popleft()
-        self._logger.info('Timestamps {} {} {} {} {}'.format(
-            depth_msg.timestamp, bgr_msg.timestamp, world_trans_msg.timestamp,
-            pedestrians_msg.timestamp, vehicles_msg.timestamp))
+        self._logger.info('Timestamps {} {} {} {} {} {}'.format(
+            depth_msg.timestamp, bgr_msg.timestamp, segmented_msg.timestamp,
+            world_trans_msg.timestamp, pedestrians_msg.timestamp,
+            vehicles_msg.timestamp))
 
         assert (depth_msg.timestamp == bgr_msg.timestamp ==
-                world_trans_msg.timestamp == pedestrians_msg.timestamp ==
-                vehicles_msg.timestamp)
-        
+                segmented_msg.timestamp == world_trans_msg.timestamp ==
+                pedestrians_msg.timestamp == vehicles_msg.timestamp)
+
         depth_array = depth_to_array(depth_msg.data)
         world_transform = world_trans_msg.data
 
@@ -140,6 +146,9 @@ class GroundTruthObjectLoggerOp(Op):
 
         vec_bboxes = self.__get_vehicles_bboxes(
             vehicles_msg.data, world_transform, depth_array)
+
+        traffic_signs_bboxes = self.__get_traffic_signs_bboxes(
+            segmented_msg.data)
 
         bboxes = ped_bboxes + vec_bboxes
         # Write the bounding boxes.
@@ -153,8 +162,11 @@ class GroundTruthObjectLoggerOp(Op):
                               for (_, ((xmin, ymin), (xmax, ymax))) in ped_bboxes]
             vec_vis_bboxes = [(xmin, xmax, ymin, ymax)
                               for (_, ((xmin, ymin), (xmax, ymax))) in vec_bboxes]
+            traffic_signs_vis_bboxes = [(xmin, xmax, ymin, ymax)
+                                        for (_, ((xmin, ymin), (xmax, ymax))) in traffic_signs_bboxes]
             visualize_ground_bboxes(self.name, bgr_msg.timestamp, bgr_msg.data,
-                                    ped_vis_bboxes, vec_vis_bboxes)
+                                    ped_vis_bboxes, vec_vis_bboxes,
+                                    traffic_signs_vis_bboxes)
 
     def on_world_transform_update(self, msg):
         self._world_transforms.append(msg)
@@ -170,6 +182,9 @@ class GroundTruthObjectLoggerOp(Op):
 
     def on_bgr_camera_update(self, msg):
         self._bgr_imgs.append(msg)
+
+    def on_segmented_frame(self, msg):
+        self._segmented_imgs.append(msg)
 
     def execute(self):
         self.spin()
@@ -198,6 +213,16 @@ class GroundTruthObjectLoggerOp(Op):
                 (xmin, xmax, ymin, ymax) = bbox
                 vec_bboxes.append(('vehicle', ((xmin, ymin), (xmax, ymax))))
         return vec_bboxes
+
+    def __get_traffic_signs_bboxes(self, segmented_frame):
+        segmented_frame = labels_to_array(segmented_frame)
+        traffic_signs_frame = np.zeros((segmented_frame.shape[0],
+                                        segmented_frame.shape[1], 3))
+        # 12 is the key for TrafficSigns segmentation in Carla.
+        # Apply mask to only select traffic signs and traffic lights.
+        traffic_signs_frame[np.where(segmented_frame == 12)] = 1
+        # TODO(ionel): Extract bounding boxes from segmented image.
+        return []
 
 
 def add_carla_op(graph, camera_setups):
@@ -240,8 +265,7 @@ def main(argv):
     graph = erdos.graph.get_current_graph()
 
     logging_ops = []
-    # Add an operator that logs RGB frames, and segmented frames if
-    # --record_segmentation is enabled.
+    # Add an operator that logs RGB frames and segmented frames.
     camera_logger_op = graph.add(
         CameraLoggerOp,
         name='camera_logger_op',
@@ -250,7 +274,6 @@ def main(argv):
                    'csv_file_name': FLAGS.csv_log_file_name})
     logging_ops.append(camera_logger_op)
 
-    # We're always logging RGB frames.
     rgb_camera_setup = ('front_rgb_camera',
                         'SceneFinal',
                         (FLAGS.carla_camera_image_width,
@@ -258,35 +281,32 @@ def main(argv):
                         (2.0, 0.0, 1.4))
     camera_setups = [rgb_camera_setup]
 
-    if FLAGS.record_bounding_boxes:
-        # Depth camera is required to map from 3D object bounding boxes
-        # to 2D.
-        depth_camera_name = 'front_depth_camera'
-        depth_camera_setup = (depth_camera_name, 'Depth',
-                              (FLAGS.carla_camera_image_width,
-                               FLAGS.carla_camera_image_height),
-                              (2.0, 0.0, 1.4))
-        camera_setups.append(depth_camera_setup)
-        # Add operator that converts from 3D bounding boxes
-        # to 2D bouding boxes.
-        ground_object_logger_op = graph.add(
-            GroundTruthObjectLoggerOp,
-            name='ground_truth_obj_logger',
-            init_args={'rgb_camera_setup': rgb_camera_setup,
-                       'flags': FLAGS,
-                       'log_file_name': FLAGS.log_file_name,
-                       'csv_file_name': FLAGS.csv_log_file_name})
-        logging_ops.append(ground_object_logger_op)
+    # Depth camera is required to map from 3D object bounding boxes
+    # to 2D.
+    depth_camera_name = 'front_depth_camera'
+    depth_camera_setup = (depth_camera_name, 'Depth',
+                          (FLAGS.carla_camera_image_width,
+                           FLAGS.carla_camera_image_height),
+                          (2.0, 0.0, 1.4))
+    camera_setups.append(depth_camera_setup)
+    # Add operator that converts from 3D bounding boxes
+    # to 2D bouding boxes.
+    ground_object_logger_op = graph.add(
+        GroundTruthObjectLoggerOp,
+        name='ground_truth_obj_logger',
+        init_args={'rgb_camera_setup': rgb_camera_setup,
+                   'flags': FLAGS,
+                   'log_file_name': FLAGS.log_file_name,
+                   'csv_file_name': FLAGS.csv_log_file_name})
+    logging_ops.append(ground_object_logger_op)
 
-    if FLAGS.record_segmentation:
-        # Record segmented frames as well. The CameraLoggerOp records them.
-        segmentation_camera_setup = ('front_semantic_camera',
-                                     'SemanticSegmentation',
-                                     (FLAGS.carla_camera_image_width,
-                                      FLAGS.carla_camera_image_height),
-                                     (2.0, 0.0, 1.4))
-        camera_setups.append(segmentation_camera_setup)
-
+    # Record segmented frames as well. The CameraLoggerOp records them.
+    segmentation_camera_setup = ('front_semantic_camera',
+                                 'SemanticSegmentation',
+                                 (FLAGS.carla_camera_image_width,
+                                  FLAGS.carla_camera_image_height),
+                                 (2.0, 0.0, 1.4))
+    camera_setups.append(segmentation_camera_setup)
 
     # Add operator that interacts with the Carla simulator.
     carla_op = add_carla_op(graph, camera_setups)
