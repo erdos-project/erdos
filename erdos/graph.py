@@ -352,11 +352,9 @@ class Graph(object):
             self.cluster = Cluster()
             if self.framework == "ros":
                 # TODO(peter): fix this
-                import rosgraph
-                if not rosgraph.is_master_online():
-                    # Run roscore in a different process
-                    subprocess.Popen("roscore")
-                    time.sleep(2)
+                from erdos.ros.ros_node import LocalROSNode
+                self.node = LocalROSNode()
+                self.cluster.add_node(self.node)
             elif self.framework == "ray":
                 from erdos.ray.ray_node import LocalRayNode
                 self.node = LocalRayNode()

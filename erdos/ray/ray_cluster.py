@@ -55,12 +55,11 @@ class RayCluster(Cluster):
     def initialize(self):
         assert len(self.nodes) > 0
 
+        # TODO(peter): fix assumption that head node is 0th
+        # TODO(peter): verify only 1 local node
         self.setup_head_node(self.nodes[0])
         for node in self.nodes[1:]:
             self.setup_worker(node)
 
         if not ray.is_initialized():
             ray.init(redis_address=self.redis_address)
-
-    def execute(self, node, op_handle):
-        raise NotImplementedError
