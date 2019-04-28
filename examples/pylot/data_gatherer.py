@@ -144,7 +144,7 @@ class GroundTruthObjectLoggerOp(Op):
                 segmented_msg.timestamp == world_trans_msg.timestamp ==
                 pedestrians_msg.timestamp == vehicles_msg.timestamp)
 
-        if self._last_bgr_timestamp % self._flags.log_every_nth_frame != 0:
+        if self._last_notification % self._flags.log_every_nth_frame != 0:
             return
 
         depth_array = depth_to_array(depth_msg.data)
