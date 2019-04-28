@@ -22,6 +22,8 @@ FLAGS = flags.FLAGS
 # Flags that control what data is recorded.
 flags.DEFINE_string('data_path', 'data/',
                     'Path where to store Carla camera images')
+flags.DEFINE_integer('log_every_nth_frame', 1,
+                     'Control how often the script logs frames')
 
 
 class CameraLoggerOp(Op):
@@ -47,6 +49,8 @@ class CameraLoggerOp(Op):
         if self._last_bgr_timestamp != -1:
             assert self._last_bgr_timestamp + 1 == msg.timestamp.coordinates[1]
         self._last_bgr_timestamp = msg.timestamp.coordinates[1]
+        if self._last_bgr_timestamp % self._flags.log_every_nth_frame != 0:
+            return
         # Write the image.
         rgb_array = pylot_utils.bgr_to_rgb(msg.data)
         file_name = '{}carla-{}.png'.format(
@@ -59,6 +63,8 @@ class CameraLoggerOp(Op):
         if self._last_segmented_timestamp != -1:
             assert self._last_segmented_timestamp + 1 == msg.timestamp.coordinates[1]
         self._last_segmented_timestamp = msg.timestamp.coordinates[1]
+        if self._last_bgr_timestamp % self._flags.log_every_nth_frame != 0:
+            return
         # Write the segmented image.
         frame_array = labels_to_cityscapes_palette(msg.data)
         img = Image.fromarray(np.uint8(frame_array))
@@ -137,6 +143,9 @@ class GroundTruthObjectLoggerOp(Op):
         assert (depth_msg.timestamp == bgr_msg.timestamp ==
                 segmented_msg.timestamp == world_trans_msg.timestamp ==
                 pedestrians_msg.timestamp == vehicles_msg.timestamp)
+
+        if self._last_bgr_timestamp % self._flags.log_every_nth_frame != 0:
+            return
 
         depth_array = depth_to_array(depth_msg.data)
         world_transform = world_trans_msg.data
