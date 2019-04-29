@@ -30,6 +30,7 @@ class DetectionCenterNetOperator(Op):
         self._last_seq_num = -1
         self._output_stream_name = output_stream_name
         self._opt = opts().init()
+        self._opt.load_model=self._flags.detector_center_net_model_path
         Detector = detector_factory[self._opt.task]
         self._detector = Detector(self._opt)
         self._coco_labels = load_coco_labels(self._flags.path_coco_labels)

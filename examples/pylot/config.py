@@ -32,6 +32,9 @@ flags.DEFINE_bool('detector_ssd_resnet50_v1', False,
                   'True to enable SSD resnet50 v1 detector')
 flags.DEFINE_bool('detector_center_net', False,
                   'True to enable CenterNet detector')
+flags.DEFINE_string('detector_center_net_model_path',
+                    'dependencies/CenterNet/models/ctdet_coco_dla_2x.pth',
+                    'Path to the model')
 flags.DEFINE_float('detector_min_score_threshold', 0.5,
                    'Min score threshold for bounding box')
 flags.DEFINE_string('path_coco_labels', 'dependencies/data/coco.names',

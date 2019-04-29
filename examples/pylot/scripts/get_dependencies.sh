@@ -38,7 +38,10 @@ sudo apt-get install nvidia-cuda-toolkit
 git clone https://github.com/ICGog/CenterNet.git
 cd CenterNet/
 pip install -r requirements.txt
-cd src/lib/models/networks/DCNv2/
+cd models/
+# Dowload model.
+~/.local/bin/gdown http://drive.google.com/uc?id=1pl_-ael8wERdUREEnaIfqOV_VF2bEVRT
+cd ../src/lib/models/networks/DCNv2/
 ./make.sh
 cd ../../../external
 make
