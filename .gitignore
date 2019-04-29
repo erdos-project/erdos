@@ -1,5 +1,6 @@
 *~
 *.pyc
+examples/pylot/dependencies/data/
 
 # Generated documentation files
 /doc/build

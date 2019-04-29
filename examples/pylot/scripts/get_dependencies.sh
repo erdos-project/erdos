@@ -12,7 +12,7 @@ wget http://download.tensorflow.org/models/object_detection/ssd_mobilenet_v1_coc
 tar -xvf ssd_mobilenet_v1_coco_2018_01_28.tar.gz
 wget http://download.tensorflow.org/models/object_detection/ssd_resnet50_v1_fpn_shared_box_predictor_640x640_coco14_sync_2018_07_03.tar.gz
 tar -xvf ssd_resnet50_v1_fpn_shared_box_predictor_640x640_coco14_sync_2018_07_03.tar.gz
-pip install gdown
+pip install --user gdown
 ~/.local/bin/gdown http://drive.google.com/uc?id=0B1sg8Yyw1JCDOUNsYkpQTGdLYVU
 # Download the DASiamRPN object tracker models.
 ~/.local/bin/gdown https://doc-08-6g-docs.googleusercontent.com/docs/securesc/ha0ro937gcuc7l7deffksulhg5h7mbp1/vclpii8js65be25rf8v1dttqkpscs4l8/1555783200000/04094321888119883640/*/1G9GtKpF36-AwjyRXVLH_gHvrfVSCZMa7?e=download --output SiamRPNVOT.model
@@ -23,15 +23,28 @@ cd ../
 # Get the CRV Tracker model and dependencies
 mkdir -p conv_reg_vot/vgg_model
 mv data/VGG_16_layers_py3.npz conv_reg_vot/vgg_model/
-pip install matplotlib
+pip install --user matplotlib
 sudo apt-get install python-tk
 
 # Download the DaSiamRPN code
 git clone https://github.com/ICGog/DaSiamRPN.git
-pip install opencv-python
+pip install --user opencv-python
 
 # Download the DRN segmentationc ode.
 git clone https://github.com/ICGog/drn.git
+
+# Download and install CenterNet.
+sudo apt-get install nvidia-cuda-toolkit
+git clone https://github.com/ICGog/CenterNet.git
+cd CenterNet/
+pip install -r requirements.txt
+cd src/lib/models/networks/DCNv2/
+./make.sh
+cd ../../../external
+make
+
+# Move back to dependencies directory.
+cd ../../../../
 
 # Download the Carla simulator.
 mkdir CARLA_0.8.4

@@ -38,16 +38,19 @@ RUN rosdep update
 RUN sudo apt-get install -y python-rosinstall
 RUN sudo apt-get install -y python-cv-bridge
 
-# Set up the pylot code.
+# Install Tensorflow
 RUN sudo apt-get install -y python-pip
-RUN pip install absl-py ray gdown open3d-original torch==0.4.1 torchvision==0.2.1 tensorflow-gpu==1.13.1 opencv-python opencv-contrib-python scipy pid_controller pillow  protobuf
+RUN pip install tensorflow-gpu==1.13.1
 
 # Get the erdos directory.
 RUN sudo apt-get -y install git
 RUN mkdir -p /home/erdos/workspace
 RUN cd /home/erdos/workspace && git clone https://github.com/erdos-project/erdos.git
 WORKDIR /home/erdos/workspace/erdos
+# Install erdos Python dependencies
 RUN cd /home/erdos/workspace/erdos && pip install -r requirements.txt
+# Install Pylot Python dependencies
+RUN cd /home/erdos/workspace/erdos/examples/pylot && pip install -r requirements.txt
 
 # Set this env value to run carla in headless CARLA
 ENV SDL_VIDEODRIVER offscreen

@@ -34,16 +34,19 @@ RUN rosdep update
 RUN sudo apt-get install -y python-rosinstall
 RUN sudo apt-get install -y python-cv-bridge
 
-# Set up the pylot code.
+# Install Tensorflow
 RUN sudo apt-get install -y python-pip
-RUN pip install absl-py ray gdown open3d-original torch==0.4.1 torchvision==0.2.1 tensorflow-gpu==1.12 opencv-python opencv-contrib-python scipy pid_controller pillow protobuf
+RUN pip install tensorflow-gpu==1.12
 
 # Get the erdos directory.
 RUN sudo apt-get -y install git
 RUN mkdir -p /home/erdos/workspace
 RUN cd /home/erdos/workspace && git clone https://github.com/erdos-project/erdos.git
 WORKDIR /home/erdos/workspace/erdos
+# Install erdos Python dependencies
 RUN cd /home/erdos/workspace/erdos && pip install -r requirements.txt
+# Install Pylot Python dependencies
+RUN cd /home/erdos/workspace/erdos/examples/pylot && pip install -r requirements.txt
 
 # Set this env value to run carla in headless CARLA
 ENV SDL_VIDEODRIVER offscreen
@@ -54,18 +57,6 @@ RUN cd /home/erdos/workspace/erdos/examples/pylot/scripts/ && ./get_dependencies
 
 # Export PYTHONPATH
 RUN echo "export PYTHONPATH=$PYTHONPATH:/home/erdos/workspace/erdos:/home/erdos/workspace/erdos/examples/pylot/dependencies:/home/erdos/workspace/CARLA_0.8.4/PythonClient" >> ~/.bashrc
-
-# Install YOLO
-RUN sudo apt-get install -y python-opencv
-RUN cd /home/erdos/workspace && git clone https://github.com/madhawav/YOLO3-4-Py.git
-RUN cd /home/erdos/workspace/YOLO3-4-Py/ && sed -i 's/exist_ok=True//g' util.py
-RUN echo "export CUDA_HOME=/usr/local/cuda" >> ~/.bashrc
-RUN sudo apt-get install -y python3-pip
-RUN pip3 install numpy cython
-RUN echo "export GPU=1" >> ~/.bashrc
-RUN echo "export PATH=$PATH:/usr/local/cuda/bin" >> ~/.bashrc
-RUN cd /home/erdos/workspace/YOLO3-4-Py/ && python3 setup.py build_ext --inplace
-RUN cd /home/erdos/workspace/YOLO3-4-Py/ && pip install .
 
 # Source the ROS setup script at the init of the shell.
 RUN echo "source /opt/ros/kinetic/setup.bash" >> ~/.bashrc
