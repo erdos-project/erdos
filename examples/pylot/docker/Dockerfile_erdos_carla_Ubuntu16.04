@@ -56,7 +56,7 @@ RUN sudo apt-get install -y wget
 RUN cd /home/erdos/workspace/erdos/examples/pylot/scripts/ && ./get_dependencies.sh
 
 # Export PYTHONPATH
-RUN echo "export PYTHONPATH=$PYTHONPATH:/home/erdos/workspace/erdos:/home/erdos/workspace/erdos/examples/pylot/dependencies:/home/erdos/workspace/CARLA_0.8.4/PythonClient" >> ~/.bashrc
+RUN echo "export PYTHONPATH=$PYTHONPATH:/home/erdos/workspace/erdos:/home/erdos/workspace/erdos/examples/pylot/dependencies:/home/erdos/workspace/CARLA_0.8.4/PythonClient:/home/erdos/workspace/erdos/examples/pylot/dependencies/CenterNet/src/lib/" >> ~/.bashrc
 
 # Source the ROS setup script at the init of the shell.
 RUN echo "source /opt/ros/kinetic/setup.bash" >> ~/.bashrc

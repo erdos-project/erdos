@@ -24,7 +24,7 @@ cd ../
 mkdir -p conv_reg_vot/vgg_model
 mv data/VGG_16_layers_py3.npz conv_reg_vot/vgg_model/
 pip install --user matplotlib
-sudo apt-get install python-tk
+sudo apt-get -y install python-tk
 
 # Download the DaSiamRPN code
 git clone https://github.com/ICGog/DaSiamRPN.git
@@ -34,7 +34,7 @@ pip install --user opencv-python
 git clone https://github.com/ICGog/drn.git
 
 # Download and install CenterNet.
-sudo apt-get install nvidia-cuda-toolkit
+sudo apt-get -y install nvidia-cuda-toolkit
 git clone https://github.com/ICGog/CenterNet.git
 cd CenterNet/
 pip install -r requirements.txt
