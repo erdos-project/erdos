@@ -1,4 +1,5 @@
 #!/bin/bash
+sudo apt-get -y install nvidia-cuda-toolkit
 cd ../dependencies/CenterNet/
 pip install -r requirements.txt
 cd models/

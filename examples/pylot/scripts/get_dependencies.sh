@@ -34,7 +34,6 @@ pip install --user opencv-python
 git clone https://github.com/ICGog/drn.git
 
 # Download and install CenterNet.
-sudo apt-get -y install nvidia-cuda-toolkit
 git clone https://github.com/ICGog/CenterNet.git
 
 # Download the Carla simulator.
