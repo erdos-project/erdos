@@ -1,4 +1,5 @@
 from collections import deque
+import pickle
 import threading
 import time
 
@@ -41,6 +42,7 @@ class ObjectTrackerOp(Op):
             self._logger.fatal('Error importing {}'.format(tracker_type))
         # True when the tracker is ready to update bboxes.
         self._ready_to_update = False
+        self._ready_to_update_timestamp = None
         self._to_process = deque()
         self._last_seq_num = -1
         self._lock = threading.Lock()
@@ -114,6 +116,25 @@ class ObjectTrackerOp(Op):
 
     def execute(self):
         self.spin()
+
+    def checkpoint(self, timestamp):
+        # We can't checkpoint the tracker itself because it has internal state.
+        state = [self._ready_to_update_timestamp,
+                 self._ready_to_update,
+                 self._to_process,
+                 self._last_seq_num]
+        file_name = '{}{}.checkpoint'.format(
+            self._name, timestamp.coordinates[1])
+        pickle.dump(state, open(file_name, 'wb'))
+
+    def restore(self, timestamp):
+        file_name = '{}{}.checkpoint'.format(
+            self._name, timestamp.coordinates[1])
+        state = pickle.load(open(file_name, 'rb'))
+        self._ready_to_update_timestamp = state[0]
+        self._ready_to_update = state[1]
+        self._to_process = state[2]
+        self._last_seq_num = state[3]
 
     def __get_highest_confidence_pedestrian(self, detector_res):
         max_score = 0
