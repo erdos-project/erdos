@@ -53,6 +53,8 @@ ENV SDL_VIDEODRIVER offscreen
 
 # Get the Pylot models and code dependencies.
 RUN sudo apt-get install -y wget
+# Install toolkit for Centernet
+RUN sudo apt-get -y install cuda-toolkit-9.0
 RUN cd /home/erdos/workspace/erdos/examples/pylot/scripts/ && ./get_dependencies.sh
 
 # Export PYTHONPATH
