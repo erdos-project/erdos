@@ -123,14 +123,14 @@ class ObjectTrackerOp(Op):
                  self._ready_to_update,
                  self._to_process,
                  self._last_seq_num]
+        # XXX(ionel): This doesn't work if we have other time dimensions.
         file_name = '{}{}.checkpoint'.format(
             self._name, timestamp.coordinates[1])
         pickle.dump(state, open(file_name, 'wb'))
+        return file_name
 
-    def restore(self, timestamp):
-        file_name = '{}{}.checkpoint'.format(
-            self._name, timestamp.coordinates[1])
-        state = pickle.load(open(file_name, 'rb'))
+    def restore(self, timestamp, state):
+        state = pickle.load(open(state, 'rb'))
         self._ready_to_update_timestamp = state[0]
         self._ready_to_update = state[1]
         self._to_process = state[2]
