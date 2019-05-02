@@ -1,5 +1,5 @@
+import heapq
 import numpy as np
-import PIL.Image as Image
 
 from carla.image_converter import labels_to_cityscapes_palette
 
@@ -19,8 +19,14 @@ class SegmentationEvalOperator(Op):
         self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
         self._last_seq_num_ground_segmented = -1
         self._last_seq_num_segmented = -1
+        self._last_notification = -1
+        # Buffer of ground truth segmented frames.
         self._ground_frames = []
+        # Buffer of segmentation output frames.
         self._segmented_frames = []
+        # Heap storing pairs of (ground/output time, game time).
+        self._segmented_start_end_times = []
+        self._sim_interval = None
 
     @staticmethod
     def setup_streams(input_streams,
@@ -31,7 +37,52 @@ class SegmentationEvalOperator(Op):
         input_streams.filter(is_segmented_camera_stream) \
                      .filter_name(segmented_stream_name) \
                      .add_callback(SegmentationEvalOperator.on_segmented_frame)
+        # Register a watermark callback.
+        input_streams.add_completion_callback(
+            SegmentationEvalOperator.on_notification)
         return []
+
+    def on_notification(self, msg):
+        # Check that we didn't skip any notification. We only skip
+        # notifications if messages or watermarks are lost.
+        if self._last_notification != -1:
+            assert self._last_notification + 1 == msg.timestamp.coordinates[1]
+        self._last_notification = msg.timestamp.coordinates[1]
+
+        # Ignore the first two messages. We use them to get sim time
+        # between frames.
+        if self._last_notification < 2:
+            if self._last_notification == 0:
+                self._sim_interval = int(msg.timestamp.coordinates[0])
+            elif self._last_notification == 1:
+                # Set he real simulation interval.
+                self._sim_interval = int(msg.timestamp.coordinates[0]) - self._sim_interval
+            return
+
+        game_time = msg.timestamp.coordinates[0]
+        while len(self._segmented_start_end_times) > 0:
+            (end_time, start_time) = self._segmented_start_end_times[0]
+            # We can compute mIoU if the end time is not greater than the
+            # ground time.
+            if end_time <= game_time:
+                # This is the closest ground segmentation to the end time.
+                heapq.heappop(self._segmented_start_end_times)
+                end_frame = self.__get_ground_segmentation_at(end_time)
+                self._logger.info('Computing for times {} {}'.format(
+                    start_time, end_time))
+                if self._flags.segmentation_eval_use_accuracy_model:
+                    # Not using the segmentation output => get ground
+                    # segmentation.
+                    start_frame = self.__get_ground_segmentation_at(start_time)
+                    self.__compute_mean_iou(end_frame, start_frame)
+                else:
+                    start_frame = self.__get_segmented_at(start_time)
+                    self.__compute_mean_iou(end_frame, start_frame)
+            else:
+                # The remaining entries are newer ground segmentated frames.
+                break
+
+        self.__garbage_collect_segmentation()
 
     def on_ground_segmented_frame(self, msg):
         if self._last_seq_num_ground_segmented + 1 != msg.timestamp.coordinates[1]:
@@ -40,8 +91,11 @@ class SegmentationEvalOperator(Op):
             if self._flags.fail_on_message_loss:
                 assert self._last_seq_num_ground_segmented + 1 == msg.timestamp.coordinates[1]
         self._last_seq_num_ground_segmented = msg.timestamp.coordinates[1]
-        # Buffer the ground truth frames.
-        self._ground_frames.append(msg)
+
+        if msg.timestamp.coordinates[1] >= 2:
+            # Buffer the ground truth frames.
+            game_time = msg.timestamp.coordinates[0]
+            self._ground_frames.append((game_time, msg.data))
 
     def on_segmented_frame(self, msg):
         if self._last_seq_num_segmented + 1 != msg.timestamp.coordinates[1]:
@@ -50,33 +104,33 @@ class SegmentationEvalOperator(Op):
             if self._flags.fail_on_message_loss:
                 assert self._last_seq_num_segmented + 1 == msg.timestamp.coordinates[1]
         self._last_seq_num_segmented = msg.timestamp.coordinates[1]
+        # Ignore the first two messages. We use them to get sim time
+        # between frames.
+        if msg.timestamp.coordinates[1] < 2:
+            return
 
+        (frame, runtime) = msg.data
+        game_time = msg.timestamp.coordinates[0]
+        self._segmented_frames.append((game_time, frame))
         # Two metrics: 1) mIoU, and 2) timely-mIoU
         if self._flags.eval_segmentation_metric == 'mIoU':
-            # Trim all state that is older than timestamp.
-            self.__trim_frame_state_up_to(msg.timestamp.coordinates[0])
-            # Get the frame that has the same timestamp as the segmented frame.
-            ground_frame = self.__find_exact_ground_frame(msg.timestamp)
-            if ground_frame is not None:
-                self.__compute_mean_iou(ground_frame, msg)
+            # We will compare with segmented ground frame with the same game
+            # time.
+            heapq.heappush(self._segmented_start_end_times,
+                           (game_time, game_time))
         elif self._flags.eval_segmentation_metric == 'timely-mIoU':
-            (frame, runtime) = msg.data
-            game_time = msg.timestamp.coordinates[0]
-            # Ground frame time should be as close as possible to the time of
-            # the segmented frame + segmentation runtime.
-            ground_frame_time = game_time + runtime
+            # Ground segmented frame time should be as close as possible to
+            # the time game time + segmentation runtime.
+            segmented_time = game_time + runtime
             if self._flags.segmentation_eval_use_accuracy_model:
-                # Include the decay of the segmentation model with time
-                # ifa we do not want to use the accuracy of our models.
+                # Include the decay of segmentation with time if we do not
+                # want to use the accuracy of our models.
+                # TODO(ionel): We must pass model mIoU to this method.
                 ground_frame_time += self.__mean_iou_to_latency(1)
-
-            # Trim state up to game time.
-            self.__trim_frame_state_up_to(game_time)
-
-            # Find the closest frame to ground_frame_time.
-            ground_frame = self.__find_approx_ground_frame(ground_frame_time)
-            if ground_frame is not None:
-                self.__compute_mean_iou(ground_frame, msg)
+            segmented_time = self.__compute_closest_frame_time(segmented_time)
+            # Round time to nearest frame.
+            heapq.heappush(self._segmented_start_end_times,
+                           (segmented_time, game_time))
         else:
             self._logger.fatal('Unexpected segmentation metric {}'.format(
                 self._flags.eval_segmentation_metric))
@@ -84,54 +138,24 @@ class SegmentationEvalOperator(Op):
     def execute(self):
         self.spin()
 
-    def __trim_frame_state_up_to(self, timestamp):
-        index = 0
-        while (index < len(self._ground_frames) and
-               self._ground_frames[index].timestamp.coordinates[0] < timestamp):
-            index += 1
-        # Remove the ground frames that are  older than the timestamp.
-        if index > 0:
-            self._ground_frames = self._ground_frames[index:]
+    def __compute_closest_frame_time(self, time):
+        base = int(time) / self._sim_interval * self._sim_interval
+        if time - base < self._sim_interval / 2:
+            return base
+        else:
+            return base + self._sim_interval
 
-    def __find_exact_ground_frame(self, timestamp):
-        # If there are frames left then the first one should have a matching
-        # timestamp.
-        if len(self._ground_frames) > 0:
-            assert self._ground_frames[0].timestamp == timestamp
-            frame = self._ground_frames[0].data
-            # Remove the frame.
-            self._ground_frames = self._ground_frames[1:]
-            return frame
-        self._logger.error('Could not find ground frame for {}'.format(timestamp))
-
-    def __find_approx_ground_frame(self, timestamp):
-        min_index = 0
-        min_drift = None
-        index = 0
-        for msg in self._ground_frames:
-            if min_drift is None:
-                min_drift = abs(timestamp - msg.timestamp.coordinates[0])
-                min_index = index
-            elif abs(timestamp - msg.timestamp.coordinates[0]) < min_drift:
-                min_drift = abs(timestamp - msg.timestamp.coordinates[0])
-                min_index = index
-            index += 1
-        if min_drift is not None:
-            self._logger.info('Minimum ground frame drift {}'.format(min_drift))
-            return self._ground_frames[min_index].data
-        self._logger.error('Could not find any ground frame for {}'.format(timestamp))
-
-    def __compute_mean_iou(self, ground_frame, msg):
-        ground_frame_array = labels_to_cityscapes_palette(
-            self._ground_frames[0].data)
-        ground_img = Image.fromarray(np.uint8(ground_frame_array))
-        ground_img = np.array(ground_img)
-        (frame, runtime) = msg.data
-        (mean_iou, class_iou) = compute_semantic_iou(ground_img, frame)
+    def __compute_mean_iou(self, ground_frame, segmented_frame):
+        # Transfrom the ground frame to Cityscapes palette; the segmented
+        # frame is transformed by segmentation operators.
+        ground_frame = labels_to_cityscapes_palette(ground_frame)
+        (mean_iou, class_iou) = compute_semantic_iou(ground_frame,
+                                                     segmented_frame)
         self._logger.info('IoU class scores: {}'.format(class_iou))
         self._logger.info('mean IoU score: {}'.format(mean_iou))
-        self._csv_logger.info('{},{},"{}",{}'.format(
-            time_epoch_ms(), self.name, msg.timestamp, mean_iou))
+        self._csv_logger.info('{},{},{},{}'.format(
+            time_epoch_ms(), self.name, self._flags.eval_segmentation_metric,
+            mean_iou))
 
     def __mean_iou_to_latency(self, mean_iou):
         """ Function that gives a latency estimate of how much
@@ -139,3 +163,44 @@ class SegmentationEvalOperator(Op):
         """
         # TODO(ionel): Implement!
         return 0
+
+    def __get_ground_segmentation_at(self, timestamp):
+        for (time, frame) in self._ground_frames:
+            if time == timestamp:
+                return frame
+            elif time > timestamp:
+                break
+        self._logger.fatal(
+            'Could not find ground segmentation for {}'.format(timestamp))
+
+    def __get_segmented_at(self, timestamp):
+        for (time, frame) in self._segmented_frames:
+            if time == timestamp:
+                return frame
+            elif time > timestamp:
+                break
+        self._logger.fatal(
+            'Could not find segmentaed frame for {}'.format(timestamp))
+
+    def __garbage_collect_segmentation(self):
+        # Get the minimum watermark.
+        watermark = None
+        for (_, start_time) in self._segmented_start_end_times:
+            if watermark is None or start_time < watermark:
+                watermark = start_time
+        if watermark is None:
+            return
+        # Remove all segmentations that are below the watermark.
+        index = 0
+        while (index < len(self._segmented_frames) and
+               self._segmented_frames[index][0] < watermark):
+            index += 1
+        if index > 0:
+            self._segmented_frames = self._segmented_frames[index:]
+        # Remove all the ground segmentations that are below the watermark.
+        index = 0
+        while (index < len(self._ground_frames) and
+               self._ground_frames[index][0] < watermark):
+            index += 1
+        if index > 0:
+            self._ground_frames = self._ground_frames[index:]

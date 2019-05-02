@@ -90,7 +90,7 @@ class ObstacleAccuracyOperator(Op):
         while len(self._detector_start_end_times) > 0:
             (end_time, start_time) = self._detector_start_end_times[0]
             # We can compute mAP if the endtime is not greater than the ground time.
-            if end_time <= msg.timestamp.coordinates[0]:
+            if end_time <= game_time:
                 # This is the closest ground bounding box to the end time.
                 heapq.heappop(self._detector_start_end_times)
                 end_bboxes = self.__get_ground_obstacles_at(end_time)
@@ -212,6 +212,7 @@ class ObstacleAccuracyOperator(Op):
             if self._flags.detection_eval_use_accuracy_model:
                 # Include the decay of detection with time if we do not want to use
                 # the accuracy of our models.
+                # TODO(ionel): We must pass model mAP to this method.
                 ground_bboxes_time += self.__mAP_to_latency(1)
             ground_bboxes_time = self.__compute_closest_frame_time(ground_bboxes_time)
             # Round time to nearest frame.
