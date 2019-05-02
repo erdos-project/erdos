@@ -3,6 +3,10 @@ from itertools import combinations
 import math
 import numpy as np
 from numpy.linalg import inv
+try:
+    import queue as queue
+except ImportError:
+    import Queue as queue
 from open3d import draw_geometries, read_point_cloud
 import PIL.ImageDraw as ImageDraw
 import PIL.ImageFont as ImageFont
@@ -13,6 +17,7 @@ from carla.transform import Transform
 
 from pylot_utils import add_timestamp
 
+ADJACENT_POS = [(0, 1), (0, -1), (1, 0), (-1, 0)]
 
 coco_bbox_color_list = np.array(
         [
@@ -119,6 +124,50 @@ def compute_miou(bboxes1, bboxes2):
     union = (bboxes1_area + np.transpose(bboxes2_area)) - inter_area
 
     return inter_area / (union+0.0001)
+
+
+def get_neighbors(x, y, width, height):
+    neighbours = []
+    for (dx, dy) in ADJACENT_POS:
+        new_x = x + dx
+        new_y = y + dy
+        if (new_x >= 0 and new_y >= 0 and new_x < width and new_y < height):
+            neighbours.append((new_x, new_y))
+    return neighbours
+
+
+def get_bounding_boxes_from_segmented(segmented_frame):
+    bboxes = []
+    for x in range(segmented_frame.shape[0]):
+        for y in range(segmented_frame.shape[1]):
+            if segmented_frame[x][y]:
+                # BFS traversal to visit all pixels marked in the segmented
+                # frame.
+                to_visit = queue.Queue()
+                to_visit.put((x, y))
+                segmented_frame[x][y] = False
+                min_x = x
+                max_x = x
+                min_y = y
+                max_y = y
+                while not to_visit.empty():
+                    (x, y) = to_visit.get()
+                    min_x = min(min_x, x)
+                    max_x = max(max_x, x)
+                    min_y = min(min_y, y)
+                    max_y = max(max_y, y)
+                    for (new_x, new_y) in get_neighbors(x, y,
+                                                        segmented_frame.shape[0],
+                                                        segmented_frame.shape[1]):
+                        if segmented_frame[new_x][new_y]:
+                            to_visit.put((new_x, new_y))
+                            segmented_frame[new_x][new_y] = False
+                # Filter out small bounding boxes.
+                if (max_x - min_x > 2 and max_y - min_y > 2):
+                    # Invert the axis because the segmented_frame is in
+                    # height, width shape.
+                    bboxes.append(((min_y, min_x), (max_y, max_x)))
+    return bboxes
 
 
 def map_ground_3D_transform_to_2D(world_transform,

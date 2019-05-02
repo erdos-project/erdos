@@ -9,7 +9,7 @@ from carla.image_converter import depth_to_array, labels_to_cityscapes_palette, 
 
 import config
 from carla_operator import CarlaOperator
-from detection_utils import get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform, visualize_ground_bboxes
+from detection_utils import get_2d_bbox_from_3d_box, get_bounding_boxes_from_segmented, get_camera_intrinsic_and_transform, visualize_ground_bboxes
 from ground_agent_operator import GroundAgentOperator
 import pylot_utils
 
@@ -156,10 +156,10 @@ class GroundTruthObjectLoggerOp(Op):
         vec_bboxes = self.__get_vehicles_bboxes(
             vehicles_msg.data, world_transform, depth_array)
 
-        traffic_signs_bboxes = self.__get_traffic_signs_bboxes(
+        traffic_sign_bboxes = self.__get_traffic_sign_bboxes(
             segmented_msg.data)
 
-        bboxes = ped_bboxes + vec_bboxes
+        bboxes = ped_bboxes + vec_bboxes + traffic_sign_bboxes
         # Write the bounding boxes.
         file_name = '{}bboxes-{}.json'.format(
             self._flags.data_path, self._last_notification)
@@ -171,11 +171,11 @@ class GroundTruthObjectLoggerOp(Op):
                               for (_, ((xmin, ymin), (xmax, ymax))) in ped_bboxes]
             vec_vis_bboxes = [(xmin, xmax, ymin, ymax)
                               for (_, ((xmin, ymin), (xmax, ymax))) in vec_bboxes]
-            traffic_signs_vis_bboxes = [(xmin, xmax, ymin, ymax)
-                                        for (_, ((xmin, ymin), (xmax, ymax))) in traffic_signs_bboxes]
+            traffic_sign_vis_bboxes = [(xmin, xmax, ymin, ymax)
+                                        for (_, ((xmin, ymin), (xmax, ymax))) in traffic_sign_bboxes]
             visualize_ground_bboxes(self.name, bgr_msg.timestamp, bgr_msg.data,
                                     ped_vis_bboxes, vec_vis_bboxes,
-                                    traffic_signs_vis_bboxes)
+                                    traffic_sign_vis_bboxes)
 
     def on_world_transform_update(self, msg):
         self._world_transforms.append(msg)
@@ -223,15 +223,18 @@ class GroundTruthObjectLoggerOp(Op):
                 vec_bboxes.append(('vehicle', ((xmin, ymin), (xmax, ymax))))
         return vec_bboxes
 
-    def __get_traffic_signs_bboxes(self, segmented_frame):
+    def __get_traffic_sign_bboxes(self, segmented_frame):
         segmented_frame = labels_to_array(segmented_frame)
+        # Shape is height, width
         traffic_signs_frame = np.zeros((segmented_frame.shape[0],
-                                        segmented_frame.shape[1], 3))
+                                        segmented_frame.shape[1]),
+                                       dtype=np.bool)
         # 12 is the key for TrafficSigns segmentation in Carla.
         # Apply mask to only select traffic signs and traffic lights.
-        traffic_signs_frame[np.where(segmented_frame == 12)] = 1
-        # TODO(ionel): Extract bounding boxes from segmented image.
-        return []
+        traffic_signs_frame[np.where(segmented_frame == 12)] = True
+        bboxes = get_bounding_boxes_from_segmented(traffic_signs_frame)
+        traffic_sign_bboxes = [('traffic sign', bbox) for bbox in bboxes]
+        return traffic_sign_bboxes
 
 
 def add_carla_op(graph, camera_setups):
