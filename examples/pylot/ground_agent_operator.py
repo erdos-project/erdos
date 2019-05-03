@@ -9,7 +9,6 @@ from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_
 
 import agent_utils
 from planner.map import CarlaMap
-from planner.waypointer import Waypointer
 from pid_controller.pid import PID
 import pylot_utils
 
@@ -18,8 +17,6 @@ class GroundAgentOperator(Op):
     def __init__(self,
                  name,
                  city_name,
-                 goal_location,
-                 goal_orientation,
                  flags,
                  log_file_name=None,
                  csv_file_name=None):
@@ -27,12 +24,7 @@ class GroundAgentOperator(Op):
         self._logger = setup_logging(self.name, log_file_name)
         self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
         self._map = CarlaMap(city_name)
-        self._goal_location = goal_location
-        self._goal_orientation = goal_orientation
         self._flags = flags
-        self._wp_num_steer = 0.9  # Select WP - Reverse Order: 1 - closest, 0 - furthest
-        self._wp_num_speed = 0.4  # Select WP - Reverse Order: 1 - closest, 0 - furthest
-        self._waypointer = Waypointer(city_name)
         self._pid = PID(p=flags.pid_p, i=flags.pid_i, d=flags.pid_d)
         self._vehicle_pos = None
         self._vehicle_acc = None
@@ -41,6 +33,9 @@ class GroundAgentOperator(Op):
         self._vehicles = []
         self._traffic_lights = []
         self._traffic_signs = []
+        self._wp_angle = None
+        self._wp_vector = None
+        self._wp_angle_speed = None
 
     @staticmethod
     def setup_streams(input_streams):
@@ -58,9 +53,14 @@ class GroundAgentOperator(Op):
             GroundAgentOperator.on_traffic_lights_update)
         input_streams.filter(pylot_utils.is_ground_traffic_signs_stream).add_callback(
             GroundAgentOperator.on_traffic_signs_update)
+        input_streams.filter(pylot_utils.is_waypoints_stream).add_callback(
+            GroundAgentOperator.on_waypoints_update)
         # Set no watermark on the output stream so that we do not
         # close the watermark loop with the carla operator.
         return [pylot_utils.create_agent_action_stream()]
+
+    def on_waypoints_update(self, msg):
+        (self._wp_angle, self._wp_vector, self._wp_angle_speed, _) = msg.data
 
     def on_vehicle_pos_update(self, msg):
         self._logger.info("Received vehicle pos %s", msg)
@@ -87,26 +87,16 @@ class GroundAgentOperator(Op):
     # TODO(ionel): Set the frequency programmatically.
     @frequency(10)
     def run_step(self):
-        self._logger.info("Running step")
         if (self._vehicle_pos is None or self._vehicle_acc is None
                 or self._vehicle_speed is None or self._pedestrians == []
-                or self._vehicles == [] or self._traffic_lights == []):
+                or self._vehicles == [] or self._traffic_lights == []
+                or self._wp_angle is None):
             return
 
-        start_time = time.time()
-
-        wp_angle, wp_vector, wp_angle_speed, wp_vector_speed = agent_utils.get_waypoints(
-            self._goal_location, self._goal_orientation, self._vehicle_pos, self._waypointer,
-            self._wp_num_steer, self._wp_num_speed)
-
-        runtime = (time.time() - start_time) * 1000
-        self._csv_logger.info('{},{},{}'.format(
-            time_epoch_ms(), self.name, runtime))
-
         speed_factor, state = self.stop_for_agents(
-            wp_angle, wp_vector, self._vehicles, self._pedestrians,
+            self._wp_angle, self._wp_vector, self._vehicles, self._pedestrians,
             self._traffic_lights)
-        control = self.get_control(wp_angle, wp_angle_speed, speed_factor,
+        control = self.get_control(self._wp_angle, self._wp_angle_speed, speed_factor,
                                    self._vehicle_speed * 3.6)
         output_msg = Message(control, Timestamp(coordinates=[0]))
         self.get_output_stream('action_stream').send(output_msg)

@@ -29,6 +29,7 @@ from detection_eval_ground_operator import DetectionEvalGroundOperator
 from segmented_video_operator import SegmentedVideoOperator
 from traffic_light_det_operator import TrafficLightDetOperator
 from video_operator import VideoOperator
+from waypointer_operator import WaypointerOperator
 
 import erdos.graph
 from erdos.operators import RecordOp
@@ -75,15 +76,13 @@ def add_carla_op(graph, camera_setups):
     return carla_op
 
 
-def add_ground_agent_op(graph, carla_op, goal_location, goal_orientation):
+def add_ground_agent_op(graph, carla_op):
     agent_op = graph.add(
         GroundAgentOperator,
         name='ground_agent',
         # TODO(ionel): Do not hardcode city name!
         init_args={
             'city_name': 'Town01',
-            'goal_location': goal_location,
-            'goal_orientation': goal_orientation,
             'flags': FLAGS,
             'log_file_name': FLAGS.log_file_name,
             'csv_file_name': FLAGS.csv_log_file_name
@@ -95,8 +94,6 @@ def add_ground_agent_op(graph, carla_op, goal_location, goal_orientation):
 
 def add_erdos_agent_op(graph,
                        carla_op,
-                       goal_location,
-                       goal_orientation,
                        depth_camera_name,
                        segmentation_ops,
                        obj_detector_ops,
@@ -107,8 +104,6 @@ def add_erdos_agent_op(graph,
         init_args={
             # TODO(ionel): Do not hardcode city name!
             'city_name': 'Town01',
-            'goal_location': goal_location,
-            'goal_orientation': goal_orientation,
             'depth_camera_name': depth_camera_name,
             'flags': FLAGS,
             'log_file_name': FLAGS.log_file_name,
@@ -119,6 +114,27 @@ def add_erdos_agent_op(graph,
         [carla_op] + traffic_light_det_ops + obj_detector_ops + segmentation_ops,
         [agent_op])
     graph.connect([agent_op], [carla_op])
+    return agent_op
+
+
+def add_waypointer_op(graph,
+                      carla_op,
+                      agent_op,
+                      goal_location,
+                      goal_orientation):
+    waypointer_op = graph.add(
+        WaypointerOperator,
+        name='waypointer',
+        init_args={
+            'city_name': 'Town01',
+            'goal_location': goal_location,
+            'goal_orientation': goal_orientation,
+            'flags': FLAGS,
+            'log_file_name': FLAGS.log_file_name,
+            'csv_file_name': FLAGS.csv_log_file_name
+        })
+    graph.connect([carla_op], [waypointer_op])
+    graph.connect([waypointer_op], [agent_op])
     return agent_op
 
 
@@ -511,25 +527,25 @@ def main(argv):
     if FLAGS.traffic_light_det:
         traffic_light_det_ops.append(add_traffic_light_op(graph, carla_op))
 
-    goal_location = (234.269989014, 59.3300170898, 39.4306259155)
-    goal_orientation = (1.0, 0.0, 0.22)
-
     agent_op = None
     if FLAGS.ground_agent_operator:
-        agent_op = add_ground_agent_op(graph,
-                                       carla_op,
-                                       goal_location,
-                                       goal_orientation)
+        agent_op = add_ground_agent_op(graph, carla_op)
     else:
         # TODO(ionel): The ERDOS agent doesn't use obj tracker and fusion.
         agent_op = add_erdos_agent_op(graph,
                                       carla_op,
-                                      goal_location,
-                                      goal_orientation,
                                       DEPTH_CAMERA_NAME,
                                       segmentation_ops,
                                       obj_detector_ops,
                                       traffic_light_det_ops)
+
+    goal_location = (234.269989014, 59.3300170898, 39.4306259155)
+    goal_orientation = (1.0, 0.0, 0.22)
+    waypointer_op = add_waypointer_op(graph,
+                                      carla_op,
+                                      agent_op,
+                                      goal_location,
+                                      goal_orientation)
 
     graph.execute(FLAGS.framework)
 

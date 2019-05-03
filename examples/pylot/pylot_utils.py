@@ -96,6 +96,14 @@ def create_agent_action_stream():
                       labels={'no_watermark': 'true'})
 
 
+def create_waypoints_stream():
+    return DataStream(name='waypoints')
+
+
+def is_waypoints_stream(stream):
+    return stream.name == 'waypoints'
+
+
 def add_timestamp(timestamp, image_np):
     txt_font = cv2.FONT_HERSHEY_SIMPLEX
     timestamp_txt = '{}'.format(timestamp)

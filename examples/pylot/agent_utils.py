@@ -2,50 +2,6 @@ import math
 import numpy as np
 
 
-def get_waypoints(goal_location, goal_orientation, vehicle_pos,
-                  waypointer, wp_num_steer, wp_num_speed):
-    vehicle_x = vehicle_pos[0][0]
-    vehicle_y = vehicle_pos[0][1]
-    vehicle_ori_x = vehicle_pos[1][0]
-    vehicle_ori_y = vehicle_pos[1][1]
-    vehicle_ori_z = vehicle_pos[1][2]
-
-    waypoints_world, waypoints, route = waypointer.get_next_waypoints(
-        (vehicle_x, vehicle_y, 0.22),
-        (vehicle_ori_x, vehicle_ori_y, vehicle_ori_z),
-        goal_location,
-        goal_orientation)
-
-    if waypoints_world == []:
-        waypoints_world = [[vehicle_x, vehicle_y, 0.22]]
-
-    # Make a function, maybe util function to get the magnitues
-    wp = [
-        waypoints_world[int(wp_num_steer * len(waypoints_world))][0],
-        waypoints_world[int(wp_num_steer * len(waypoints_world))][1]
-    ]
-
-    wp_vector, wp_mag = get_world_vec_dist(wp[0], wp[1], vehicle_x, vehicle_y)
-
-    if wp_mag > 0:
-        wp_angle = get_angle(wp_vector, [vehicle_ori_x, vehicle_ori_y])
-    else:
-        wp_angle = 0
-
-    wp_speed = [
-        waypoints_world[int(wp_num_speed * len(waypoints_world))][0],
-        waypoints_world[int(wp_num_speed * len(waypoints_world))][1]
-    ]
-
-    wp_vector_speed, _ = get_world_vec_dist(
-        wp_speed[0], wp_speed[1], vehicle_x, vehicle_y)
-
-    wp_angle_speed = get_angle(
-        wp_vector_speed, [vehicle_ori_x, vehicle_ori_y])
-
-    return wp_angle, wp_vector, wp_angle_speed, wp_vector_speed
-
-
 def get_world_vec_dist(x_dst, y_dst, x_src, y_src):
     vec = np.array([x_dst, y_dst] - np.array([x_src, y_src]))
     dist = math.sqrt(vec[0]**2 + vec[1]**2)

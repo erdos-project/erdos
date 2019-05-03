@@ -12,7 +12,6 @@ from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_
 
 import agent_utils
 from planner.map import CarlaMap
-from planner.waypointer import Waypointer
 from pid_controller.pid import PID
 from detection_utils import get_3d_world_position
 import pylot_utils
@@ -22,8 +21,6 @@ class ERDOSAgentOperator(Op):
     def __init__(self,
                  name,
                  city_name,
-                 goal_location,
-                 goal_orientation,
                  depth_camera_name,
                  flags,
                  log_file_name=None,
@@ -33,11 +30,6 @@ class ERDOSAgentOperator(Op):
         self._logger = setup_logging(self.name, log_file_name)
         self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
         self._map = CarlaMap(city_name)
-        self._goal_location = goal_location
-        self._goal_orientation = goal_orientation
-        self._wp_num_steer = 0.9  # Select WP - Reverse Order: 1 - closest, 0 - furthest
-        self._wp_num_speed = 0.4  # Select WP - Reverse Order: 1 - closest, 0 - furthest
-        self._waypointer = Waypointer(city_name)
         self._pid = PID(p=self._flags.pid_p,
                         i=self._flags.pid_i,
                         d=self._flags.pid_d)
@@ -48,8 +40,10 @@ class ERDOSAgentOperator(Op):
         self._vehicle_pos = None
         self._vehicle_acc = None
         self._vehicle_speed = None
-        (self._depth_intrinsic, self._depth_transform, self._depth_img_size) = self.__setup_camera_tranforms(
-            name=depth_camera_name, postprocessing='SemanticSegmentation')
+        self._wp_angle = None
+        self._wp_vector = None
+        self._wp_angle_speed = None
+        (self._depth_intrinsic, self._depth_transform, self._depth_img_size) = self.__setup_camera_tranforms(name=depth_camera_name, postprocessing='Depth')
 
     def __setup_camera_tranforms(self,
                                  name,
@@ -97,6 +91,8 @@ class ERDOSAgentOperator(Op):
         input_streams.filter(pylot_utils.is_ground_forward_speed_stream).add_callback(
             ERDOSAgentOperator.on_forward_speed_update)
 
+        input_streams.filter(pylot_utils.is_waypoints_stream).add_callback(
+            ERDOSAgentOperator.on_waypoints_update)
         input_streams.filter(pylot_utils.is_traffic_lights_stream).add_callback(
             ERDOSAgentOperator.on_traffic_lights_update)
         input_streams.filter(pylot_utils.is_segmented_camera_stream).add_callback(
@@ -111,11 +107,11 @@ class ERDOSAgentOperator(Op):
     # TODO(ionel): Set the frequency programmatically.
     @frequency(10)
     def run_step(self):
-        self._logger.info("Running step")
         # Return if we haven't yet received all vehicle info data.
         if (self._vehicle_pos is None or
             self._vehicle_acc is None or
-            self._vehicle_speed is None):
+            self._vehicle_speed is None or
+            self._wp_angle is None):
             return
 
         if (len(self._obstacles) == 0 or
@@ -171,25 +167,16 @@ class ERDOSAgentOperator(Op):
                 vehicles.append((x3d, y3d))
         self._obstacles = self._obstacles[1:]
 
-        start_time = time.time()
-
-        wp_angle, wp_vector, wp_angle_speed, wp_vector_speed = agent_utils.get_waypoints(
-            self._goal_location, self._goal_orientation, self._vehicle_pos,
-            self._waypointer, self._wp_num_steer, self._wp_num_speed)
-
-        runtime = (time.time() - start_time) * 1000
-        self._csv_logger.info('{},{},{}'.format(
-            time_epoch_ms(), self.name, runtime))
-        self._logger.info('Waypointer {} runtime {}'.format(
-            self.name, runtime))
-
         speed_factor, state = self.__stop_for_agents(
-            wp_angle, wp_vector, vehicles, pedestrians, traffic_lights)
+            self._wp_angle, self._wp_vector, vehicles, pedestrians, traffic_lights)
 
-        control = self.get_control(wp_angle, wp_angle_speed, speed_factor,
+        control = self.get_control(self._wp_angle, self._wp_angle_speed, speed_factor,
                                    self._vehicle_speed * 3.6)
         output_msg = Message(control, Timestamp(coordinates=[0]))
         self.get_output_stream('action_stream').send(output_msg)
+
+    def on_waypoints_update(self, msg):
+        (self._wp_angle, self._wp_vector, self._wp_angle_speed, _) = msg.data
 
     def on_world_transform_update(self, msg):
         self._world_transform.append(msg)
