@@ -104,6 +104,15 @@ def is_waypoints_stream(stream):
     return stream.name == 'waypoints'
 
 
+def create_detected_lane_stream(name):
+    return DataStream(name=name,
+                      labels={'detected_lanes': 'true'})
+
+
+def is_detected_lane_stream(stream):
+    return stream.get_label('detected_lanes') == 'true'
+
+
 def add_timestamp(timestamp, image_np):
     txt_font = cv2.FONT_HERSHEY_SIMPLEX
     timestamp_txt = '{}'.format(timestamp)

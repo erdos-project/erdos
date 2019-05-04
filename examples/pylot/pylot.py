@@ -14,6 +14,7 @@ except ImportError:
     print("Error importing CenterNet detector.")
 from fusion_operator import FusionOperator
 from fusion_verification_operator import FusionVerificationOperator
+from lane_detection_operator import LaneDetectionOperator
 from lidar_visualizer_operator import LidarVisualizerOperator
 from obstacle_accuracy_operator import ObstacleAccuracyOperator
 from object_tracker_operator import ObjectTrackerOp
@@ -97,7 +98,8 @@ def add_erdos_agent_op(graph,
                        depth_camera_name,
                        segmentation_ops,
                        obj_detector_ops,
-                       traffic_light_det_ops):
+                       traffic_light_det_ops,
+                       lane_detection_ops):
     agent_op = graph.add(
         ERDOSAgentOperator,
         name='erdos_agent',
@@ -110,9 +112,9 @@ def add_erdos_agent_op(graph,
             'csv_file_name': FLAGS.csv_log_file_name
         },
         setup_args={'depth_camera_name': depth_camera_name})
-    graph.connect(
-        [carla_op] + traffic_light_det_ops + obj_detector_ops + segmentation_ops,
-        [agent_op])
+    input_ops = [carla_op] + traffic_light_det_ops + obj_detector_ops +\
+                segmentation_ops + lane_detection_ops
+    graph.connect(input_ops, [agent_op])
     graph.connect([agent_op], [carla_op])
     return agent_op
 
@@ -351,6 +353,19 @@ def add_segmentation_eval_op(graph, carla_op, segmentation_op,
     return segmentation_eval_op
 
 
+def add_lane_detection_op(graph, carla_op):
+    lane_det_op = graph.add(
+        LaneDetectionOperator,
+        name='lane_detection',
+        init_args={'output_stream_name': 'lane_det',
+                   'flags': FLAGS,
+                   'log_file_name': FLAGS.log_file_name,
+                   'csv_file_name': FLAGS.csv_log_file_name},
+        setup_args={'output_stream_name': 'lane_det'})
+    graph.connect([carla_op], [lane_det_op])
+    return lane_det_op
+
+
 def add_segmentation_ground_eval_op(graph, carla_op, ground_stream_name):
     seg_eval_op = graph.add(
         SegmentationEvalGroundOperator,
@@ -527,6 +542,10 @@ def main(argv):
     if FLAGS.traffic_light_det:
         traffic_light_det_ops.append(add_traffic_light_op(graph, carla_op))
 
+    lane_detection_ops = []
+    if FLAGS.lane_detection:
+        lane_detection_ops.append(add_lane_detection_op(graph, carla_op))
+
     agent_op = None
     if FLAGS.ground_agent_operator:
         agent_op = add_ground_agent_op(graph, carla_op)
@@ -537,7 +556,8 @@ def main(argv):
                                       DEPTH_CAMERA_NAME,
                                       segmentation_ops,
                                       obj_detector_ops,
-                                      traffic_light_det_ops)
+                                      traffic_light_det_ops,
+                                      lane_detection_ops)
 
     goal_location = (234.269989014, 59.3300170898, 39.4306259155)
     goal_orientation = (1.0, 0.0, 0.22)

@@ -43,6 +43,7 @@ flags.DEFINE_bool('obj_tracking', False,
                   'True to enable object tracking operator')
 flags.DEFINE_string('tracker_type', 'cv2',
                     'Tracker type: cv2 | crv | da_siam_rpn')
+flags.DEFINE_bool('lane_detection', False, 'True to enable lane detection')
 flags.DEFINE_bool('fusion', False, 'True to enable fusion operator')
 flags.DEFINE_bool('traffic_light_det', False,
                   'True to enable traffic light detection operator')
@@ -136,6 +137,8 @@ flags.DEFINE_bool('visualize_detector_output', False,
                   'True to enable visualization of detector output')
 flags.DEFINE_bool('visualize_traffic_light_output', False,
                   'True to enable visualization of traffic light output')
+flags.DEFINE_bool('visualize_lane_detection', False,
+                  'True to visualize lane detection')
 
 # Accuracy evaluation flags.
 flags.DEFINE_bool('evaluate_obj_detection', False,

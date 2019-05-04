@@ -99,6 +99,8 @@ class ERDOSAgentOperator(Op):
             ERDOSAgentOperator.on_segmented_frame)
         input_streams.filter(pylot_utils.is_obstacles_stream).add_callback(
             ERDOSAgentOperator.on_obstacles_update)
+        input_streams.filter(pylot_utils.is_detected_lane_stream).add_callback(
+            ERDOSAgentOperator.on_detected_lane_update)
 
         # Set no watermark on the output stream so that we do not
         # close the watermark loop with the carla operator.
@@ -199,6 +201,10 @@ class ERDOSAgentOperator(Op):
     def on_obstacles_update(self, msg):
         self._logger.info("Received obstacle update at {}".format(msg.timestamp))
         self._obstacles.append(msg)
+
+    def on_detected_lane_update(self, msg):
+        # TODO(ionel): Implement!
+        pass
 
     def on_vehicle_pos_update(self, msg):
         self._logger.info("Received vehicle pos %s", msg)
