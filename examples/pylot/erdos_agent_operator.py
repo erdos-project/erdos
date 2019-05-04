@@ -106,20 +106,17 @@ class ERDOSAgentOperator(Op):
         # close the watermark loop with the carla operator.
         return [pylot_utils.create_agent_action_stream()]
 
+    def __is_ready_to_run(self):
+        vehicle_data = self._vehicle_pos and self._vehicle_speed and self._wp_angle
+        perception_data = (len(self._obstacles) > 0) and (len(self._traffic_lights) > 0)
+        ground_data = (len(self._depth_imgs) > 0) and (len(self._world_transform) > 0)
+        return vehicle_data and perception_data and ground_data
+
     # TODO(ionel): Set the frequency programmatically.
     @frequency(10)
     def run_step(self):
-        # Return if we haven't yet received all vehicle info data.
-        if (self._vehicle_pos is None or
-            self._vehicle_acc is None or
-            self._vehicle_speed is None or
-            self._wp_angle is None):
-            return
-
-        if (len(self._obstacles) == 0 or
-            len(self._traffic_lights) == 0 or
-            len(self._depth_imgs) == 0 or
-            len(self._world_transform) == 0):
+        # Do not run if we haven't received required vehicle data.
+        if not self.__is_ready_to_run():
             return
 
         self._logger.info("Timestamps {} {} {} {}".format(
@@ -134,39 +131,11 @@ class ERDOSAgentOperator(Op):
         depth_img = self._depth_imgs[0].data
         self._depth_imgs = self._depth_imgs[1:]
 
-        traffic_lights = []
-        (tl_det_output, _) = self._traffic_lights[0].data
-        for (corners, score, label) in tl_det_output:
-            x = (corners[0] + corners[1]) / 2
-            y = (corners[2] + corners[3]) / 2
-            (x3d, y3d, z3d) = get_3d_world_position(
-                x, y, self._depth_img_size, depth_img, self._depth_transform, world_transform)
-            state = 0
-            if label is not 'Green':
-                state = 1
-            traffic_lights.append((x3d, y3d, state))
+        traffic_lights = self.__transform_tl_output(depth_img, world_transform)
         self._traffic_lights = self._traffic_lights[1:]
 
-        vehicles = []
-        pedestrians = []
-        (obstacles, _) = self._obstacles[0].data
-        for (corners, score, label) in obstacles:
-            x = (corners[0] + corners[1]) / 2
-            y = (corners[2] + corners[3]) / 2
-            if label == 'person':
-                (x3d, y3d, z3d) = get_3d_world_position(x, y,
-                                                        self._depth_img_size,
-                                                        depth_img,
-                                                        self._depth_transform,
-                                                        world_transform)
-                pedestrians.append((x3d, y3d))
-            elif label == 'car' or label == 'bicycle' or label == 'motorcycle' or label == 'bus' or label == 'truck':
-                (x3d, y3d, z3d) = get_3d_world_position(x, y,
-                                                        self._depth_img_size,
-                                                        depth_img,
-                                                        self._depth_transform,
-                                                        world_transform)
-                vehicles.append((x3d, y3d))
+        (pedestrians, vehicles) = self.__transform_detector_output(
+            depth_img, world_transform)
         self._obstacles = self._obstacles[1:]
 
         speed_factor, state = self.__stop_for_agents(
@@ -219,6 +188,44 @@ class ERDOSAgentOperator(Op):
     def execute(self):
         self.run_step()
         self.spin()
+
+    def __transform_tl_output(self, depth_img, world_transform):
+        traffic_lights = []
+        (tl_det_output, _) = self._traffic_lights[0].data
+        for (corners, score, label) in tl_det_output:
+            x = (corners[0] + corners[1]) / 2
+            y = (corners[2] + corners[3]) / 2
+            (x3d, y3d, z3d) = get_3d_world_position(
+                x, y, self._depth_img_size, depth_img, self._depth_transform, world_transform)
+            state = 0
+            if label is not 'Green':
+                state = 1
+            traffic_lights.append((x3d, y3d, state))
+        return traffic_lights
+
+    def __transform_detector_output(self, depth_img, world_transform):
+        vehicles = []
+        pedestrians = []
+        (obstacles, _) = self._obstacles[0].data
+        for (corners, score, label) in obstacles:
+            x = (corners[0] + corners[1]) / 2
+            y = (corners[2] + corners[3]) / 2
+            if label == 'person':
+                (x3d, y3d, z3d) = get_3d_world_position(x, y,
+                                                        self._depth_img_size,
+                                                        depth_img,
+                                                        self._depth_transform,
+                                                        world_transform)
+                pedestrians.append((x3d, y3d))
+            elif (label == 'car' or label == 'bicycle' or
+                  label == 'motorcycle' or label == 'bus' or label == 'truck'):
+                (x3d, y3d, z3d) = get_3d_world_position(x, y,
+                                                        self._depth_img_size,
+                                                        depth_img,
+                                                        self._depth_transform,
+                                                        world_transform)
+                vehicles.append((x3d, y3d))
+        return (pedestrians, vehicles)
 
     def __stop_for_agents(
             self, wp_angle, wp_vector, vehicles, pedestrians, traffic_lights):

@@ -197,13 +197,13 @@ flags.register_multi_flags_validator(
     ['replay', 'fusion'],
     lambda flags_dict: not (flags_dict['replay'] and flags_dict['fusion']),
     message='--fusion cannot be set when --replay is set')
-flags.register_multi_flags_validator(
-    ['ground_agent_operator', 'obj_detection', 'traffic_light_det', 'segmentation_drn', 'segmentation_dla'],
-    lambda flags_dict: (flags_dict['ground_agent_operator'] or
-                        (flags_dict['obj_detection'] and
-                         flags_dict['traffic_light_det'] and
-                         (flags_dict['segmentation_drn'] or flags_dict['segmentation_dla']))),
-    message='ERDOS agent requires obj detection, segmentation and traffic light detection')
+# flags.register_multi_flags_validator(
+#     ['ground_agent_operator', 'obj_detection', 'traffic_light_det', 'segmentation_drn', 'segmentation_dla'],
+#     lambda flags_dict: (flags_dict['ground_agent_operator'] or
+#                         (flags_dict['obj_detection'] and
+#                          flags_dict['traffic_light_det'] and
+#                          (flags_dict['segmentation_drn'] or flags_dict['segmentation_dla']))),
+#     message='ERDOS agent requires obj detection, segmentation and traffic light detection')
 flags.register_multi_flags_validator(
     ['obj_detection', 'detector_center_net', 'detector_ssd_mobilenet_v1',
      'detector_frcnn_resnet101', 'detector_ssd_resnet50_v1'],
