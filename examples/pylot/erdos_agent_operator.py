@@ -102,29 +102,19 @@ class ERDOSAgentOperator(Op):
         input_streams.filter(pylot_utils.is_detected_lane_stream).add_callback(
             ERDOSAgentOperator.on_detected_lane_update)
 
+        input_streams.add_completion_callback(
+            ERDOSAgentOperator.on_notification)
+
         # Set no watermark on the output stream so that we do not
         # close the watermark loop with the carla operator.
         return [pylot_utils.create_agent_action_stream()]
 
-    def __is_ready_to_run(self):
-        vehicle_data = self._vehicle_pos and self._vehicle_speed and self._wp_angle
-        perception_data = (len(self._obstacles) > 0) and (len(self._traffic_lights) > 0)
-        ground_data = (len(self._depth_imgs) > 0) and (len(self._world_transform) > 0)
-        return vehicle_data and perception_data and ground_data
-
-    # TODO(ionel): Set the frequency programmatically.
-    @frequency(10)
-    def run_step(self):
-        # Do not run if we haven't received required vehicle data.
-        if not self.__is_ready_to_run():
-            return
-
+    def on_notification(self, msg):
         self._logger.info("Timestamps {} {} {} {}".format(
             self._obstacles[0].timestamp,
             self._traffic_lights[0].timestamp,
             self._depth_imgs[0].timestamp,
             self._world_transform[0].timestamp))
-
         world_transform = self._world_transform[0].data
         self._world_transform = self._world_transform[1:]
 
@@ -145,6 +135,12 @@ class ERDOSAgentOperator(Op):
                                    self._vehicle_speed * 3.6)
         output_msg = Message(control, Timestamp(coordinates=[0]))
         self.get_output_stream('action_stream').send(output_msg)
+
+    def __is_ready_to_run(self):
+        vehicle_data = self._vehicle_pos and self._vehicle_speed and self._wp_angle
+        perception_data = (len(self._obstacles) > 0) and (len(self._traffic_lights) > 0)
+        ground_data = (len(self._depth_imgs) > 0) and (len(self._world_transform) > 0)
+        return vehicle_data and perception_data and ground_data
 
     def on_waypoints_update(self, msg):
         (self._wp_angle, self._wp_vector, self._wp_angle_speed, _) = msg.data
@@ -186,7 +182,6 @@ class ERDOSAgentOperator(Op):
         self._vehicle_speed = msg.data
 
     def execute(self):
-        self.run_step()
         self.spin()
 
     def __transform_tl_output(self, depth_img, world_transform):
@@ -270,7 +265,7 @@ class ERDOSAgentOperator(Op):
             'stop_vehicle': speed_factor_v,
             'stop_traffic_lights': speed_factor_tl
         }
-
+        self._logger.info('Aggent speed factors {}'.format(state))
         return speed_factor, state
 
     def get_control(self, wp_angle, wp_angle_speed, speed_factor,
