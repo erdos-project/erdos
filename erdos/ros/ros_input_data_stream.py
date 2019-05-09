@@ -49,7 +49,7 @@ class ROSInputDataStream(DataStream):
                 buff_size=314572800)  # 100 x avg message size (assumed 3MB)
 
     def _on_msg(self, msg):
-        #data = msg if self.data_type else pickle.loads(msg.data)
+        # data = msg if self.data_type else pickle.loads(msg.data)
         msg = pickle.loads(msg.data)
         self.op.log_event(time.time(), msg.timestamp,
                           'receive {}'.format(self.name))
@@ -111,4 +111,5 @@ class ROSInputDataStream(DataStream):
                     output_stream.send(msg)
         else:
             for on_msg_callback in self.callbacks:
-                on_msg_callback(self.op, msg)
+                # Due to serialization, on_msg_callback(self.op, msg) errors
+                getattr(self.op, on_msg_callback.__name__)(msg)

@@ -2,7 +2,6 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import subprocess
 import time
 from absl import flags
 
@@ -84,13 +83,14 @@ class Graph(object):
             handle = GraphHandle(name, op_cls, init_args, setup_args,
                                  self.graph_name, self)
         else:
-            handle = OpHandle(name,
-                              op_cls,
-                              init_args,
-                              setup_args,
-                              self.graph_name,
-                              node=_node,
-                              resources=_resources)
+            handle = OpHandle(
+                name,
+                op_cls,
+                init_args,
+                setup_args,
+                self.graph_name,
+                node=_node,
+                resources=_resources)
         op_id = handle.get_uid()
         assert (op_id not in self.op_handles), \
             'Duplicate operator name {}. Ensure name uniqueness ' \
@@ -201,16 +201,8 @@ class Graph(object):
 
         if blocking:
             # 9. Keep driver running.
-            if self.framework == "ros":
-                procs = list()
-                for op_handle in self.op_handles.values():
-                    procs.append(op_handle.executor_handle)
-                for p in procs:
-                    p.join()
-            else:
-                # TODO(yika): FIX! Temporary solution to keep Ray master running.
-                while True:
-                    time.sleep(5)
+            while True:
+                time.sleep(5)
 
     def _flatten_subgraphs(self):
         """Set up subgraphs"""
@@ -351,7 +343,6 @@ class Graph(object):
         if self.cluster is None:
             self.cluster = Cluster()
             if self.framework == "ros":
-                # TODO(peter): fix this
                 from erdos.ros.ros_node import LocalROSNode
                 self.node = LocalROSNode()
                 self.cluster.add_node(self.node)

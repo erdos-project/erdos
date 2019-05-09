@@ -37,8 +37,8 @@ class RayNode(Node):
         for k, v in resources.items():
             self.available_resources[k] -= 1
         resources[self.server] = 1
-        num_cpus = resources.pop("CPU", None)
-        num_gpus = resources.pop("GPU", None)
+        num_cpus = resources.pop("CPU", 0)
+        num_gpus = resources.pop("GPU", 0)
 
         # TODO (Yika): hacky solution for using decorator on callbacks
         # When we wrap op in ray operator, __name__ of callbacks that have
@@ -54,8 +54,12 @@ class RayNode(Node):
 
         # Create the Ray actor wrapping the ERDOS operator.
         op_handle.node = None  # reset node for serialization
-        ray_op = RayOperator._remote([op_handle], {}, num_cpus, num_gpus,
-                                     resources)
+        ray_op = RayOperator._remote(
+            args=[op_handle],
+            kwargs={},
+            num_cpus=num_cpus,
+            num_gpus=num_gpus,
+            resources=resources)
         # Set the actor handle in the ray operator actor.
         ray.get(ray_op.set_handle.remote(ray_op))
         op_handle.executor_handle = ray_op
@@ -93,8 +97,9 @@ class LocalRayNode(RayNode):
         if FLAGS.ray_redis_address != "":
             ray_init_kwargs["redis_address"] = FLAGS.ray_redis_address
 
-        info = ray.init(resources=resources, **ray_init_kwargs)
-        return info["redis_address"]
+        if not ray.is_initialized():
+            info = ray.init(resources=resources, **ray_init_kwargs)
+            return info["redis_address"]
 
     def teardown(self):
         ray.shutdown()

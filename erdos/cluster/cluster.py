@@ -1,8 +1,8 @@
-import ray
 from absl import flags
 
 from erdos.cluster.node import Node
-from erdos.ray.ray_node import RayNode, LocalRayNode
+from erdos.ray.ray_node import LocalRayNode
+from erdos.ros.ros_node import ROSNode, LocalROSNode
 
 FLAGS = flags.FLAGS
 
@@ -18,6 +18,7 @@ class Cluster(object):
     def __init__(self):
         self.nodes = []
         self.ray_redis_address = ""
+        self.ros_master_uri = ""
 
     def add_node(self, node):
         if not isinstance(node, Node):
@@ -26,43 +27,37 @@ class Cluster(object):
         self.nodes.append(node)
 
     def initialize(self):
-        self._initialize_ray()
+        ros_nodes = {
+            n
+            for n in self.nodes if isinstance(n, (ROSNode, LocalROSNode))
+        }
+        ray_nodes = set(self.nodes) - ros_nodes
 
-    def _initialize_ray(self):
-        ray_nodes = [
-            n for n in self.nodes if isinstance(n, (RayNode, LocalRayNode))
-        ]
-        if len(ray_nodes) == 0:
-            return
-        local_ray_node = self._find_local_ray_node()
-
-        if local_ray_node is None:
-            # Set resources to 0 so no operators run on this node
-            if FLAGS.ray_redis_address == "":
-                info = ray.init(num_cpus=0, num_gpus=0)
-                self.ray_redis_address = info["redis_address"]
-            else:
-                ray.init(num_cpus=0,
-                         num_gpus=0,
-                         redis_address=FLAGS.ray_redis_address)
-                self.ray_redis_address = FLAGS.ray_redis_address
+        head_node = None
+        if len(ros_nodes) > 0:
+            for n in ros_nodes:
+                if isinstance(n, LocalROSNode):
+                    head_node = n
+                    self.ray_redis_address, self.ros_master_uri = (
+                        head_node.setup())
+                    break
         else:
-            self.ray_redis_address = local_ray_node.setup()
-            ray_nodes.remove(local_ray_node)
+            for n in ray_nodes:
+                if isinstance(n, LocalRayNode):
+                    head_node = n
+                    self.ray_redis_address = head_node.setup()
+                    break
+        if head_node is None:
+            raise Exception("Cluster has no head node")
 
-        for node in ray_nodes:
-            node.setup(self.ray_redis_address)
+        # Note: Only support 1 local node for now
+        for ros_node in ros_nodes:
+            if ros_node is not head_node:
+                ros_node.setup(self.ray_redis_address, self.ros_master_uri)
 
-    def _find_local_ray_node(self):
-        local_ray_nodes = [
-            n for n in self.nodes if isinstance(n, LocalRayNode)
-        ]
-        if len(local_ray_nodes) == 0:
-            return None
-        elif len(local_ray_nodes) == 1:
-            return local_ray_nodes[0]
-        else:
-            raise Exception("Multiple local Ray nodes are unsupported")
+        for ray_node in ray_nodes:
+            if ray_node is not head_node:
+                ray_node.setup(self.ray_redis_address)
 
     def broadcast(self, command):
         for node in self.nodes:
