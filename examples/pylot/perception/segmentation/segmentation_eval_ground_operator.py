@@ -3,13 +3,11 @@ import numpy as np
 import PIL.Image as Image
 import time
 
-from carla.image_converter import labels_to_array
-
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
 from perception.segmentation.segmentation_utils import tf_compute_semantic_iou, generate_masks, compute_semantic_iou_from_masks
-from pylot_utils import is_ground_segmented_camera_stream
+from pylot_utils import is_ground_segmented_camera_stream, labels_to_array
 
 
 class SegmentationEvalGroundOperator(Op):

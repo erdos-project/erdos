@@ -1,5 +1,23 @@
+import carla.image_converter
 import cv2
 from erdos.data_stream import DataStream
+
+
+# Carla methods.
+def depth_to_array(frame):
+    return carla.image_converter.depth_to_array(frame)
+
+
+def labels_to_cityscapes_palette(frame):
+    return carla.image_converter.labels_to_cityscapes_palette(frame)
+
+
+def labels_to_array(frame):
+    return carla.image_converter.labels_to_array(frame)
+
+
+def to_rgb_array(frame):
+    return carla.image_converter.to_rgb_array(frame)
 
 
 # Sensor streams

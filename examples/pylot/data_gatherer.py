@@ -5,12 +5,11 @@ from absl import app
 from absl import flags
 from collections import deque
 
-from carla.image_converter import depth_to_array, labels_to_cityscapes_palette, labels_to_array
-
 import config
 from control.ground_agent_operator import GroundAgentOperator
-from perception.detection.detection_utils import get_2d_bbox_from_3d_box, get_bounding_boxes_from_segmented, get_camera_intrinsic_and_transform, visualize_ground_bboxes
+from perception.detection.detection_utils import get_bounding_boxes_from_segmented, visualize_ground_bboxes
 from simulation.carla_operator import CarlaOperator
+from simulation.carla_utils import get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform
 import pylot_utils
 
 import erdos.graph
@@ -66,7 +65,7 @@ class CameraLoggerOp(Op):
         if self._last_bgr_timestamp % self._flags.log_every_nth_frame != 0:
             return
         # Write the segmented image.
-        frame_array = labels_to_cityscapes_palette(msg.data)
+        frame_array = pylot_utils.labels_to_cityscapes_palette(msg.data)
         img = Image.fromarray(np.uint8(frame_array))
         file_name = '{}carla-segmented-{}.png'.format(
             self._flags.data_path, self._last_segmented_timestamp)
@@ -147,7 +146,7 @@ class GroundTruthObjectLoggerOp(Op):
         if self._last_notification % self._flags.log_every_nth_frame != 0:
             return
 
-        depth_array = depth_to_array(depth_msg.data)
+        depth_array = pylot_utils.depth_to_array(depth_msg.data)
         world_transform = world_trans_msg.data
 
         ped_bboxes = self.__get_pedestrians_bboxes(
@@ -224,7 +223,7 @@ class GroundTruthObjectLoggerOp(Op):
         return vec_bboxes
 
     def __get_traffic_sign_bboxes(self, segmented_frame):
-        segmented_frame = labels_to_array(segmented_frame)
+        segmented_frame = pylot_utils.labels_to_array(segmented_frame)
         # Shape is height, width
         traffic_signs_frame = np.zeros((segmented_frame.shape[0],
                                         segmented_frame.shape[1]),

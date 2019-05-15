@@ -1,12 +1,11 @@
 import heapq
 
-from carla.image_converter import depth_to_array
-
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
 import perception.detection.detection_utils as detection_utils
 import pylot_utils
+from simulation.carla_utils import get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform, have_same_depth, map_ground_3D_transform_to_2D
 
 
 class ObstacleAccuracyOperator(Op):
@@ -29,7 +28,7 @@ class ObstacleAccuracyOperator(Op):
         self._depth_imgs = []
         self._bgr_imgs = []
         (camera_name, pp, img_size, pos) = rgb_camera_setup
-        (self._rgb_intrinsic, self._rgb_transform, self._rgb_img_size) = detection_utils.get_camera_intrinsic_and_transform(
+        (self._rgb_intrinsic, self._rgb_transform, self._rgb_img_size) = get_camera_intrinsic_and_transform(
             name=camera_name, postprocessing=pp, image_size=img_size, position=pos)
         self._last_notification = -1
         # Buffer of detected obstacles.
@@ -249,7 +248,7 @@ class ObstacleAccuracyOperator(Op):
         # Get the latest BGR and depth images.
         # NOTE: depth_to_array flips the image.
         depth_img = self._depth_imgs[0].data
-        depth_array = depth_to_array(depth_img)
+        depth_array = pylot_utils.depth_to_array(depth_img)
         self._depth_imgs = self._depth_imgs[1:]
 
         bgr_img = self._bgr_imgs[0].data
@@ -289,16 +288,16 @@ class ObstacleAccuracyOperator(Op):
                                    depth_array):
         tl_bboxes = []
         for (tl_transform, state) in traffic_lights:
-            pos = detection_utils.map_ground_3D_transform_to_2D(world_transform,
-                                                                self._rgb_transform,
-                                                                self._rgb_intrinsic,
-                                                                self._rgb_img_size,
-                                                                tl_transform)
+            pos = map_ground_3D_transform_to_2D(world_transform,
+                                                self._rgb_transform,
+                                                self._rgb_intrinsic,
+                                                self._rgb_img_size,
+                                                tl_transform)
             if pos is not None:
                 x = int(pos[0])
                 y = int(pos[1])
                 z = pos[2].flatten().item(0)
-                if detection_utils.have_same_depth(x, y, z, depth_array, 1.0):
+                if have_same_depth(x, y, z, depth_array, 1.0):
                     # TODO(ionel): Figure out bounding box size.
                     tl_bboxes.append((x - 2, x + 2, y - 2, y + 2))
         return tl_bboxes
@@ -307,16 +306,16 @@ class ObstacleAccuracyOperator(Op):
                                   depth_array):
         ts_bboxes = []
         for (ts_transform, speed_sign) in traffic_signs:
-            pos = detection_utils.map_ground_3D_transform_to_2D(world_transform,
-                                                                self._rgb_transform,
-                                                                self._rgb_intrinsic,
-                                                                self._rgb_img_size,
-                                                                ts_transform)
+            pos = map_ground_3D_transform_to_2D(world_transform,
+                                                self._rgb_transform,
+                                                self._rgb_intrinsic,
+                                                self._rgb_img_size,
+                                                ts_transform)
             if pos is not None:
                 x = int(pos[0])
                 y = int(pos[1])
                 z = pos[2].flatten().item(0)
-                if detection_utils.have_same_depth(x, y, z, depth_array, 1.0):
+                if have_same_depth(x, y, z, depth_array, 1.0):
                     # TODO(ionel): Figure out bounding box size.
                     ts_bboxes.append((x - 2, x + 2, y - 2, y + 2))
         return ts_bboxes
@@ -326,7 +325,7 @@ class ObstacleAccuracyOperator(Op):
         ped_bboxes = []
         for (pedestrian_index, pd_transform, bounding_box,
              fwd_speed) in pedestrians:
-            bbox = detection_utils.get_2d_bbox_from_3d_box(
+            bbox = get_2d_bbox_from_3d_box(
                 depth_array, world_transform, pd_transform,
                 bounding_box, self._rgb_transform, self._rgb_intrinsic,
                 self._rgb_img_size, 1.5, 3.0)
@@ -337,7 +336,7 @@ class ObstacleAccuracyOperator(Op):
     def __get_vehicles_bboxes(self, vehicles, world_transform, depth_array):
         vec_bboxes = []
         for (vec_transform, bounding_box, fwd_speed) in vehicles:
-            bbox = detection_utils.get_2d_bbox_from_3d_box(
+            bbox = get_2d_bbox_from_3d_box(
                 depth_array, world_transform, vec_transform,
                 bounding_box, self._rgb_transform, self._rgb_intrinsic,
                 self._rgb_img_size, 3.0, 3.0)

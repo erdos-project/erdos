@@ -3,7 +3,7 @@ from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import setup_logging
 
-import planner.planner_operator
+import simulation.planner.planner_operator
 
 # Constants Used for the high level commands
 REACH_GOAL = 0.0

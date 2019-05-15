@@ -9,7 +9,7 @@ from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_
 
 import control.agent_utils as agent_utils
 from pid_controller.pid import PID
-from planner.map import CarlaMap
+from simulation.planner.map import CarlaMap
 import pylot_utils
 
 

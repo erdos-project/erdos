@@ -11,9 +11,9 @@ from erdos.timestamp import Timestamp
 from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_ms
 
 import control.agent_utils as agent_utils
-from perception.detection.detection_utils import get_3d_world_position
 from pid_controller.pid import PID
-from planner.map import CarlaMap
+from simulation.carla_utils import get_3d_world_position
+from simulation.planner.map import CarlaMap
 import pylot_utils
 
 
@@ -206,19 +206,15 @@ class ERDOSAgentOperator(Op):
             x = (corners[0] + corners[1]) / 2
             y = (corners[2] + corners[3]) / 2
             if label == 'person':
-                (x3d, y3d, z3d) = get_3d_world_position(x, y,
-                                                        self._depth_img_size,
-                                                        depth_img,
-                                                        self._depth_transform,
-                                                        world_transform)
+                (x3d, y3d, z3d) = get_3d_world_position(
+                    x, y, self._depth_img_size, depth_img,
+                    self._depth_transform, world_transform)
                 pedestrians.append((x3d, y3d))
             elif (label == 'car' or label == 'bicycle' or
                   label == 'motorcycle' or label == 'bus' or label == 'truck'):
-                (x3d, y3d, z3d) = get_3d_world_position(x, y,
-                                                        self._depth_img_size,
-                                                        depth_img,
-                                                        self._depth_transform,
-                                                        world_transform)
+                (x3d, y3d, z3d) = get_3d_world_position(
+                    x, y, self._depth_img_size, depth_img,
+                    self._depth_transform, world_transform)
                 vehicles.append((x3d, y3d))
         return (pedestrians, vehicles)
 

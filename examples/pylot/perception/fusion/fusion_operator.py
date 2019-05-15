@@ -2,14 +2,12 @@ from collections import deque
 import numpy as np
 import time
 
-from carla.image_converter import to_rgb_array
-
 from erdos.data_stream import DataStream
 from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_ms
 
-from pylot_utils import create_fusion_stream, is_depth_camera_stream, is_ground_vehicle_pos_stream, is_obstacles_stream
+import pylot_utils
 
 
 class FusionOperator(Op):
@@ -47,13 +45,13 @@ class FusionOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams, output_stream_name):
-        input_streams.filter(is_ground_vehicle_pos_stream).add_callback(
+        input_streams.filter(pylot_utils.is_ground_vehicle_pos_stream).add_callback(
             FusionOperator.update_pos)
-        input_streams.filter(is_obstacles_stream).add_callback(
+        input_streams.filter(pylot_utils.is_obstacles_stream).add_callback(
             FusionOperator.update_objects)
-        input_streams.filter(is_depth_camera_stream).add_callback(
+        input_streams.filter(pylot_utils.is_depth_camera_stream).add_callback(
             FusionOperator.update_distances)
-        return [create_fusion_stream(output_stream_name)]
+        return [pylot_utils.create_fusion_stream(output_stream_name)]
 
     def __calc_object_positions(self,
                                 object_bounds,
@@ -137,7 +135,7 @@ class FusionOperator(Op):
         self._objects.append((msg.timestamp, vehicle_bounds))
 
     def update_distances(self, msg):
-        rgbd_frame = to_rgb_array(msg.data)
+        rgbd_frame = pylot_utils.to_rgb_array(msg.data)
         normalized_distances = np.dot(
             rgbd_frame,
             [1.0, 256.0, 256.0 * 256.0]) / (256.0 * 256.0 * 256.0 - 1.0)
