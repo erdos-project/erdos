@@ -11,7 +11,7 @@ from carla.image_converter import depth_to_array
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
-from detection_utils import get_precision_recall_at_iou, get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform
+from perception.detection.detection_utils import get_precision_recall_at_iou, get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform
 import pylot_utils
 
 

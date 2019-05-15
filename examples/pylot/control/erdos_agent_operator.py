@@ -10,10 +10,10 @@ from erdos.op import Op
 from erdos.timestamp import Timestamp
 from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_ms
 
-import agent_utils
-from planner.map import CarlaMap
+import control.agent_utils as agent_utils
+from perception.detection.detection_utils import get_3d_world_position
 from pid_controller.pid import PID
-from detection_utils import get_3d_world_position
+from planner.map import CarlaMap
 import pylot_utils
 
 

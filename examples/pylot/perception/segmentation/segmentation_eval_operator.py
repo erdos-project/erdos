@@ -6,7 +6,7 @@ from carla.image_converter import labels_to_cityscapes_palette
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
-from segmentation_utils import compute_semantic_iou
+from perception.segmentation.segmentation_utils import compute_semantic_iou
 from pylot_utils import is_ground_segmented_camera_stream, is_segmented_camera_stream
 
 

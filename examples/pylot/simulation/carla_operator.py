@@ -15,8 +15,8 @@ from erdos.op import Op
 from erdos.timestamp import Timestamp
 from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_ms
 
-import messages
 import pylot_utils
+import simulation.messages
 
 
 class CarlaOperator(Op):
@@ -219,10 +219,10 @@ class CarlaOperator(Op):
 
         for agent in measurements.non_player_agents:
             if agent.HasField('vehicle'):
-                pos = messages.Transform(agent.vehicle.transform)
-                bb = messages.BoundingBox(agent.vehicle.bounding_box)
+                pos = simulation.messages.Transform(agent.vehicle.transform)
+                bb = simulation.messages.BoundingBox(agent.vehicle.bounding_box)
                 forward_speed = agent.vehicle.forward_speed
-                vehicle = messages.Vehicle(pos, bb, forward_speed)
+                vehicle = simulation.messages.Vehicle(pos, bb, forward_speed)
                 vehicles.append(vehicle)
             elif agent.HasField('pedestrian'):
                 if not self.agent_id_map.get(agent.id):
@@ -230,20 +230,22 @@ class CarlaOperator(Op):
                     self.agent_id_map[agent.id] = self.pedestrian_count
 
                 pedestrian_index = self.agent_id_map[agent.id]
-                pos = messages.Transform(agent.pedestrian.transform)
-                bb = messages.BoundingBox(agent.pedestrian.bounding_box)
+                pos = simulation.messages.Transform(agent.pedestrian.transform)
+                bb = simulation.messages.BoundingBox(agent.pedestrian.bounding_box)
                 forward_speed = agent.pedestrian.forward_speed
-                pedestrian = messages.Pedestrian(pedestrian_index, pos, bb,
-                                                 forward_speed)
+                pedestrian = simulation.messages.Pedestrian(
+                    pedestrian_index, pos, bb, forward_speed)
                 pedestrians.append(pedestrian)
             elif agent.HasField('traffic_light'):
-                transform = messages.Transform(agent.traffic_light.transform)
-                traffic_light = messages.TrafficLight(
+                transform = simulation.messages.Transform(
+                    agent.traffic_light.transform)
+                traffic_light = simulation.messages.TrafficLight(
                     transform, agent.traffic_light.state)
                 traffic_lights.append(traffic_light)
             elif agent.HasField('speed_limit_sign'):
-                transform = messages.Transform(agent.speed_limit_sign.transform)
-                speed_sign = messages.SpeedLimitSign(
+                transform = simulation.messages.Transform(
+                    agent.speed_limit_sign.transform)
+                speed_sign = simulation.messages.SpeedLimitSign(
                     transform, agent.speed_limit_sign.speed_limit)
                 speed_limit_signs.append(speed_sign)
 

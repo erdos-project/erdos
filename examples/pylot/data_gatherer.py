@@ -5,12 +5,12 @@ from absl import app
 from absl import flags
 from collections import deque
 
-from carla.image_converter import depth_to_array, labels_to_cityscapes_palette, to_rgb_array, labels_to_array
+from carla.image_converter import depth_to_array, labels_to_cityscapes_palette, labels_to_array
 
 import config
-from carla_operator import CarlaOperator
-from detection_utils import get_2d_bbox_from_3d_box, get_bounding_boxes_from_segmented, get_camera_intrinsic_and_transform, visualize_ground_bboxes
-from ground_agent_operator import GroundAgentOperator
+from control.ground_agent_operator import GroundAgentOperator
+from perception.detection.detection_utils import get_2d_bbox_from_3d_box, get_bounding_boxes_from_segmented, get_camera_intrinsic_and_transform, visualize_ground_bboxes
+from simulation.carla_operator import CarlaOperator
 import pylot_utils
 
 import erdos.graph

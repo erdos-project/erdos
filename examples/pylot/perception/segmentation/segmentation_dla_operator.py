@@ -9,7 +9,7 @@ from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
-from segmentation_utils import transfrom_to_cityscapes
+from perception.segmentation.segmentation_utils import transfrom_to_cityscapes
 from pylot_utils import add_timestamp, create_segmented_camera_stream, is_camera_stream, rgb_to_bgr, bgra_to_bgr
 
 

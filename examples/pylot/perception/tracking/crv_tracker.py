@@ -1,7 +1,7 @@
 from dependencies.conv_reg_vot.simgeo import Rect
 import dependencies.conv_reg_vot.tracker as tracker
 
-from multi_object_tracker import MultiObjectTracker
+from perception.tracking.multi_object_tracker import MultiObjectTracker
 
 
 class SingleObjectCRVTracker(object):

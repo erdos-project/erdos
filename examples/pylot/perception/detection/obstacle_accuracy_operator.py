@@ -5,7 +5,7 @@ from carla.image_converter import depth_to_array
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
-import detection_utils
+import perception.detection.detection_utils as detection_utils
 import pylot_utils
 
 

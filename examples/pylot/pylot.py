@@ -2,35 +2,40 @@ from absl import app
 from absl import flags
 
 import config
-from ground_agent_operator import GroundAgentOperator
-from erdos_agent_operator import ERDOSAgentOperator
-from camera_replay_operator import CameraReplayOperator
-from carla_operator import CarlaOperator
-from control_operator import ControlOperator
-from detection_operator import DetectionOperator
+
+# import Control operators.
+from control.control_operator import ControlOperator
+from control.erdos_agent_operator import ERDOSAgentOperator
+from control.ground_agent_operator import GroundAgentOperator
+# Import debug operators.
+from debug.camera_replay_operator import CameraReplayOperator
+from debug.lidar_visualizer_operator import LidarVisualizerOperator
+from debug.segmented_video_operator import SegmentedVideoOperator
+from debug.video_operator import VideoOperator
+# Import perception operators.
+from perception.detection.detection_eval_ground_operator import DetectionEvalGroundOperator
+from perception.detection.detection_operator import DetectionOperator
 try:
-    from detection_center_net_operator import DetectionCenterNetOperator
+    from perception.detection.detection_center_net_operator import DetectionCenterNetOperator
 except ImportError:
     print("Error importing CenterNet detector.")
-from fusion_operator import FusionOperator
-from fusion_verification_operator import FusionVerificationOperator
-from lane_detection_operator import LaneDetectionOperator
-from lidar_visualizer_operator import LidarVisualizerOperator
-from obstacle_accuracy_operator import ObstacleAccuracyOperator
-from object_tracker_operator import ObjectTrackerOp
-from planner.planner_operator import PlannerOperator
-from segmentation_drn_operator import SegmentationDRNOperator
+from perception.detection.lane_detection_operator import LaneDetectionOperator
+from perception.detection.obstacle_accuracy_operator import ObstacleAccuracyOperator
+from perception.detection.traffic_light_det_operator import TrafficLightDetOperator
+from perception.fusion.fusion_operator import FusionOperator
+from perception.fusion.fusion_verification_operator import FusionVerificationOperator
+from perception.segmentation.segmentation_drn_operator import SegmentationDRNOperator
 try:
-    from segmentation_dla_operator import SegmentationDLAOperator
+    from perception.segmentation.segmentation_dla_operator import SegmentationDLAOperator
 except ImportError:
     print("Error importing DLA segmentation.")
-from segmentation_eval_operator import SegmentationEvalOperator
-from segmentation_eval_ground_operator import SegmentationEvalGroundOperator
-from detection_eval_ground_operator import DetectionEvalGroundOperator
-from segmented_video_operator import SegmentedVideoOperator
-from traffic_light_det_operator import TrafficLightDetOperator
-from video_operator import VideoOperator
-from waypointer_operator import WaypointerOperator
+from perception.segmentation.segmentation_eval_operator import SegmentationEvalOperator
+from perception.segmentation.segmentation_eval_ground_operator import SegmentationEvalGroundOperator
+from perception.tracking.object_tracker_operator import ObjectTrackerOp
+# Import planning operators.
+from planning.waypointer_operator import WaypointerOperator
+# Import operators that interact with the simulator.
+from simulation.carla_operator import CarlaOperator
 
 import erdos.graph
 from erdos.operators import RecordOp
@@ -486,11 +491,6 @@ def main(argv):
 
     # Add recording operators.
     add_recording_operators(graph, carla_op)
-
-    # XXX(ionel): This planner is not currently in use.
-    # planner_op = PlannerOperator('Town01', goal_location, goal_orientation)
-    # planner_streams = planner_op([carla_op.get_output_stream('vehicle_pos')])
-    # control_streams = control_op(planner_streams)
 
     segmentation_ops = []
     if FLAGS.segmentation_drn:
