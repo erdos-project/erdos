@@ -66,7 +66,8 @@ class ObjectTrackerOp(Op):
 
         self._lock.acquire()
         start_time = time.time()
-        frame = msg.data
+        assert msg.encoding == 'BGR', 'Expects BGR frames'
+        frame = msg.frame
         # Store frames so that they can be re-processed once we receive the
         # next update from the detector.
         self._to_process.append((msg.timestamp, frame))

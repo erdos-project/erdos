@@ -43,7 +43,8 @@ class DetectionOperator(Op):
     def on_msg_camera_stream(self, msg):
         self._logger.info('%s received frame %s', self.name, msg.timestamp)
         start_time = time.time()
-        cv_img = self.bridge.imgmsg_to_cv2(msg.data, 'rgb8')
+        assert msg.encoding == 'BGR', 'Expects BGR frames'
+        cv_img = msg.frame
         img = pydarknet.Image(cv_img)
         results = self._net.detect(img)
         #self.add_bounding_boxes(cv_img, results)

@@ -93,7 +93,7 @@ class SegmentationEvalOperator(Op):
         if msg.timestamp.coordinates[1] >= 2:
             # Buffer the ground truth frames.
             game_time = msg.timestamp.coordinates[0]
-            self._ground_frames.append((game_time, msg.data))
+            self._ground_frames.append((game_time, msg.frame))
 
     def on_segmented_frame(self, msg):
         if self._last_seq_num_segmented + 1 != msg.timestamp.coordinates[1]:

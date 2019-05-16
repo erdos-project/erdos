@@ -73,7 +73,8 @@ class TrafficLightDetOperator(Op):
         self._last_seq_num = msg.timestamp.coordinates[1]
 
         start_time = time.time()
-        image_np = bgr_to_rgb(msg.data)
+        assert msg.encoding == 'BGR', 'Expects BGR frames'
+        image_np = bgr_to_rgb(msg.frame)
         # Expand dimensions since the model expects images to have
         # shape: [1, None, None, 3]
         image_np_expanded = np.expand_dims(image_np, axis=0)

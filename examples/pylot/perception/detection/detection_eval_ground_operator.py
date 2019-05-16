@@ -84,15 +84,14 @@ class DetectionEvalGroundOperator(Op):
         assert (depth_msg.timestamp == bgr_msg.timestamp ==
                 world_trans_msg.timestamp == pedestrians_msg.timestamp)
 
-        depth_array = depth_msg.data
         world_transform = world_trans_msg.data
 
         bboxes = []
         self._logger.info('Number of pedestrians {}'.format(
-            len(pedestrians_msg.data)))
+            len(pedestrians_msg.pedestrians)))
         for (pedestrian_index, obj_transform, obj_bbox,
-             _) in pedestrians_msg.data:
-            bbox = get_2d_bbox_from_3d_box(depth_array, world_transform,
+             _) in pedestrians_msg.pedestrians:
+            bbox = get_2d_bbox_from_3d_box(depth_msg.frame, world_transform,
                                            obj_transform, obj_bbox,
                                            self._rgb_transform,
                                            self._rgb_intrinsic,

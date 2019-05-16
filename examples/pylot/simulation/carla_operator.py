@@ -15,8 +15,11 @@ from erdos.op import Op
 from erdos.timestamp import Timestamp
 from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_ms
 
+from perception.messages import SegmentedFrameMessage
+from perception.segmentation.utils import transform_to_cityscapes
 import pylot_utils
 import simulation.messages
+import simulation.utils
 
 
 class CarlaOperator(Op):
@@ -77,11 +80,6 @@ class CarlaOperator(Op):
             DataStream(name='vehicle_pos'),
             DataStream(name='acceleration'),
             DataStream(data_type=Float64, name='forward_speed'),
-            DataStream(data_type=Float64, name='vehicle_collisions'),
-            DataStream(data_type=Float64, name='pedestrian_collisions'),
-            DataStream(data_type=Float64, name='other_collisions'),
-            DataStream(data_type=Float64, name='other_lane'),
-            DataStream(data_type=Float64, name='offroad'),
             DataStream(name='traffic_lights'),
             DataStream(name='pedestrians'),
             DataStream(name='vehicles'),
@@ -196,21 +194,6 @@ class CarlaOperator(Op):
         self.get_output_stream('forward_speed').send(
             Message(player_measurements.forward_speed, timestamp))
         self.get_output_stream('forward_speed').send(watermark)
-        self.get_output_stream('vehicle_collisions').send(
-            Message(player_measurements.collision_vehicles, timestamp))
-        self.get_output_stream('vehicle_collisions').send(watermark)
-        self.get_output_stream('pedestrian_collisions').send(
-            Message(player_measurements.collision_pedestrians, timestamp))
-        self.get_output_stream('pedestrian_collisions').send(watermark)
-        self.get_output_stream('other_collisions').send(
-            Message(player_measurements.collision_other, timestamp))
-        self.get_output_stream('other_collisions').send(watermark)
-        self.get_output_stream('other_lane').send(
-            Message(player_measurements.intersection_otherlane, timestamp))
-        self.get_output_stream('other_lane').send(watermark)
-        self.get_output_stream('offroad').send(
-            Message(player_measurements.intersection_offroad, timestamp))
-        self.get_output_stream('offroad').send(watermark)
 
         vehicles = []
         pedestrians = []
@@ -219,8 +202,8 @@ class CarlaOperator(Op):
 
         for agent in measurements.non_player_agents:
             if agent.HasField('vehicle'):
-                pos = simulation.messages.Transform(agent.vehicle.transform)
-                bb = simulation.messages.BoundingBox(agent.vehicle.bounding_box)
+                pos = simulation.utils.Transform(agent.vehicle.transform)
+                bb = simulation.utils.BoundingBox(agent.vehicle.bounding_box)
                 forward_speed = agent.vehicle.forward_speed
                 vehicle = simulation.messages.Vehicle(pos, bb, forward_speed)
                 vehicles.append(vehicle)
@@ -230,35 +213,39 @@ class CarlaOperator(Op):
                     self.agent_id_map[agent.id] = self.pedestrian_count
 
                 pedestrian_index = self.agent_id_map[agent.id]
-                pos = simulation.messages.Transform(agent.pedestrian.transform)
-                bb = simulation.messages.BoundingBox(agent.pedestrian.bounding_box)
+                pos = simulation.utils.Transform(agent.pedestrian.transform)
+                bb = simulation.utils.BoundingBox(agent.pedestrian.bounding_box)
                 forward_speed = agent.pedestrian.forward_speed
                 pedestrian = simulation.messages.Pedestrian(
                     pedestrian_index, pos, bb, forward_speed)
                 pedestrians.append(pedestrian)
             elif agent.HasField('traffic_light'):
-                transform = simulation.messages.Transform(
+                transform = simulation.utils.Transform(
                     agent.traffic_light.transform)
                 traffic_light = simulation.messages.TrafficLight(
                     transform, agent.traffic_light.state)
                 traffic_lights.append(traffic_light)
             elif agent.HasField('speed_limit_sign'):
-                transform = simulation.messages.Transform(
+                transform = simulation.utils.Transform(
                     agent.speed_limit_sign.transform)
                 speed_sign = simulation.messages.SpeedLimitSign(
                     transform, agent.speed_limit_sign.speed_limit)
                 speed_limit_signs.append(speed_sign)
 
-        vehicles_msg = Message(vehicles, timestamp)
+        vehicles_msg = simulation.messages.GroundVehiclesMessage(
+            vehicles, timestamp)
         self.get_output_stream('vehicles').send(vehicles_msg)
         self.get_output_stream('vehicles').send(watermark)
-        pedestrians_msg = Message(pedestrians, timestamp)
+        pedestrians_msg = simulation.messages.GroundPedestriansMessage(
+            pedestrians, timestamp)
         self.get_output_stream('pedestrians').send(pedestrians_msg)
         self.get_output_stream('pedestrians').send(watermark)
-        traffic_lights_msg = Message(traffic_lights, timestamp)
+        traffic_lights_msg = simulation.messages.GroundTrafficLightsMessage(
+            traffic_lights, timestamp)
         self.get_output_stream('traffic_lights').send(traffic_lights_msg)
         self.get_output_stream('traffic_lights').send(watermark)
-        traffic_sings_msg = Message(speed_limit_signs, timestamp)
+        traffic_sings_msg = simulation.messages.GroundSpeedSignsMessage(
+            speed_limit_signs, timestamp)
         self.get_output_stream('traffic_signs').send(traffic_sings_msg)
         self.get_output_stream('traffic_signs').send(watermark)
 
@@ -268,13 +255,16 @@ class CarlaOperator(Op):
             if data_stream.get_label('camera_type') == 'SceneFinal':
                 # Transform the Carla RGB images to BGR.
                 data_stream.send(
-                    Message(pylot_utils.bgra_to_bgr(to_bgra_array(measurement)),
-                            timestamp))
+                    simulation.messages.FrameMessage(
+                        pylot_utils.bgra_to_bgr(to_bgra_array(measurement)), timestamp))
             elif data_stream.get_label('camera_type') == 'SemanticSegmentation':
-                data_stream.send(Message(labels_to_array(measurement), timestamp))
+                frame = transform_to_cityscapes(labels_to_array(measurement))
+                data_stream.send(SegmentedFrameMessage(frame, 0, timestamp))
             elif data_stream.get_label('camera_type') == 'Depth':
                 # NOTE: depth_to_array flips the image.
-                data_stream.send(Message(depth_to_array(measurement), timestamp))
+                data_stream.send(
+                    simulation.messages.DepthFrameMessage(
+                        depth_to_array(measurement), measurement.fov, timestamp))
             else:
                 data_stream.send(Message(measurement, timestamp))
             data_stream.send(watermark)

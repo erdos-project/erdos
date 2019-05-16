@@ -23,7 +23,7 @@ class FusionVerificationOperator(Op):
 
     def on_vehicles_update(self, msg):
         vehicle_positions = []
-        for vehicle in msg.data:
+        for vehicle in msg.vehicles:
             position = np.array(
                 [vehicle.position.location[0], vehicle.position.location[1]])
             vehicle_positions.append(position)

@@ -28,9 +28,9 @@ class VideoOperator(Op):
                 assert self._last_seq_num + 1 == msg.timestamp.coordinates[1]
         self._last_seq_num = msg.timestamp.coordinates[1]
 
-        frame = msg.data
-        add_timestamp(msg.timestamp, frame)
-        cv2.imshow(self.name, frame)
+        assert msg.encoding == 'BGR', 'Expects BGR frames'
+        add_timestamp(msg.timestamp, msg.frame)
+        cv2.imshow(self.name, msg.frame)
         cv2.waitKey(1)
 
     def execute(self):

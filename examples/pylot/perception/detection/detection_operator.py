@@ -69,7 +69,8 @@ class DetectionOperator(Op):
             self.name, msg.timestamp))
         start_time = time.time()
         # The models expect BGR images.
-        image_np = msg.data
+        assert msg.encoding == 'BGR', 'Expects BGR frames'
+        image_np = msg.frame
         # Expand dimensions since the model expects images to have
         # shape: [1, None, None, 3]
         image_np_expanded = np.expand_dims(image_np, axis=0)

@@ -133,7 +133,7 @@ class FusionOperator(Op):
         self._objects.append((msg.timestamp, vehicle_bounds))
 
     def update_distances(self, msg):
-        self._distances.append((msg.timestamp, msg.data))
+        self._distances.append((msg.timestamp, msg.frame))
 
     def execute(self):
         self.fuse()

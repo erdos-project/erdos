@@ -38,7 +38,8 @@ class LaneDetectionOperator(Op):
         self._last_seq_num = msg.timestamp.coordinates[1]
 
         start_time = time.time()
-        image_np = bgra_to_bgr(msg.data)
+        assert msg.encoding == 'BGR', 'Expects BGR frames'
+        image_np = msg.frame
 
         # TODO(ionel): Implement lane detection.
 

@@ -6,7 +6,6 @@ from erdos.op import Op
 from erdos.utils import setup_logging
 
 from pylot_utils import rgb_to_bgr, is_ground_segmented_camera_stream
-from perception.segmentation.utils import transform_to_cityscapes
 
 
 class SegmentedVideoOperator(Op):
@@ -30,8 +29,7 @@ class SegmentedVideoOperator(Op):
                 assert self._last_seq_num + 1 == msg.timestamp.coordinates[1]
         self._last_seq_num = msg.timestamp.coordinates[1]
 
-        frame_array = transform_to_cityscapes(msg.data)
-        img = Image.fromarray(np.uint8(frame_array))
+        img = Image.fromarray(np.uint8(msg.frame))
         open_cv_image = rgb_to_bgr(np.array(img))
         cv2.imshow(self.name, open_cv_image)
         cv2.waitKey(1)

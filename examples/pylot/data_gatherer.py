@@ -8,7 +8,6 @@ from collections import deque
 import config
 from control.ground_agent_operator import GroundAgentOperator
 from perception.detection.utils import get_bounding_boxes_from_segmented, visualize_ground_bboxes
-from perception.segmentation.utils import transform_to_cityscapes
 from simulation.carla_operator import CarlaOperator
 from simulation.utils import get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform
 import pylot_utils
@@ -52,7 +51,8 @@ class CameraLoggerOp(Op):
         if self._last_bgr_timestamp % self._flags.log_every_nth_frame != 0:
             return
         # Write the image.
-        rgb_array = pylot_utils.bgr_to_rgb(msg.data)
+        assert msg.encoding == 'BGR', 'Expects BGR frames'
+        rgb_array = pylot_utils.bgr_to_rgb(msg.frame)
         file_name = '{}carla-{}.png'.format(
             self._flags.data_path, self._last_bgr_timestamp)
         rgb_img = Image.fromarray(np.uint8(rgb_array))
@@ -66,8 +66,7 @@ class CameraLoggerOp(Op):
         if self._last_bgr_timestamp % self._flags.log_every_nth_frame != 0:
             return
         # Write the segmented image.
-        frame_array = transform_to_cityscapes(msg.data)
-        img = Image.fromarray(np.uint8(frame_array))
+        img = Image.fromarray(np.uint8(msg.frame))
         file_name = '{}carla-segmented-{}.png'.format(
             self._flags.data_path, self._last_segmented_timestamp)
         img.save(file_name)
@@ -147,17 +146,17 @@ class GroundTruthObjectLoggerOp(Op):
         if self._last_notification % self._flags.log_every_nth_frame != 0:
             return
 
-        depth_array = depth_msg.data
+        depth_array = depth_msg.frame
         world_transform = world_trans_msg.data
 
         ped_bboxes = self.__get_pedestrians_bboxes(
-            pedestrians_msg.data, world_transform, depth_array)
+            pedestrians_msg.pedestrians, world_transform, depth_array)
 
         vec_bboxes = self.__get_vehicles_bboxes(
-            vehicles_msg.data, world_transform, depth_array)
+            vehicles_msg.vehicles, world_transform, depth_array)
 
         traffic_sign_bboxes = self.__get_traffic_sign_bboxes(
-            segmented_msg.data)
+            segmented_msg.frame)
 
         bboxes = ped_bboxes + vec_bboxes + traffic_sign_bboxes
         # Write the bounding boxes.
@@ -173,7 +172,7 @@ class GroundTruthObjectLoggerOp(Op):
                               for (_, ((xmin, ymin), (xmax, ymax))) in vec_bboxes]
             traffic_sign_vis_bboxes = [(xmin, xmax, ymin, ymax)
                                         for (_, ((xmin, ymin), (xmax, ymax))) in traffic_sign_bboxes]
-            visualize_ground_bboxes(self.name, bgr_msg.timestamp, bgr_msg.data,
+            visualize_ground_bboxes(self.name, bgr_msg.timestamp, bgr_msg.frame,
                                     ped_vis_bboxes, vec_vis_bboxes,
                                     traffic_sign_vis_bboxes)
 

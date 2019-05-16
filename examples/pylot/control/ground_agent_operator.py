@@ -75,16 +75,16 @@ class GroundAgentOperator(Op):
         self._vehicle_speed = msg.data
 
     def on_pedestrians_update(self, msg):
-        self._pedestrians = msg.data
+        self._pedestrians = msg.pedestrians
 
     def on_vehicles_update(self, msg):
-        self._vehicles = msg.data
+        self._vehicles = msg.vehicles
 
     def on_traffic_lights_update(self, msg):
-        self._traffic_lights = msg.data
+        self._traffic_lights = msg.traffic_lights
 
     def on_traffic_signs_update(self, msg):
-        self._traffic_signs = msg.data
+        self._traffic_signs = msg.speed_signs
 
     # TODO(ionel): Set the frequency programmatically.
     @frequency(10)

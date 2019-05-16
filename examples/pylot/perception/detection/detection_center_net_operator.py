@@ -52,7 +52,8 @@ class DetectionCenterNetOperator(Op):
         
         self._logger.info('{} received frame {}'.format(self.name, msg.timestamp))
         start_time = time.time()
-        image_np = msg.data
+        assert msg.encoding == 'BGR', 'Expects BGR frames'
+        image_np = msg.frame
         results = self._detector.run(image_np)
         detected_objs = self.__get_output_bboxes(results['results'])
         if self._flags.visualize_detector_output:

@@ -49,8 +49,8 @@ class SegmentationDLAOperator(Op):
 
         self._logger.info('%s received frame %s', self.name, msg.timestamp)
         start_time = time.time()
-        image = bgra_to_bgr(msg.data)
-        image = np.expand_dims(image.transpose([2, 0, 1]), axis=0)
+        assert msg.encoding == 'BGR', 'Expects BGR frames'
+        image = np.expand_dims(msg.frame.transpose([2, 0, 1]), axis=0)
         tensor = torch.tensor(image).float().cuda() / 255.0
         output = self._network(tensor)
         # XXX(ionel): Check if the model outputs Carla Cityscapes values or

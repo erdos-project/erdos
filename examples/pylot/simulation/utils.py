@@ -2,16 +2,119 @@ from itertools import combinations
 import math
 import numpy as np
 from numpy.linalg import inv
+from numpy.matlib import repmat
 
-from carla.image_converter import depth_to_local_point_cloud
-from carla.sensor import Camera
+import carla.carla_server_pb2
+from carla.sensor import Camera, PointCloud
 from carla.transform import Transform
 
 
-def point_cloud_from_rgbd(depth_frame, depth_transform, world_transform):
+# We are transforming protobuf objects to python objects and
+# back because we cannot pickle protobuf objects.
+class Transform(object):
+    def __init__(self, transform):
+        self.location = (transform.location.x, transform.location.y,
+                         transform.location.z)
+        self.orientation = (transform.orientation.x,
+                            transform.orientation.y,
+                            transform.orientation.z)
+        self.rotation = (transform.rotation.pitch,
+                         transform.rotation.yaw,
+                         transform.rotation.roll)
+
+    def populate_pb2(self, transform):
+        transform.location.x = self.location[0]
+        transform.location.y = self.location[1]
+        transform.location.z = self.location[2]
+        transform.orientation.x = self.orientation[0]
+        transform.orientation.y = self.orientation[1]
+        transform.orientation.z = self.orientation[2]
+        transform.rotation.pitch = self.rotation[0]
+        transform.rotation.yaw = self.rotation[1]
+        transform.rotation.roll = self.rotation[2]
+
+    def to_transform_pb2(self):
+        transform = carla.carla_server_pb2.Transform()
+        self.populate_pb2(transform)
+        return transform
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        return "location: {}, orientation: {}, rotation: {}".format(self.location, self.orientation, self.rotation)
+
+class BoundingBox(object):
+    def __init__(self, bb):
+        self.transform = Transform(bb.transform)
+        self.extent = (bb.extent.x, bb.extent.y, bb.extent.z)
+
+    def to_bounding_box_pb2(self):
+        bb = carla.carla_server_pb2.BoundingBox()
+        self.transform.populate_pb2(bb.transform)
+        bb.extent.x = self.extent[0]
+        bb.extent.y = self.extent[1]
+        bb.extent.z = self.extent[2]
+        return bb
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        return "transform: {}, x: {}, y: {}, z: {}".format(str(self.transform), *self.extent)
+
+
+def depth_to_local_point_cloud(depth_msg, color=None, max_depth=0.9):
+    far = 1000.0  # max depth in meters.
+    normalized_depth = depth_msg.frame
+    # (Intrinsic) K Matrix
+    k = np.identity(3)
+    k[0, 2] = depth_msg.width / 2.0
+    k[1, 2] = depth_msg.height / 2.0
+    k[0, 0] = k[1, 1] = depth_msg.width / \
+        (2.0 * math.tan(depth_msg.fov * math.pi / 360.0))
+    # 2d pixel coordinates
+    pixel_length = depth_msg.width * depth_msg.height
+    u_coord = repmat(np.r_[depth_msg.width-1:-1:-1],
+                     depth_msg.height, 1).reshape(pixel_length)
+    v_coord = repmat(np.c_[depth_msg.height-1:-1:-1],
+                     1, depth_msg.width).reshape(pixel_length)
+    if color is not None:
+        color = color.reshape(pixel_length, 3)
+    normalized_depth = np.reshape(normalized_depth, pixel_length)
+
+    # Search for pixels where the depth is greater than max_depth to
+    # delete them
+    max_depth_indexes = np.where(normalized_depth > max_depth)
+    normalized_depth = np.delete(normalized_depth, max_depth_indexes)
+    u_coord = np.delete(u_coord, max_depth_indexes)
+    v_coord = np.delete(v_coord, max_depth_indexes)
+    if color is not None:
+        color = np.delete(color, max_depth_indexes, axis=0)
+
+    # pd2 = [u,v,1]
+    p2d = np.array([u_coord, v_coord, np.ones_like(u_coord)])
+
+    # P = [X,Y,Z]
+    p3d = np.dot(np.linalg.inv(k), p2d)
+    p3d *= normalized_depth * far
+
+    # Formating the output to:
+    # [[X1,Y1,Z1,R1,G1,B1],[X2,Y2,Z2,R2,G2,B2], ... [Xn,Yn,Zn,Rn,Gn,Bn]]
+    if color is not None:
+        # np.concatenate((np.transpose(p3d), color), axis=1)
+        return PointCloud(
+            depth_msg.timestamp.coordinates[0],
+            np.transpose(p3d),
+            color_array=color)
+    # [[X1,Y1,Z1],[X2,Y2,Z2], ... [Xn,Yn,Zn]]
+    return PointCloud(depth_msg.timestamp.coordinates[0], np.transpose(p3d))
+
+
+def point_cloud_from_rgbd(depth_msg, depth_transform, world_transform):
     far = 1.0
     point_cloud = depth_to_local_point_cloud(
-        depth_frame, color=None, max_depth=far)
+        depth_msg, color=None, max_depth=far)
     car_to_world_transform = world_transform * depth_transform
     point_cloud.apply_transform(car_to_world_transform)
     # filename = './point_cloud_tmp.ply'
@@ -21,11 +124,9 @@ def point_cloud_from_rgbd(depth_frame, depth_transform, world_transform):
     return point_cloud
 
 
-def get_3d_world_position(x, y, (image_width, image_height), depth_frame, depth_transform, world_transform):
-    pc = point_cloud_from_rgbd(depth_frame,
-                               depth_transform,
-                               world_transform)
-    return pc.array.tolist()[y * image_width + x]
+def get_3d_world_position(x, y, depth_msg, depth_transform, world_transform):
+    pc = point_cloud_from_rgbd(depth_msg, depth_transform, world_transform)
+    return pc.array.tolist()[y * depth_msg.width + x]
 
 
 def get_camera_intrinsic_and_transform(name,

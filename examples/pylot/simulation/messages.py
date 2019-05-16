@@ -1,61 +1,80 @@
 from collections import namedtuple
-import carla.carla_server_pb2
 
-# We are transforming protobuf objects to python objects and
-# back because we cannot pickle protobuf objects.
-class Transform(object):
-    def __init__(self, transform):
-        self.location = (transform.location.x, transform.location.y,
-                         transform.location.z)
-        self.orientation = (transform.orientation.x,
-                            transform.orientation.y,
-                            transform.orientation.z)
-        self.rotation = (transform.rotation.pitch,
-                         transform.rotation.yaw,
-                         transform.rotation.roll)
+from erdos.message import Message
 
-    def populate_pb2(self, transform):
-        transform.location.x = self.location[0]
-        transform.location.y = self.location[1]
-        transform.location.z = self.location[2]
-        transform.orientation.x = self.orientation[0]
-        transform.orientation.y = self.orientation[1]
-        transform.orientation.z = self.orientation[2]
-        transform.rotation.pitch = self.rotation[0]
-        transform.rotation.yaw = self.rotation[1]
-        transform.rotation.roll = self.rotation[2]
 
-    def to_transform_pb2(self):
-        transform = carla.carla_server_pb2.Transform()
-        self.populate_pb2(transform)
-        return transform
-
-    def __repr__(self):
-        return self.__str__()
+class FrameMessage(Message):
+    def __init__(self, frame_array, timestamp, encoding='BGR', stream_name='default'):
+        super(FrameMessage, self).__init__(None, timestamp, stream_name)
+        self.frame = frame_array
+        self.encoding = 'BGR'
 
     def __str__(self):
-        return "location: {}, orientation: {}, rotation: {}".format(self.location, self.orientation, self.rotation) 
+        return 'timestamp: {}'.format(self.timestamp)
 
-class BoundingBox(object):
-    def __init__(self, bb):
-        self.transform = Transform(bb.transform)
-        self.extent = (bb.extent.x, bb.extent.y, bb.extent.z)
 
-    def to_bounding_box_pb2(self):
-        bb = carla.carla_server_pb2.BoundingBox()
-        self.transform.populate_pb2(bb.transform)
-        bb.extent.x = self.extent[0]
-        bb.extent.y = self.extent[1]
-        bb.extent.z = self.extent[2]
-        return bb
-
-    def __repr__(self):
-        return self.__str__()
+class DepthFrameMessage(Message):
+    def __init__(self, frame, fov, timestamp, stream_name='default'):
+        super(DepthFrameMessage, self).__init__(None, timestamp, stream_name)
+        self.frame = frame
+        self.width = frame.shape[1]
+        self.height = frame.shape[0]
+        self.fov = fov
 
     def __str__(self):
-        return "transform: {}, x: {}, y: {}, z: {}".format(str(self.transform), *self.extent) 
+        return 'timestamp: {}, width: {}, height: {}, fov: {}'.format(
+            self.timestamp, self.width, self.height, self.fov)
+
 
 Vehicle = namedtuple('Vehicle', 'position, bounding_box, forward_speed')
+
+
+class GroundVehiclesMessage(Message):
+    def __init__(self, vehicles, timestamp, stream_name='default'):
+        super(GroundVehiclesMessage, self).__init__(None, timestamp, stream_name)
+        self.vehicles = vehicles
+
+    def __str__(self):
+        return 'timestamp: {}, vehicles: {}'.format(
+            self.timestamp, self.vehicles)
+
+
 Pedestrian = namedtuple('Pedestrian', 'id, position, bounding_box, forward_speed')
+
+
+class GroundPedestriansMessage(Message):
+    def __init__(self, pedestrians, timestamp, stream_name='default'):
+        super(GroundPedestriansMessage, self).__init__(
+            None, timestamp, stream_name)
+        self.pedestrians = pedestrians
+
+    def __str__(self):
+        return 'timestmap: {}, pedestrians: {}'.format(
+            self.timestamp, self.pedestrians)
+
+
 TrafficLight = namedtuple('TrafficLight', 'position, state')
+
+
+class GroundTrafficLightsMessage(Message):
+    def __init__(self, traffic_lights, timestamp, stream_name='default'):
+        super(GroundTrafficLightsMessage, self).__init__(
+            None, timestamp, stream_name)
+        self.traffic_lights = traffic_lights
+
+    def __str__(self):
+        return 'timestamp: {}, traffic lights: {}'.format(
+            self.timestamp, self.traffic_lights)
+
 SpeedLimitSign = namedtuple('SpeedLimitSign', 'position, limit')
+
+
+class GroundSpeedSignsMessage(Message):
+    def __init__(self, speed_signs, timestamp, stream_name='default'):
+        super(GroundSpeedSignsMessage, self).__init__(
+            None, timestamp, stream_name)
+        self.speed_signs = speed_signs
+
+    def __str__(self):
+        return 'timestamp: {}, speed signs: {}'.format(
+            self.timestamp, self.speed_signs)

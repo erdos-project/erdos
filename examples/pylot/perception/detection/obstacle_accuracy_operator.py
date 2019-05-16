@@ -253,25 +253,25 @@ class ObstacleAccuracyOperator(Op):
         self._bgr_imgs = self._bgr_imgs[1:]
 
         # Get bboxes for pedestrians.
-        pedestrians = self._pedestrians[0].data
+        pedestrians = self._pedestrians[0].pedestrians
         self._pedestrians = self._pedestrians[1:]
         ped_bboxes = self.__get_pedestrians_bboxes(
             pedestrians, world_transform, depth_array)
 
         # Get bboxes for vehicles.
-        vehicles = self._vehicles[0].data
+        vehicles = self._vehicles[0].vehicles
         self._vehicles = self._vehicles[1:]
         vec_bboxes = self.__get_vehicles_bboxes(
             vehicles, world_transform, depth_array)
 
         # Get bboxes for traffic lights.
-        traffic_lights = self._traffic_lights[0].data
+        traffic_lights = self._traffic_lights[0].traffic_lights
         self._traffic_lights = self._traffic_lights[1:]
         # self.__get_traffic_light_bboxes(traffic_lights, world_transform,
         #                                 depth_array)
 
         # Get bboxes for the traffic signs.
-        traffic_signs = self._traffic_signs[0].data
+        traffic_signs = self._traffic_signs[0].speed_signs
         self._traffic_signs = self._traffic_signs[1:]
         # self.__get_traffic_sign_bboxes(traffic_signs, world_transform,
         #                                depth_array)

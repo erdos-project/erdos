@@ -58,9 +58,9 @@ class SegmentationDRNOperator(Op):
 
         self._logger.info('{} received frame {}'.format(self.name, msg.timestamp))
         start_time = time.time()
-        image = bgra_to_bgr(msg.data)
-        image = torch.from_numpy(image.transpose([2, 0,
-                                                  1])).unsqueeze(0).float()
+        assert msg.encoding == 'BGR', 'Expects BGR frames'
+        image = torch.from_numpy(msg.frame.transpose([2, 0,
+                                                      1])).unsqueeze(0).float()
         image_var = Variable(image, requires_grad=False, volatile=True)
 
         final = self._model(image_var)[0]

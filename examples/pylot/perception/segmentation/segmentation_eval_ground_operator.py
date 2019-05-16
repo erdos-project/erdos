@@ -34,8 +34,7 @@ class SegmentationEvalGroundOperator(Op):
             start_time = time.time()
             # We don't fully transform it to cityscapes palette to avoid
             # introducing extra latency.
-            frame_array = msg.data
-            frame_masks = generate_masks(frame_array)
+            frame_masks = generate_masks(msg.frame)
 
             if len(self._ground_masks) > 0:
                 if self._time_delta is None:

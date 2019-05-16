@@ -34,7 +34,7 @@ class ERDOSAgentOperator(Op):
                         i=self._flags.pid_i,
                         d=self._flags.pid_d)
         self._world_transform = []
-        self._depth_imgs = []
+        self._depth_msgs = []
         self._traffic_lights = []
         self._obstacles = []
         self._vehicle_pos = None
@@ -43,7 +43,7 @@ class ERDOSAgentOperator(Op):
         self._wp_angle = None
         self._wp_vector = None
         self._wp_angle_speed = None
-        (self._depth_intrinsic, self._depth_transform, self._depth_img_size) = self.__setup_camera_tranforms(name=depth_camera_name, postprocessing='Depth')
+        (_, self._depth_transform, _) = self.__setup_camera_tranforms(name=depth_camera_name, postprocessing='Depth')
 
     def __setup_camera_tranforms(self,
                                  name,
@@ -113,19 +113,19 @@ class ERDOSAgentOperator(Op):
         self._logger.info("Timestamps {} {} {} {}".format(
             self._obstacles[0].timestamp,
             self._traffic_lights[0].timestamp,
-            self._depth_imgs[0].timestamp,
+            self._depth_msgs[0].timestamp,
             self._world_transform[0].timestamp))
         world_transform = self._world_transform[0].data
         self._world_transform = self._world_transform[1:]
 
-        depth_img = self._depth_imgs[0].data
-        self._depth_imgs = self._depth_imgs[1:]
+        depth_msg = self._depth_msgs[0]
+        self._depth_msgs = self._depth_msgs[1:]
 
-        traffic_lights = self.__transform_tl_output(depth_img, world_transform)
+        traffic_lights = self.__transform_tl_output(depth_msg, world_transform)
         self._traffic_lights = self._traffic_lights[1:]
 
         (pedestrians, vehicles) = self.__transform_detector_output(
-            depth_img, world_transform)
+            depth_msg, world_transform)
         self._obstacles = self._obstacles[1:]
 
         speed_factor, state = self.__stop_for_agents(
@@ -139,7 +139,7 @@ class ERDOSAgentOperator(Op):
     def __is_ready_to_run(self):
         vehicle_data = self._vehicle_pos and self._vehicle_speed and self._wp_angle
         perception_data = (len(self._obstacles) > 0) and (len(self._traffic_lights) > 0)
-        ground_data = (len(self._depth_imgs) > 0) and (len(self._world_transform) > 0)
+        ground_data = (len(self._depth_msgs) > 0) and (len(self._world_transform) > 0)
         return vehicle_data and perception_data and ground_data
 
     def on_waypoints_update(self, msg):
@@ -151,7 +151,7 @@ class ERDOSAgentOperator(Op):
         self._world_transform.append(msg)
 
     def on_depth_camera_update(self, msg):
-        self._depth_imgs.append(msg)
+        self._depth_msgs.append(msg)
 
     def on_segmented_frame(self, msg):
         self._logger.info("Received segmented frame update at {}".format(msg.timestamp))
@@ -186,20 +186,20 @@ class ERDOSAgentOperator(Op):
     def execute(self):
         self.spin()
 
-    def __transform_tl_output(self, depth_img, world_transform):
+    def __transform_tl_output(self, depth_msg, world_transform):
         traffic_lights = []
         for tl in self._traffic_lights[0].detected_objects:
             x = (tl.corners[0] + tl.corners[1]) / 2
             y = (tl.corners[2] + tl.corners[3]) / 2
             (x3d, y3d, z3d) = get_3d_world_position(
-                x, y, self._depth_img_size, depth_img, self._depth_transform, world_transform)
+                x, y, depth_msg, self._depth_transform, world_transform)
             state = 0
             if tl.label is not 'Green':
                 state = 1
             traffic_lights.append((x3d, y3d, state))
         return traffic_lights
 
-    def __transform_detector_output(self, depth_img, world_transform):
+    def __transform_detector_output(self, depth_msg, world_transform):
         vehicles = []
         pedestrians = []
         for detected_obj in self._obstacles[0].detected_objects:
@@ -207,8 +207,7 @@ class ERDOSAgentOperator(Op):
             y = (detected_obj.corners[2] + detected_obj.corners[3]) / 2
             if detected_obj.label == 'person':
                 (x3d, y3d, z3d) = get_3d_world_position(
-                    x, y, self._depth_img_size, depth_img,
-                    self._depth_transform, world_transform)
+                    x, y, depth_msg, self._depth_transform, world_transform)
                 pedestrians.append((x3d, y3d))
             elif (detected_obj.label == 'car' or
                   detected_obj.label == 'bicycle' or
@@ -216,8 +215,7 @@ class ERDOSAgentOperator(Op):
                   detected_obj.label == 'bus' or
                   detected_obj.label == 'truck'):
                 (x3d, y3d, z3d) = get_3d_world_position(
-                    x, y, self._depth_img_size, depth_img,
-                    self._depth_transform, world_transform)
+                    x, y, depth_msg, self._depth_transform, world_transform)
                 vehicles.append((x3d, y3d))
         return (pedestrians, vehicles)
 
