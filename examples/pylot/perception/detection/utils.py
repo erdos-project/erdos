@@ -1,3 +1,4 @@
+from collections import namedtuple
 import cv2
 import numpy as np
 from numpy.linalg import inv
@@ -97,6 +98,28 @@ coco_bbox_color_list = np.array(
             0.50, 0.5, 0
         ]
     ).astype(np.float32)
+
+
+class DetectedObject(object):
+    def __init__(self, corners, confidence, label):
+        self.corners = corners
+        self.confidence = confidence
+        self.label = label
+
+    def visualize_on_img(self, image_np, bbox_color_map):
+        txt_font = cv2.FONT_HERSHEY_SIMPLEX
+        (xmin, xmax, ymin, ymax) = self.corners
+        label_confidence_txt = '{}{:.1f}'.format(self.label, self.confidence)
+        txt_size = cv2.getTextSize(label_confidence_txt, txt_font, 0.5, 2)[0]
+        color = bbox_color_map[self.label]
+        # Show bounding box.
+        cv2.rectangle(image_np, (xmin, ymin), (xmax, ymax), color, 2)
+        # Show text.
+        cv2.rectangle(image_np,
+                      (xmin, ymin - txt_size[1] - 2),
+                      (xmin + txt_size[0], ymin - 2), color, -1)
+        cv2.putText(image_np, label_confidence_txt, (xmin, ymin - 2),
+                    txt_font, 0.5, (0, 0, 0), thickness=1, lineType=cv2.LINE_AA)
 
 
 def compute_miou(bboxes1, bboxes2):
@@ -287,13 +310,13 @@ def get_precision_recall_at_iou(ground_truths, predictions, iou_threshold):
     return get_precision_recall(true_pos, false_pos, false_neg)
 
 
-def get_pedestrian_mAP(ground_bboxes, detector_output):
+def get_pedestrian_mAP(ground_bboxes, detected_objs):
     """Return mAP with IoU threshold of 0.5"""
     # Select the pedestrians.
     confidence_bbox = []
-    for (corners, score, label) in detector_output:
-        if label == 'person':
-            confidence_bbox.append((score, corners))
+    for detected_obj in detected_objs:
+        if detected_obj.label == 'person':
+            confidence_bbox.append((detected_obj.confidence, detected_obj.corners))
     # Sort bboxes descending by score.
     confidence_bbox.sort()
     confidence_bbox.reverse()
@@ -353,21 +376,10 @@ def visualize_ground_bboxes(op_name, timestamp, image_np, pedestrian_bboxes,
     cv2.waitKey(1)
 
 
-def visualize_bboxes(op_name, timestamp, image_np, detector_output, bbox_color_map):
-    txt_font = cv2.FONT_HERSHEY_SIMPLEX
+def visualize_bboxes(op_name, timestamp, image_np, detected_objs, bbox_color_map):
+#    txt_font = cv2.FONT_HERSHEY_SIMPLEX
     add_timestamp(timestamp, image_np)
-    for (corners, confidence, label) in detector_output:
-        (xmin, xmax, ymin, ymax) = corners
-        label_confidence_txt = '{}{:.1f}'.format(label, confidence)
-        txt_size = cv2.getTextSize(label_confidence_txt, txt_font, 0.5, 2)[0]
-        color = bbox_color_map[label]
-        # Show bounding box.
-        cv2.rectangle(image_np, (xmin, ymin), (xmax, ymax), color, 2)
-        # Show text.
-        cv2.rectangle(image_np,
-                      (xmin, ymin - txt_size[1] - 2),
-                      (xmin + txt_size[0], ymin - 2), color, -1)
-        cv2.putText(image_np, label_confidence_txt, (xmin, ymin - 2),
-                    txt_font, 0.5, (0, 0, 0), thickness=1, lineType=cv2.LINE_AA)
+    for detected_obj in detected_objs:
+        detected_obj.visualize_on_img(image_np, bbox_color_map)
     cv2.imshow(op_name, image_np)
     cv2.waitKey(1)

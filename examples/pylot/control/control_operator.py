@@ -1,8 +1,8 @@
 from erdos.data_stream import DataStream
-from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import setup_logging
 
+from control.messages import ControlMessage
 import simulation.planner.planner_operator
 
 # Constants Used for the high level commands
@@ -24,41 +24,25 @@ class ControlOperator(Op):
         return [DataStream(name='action_stream')]
 
     def compute_action(self, msg):
-        action = None
+        steer = 0.0
+        throttle = 0.0
+        brake = 0.0
+        hand_brake = False
+        reverse = False
         if msg.data == REACH_GOAL:
-            action = {
-                'steer': 0.0,
-                'throttle': 0.0,
-                'brake': 0.5,
-                'hand_brake': False,
-                'reverse': False
-            }
+            brake = 0.5
         elif msg.data == GO_STRAIGHT or msg.data == LANE_FOLLOW:
-            action = {
-                'steer': 0.0,
-                'throttle': 0.5,
-                'brake': 0.0,
-                'hand_brake': False,
-                'reverse': False
-            }
+            throttle = 0.5
         elif msg.data == TURN_RIGHT:
-            action = {
-                'steer': 0.5,
-                'throttle': 0.5,
-                'brake': 0.0,
-                'hand_brake': False,
-                'reverse': False
-            }
+            steer = 0.5
+            throttle = 0.5
         elif msg.data == TURN_LEFT:
-            action = {
-                'steer': -0.5,
-                'throttle': 0.5,
-                'brake': 0.0,
-                'hand_brake': False,
-                'reverse': False
-            }
-        output_msg = Message(action, msg.timestamp)
-        self.get_output_stream('action_stream').send(output_msg)
+            steer = -0.5
+            throttle = 0.5
+
+        control_msg = ControlMessage(
+            steer, throttle, brake, hand_brake, reverse, msg.timestamp)
+        self.get_output_stream('action_stream').send(control_msg)
 
     def execute(self):
         self.spin()

@@ -3,11 +3,11 @@ import tensorflow as tf
 import time
 
 from erdos.data_stream import DataStream
-from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
-from perception.detection.utils import load_coco_labels, load_coco_bbox_colors, visualize_bboxes
+from perception.detection.utils import DetectedObject, load_coco_labels, load_coco_bbox_colors, visualize_bboxes
+from perception.messages import DetectorMessage
 from pylot_utils import bgr_to_rgb, rgb_to_bgr, create_traffic_lights_stream, is_camera_stream
 
 
@@ -95,7 +95,7 @@ class TrafficLightDetOperator(Op):
         self._logger.info('Traffic light labels {}'.format(labels))
         
         index = 0
-        output = []
+        traffic_lights = []
         im_width = image_np.shape[1]
         im_height = image_np.shape[0]
         while index < len(boxes) and index < len(scores):
@@ -105,19 +105,19 @@ class TrafficLightDetOperator(Op):
                 ymax = int(boxes[index][2] * im_height)
                 xmax = int(boxes[index][3] * im_width)
                 corners = (xmin, xmax, ymin, ymax)
-                output.append((corners, scores[index], labels[index]))
+                traffic_lights.append(DetectedObject(corners, scores[index], labels[index]))
             index += 1
 
         if self._flags.visualize_traffic_light_output:
             visualize_bboxes(self.name, msg.timestamp, rgb_to_bgr(image_np),
-                             output, self._bbox_colors)
+                             traffic_lights, self._bbox_colors)
 
         # Get runtime in ms.
         runtime = (time.time() - start_time) * 1000
         self._csv_logger.info('{},{},"{}",{}'.format(
             time_epoch_ms(), self.name, msg.timestamp, runtime))
 
-        output_msg = Message((output, runtime), msg.timestamp)
+        output_msg = DetectorMessage(traffic_lights, runtime, msg.timestamp)
         self.get_output_stream(self._output_stream_name).send(output_msg)
 
     def execute(self):

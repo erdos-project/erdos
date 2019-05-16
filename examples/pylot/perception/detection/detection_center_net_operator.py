@@ -5,11 +5,11 @@ import PIL.ImageDraw as ImageDraw
 import time
 
 from erdos.data_stream import DataStream
-from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
-from perception.detection.utils import load_coco_labels, load_coco_bbox_colors, visualize_bboxes
+from perception.detection.utils import DetectedObject, load_coco_labels, load_coco_bbox_colors, visualize_bboxes
+from perception.messages import DetectorMessage
 from pylot_utils import create_obstacles_stream, is_camera_stream
 
 from detectors.detector_factory import detector_factory
@@ -54,16 +54,16 @@ class DetectionCenterNetOperator(Op):
         start_time = time.time()
         image_np = msg.data
         results = self._detector.run(image_np)
-        output = self.__get_output_bboxes(results['results'])
+        detected_objs = self.__get_output_bboxes(results['results'])
         if self._flags.visualize_detector_output:
-            visualize_bboxes(self.name, msg.timestamp, image_np, output,
+            visualize_bboxes(self.name, msg.timestamp, image_np, detected_objs,
                              self._bbox_colors)
 
         # Get runtime in ms.
         runtime = (time.time() - start_time) * 1000
         self._csv_logger.info('{},{},"{}",{}'.format(
             time_epoch_ms(), self.name, msg.timestamp, runtime))
-        output_msg = Message((output, runtime), msg.timestamp)
+        output_msg = DetectorMessage(detected_objs, runtime, msg.timestamp)
         self.get_output_stream(self._output_stream_name).send(output_msg)
 
     def execute(self):
@@ -77,5 +77,5 @@ class DetectionCenterNetOperator(Op):
                 confidence = bbox[4]
                 if confidence >= self._flags.detector_min_score_threshold:
                     corners = (int(bbox[0]), int(bbox[2]), int(bbox[1]), int(bbox[3]))
-                    output.append((corners, confidence, self._coco_labels[category]))
+                    output.append(DetectedObject(corners, confidence, self._coco_labels[category]))
         return output

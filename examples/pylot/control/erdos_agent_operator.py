@@ -5,11 +5,11 @@ import time
 from carla.sensor import Camera
 
 from erdos.data_stream import DataStream
-from erdos.message import Message
 from erdos.op import Op
 from erdos.timestamp import Timestamp
 from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_ms
 
+from control.messages import ControlMessage
 import control.utils as agent_utils
 from pid_controller.pid import PID
 from simulation.utils import get_3d_world_position
@@ -131,10 +131,10 @@ class ERDOSAgentOperator(Op):
         speed_factor, state = self.__stop_for_agents(
             self._wp_angle, self._wp_vector, vehicles, pedestrians, traffic_lights)
 
-        control = self.get_control(self._wp_angle, self._wp_angle_speed, speed_factor,
-                                   self._vehicle_speed * 3.6)
-        output_msg = Message(control, Timestamp(coordinates=[0]))
-        self.get_output_stream('action_stream').send(output_msg)
+        control_msg = self.get_control_message(
+            self._wp_angle, self._wp_angle_speed, speed_factor,
+            self._vehicle_speed * 3.6, Timestamp(coordinates=[0]))
+        self.get_output_stream('action_stream').send(control_msg)
 
     def __is_ready_to_run(self):
         vehicle_data = self._vehicle_pos and self._vehicle_speed and self._wp_angle
@@ -143,7 +143,9 @@ class ERDOSAgentOperator(Op):
         return vehicle_data and perception_data and ground_data
 
     def on_waypoints_update(self, msg):
-        (self._wp_angle, self._wp_vector, self._wp_angle_speed, _) = msg.data
+        self._wp_angle = msg.wp_angle
+        self._wp_vector = msg.wp_vector
+        self._wp_angle_speed = msg.wp_angle_speed
 
     def on_world_transform_update(self, msg):
         self._world_transform.append(msg)
@@ -186,14 +188,13 @@ class ERDOSAgentOperator(Op):
 
     def __transform_tl_output(self, depth_img, world_transform):
         traffic_lights = []
-        (tl_det_output, _) = self._traffic_lights[0].data
-        for (corners, score, label) in tl_det_output:
-            x = (corners[0] + corners[1]) / 2
-            y = (corners[2] + corners[3]) / 2
+        for tl in self._traffic_lights[0].detected_objects:
+            x = (tl.corners[0] + tl.corners[1]) / 2
+            y = (tl.corners[2] + tl.corners[3]) / 2
             (x3d, y3d, z3d) = get_3d_world_position(
                 x, y, self._depth_img_size, depth_img, self._depth_transform, world_transform)
             state = 0
-            if label is not 'Green':
+            if tl.label is not 'Green':
                 state = 1
             traffic_lights.append((x3d, y3d, state))
         return traffic_lights
@@ -201,17 +202,19 @@ class ERDOSAgentOperator(Op):
     def __transform_detector_output(self, depth_img, world_transform):
         vehicles = []
         pedestrians = []
-        (obstacles, _) = self._obstacles[0].data
-        for (corners, score, label) in obstacles:
-            x = (corners[0] + corners[1]) / 2
-            y = (corners[2] + corners[3]) / 2
-            if label == 'person':
+        for detected_obj in self._obstacles[0].detected_objects:
+            x = (detected_obj.corners[0] + detected_obj.corners[1]) / 2
+            y = (detected_obj.corners[2] + detected_obj.corners[3]) / 2
+            if detected_obj.label == 'person':
                 (x3d, y3d, z3d) = get_3d_world_position(
                     x, y, self._depth_img_size, depth_img,
                     self._depth_transform, world_transform)
                 pedestrians.append((x3d, y3d))
-            elif (label == 'car' or label == 'bicycle' or
-                  label == 'motorcycle' or label == 'bus' or label == 'truck'):
+            elif (detected_obj.label == 'car' or
+                  detected_obj.label == 'bicycle' or
+                  detected_obj.label == 'motorcycle' or
+                  detected_obj.label == 'bus' or
+                  detected_obj.label == 'truck'):
                 (x3d, y3d, z3d) = get_3d_world_position(
                     x, y, self._depth_img_size, depth_img,
                     self._depth_transform, world_transform)
@@ -264,8 +267,8 @@ class ERDOSAgentOperator(Op):
         self._logger.info('Aggent speed factors {}'.format(state))
         return speed_factor, state
 
-    def get_control(self, wp_angle, wp_angle_speed, speed_factor,
-                    current_speed):
+    def get_control_message(self, wp_angle, wp_angle_speed, speed_factor,
+                            current_speed, timestamp):
         current_speed = max(current_speed, 0)
         steer = self._flags.steer_gain * wp_angle
         if steer > 0:
@@ -292,10 +295,4 @@ class ERDOSAgentOperator(Op):
         else:
             brake = 0
 
-        return {
-            'steer': steer,
-            'throttle': throttle,
-            'brake': brake,
-            'hand_brake': False,
-            'reverse': False
-        }
+        return ControlMessage(steer, throttle, brake, False, False, timestamp)

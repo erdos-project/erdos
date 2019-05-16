@@ -4,7 +4,6 @@ import threading
 import time
 
 from erdos.data_stream import DataStream
-from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
@@ -85,17 +84,16 @@ class ObjectTrackerOp(Op):
         self._lock.acquire()
         self._ready_to_update = False
         self._logger.info("Received {} bboxes for {}".format(
-            len(msg.data), msg.timestamp))
+            len(msg.detected_objects), msg.timestamp))
         # Remove frames that are older than the detector update.
         while len(self._to_process
                   ) > 0 and self._to_process[0][0] < msg.timestamp:
             self._logger.info("Removing stale {} {}".format(
                 self._to_process[0][0], msg.timestamp))
             self._to_process.popleft()
-        (detector_res, runtime) = msg.data
-        # bboxes = self.__get_highest_confidence_pedestrian(detector_res)
+        # bboxes = self.__get_highest_confidence_pedestrian(msg.detected_objects)
         # Track all pedestrians.
-        bboxes = self.__get_pedestrians(detector_res)
+        bboxes = self.__get_pedestrians(msg.detected_objects)
         if len(bboxes) > 0:
             if len(self._to_process) > 0:
                 # Found the frame corresponding to the bounding boxes.
@@ -136,23 +134,23 @@ class ObjectTrackerOp(Op):
         self._to_process = state[2]
         self._last_seq_num = state[3]
 
-    def __get_highest_confidence_pedestrian(self, detector_res):
-        max_score = 0
+    def __get_highest_confidence_pedestrian(self, detected_objs):
+        max_confidence = 0
         max_corners = None
-        for (corners, score, label) in detector_res:
-            if label == 'person' and score > max_score:
-                max_corners = corners
-                max_score = score
+        for detected_obj in detected_objs:
+            if detected_obj.label == 'person' and detected_obj.confidence > max_confidence:
+                max_corners = detected_obj.corners
+                max_confidence = detected_obj.confidence
         if max_corners:
             return [max_corners]
         else:
             return []
 
-    def __get_pedestrians(self, detector_res):
+    def __get_pedestrians(self, detector_objs):
         bboxes = []
-        for (corners, score, label) in detector_res:
-            if label == 'person':
-                bboxes.append(corners)
+        for detected_obj in detector_objs:
+            if detected_obj.label == 'person':
+                bboxes.append(detected_obj.corners)
         return bboxes
 
     def __initialize_trackers(self, frame, bboxes, timestamp):

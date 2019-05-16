@@ -2,11 +2,11 @@ import math
 import time
 
 from erdos.data_stream import DataStream
-from erdos.message import Message
 from erdos.op import Op
 from erdos.timestamp import Timestamp
 from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_ms
 
+from control.messages import ControlMessage
 import control.utils as agent_utils
 from pid_controller.pid import PID
 from simulation.planner.map import CarlaMap
@@ -60,7 +60,9 @@ class GroundAgentOperator(Op):
         return [pylot_utils.create_agent_action_stream()]
 
     def on_waypoints_update(self, msg):
-        (self._wp_angle, self._wp_vector, self._wp_angle_speed, _) = msg.data
+        self._wp_angle = msg.wp_angle
+        self._wp_vector = msg.wp_vector
+        self._wp_angle_speed = msg.wp_angle_speed
 
     def on_vehicle_pos_update(self, msg):
         self._logger.info("Received vehicle pos %s", msg)
@@ -96,10 +98,10 @@ class GroundAgentOperator(Op):
         speed_factor, state = self.stop_for_agents(
             self._wp_angle, self._wp_vector, self._vehicles, self._pedestrians,
             self._traffic_lights)
-        control = self.get_control(self._wp_angle, self._wp_angle_speed, speed_factor,
-                                   self._vehicle_speed * 3.6)
-        output_msg = Message(control, Timestamp(coordinates=[0]))
-        self.get_output_stream('action_stream').send(output_msg)
+        control_msg = self.get_control_message(
+            self._wp_angle, self._wp_angle_speed, speed_factor,
+            self._vehicle_speed * 3.6, Timestamp(coordinates=[0]))
+        self.get_output_stream('action_stream').send(control_msg)
 
     def stop_for_agents(self, wp_angle, wp_vector, vehicles, pedestrians,
                         traffic_lights):
@@ -165,8 +167,8 @@ class GroundAgentOperator(Op):
         self.run_step()
         self.spin()
 
-    def get_control(self, wp_angle, wp_angle_speed, speed_factor,
-                    current_speed):
+    def get_control_message(self, wp_angle, wp_angle_speed, speed_factor,
+                            current_speed, timestamp):
         current_speed = max(current_speed, 0)
         steer = self._flags.steer_gain * wp_angle
         if steer > 0:
@@ -193,10 +195,4 @@ class GroundAgentOperator(Op):
         else:
             brake = 0
 
-        return {
-            'steer': steer,
-            'throttle': throttle,
-            'brake': brake,
-            'hand_brake': False,
-            'reverse': False
-        }
+        return ControlMessage(steer, throttle, brake, False, False, timestamp)

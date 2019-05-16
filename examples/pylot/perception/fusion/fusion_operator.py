@@ -3,10 +3,10 @@ import numpy as np
 import time
 
 from erdos.data_stream import DataStream
-from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_ms
 
+from perception.messages import ObjPositionsMessage
 import pylot_utils
 
 
@@ -115,7 +115,7 @@ class FusionOperator(Op):
         self._csv_logger.info('{},{},{}'.format(
             time_epoch_ms(), self.name, runtime))
 
-        output_msg = Message(object_positions, timestamp)
+        output_msg = ObjPositionsMessage(object_positions, timestamp)
         self.get_output_stream(self._output_stream_name).send(output_msg)
 
     def update_pos(self, msg):
@@ -125,13 +125,11 @@ class FusionOperator(Op):
         # Filter objects
         self._logger.info("Received update objects")
         vehicle_bounds = []
-        (detector_res, runtime) = msg.data
-        for corners, score, label in detector_res:
-            self._logger.info("%s received: %s %s %s ",
-                              self.name, corners, score, label)
+        for detected_object in msg.detected_objects:
+            self._logger.info("%s received: %s ", self.name, detected_object)
             # TODO(ionel): Deal with different types of labels.
-            if label in {"truck", "car"}:
-                vehicle_bounds.append(corners)
+            if detected_object.label in {"truck", "car"}:
+                vehicle_bounds.append(detected_object.corners)
         self._objects.append((msg.timestamp, vehicle_bounds))
 
     def update_distances(self, msg):

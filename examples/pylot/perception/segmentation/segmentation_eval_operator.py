@@ -107,9 +107,8 @@ class SegmentationEvalOperator(Op):
         if msg.timestamp.coordinates[1] < 2:
             return
 
-        (frame, runtime) = msg.data
         game_time = msg.timestamp.coordinates[0]
-        self._segmented_frames.append((game_time, frame))
+        self._segmented_frames.append((game_time, msg.frame))
         # Two metrics: 1) mIoU, and 2) timely-mIoU
         if self._flags.eval_segmentation_metric == 'mIoU':
             # We will compare with segmented ground frame with the same game
@@ -119,7 +118,7 @@ class SegmentationEvalOperator(Op):
         elif self._flags.eval_segmentation_metric == 'timely-mIoU':
             # Ground segmented frame time should be as close as possible to
             # the time game time + segmentation runtime.
-            segmented_time = game_time + runtime
+            segmented_time = game_time + msg.runtime
             if self._flags.segmentation_eval_use_accuracy_model:
                 # Include the decay of segmentation with time if we do not
                 # want to use the accuracy of our models.

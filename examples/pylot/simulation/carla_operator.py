@@ -304,15 +304,19 @@ class CarlaOperator(Op):
 
     def update_control(self, msg):
         """Updates the control dict"""
-        self.control.update(msg.data)
+        self.control['steer'] = msg.steer
+        self.control['throttle'] = msg.throttle
+        self.control['brake'] = msg.brake
+        self.control['hand_brake'] = msg.hand_brake
+        self.control['reverse'] = msg.reverse
 
     def execute(self):
         # Subscribe to control streams
         self.control = {
             'steer': 0.0,
             'throttle': 0.0,
-            'break': 0.0,
-            'hand_break': False,
+            'brake': 0.0,
+            'hand_brake': False,
             'reverse': False
         }
         self.client = CarlaClient(self._flags.carla_host,

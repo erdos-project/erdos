@@ -5,10 +5,10 @@ import time
 import torch
 
 from erdos.data_stream import DataStream
-from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
+from perception.messages import SegmentedFrameMessage
 from perception.segmentation.utils import transform_to_cityscapes
 from pylot_utils import add_timestamp, create_segmented_camera_stream, is_camera_stream, rgb_to_bgr, bgra_to_bgr
 
@@ -70,7 +70,7 @@ class SegmentationDLAOperator(Op):
         self._csv_logger.info('{},{},"{}",{}'.format(
             time_epoch_ms(), self.name, msg.timestamp, runtime))
 
-        output_msg = Message((output, runtime), msg.timestamp)
+        output_msg = SegmentedFrameMessage(output, runtime, msg.timestamp)
         self.get_output_stream(self._output_stream_name).send(output_msg)
 
     def execute(self):

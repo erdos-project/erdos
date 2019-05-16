@@ -34,10 +34,9 @@ class FusionVerificationOperator(Op):
         while self.vehicles[0][0] < msg.timestamp:
             self.vehicles.popleft()
 
-        predictions = msg.data
         truths = self.vehicles[0][1]
         min_errors = []
-        for prediction in predictions:
+        for prediction in msg.obj_positions:
             min_error = float("inf")
             for truth in truths:
                 error = np.linalg.norm(prediction - truth)

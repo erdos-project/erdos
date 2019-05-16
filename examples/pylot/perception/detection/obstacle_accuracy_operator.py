@@ -108,9 +108,9 @@ class ObstacleAccuracyOperator(Op):
                             time_epoch_ms(), self.name, 'precision-IoU', avg_precision))
                 else:
                     # Get detector output obstacles.
-                    det_output = self.__get_obstacles_at(start_time)
-                    if (len(det_output) > 0 or len(end_bboxes) > 0):
-                        mAP = get_pedestrian_mAP(end_bboxes, det_output)
+                    det_objs = self.__get_obstacles_at(start_time)
+                    if (len(det_objs) > 0 or len(end_bboxes) > 0):
+                        mAP = get_pedestrian_mAP(end_bboxes, det_objs)
                         self._logger.info('mAP is: {}'.format(mAP))
                         self._csv_logger.info('{},{},{},{}'.format(
                             time_epoch_ms(), self.name, 'mAP', mAP))
@@ -196,9 +196,8 @@ class ObstacleAccuracyOperator(Op):
         # between frames.
         if msg.timestamp.coordinates[1] < 2:
             return
-        (bboxes, runtime) = msg.data
         game_time = msg.timestamp.coordinates[0]
-        self._detected_obstacles.append((game_time, bboxes))
+        self._detected_obstacles.append((game_time, msg.detected_objects))
         # Two metrics: 1) mAP, and 2) timely-mAP
         if self._flags.eval_detection_metric == 'mAP':
             # We will compare the bboxes with the ground truth at the same
@@ -207,7 +206,7 @@ class ObstacleAccuracyOperator(Op):
         elif self._flags.eval_detection_metric == 'timely-mAP':
             # Ground bboxes time should be as close as possible to the time of the
             # obstacles + detector runtime.
-            ground_bboxes_time = game_time + runtime
+            ground_bboxes_time = game_time + msg.runtime
             if self._flags.detection_eval_use_accuracy_model:
                 # Include the decay of detection with time if we do not want to use
                 # the accuracy of our models.

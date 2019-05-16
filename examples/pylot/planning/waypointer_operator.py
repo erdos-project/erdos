@@ -1,10 +1,10 @@
 import time
 
-from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_ms
 
 from control.utils import get_angle, get_world_vec_dist
+from planning.messages import WaypointMessage
 from simulation.planner.waypointer import Waypointer
 import pylot_utils
 
@@ -35,12 +35,13 @@ class WaypointerOperator(Op):
 
     def on_vehicle_pos_update(self, msg):
         start_time = time.time()
-        payload = self.get_waypoints(msg.data)
+        (wp_angle, wp_vector, wp_angle_speed, wp_vector_speed) = self.get_waypoints(msg.data)
         runtime = (time.time() - start_time) * 1000
         self._csv_logger.info('{},{},{}'.format(
             time_epoch_ms(), self.name, runtime))
-        self.get_output_stream('waypoints').send(
-            Message(payload, msg.timestamp))
+        output_msg = WaypointMessage(
+            wp_angle, wp_vector, wp_angle_speed, wp_vector_speed, msg.timestamp)
+        self.get_output_stream('waypoints').send(output_msg)
 
     def get_waypoints(self, vehicle_pos):
         vehicle_x = vehicle_pos[0][0]
