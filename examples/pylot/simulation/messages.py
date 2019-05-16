@@ -7,16 +7,20 @@ class FrameMessage(Message):
     def __init__(self, frame_array, timestamp, encoding='BGR', stream_name='default'):
         super(FrameMessage, self).__init__(None, timestamp, stream_name)
         self.frame = frame_array
+        self.width = frame_array.shape[1]
+        self.height = frame_array.shape[0]
         self.encoding = 'BGR'
 
     def __str__(self):
-        return 'timestamp: {}'.format(self.timestamp)
+        return 'timestamp: {}, width: {}, height: {}, encoding: {}'.format(
+            self.timestamp, self.width, self.height, self.encoding)
 
 
 class DepthFrameMessage(Message):
-    def __init__(self, frame, fov, timestamp, stream_name='default'):
+    def __init__(self, frame, transform, fov, timestamp, stream_name='default'):
         super(DepthFrameMessage, self).__init__(None, timestamp, stream_name)
         self.frame = frame
+        self.transfrom = transform
         self.width = frame.shape[1]
         self.height = frame.shape[0]
         self.fov = fov

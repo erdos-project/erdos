@@ -55,11 +55,13 @@ class CarlaOperator(Op):
             QualityLevel=quality)
         self.settings.randomize_seeds()
         self.lidar_streams = []
+        self._transforms = {}
         for (camera_stream_name, camera_type, image_size, pos) in camera_setups:
-            self.__add_camera(name=camera_stream_name,
-                              postprocessing=camera_type,
-                              image_size=image_size,
-                              position=pos)
+            transform = self.__add_camera(name=camera_stream_name,
+                                          postprocessing=camera_type,
+                                          image_size=image_size,
+                                          position=pos)
+            self._transforms[camera_stream_name] = transform
         for lidar_stream_name in lidar_stream_names:
             self.__add_lidar(name=lidar_stream_name)
         self.agent_id_map = {}
@@ -115,6 +117,7 @@ class CarlaOperator(Op):
             RotationYaw=rotation_yaw)
 
         self.settings.add_sensor(camera)
+        return camera.get_unreal_transform()
 
     def __add_lidar(self,
                     name,
@@ -264,7 +267,8 @@ class CarlaOperator(Op):
                 # NOTE: depth_to_array flips the image.
                 data_stream.send(
                     simulation.messages.DepthFrameMessage(
-                        depth_to_array(measurement), measurement.fov, timestamp))
+                        depth_to_array(measurement), None,
+                        measurement.fov, timestamp))
             else:
                 data_stream.send(Message(measurement, timestamp))
             data_stream.send(watermark)

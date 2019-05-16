@@ -43,7 +43,7 @@ class ERDOSAgentOperator(Op):
         self._wp_angle = None
         self._wp_vector = None
         self._wp_angle_speed = None
-        (_, self._depth_transform, _) = self.__setup_camera_tranforms(name=depth_camera_name, postprocessing='Depth')
+        self._depth_transform = self.__setup_camera_tranforms(name=depth_camera_name, postprocessing='Depth')
 
     def __setup_camera_tranforms(self,
                                  name,
@@ -66,15 +66,7 @@ class ERDOSAgentOperator(Op):
             RotationPitch=rotation_pitch,
             RotationRoll=rotation_roll,
             RotationYaw=rotation_yaw)
-
-        image_width = image_size[0]
-        image_height = image_size[1]
-        # (Intrinsic) K Matrix
-        intrinsic_mat = np.identity(3)
-        intrinsic_mat[0][2] = image_width / 2
-        intrinsic_mat[1][2] = image_height / 2
-        intrinsic_mat[0][0] = intrinsic_mat[1][1] = image_width / (2.0 * math.tan(90.0 * math.pi / 360.0))
-        return (intrinsic_mat, camera.get_unreal_transform(), (image_width, image_height))
+        return camera.get_unreal_transform()
 
     @staticmethod
     def setup_streams(input_streams, depth_camera_name):

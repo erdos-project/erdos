@@ -93,15 +93,13 @@ class DetectionOperator(Op):
 
         index = 0
         detected_objects = []
-        im_width = image_np.shape[1]
-        im_height = image_np.shape[0]
 
         while index < len(boxes) and index < len(scores):
             if scores[index] >= self._flags.detector_min_score_threshold:
-                ymin = int(boxes[index][0] * im_height)
-                xmin = int(boxes[index][1] * im_width)
-                ymax = int(boxes[index][2] * im_height)
-                xmax = int(boxes[index][3] * im_width)
+                ymin = int(boxes[index][0] * msg.height)
+                xmin = int(boxes[index][1] * msg.width)
+                ymax = int(boxes[index][2] * msg.height)
+                xmax = int(boxes[index][3] * msg.width)
                 corners = (xmin, xmax, ymin, ymax)
                 detected_objects.append(DetectedObject(corners, scores[index], labels[index]))
             index += 1

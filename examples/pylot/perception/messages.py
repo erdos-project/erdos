@@ -46,10 +46,13 @@ class SegmentedFrameMessage(Message):
         """
         super(SegmentedFrameMessage, self).__init__(None, timestamp, stream_name)
         self.frame = frame
+        self.width = frame.shape[1]
+        self.height = frame.shape[0]
         self.runtime= runtime
 
     def __str__(self):
-        return 'timestamp {}, runtime: {}'.format(self.timestamp, self.runtime)
+        return 'timestamp {}, width: {}, height: {}, runtime: {}'.format(
+            self.timestamp, self.width, self.height, self.runtime)
 
 
 class ObjPositionsMessage(Message):
