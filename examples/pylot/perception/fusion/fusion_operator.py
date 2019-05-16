@@ -135,13 +135,7 @@ class FusionOperator(Op):
         self._objects.append((msg.timestamp, vehicle_bounds))
 
     def update_distances(self, msg):
-        rgbd_frame = pylot_utils.to_rgb_array(msg.data)
-        normalized_distances = np.dot(
-            rgbd_frame,
-            [1.0, 256.0, 256.0 * 256.0]) / (256.0 * 256.0 * 256.0 - 1.0)
-        # Compute distances in meters.
-        distances = self._rgbd_max_range * normalized_distances
-        self._distances.append((msg.timestamp, distances))
+        self._distances.append((msg.timestamp, msg.data))
 
     def execute(self):
         self.fuse()

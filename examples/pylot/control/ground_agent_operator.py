@@ -7,7 +7,7 @@ from erdos.op import Op
 from erdos.timestamp import Timestamp
 from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_ms
 
-import control.agent_utils as agent_utils
+import control.utils as agent_utils
 from pid_controller.pid import PID
 from simulation.planner.map import CarlaMap
 import pylot_utils

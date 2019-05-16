@@ -3,9 +3,9 @@ import heapq
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
-import perception.detection.detection_utils as detection_utils
+from perception.detection.utils import get_pedestrian_mAP, visualize_ground_bboxes
 import pylot_utils
-from simulation.carla_utils import get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform, have_same_depth, map_ground_3D_transform_to_2D
+from simulation.utils import get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform, have_same_depth, map_ground_3D_transform_to_2D
 
 
 class ObstacleAccuracyOperator(Op):
@@ -110,7 +110,7 @@ class ObstacleAccuracyOperator(Op):
                     # Get detector output obstacles.
                     det_output = self.__get_obstacles_at(start_time)
                     if (len(det_output) > 0 or len(end_bboxes) > 0):
-                        mAP = detection_utils.get_pedestrian_mAP(end_bboxes, det_output)
+                        mAP = get_pedestrian_mAP(end_bboxes, det_output)
                         self._logger.info('mAP is: {}'.format(mAP))
                         self._csv_logger.info('{},{},{},{}'.format(
                             time_epoch_ms(), self.name, 'mAP', mAP))
@@ -247,8 +247,7 @@ class ObstacleAccuracyOperator(Op):
 
         # Get the latest BGR and depth images.
         # NOTE: depth_to_array flips the image.
-        depth_img = self._depth_imgs[0].data
-        depth_array = pylot_utils.depth_to_array(depth_img)
+        depth_array = self._depth_imgs[0].data
         self._depth_imgs = self._depth_imgs[1:]
 
         bgr_img = self._bgr_imgs[0].data
@@ -279,7 +278,7 @@ class ObstacleAccuracyOperator(Op):
         #                                depth_array)
 
         if self._flags.visualize_ground_obstacles:
-            detection_utils.visualize_ground_bboxes(
+            visualize_ground_bboxes(
                 self.name, timestamp, bgr_img, ped_bboxes, vec_bboxes)
 
         return (ped_bboxes, vec_bboxes)

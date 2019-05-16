@@ -4,7 +4,7 @@ from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_ms
 
-from control.agent_utils import get_angle, get_world_vec_dist
+from control.utils import get_angle, get_world_vec_dist
 from simulation.planner.waypointer import Waypointer
 import pylot_utils
 

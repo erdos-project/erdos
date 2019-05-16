@@ -4,7 +4,7 @@ import time
 import ray
 
 from carla.client import CarlaClient
-from carla.image_converter import to_bgra_array
+from carla.image_converter import depth_to_array, labels_to_array, to_bgra_array
 from carla.sensor import Camera, Lidar
 from carla.settings import CarlaSettings
 from carla.transform import Transform
@@ -270,6 +270,11 @@ class CarlaOperator(Op):
                 data_stream.send(
                     Message(pylot_utils.bgra_to_bgr(to_bgra_array(measurement)),
                             timestamp))
+            elif data_stream.get_label('camera_type') == 'SemanticSegmentation':
+                data_stream.send(Message(labels_to_array(measurement), timestamp))
+            elif data_stream.get_label('camera_type') == 'Depth':
+                # NOTE: depth_to_array flips the image.
+                data_stream.send(Message(depth_to_array(measurement), timestamp))
             else:
                 data_stream.send(Message(measurement, timestamp))
             data_stream.send(watermark)

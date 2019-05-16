@@ -8,7 +8,7 @@ from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
-from perception.detection.detection_utils import visualize_no_colors_bboxes
+from perception.detection.utils import visualize_no_colors_bboxes
 from pylot_utils import is_camera_stream, is_obstacles_stream
 
 

@@ -9,9 +9,9 @@ from collections import deque
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
-from perception.detection.detection_utils import get_precision_recall_at_iou
+from perception.detection.utils import get_precision_recall_at_iou
 import pylot_utils
-from simulation.carla_utils import get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform
+from simulation.utils import get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform
 
 
 class DetectionEvalGroundOperator(Op):
@@ -84,7 +84,7 @@ class DetectionEvalGroundOperator(Op):
         assert (depth_msg.timestamp == bgr_msg.timestamp ==
                 world_trans_msg.timestamp == pedestrians_msg.timestamp)
 
-        depth_array = pylot_utils.depth_to_array(depth_msg.data)
+        depth_array = depth_msg.data
         world_transform = world_trans_msg.data
 
         bboxes = []

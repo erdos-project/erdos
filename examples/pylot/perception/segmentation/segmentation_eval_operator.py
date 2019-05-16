@@ -4,8 +4,8 @@ import numpy as np
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
-from perception.segmentation.segmentation_utils import compute_semantic_iou
-from pylot_utils import is_ground_segmented_camera_stream, is_segmented_camera_stream, labels_to_cityscapes_palette
+from perception.segmentation.utils import compute_semantic_iou, transform_to_cityscapes
+from pylot_utils import is_ground_segmented_camera_stream, is_segmented_camera_stream
 
 
 class SegmentationEvalOperator(Op):
@@ -144,9 +144,9 @@ class SegmentationEvalOperator(Op):
             return base + self._sim_interval
 
     def __compute_mean_iou(self, ground_frame, segmented_frame):
-        # Transfrom the ground frame to Cityscapes palette; the segmented
+        # Transform the ground frame to Cityscapes palette; the segmented
         # frame is transformed by segmentation operators.
-        ground_frame = labels_to_cityscapes_palette(ground_frame)
+        ground_frame = transform_to_cityscapes(ground_frame)
         (mean_iou, class_iou) = compute_semantic_iou(ground_frame,
                                                      segmented_frame)
         self._logger.info('IoU class scores: {}'.format(class_iou))

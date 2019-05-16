@@ -6,8 +6,8 @@ import time
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
-from perception.segmentation.segmentation_utils import tf_compute_semantic_iou, generate_masks, compute_semantic_iou_from_masks
-from pylot_utils import is_ground_segmented_camera_stream, labels_to_array
+from perception.segmentation.utils import tf_compute_semantic_iou, generate_masks, compute_semantic_iou_from_masks
+from pylot_utils import is_ground_segmented_camera_stream
 
 
 class SegmentationEvalGroundOperator(Op):
@@ -34,7 +34,7 @@ class SegmentationEvalGroundOperator(Op):
             start_time = time.time()
             # We don't fully transform it to cityscapes palette to avoid
             # introducing extra latency.
-            frame_array = labels_to_array(msg.data)
+            frame_array = msg.data
             frame_masks = generate_masks(frame_array)
 
             if len(self._ground_masks) > 0:

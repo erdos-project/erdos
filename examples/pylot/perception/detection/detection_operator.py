@@ -7,7 +7,7 @@ from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
-from perception.detection.detection_utils import load_coco_labels, load_coco_bbox_colors, visualize_bboxes
+from perception.detection.utils import load_coco_labels, load_coco_bbox_colors, visualize_bboxes
 from pylot_utils import create_obstacles_stream, is_camera_stream
 
 

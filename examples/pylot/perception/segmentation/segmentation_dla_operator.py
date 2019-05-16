@@ -9,7 +9,7 @@ from erdos.message import Message
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
-from perception.segmentation.segmentation_utils import transfrom_to_cityscapes
+from perception.segmentation.utils import transform_to_cityscapes
 from pylot_utils import add_timestamp, create_segmented_camera_stream, is_camera_stream, rgb_to_bgr, bgra_to_bgr
 
 
@@ -55,7 +55,7 @@ class SegmentationDLAOperator(Op):
         output = self._network(tensor)
         # XXX(ionel): Check if the model outputs Carla Cityscapes values or
         # correct Cityscapes values.
-        output = transfrom_to_cityscapes(
+        output = transform_to_cityscapes(
             torch.argmax(output, dim=1).cpu().numpy()[0])
 
         output = rgb_to_bgr(output)
