@@ -111,11 +111,11 @@ def depth_to_local_point_cloud(depth_msg, color=None, max_depth=0.9):
     return PointCloud(depth_msg.timestamp.coordinates[0], np.transpose(p3d))
 
 
-def point_cloud_from_rgbd(depth_msg, depth_transform, world_transform):
+def point_cloud_from_rgbd(depth_msg, world_transform):
     far = 1.0
     point_cloud = depth_to_local_point_cloud(
         depth_msg, color=None, max_depth=far)
-    car_to_world_transform = world_transform * depth_transform
+    car_to_world_transform = world_transform * depth_msg.transform
     point_cloud.apply_transform(car_to_world_transform)
     # filename = './point_cloud_tmp.ply'
     # point_cloud.save_to_disk(filename)
@@ -124,8 +124,8 @@ def point_cloud_from_rgbd(depth_msg, depth_transform, world_transform):
     return point_cloud
 
 
-def get_3d_world_position(x, y, depth_msg, depth_transform, world_transform):
-    pc = point_cloud_from_rgbd(depth_msg, depth_transform, world_transform)
+def get_3d_world_position(x, y, depth_msg, world_transform):
+    pc = point_cloud_from_rgbd(depth_msg, world_transform)
     return pc.array.tolist()[y * depth_msg.width + x]
 
 

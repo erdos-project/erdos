@@ -2,8 +2,6 @@ import math
 import numpy as np
 import time
 
-from carla.sensor import Camera
-
 from erdos.data_stream import DataStream
 from erdos.op import Op
 from erdos.timestamp import Timestamp
@@ -43,30 +41,6 @@ class ERDOSAgentOperator(Op):
         self._wp_angle = None
         self._wp_vector = None
         self._wp_angle_speed = None
-        self._depth_transform = self.__setup_camera_tranforms(name=depth_camera_name, postprocessing='Depth')
-
-    def __setup_camera_tranforms(self,
-                                 name,
-                                 postprocessing,
-                                 field_of_view=90.0,
-                                 image_size=(800, 600),
-                                 position=(0.3, 0, 1.3),
-                                 rotation_pitch=0,
-                                 rotation_roll=0,
-                                 rotation_yaw=0):
-        camera = Camera(
-            name,
-            PostProcessing=postprocessing,
-            FOV=field_of_view,
-            ImageSizeX=image_size[0],
-            ImageSizeY=image_size[1],
-            PositionX=position[0],
-            PositionY=position[1],
-            PositionZ=position[2],
-            RotationPitch=rotation_pitch,
-            RotationRoll=rotation_roll,
-            RotationYaw=rotation_yaw)
-        return camera.get_unreal_transform()
 
     @staticmethod
     def setup_streams(input_streams, depth_camera_name):
@@ -184,7 +158,7 @@ class ERDOSAgentOperator(Op):
             x = (tl.corners[0] + tl.corners[1]) / 2
             y = (tl.corners[2] + tl.corners[3]) / 2
             (x3d, y3d, z3d) = get_3d_world_position(
-                x, y, depth_msg, self._depth_transform, world_transform)
+                x, y, depth_msg, world_transform)
             state = 0
             if tl.label is not 'Green':
                 state = 1
@@ -199,7 +173,7 @@ class ERDOSAgentOperator(Op):
             y = (detected_obj.corners[2] + detected_obj.corners[3]) / 2
             if detected_obj.label == 'person':
                 (x3d, y3d, z3d) = get_3d_world_position(
-                    x, y, depth_msg, self._depth_transform, world_transform)
+                    x, y, depth_msg, world_transform)
                 pedestrians.append((x3d, y3d))
             elif (detected_obj.label == 'car' or
                   detected_obj.label == 'bicycle' or
@@ -207,7 +181,7 @@ class ERDOSAgentOperator(Op):
                   detected_obj.label == 'bus' or
                   detected_obj.label == 'truck'):
                 (x3d, y3d, z3d) = get_3d_world_position(
-                    x, y, depth_msg, self._depth_transform, world_transform)
+                    x, y, depth_msg, world_transform)
                 vehicles.append((x3d, y3d))
         return (pedestrians, vehicles)
 

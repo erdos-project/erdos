@@ -267,8 +267,10 @@ class CarlaOperator(Op):
                 # NOTE: depth_to_array flips the image.
                 data_stream.send(
                     simulation.messages.DepthFrameMessage(
-                        depth_to_array(measurement), None,
-                        measurement.fov, timestamp))
+                        depth_to_array(measurement),
+                        self._transforms[name],
+                        measurement.fov,
+                        timestamp))
             else:
                 data_stream.send(Message(measurement, timestamp))
             data_stream.send(watermark)

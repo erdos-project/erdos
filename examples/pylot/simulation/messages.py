@@ -20,7 +20,7 @@ class DepthFrameMessage(Message):
     def __init__(self, frame, transform, fov, timestamp, stream_name='default'):
         super(DepthFrameMessage, self).__init__(None, timestamp, stream_name)
         self.frame = frame
-        self.transfrom = transform
+        self.transform = transform
         self.width = frame.shape[1]
         self.height = frame.shape[0]
         self.fov = fov
