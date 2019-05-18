@@ -1,3 +1,4 @@
+from collections import namedtuple
 from itertools import combinations
 import math
 import numpy as np
@@ -9,24 +10,19 @@ from carla.sensor import Camera, PointCloud
 from carla.transform import Transform
 
 
+Extent = namedtuple('Extent', 'x, y, z')
+
+
 class BoundingBox(object):
     def __init__(self, bb):
         self.transform = Transform(bb.transform)
-        self.extent = (bb.extent.x, bb.extent.y, bb.extent.z)
-
-    def to_bounding_box_pb2(self):
-        bb = carla.carla_server_pb2.BoundingBox()
-        self.transform.populate_pb2(bb.transform)
-        bb.extent.x = self.extent[0]
-        bb.extent.y = self.extent[1]
-        bb.extent.z = self.extent[2]
-        return bb
+        self.extent = Extent(bb.extent.x, bb.extent.y, bb.extent.z)
 
     def __repr__(self):
         return self.__str__()
 
     def __str__(self):
-        return "transform: {}, x: {}, y: {}, z: {}".format(str(self.transform), *self.extent)
+        return "transform: {}, x: {}, y: {}, z: {}".format(str(self.transform), self.extent)
 
 
 def depth_to_local_point_cloud(depth_msg, color=None, max_depth=0.9):
@@ -274,24 +270,21 @@ def map_ground_bounding_box_to_2D(distance_img,
                                   rgb_img_size):
     (image_width, image_height) = rgb_img_size
     extrinsic_mat = world_transform * rgb_transform
-    bbox_pb2 = bounding_box.to_bounding_box_pb2()
-    bbox_transform = bounding_box.transform
-    ext = bbox_pb2.extent
 
     # 8 bounding box vertices relative to (0,0,0)
     bbox = np.array([
-        [  ext.x,   ext.y,   ext.z],
-        [  ext.x, - ext.y,   ext.z],
-        [  ext.x,   ext.y, - ext.z],
-        [  ext.x, - ext.y, - ext.z],
-        [- ext.x,   ext.y,   ext.z],
-        [- ext.x, - ext.y,   ext.z],
-        [- ext.x,   ext.y, - ext.z],
-        [- ext.x, - ext.y, - ext.z]
+        [  bounding_box.extent.x,   bounding_box.extent.y,   bounding_box.extent.z],
+        [  bounding_box.extent.x, - bounding_box.extent.y,   bounding_box.extent.z],
+        [  bounding_box.extent.x,   bounding_box.extent.y, - bounding_box.extent.z],
+        [  bounding_box.extent.x, - bounding_box.extent.y, - bounding_box.extent.z],
+        [- bounding_box.extent.x,   bounding_box.extent.y,   bounding_box.extent.z],
+        [- bounding_box.extent.x, - bounding_box.extent.y,   bounding_box.extent.z],
+        [- bounding_box.extent.x,   bounding_box.extent.y, - bounding_box.extent.z],
+        [- bounding_box.extent.x, - bounding_box.extent.y, - bounding_box.extent.z]
     ])
 
     # Transform the vertices with respect to the bounding box transform.
-    bbox = bbox_transform.transform_points(bbox)
+    bbox = bounding_box.transform.transform_points(bbox)
 
     # The bounding box transform is with respect to the object transform.
     # Transform the points relative to its transform.

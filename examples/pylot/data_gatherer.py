@@ -201,10 +201,10 @@ class GroundTruthObjectLoggerOp(Op):
     def __get_pedestrians_bboxes(self, pedestrians, world_transform,
                                  depth_array):
         bboxes = []
-        for (_, pd_transform, bounding_box, _) in pedestrians:
+        for pedestrian in pedestrians:
             bbox = get_2d_bbox_from_3d_box(
-                depth_array, world_transform, pd_transform,
-                bounding_box, self._rgb_transform, self._rgb_intrinsic,
+                depth_array, world_transform, pedestrian.transform,
+                pedestrian.bounding_box, self._rgb_transform, self._rgb_intrinsic,
                 self._rgb_img_size, 1.5, 3.0)
             if bbox is not None:
                 (xmin, xmax, ymin, ymax) = bbox
@@ -213,10 +213,10 @@ class GroundTruthObjectLoggerOp(Op):
 
     def __get_vehicles_bboxes(self, vehicles, world_transform, depth_array):
         vec_bboxes = []
-        for (vec_transform, bounding_box, _) in vehicles:
+        for vehicle in vehicles:
             bbox = get_2d_bbox_from_3d_box(
-                depth_array, world_transform, vec_transform,
-                bounding_box, self._rgb_transform, self._rgb_intrinsic,
+                depth_array, world_transform, vehicle.transform,
+                vehicle.bounding_box, self._rgb_transform, self._rgb_intrinsic,
                 self._rgb_img_size, 3.0, 3.0)
             if bbox is not None:
                 (xmin, xmax, ymin, ymax) = bbox

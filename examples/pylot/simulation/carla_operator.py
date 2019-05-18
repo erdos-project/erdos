@@ -154,7 +154,6 @@ class CarlaOperator(Op):
         output_stream = DataStream(name=name, labels={"sensor_type": "lidar"})
         self.lidar_streams.append(output_stream)
 
-
     def read_carla_data(self):
         read_start_time = time.time()
         measurements, sensor_data = self.client.read_data()
@@ -197,40 +196,7 @@ class CarlaOperator(Op):
             Message(player_measurements.forward_speed, timestamp))
         self.get_output_stream('forward_speed').send(watermark)
 
-        vehicles = []
-        pedestrians = []
-        traffic_lights = []
-        speed_limit_signs = []
-
-        for agent in measurements.non_player_agents:
-            if agent.HasField('vehicle'):
-                pos = Transform(agent.vehicle.transform)
-                bb = simulation.utils.BoundingBox(agent.vehicle.bounding_box)
-                forward_speed = agent.vehicle.forward_speed
-                vehicle = simulation.messages.Vehicle(pos, bb, forward_speed)
-                vehicles.append(vehicle)
-            elif agent.HasField('pedestrian'):
-                if not self.agent_id_map.get(agent.id):
-                    self.pedestrian_count += 1
-                    self.agent_id_map[agent.id] = self.pedestrian_count
-
-                pedestrian_index = self.agent_id_map[agent.id]
-                pos = Transform(agent.pedestrian.transform)
-                bb = simulation.utils.BoundingBox(agent.pedestrian.bounding_box)
-                forward_speed = agent.pedestrian.forward_speed
-                pedestrian = simulation.messages.Pedestrian(
-                    pedestrian_index, pos, bb, forward_speed)
-                pedestrians.append(pedestrian)
-            elif agent.HasField('traffic_light'):
-                transform = Transform(agent.traffic_light.transform)
-                traffic_light = simulation.messages.TrafficLight(
-                    transform, agent.traffic_light.state)
-                traffic_lights.append(traffic_light)
-            elif agent.HasField('speed_limit_sign'):
-                transform = Transform(agent.speed_limit_sign.transform)
-                speed_sign = simulation.messages.SpeedLimitSign(
-                    transform, agent.speed_limit_sign.speed_limit)
-                speed_limit_signs.append(speed_sign)
+        vehicles, pedestrians, traffic_lights, speed_limit_signs = self.__get_ground_agents(measurements)
 
         vehicles_msg = simulation.messages.GroundVehiclesMessage(
             vehicles, timestamp)
@@ -281,6 +247,55 @@ class CarlaOperator(Op):
             measurement_runtime, total_runtime))
         self._csv_logger.info('{},{},{},{}'.format(
             time_epoch_ms(), self.name, measurement_runtime, total_runtime))
+
+    def __get_ground_agents(self, measurements):
+        vehicles = []
+        pedestrians = []
+        traffic_lights = []
+        speed_limit_signs = []
+        for agent in measurements.non_player_agents:
+            if agent.HasField('vehicle'):
+                transform = Transform(agent.vehicle.transform)
+                pos = simulation.messages.Location(agent.vehicle.transform.location.x,
+                                                   agent.vehicle.transform.location.y,
+                                                   agent.vehicle.transform.location.z)
+                bb = simulation.utils.BoundingBox(agent.vehicle.bounding_box)
+                forward_speed = agent.vehicle.forward_speed
+                vehicle = simulation.messages.Vehicle(pos, transform, bb, forward_speed)
+                vehicles.append(vehicle)
+            elif agent.HasField('pedestrian'):
+                if not self.agent_id_map.get(agent.id):
+                    self.pedestrian_count += 1
+                    self.agent_id_map[agent.id] = self.pedestrian_count
+
+                pedestrian_index = self.agent_id_map[agent.id]
+                transform = Transform(agent.pedestrian.transform)
+                pos = simulation.messages.Location(agent.pedestrian.transform.location.x,
+                                                   agent.pedestrian.transform.location.y,
+                                                   agent.pedestrian.transform.location.z)
+                bb = simulation.utils.BoundingBox(agent.pedestrian.bounding_box)
+                forward_speed = agent.pedestrian.forward_speed
+                pedestrian = simulation.messages.Pedestrian(
+                    pedestrian_index, pos, transform, bb, forward_speed)
+                pedestrians.append(pedestrian)
+            elif agent.HasField('traffic_light'):
+                transform = Transform(agent.traffic_light.transform)
+                pos = simulation.messages.Location(agent.traffic_light.transform.location.x,
+                                                   agent.traffic_light.transform.location.y,
+                                                   agent.traffic_light.transform.location.z)
+                traffic_light = simulation.messages.TrafficLight(
+                    pos, transform, agent.traffic_light.state)
+                traffic_lights.append(traffic_light)
+            elif agent.HasField('speed_limit_sign'):
+                transform = Transform(agent.speed_limit_sign.transform)
+                pos = simulation.messages.Location(agent.speed_limit_sign.transform.location.x,
+                                                   agent.speed_limit_sign.transform.location.y,
+                                                   agent.speed_limit_sign.transform.location.z)
+                speed_sign = simulation.messages.SpeedLimitSign(
+                    pos, transform, agent.speed_limit_sign.speed_limit)
+                speed_limit_signs.append(speed_sign)
+
+        return vehicles, pedestrians, traffic_lights, speed_limit_signs
 
     def read_data_at_frequency(self):
         period = 1.0 / self._flags.carla_step_frequency

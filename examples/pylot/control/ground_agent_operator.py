@@ -112,8 +112,7 @@ class GroundAgentOperator(Op):
 
         if self._flags.stop_for_vehicles:
             for vehicle in vehicles:
-                obs_vehicle_pos = (vehicle.position.location[0],
-                                   vehicle.position.location[1])
+                obs_vehicle_pos = (vehicle.position.x, vehicle.position.y)
                 if agent_utils.is_vehicle_on_same_lane(
                         self._vehicle_pos, obs_vehicle_pos, self._map):
                     new_speed_factor_v = agent_utils.stop_vehicle(
@@ -126,8 +125,7 @@ class GroundAgentOperator(Op):
 
         if self._flags.stop_for_pedestrians:
             for pedestrian in pedestrians:
-                ped_pos = (pedestrian.position.location[0],
-                           pedestrian.position.location[1])
+                ped_pos = (pedestrian.position.x, pedestrian.position.y)
                 if agent_utils.is_pedestrian_hitable(ped_pos, self._map):
                     new_speed_factor_p = agent_utils.stop_pedestrian(
                         self._vehicle_pos,
@@ -139,7 +137,7 @@ class GroundAgentOperator(Op):
 
         if self._flags.stop_for_traffic_lights:
             for tl in traffic_lights:
-                tl_pos = (tl.position.location[0], tl.position.location[1])
+                tl_pos = (tl.position.x, tl.position.y)
                 if (agent_utils.is_traffic_light_active(
                         self._vehicle_pos, tl_pos, self._map) and
                     agent_utils.is_traffic_light_visible(

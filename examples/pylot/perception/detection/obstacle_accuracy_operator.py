@@ -285,12 +285,12 @@ class ObstacleAccuracyOperator(Op):
     def __get_traffic_light_bboxes(self, traffic_lights, world_transform,
                                    depth_array):
         tl_bboxes = []
-        for (tl_transform, state) in traffic_lights:
+        for tl in traffic_lights:
             pos = map_ground_3D_transform_to_2D(world_transform,
                                                 self._rgb_transform,
                                                 self._rgb_intrinsic,
                                                 self._rgb_img_size,
-                                                tl_transform)
+                                                tl.transform)
             if pos is not None:
                 x = int(pos[0])
                 y = int(pos[1])
@@ -303,12 +303,12 @@ class ObstacleAccuracyOperator(Op):
     def __get_traffic_sign_bboxes(self, traffic_signs, world_transform,
                                   depth_array):
         ts_bboxes = []
-        for (ts_transform, speed_sign) in traffic_signs:
+        for traffic_sign in traffic_signs:
             pos = map_ground_3D_transform_to_2D(world_transform,
                                                 self._rgb_transform,
                                                 self._rgb_intrinsic,
                                                 self._rgb_img_size,
-                                                ts_transform)
+                                                traffic_sign.transform)
             if pos is not None:
                 x = int(pos[0])
                 y = int(pos[1])
@@ -321,11 +321,10 @@ class ObstacleAccuracyOperator(Op):
     def __get_pedestrians_bboxes(self, pedestrians, world_transform,
                                  depth_array):
         ped_bboxes = []
-        for (pedestrian_index, pd_transform, bounding_box,
-             fwd_speed) in pedestrians:
+        for pedestrian in pedestrians:
             bbox = get_2d_bbox_from_3d_box(
-                depth_array, world_transform, pd_transform,
-                bounding_box, self._rgb_transform, self._rgb_intrinsic,
+                depth_array, world_transform, pedestrian.transform,
+                pedestrian.bounding_box, self._rgb_transform, self._rgb_intrinsic,
                 self._rgb_img_size, 1.5, 3.0)
             if bbox is not None:
                 ped_bboxes.append(bbox)
@@ -333,10 +332,10 @@ class ObstacleAccuracyOperator(Op):
 
     def __get_vehicles_bboxes(self, vehicles, world_transform, depth_array):
         vec_bboxes = []
-        for (vec_transform, bounding_box, fwd_speed) in vehicles:
+        for vehicle in vehicles:
             bbox = get_2d_bbox_from_3d_box(
-                depth_array, world_transform, vec_transform,
-                bounding_box, self._rgb_transform, self._rgb_intrinsic,
+                depth_array, world_transform, vehicle.transform,
+                vehicle.bounding_box, self._rgb_transform, self._rgb_intrinsic,
                 self._rgb_img_size, 3.0, 3.0)
             if bbox is not None:
                 vec_bboxes.append(bbox)

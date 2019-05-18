@@ -30,7 +30,9 @@ class DepthFrameMessage(Message):
             self.timestamp, self.width, self.height, self.fov)
 
 
-Vehicle = namedtuple('Vehicle', 'position, bounding_box, forward_speed')
+Location = namedtuple('Location', 'x, y, z')
+
+Vehicle = namedtuple('Vehicle', 'position, transform, bounding_box, forward_speed')
 
 
 class GroundVehiclesMessage(Message):
@@ -43,7 +45,7 @@ class GroundVehiclesMessage(Message):
             self.timestamp, self.vehicles)
 
 
-Pedestrian = namedtuple('Pedestrian', 'id, position, bounding_box, forward_speed')
+Pedestrian = namedtuple('Pedestrian', 'id, position, transform, bounding_box, forward_speed')
 
 
 class GroundPedestriansMessage(Message):
@@ -57,7 +59,7 @@ class GroundPedestriansMessage(Message):
             self.timestamp, self.pedestrians)
 
 
-TrafficLight = namedtuple('TrafficLight', 'position, state')
+TrafficLight = namedtuple('TrafficLight', 'position, transform, state')
 
 
 class GroundTrafficLightsMessage(Message):
@@ -70,7 +72,7 @@ class GroundTrafficLightsMessage(Message):
         return 'timestamp: {}, traffic lights: {}'.format(
             self.timestamp, self.traffic_lights)
 
-SpeedLimitSign = namedtuple('SpeedLimitSign', 'position, limit')
+SpeedLimitSign = namedtuple('SpeedLimitSign', 'position, transform, limit')
 
 
 class GroundSpeedSignsMessage(Message):

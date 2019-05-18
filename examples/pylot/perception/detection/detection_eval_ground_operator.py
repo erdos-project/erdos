@@ -89,10 +89,9 @@ class DetectionEvalGroundOperator(Op):
         bboxes = []
         self._logger.info('Number of pedestrians {}'.format(
             len(pedestrians_msg.pedestrians)))
-        for (pedestrian_index, obj_transform, obj_bbox,
-             _) in pedestrians_msg.pedestrians:
+        for pedestrian in pedestrians_msg.pedestrians:
             bbox = get_2d_bbox_from_3d_box(depth_msg.frame, world_transform,
-                                           obj_transform, obj_bbox,
+                                           pedestrian.transform, pedestrian.bounding_box,
                                            self._rgb_transform,
                                            self._rgb_intrinsic,
                                            self._rgb_img_size, 1.5, 3.0)
