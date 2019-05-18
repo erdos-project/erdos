@@ -309,9 +309,9 @@ def map_ground_bounding_box_to_2D(distance_img,
                                   rgb_img_size):
     (image_width, image_height) = rgb_img_size
     extrinsic_mat = world_transform * rgb_transform
-    obj_transform = Transform(obstacle_transform.to_transform_pb2())
+    obj_transform = carla.transform.Transform(obstacle_transform.to_transform_pb2())
     bbox_pb2 = bounding_box.to_bounding_box_pb2()
-    bbox_transform = Transform(bbox_pb2.transform)
+    bbox_transform = carla.transform.Transform(bbox_pb2.transform)
     ext = bbox_pb2.extent
 
     # 8 bounding box vertices relative to (0,0,0)

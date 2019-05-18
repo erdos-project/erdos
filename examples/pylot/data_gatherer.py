@@ -8,6 +8,7 @@ from collections import deque
 import config
 from control.ground_agent_operator import GroundAgentOperator
 from perception.detection.utils import get_bounding_boxes_from_segmented, visualize_ground_bboxes
+from planning.waypointer_operator import WaypointerOperator
 from simulation.carla_operator import CarlaOperator
 from simulation.utils import get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform
 import pylot_utils
@@ -253,12 +254,29 @@ def add_carla_op(graph, camera_setups):
     return carla_op
 
 
-def add_ground_agent_op(graph, carla_op, goal_location, goal_orientation):
+def add_ground_agent_op(graph, carla_op):
     agent_op = graph.add(
         GroundAgentOperator,
         name='ground_agent',
         init_args={
             # TODO(ionel): Do not hardcode city name!
+            'city_name': 'Town01',
+            'flags': FLAGS,
+            'log_file_name': FLAGS.log_file_name,
+            'csv_file_name': FLAGS.csv_log_file_name
+        })
+    return agent_op
+
+
+def add_waypointer_op(graph,
+                      carla_op,
+                      agent_op,
+                      goal_location,
+                      goal_orientation):
+    waypointer_op = graph.add(
+        WaypointerOperator,
+        name='waypointer',
+        init_args={
             'city_name': 'Town01',
             'goal_location': goal_location,
             'goal_orientation': goal_orientation,
@@ -266,7 +284,7 @@ def add_ground_agent_op(graph, carla_op, goal_location, goal_orientation):
             'log_file_name': FLAGS.log_file_name,
             'csv_file_name': FLAGS.csv_log_file_name
         })
-    return agent_op
+    return waypointer_op
 
 
 def main(argv):
@@ -321,18 +339,24 @@ def main(argv):
     # Add operator that interacts with the Carla simulator.
     carla_op = add_carla_op(graph, camera_setups)
 
+    agent_op = add_ground_agent_op(graph, carla_op)
+
     # Add agent that uses ground data to drive around.
     goal_location = (234.269989014, 59.3300170898, 39.4306259155)
     goal_orientation = (1.0, 0.0, 0.22)
-    agent_op = add_ground_agent_op(graph,
-                                   carla_op,
-                                   goal_location,
-                                   goal_orientation)
+    waypointer_op = add_waypointer_op(graph,
+                                      carla_op,
+                                      agent_op,
+                                      goal_location,
+                                      goal_orientation)
+
 
     # Connect the operators.
     graph.connect([carla_op], [agent_op])
     graph.connect([agent_op], [carla_op])
     graph.connect([carla_op], logging_ops)
+    graph.connect([carla_op], [waypointer_op])
+    graph.connect([waypointer_op], [agent_op])
 
     graph.execute(FLAGS.framework)
 

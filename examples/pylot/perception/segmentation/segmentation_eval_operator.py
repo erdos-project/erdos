@@ -4,7 +4,7 @@ import numpy as np
 from erdos.op import Op
 from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
 
-from perception.segmentation.utils import compute_semantic_iou, transform_to_cityscapes
+from perception.segmentation.utils import compute_semantic_iou, transform_to_cityscapes_palette
 from pylot_utils import is_ground_segmented_camera_stream, is_segmented_camera_stream
 
 
@@ -93,7 +93,7 @@ class SegmentationEvalOperator(Op):
         if msg.timestamp.coordinates[1] >= 2:
             # Buffer the ground truth frames.
             game_time = msg.timestamp.coordinates[0]
-            self._ground_frames.append((game_time, msg.frame))
+            self._ground_frames.append((game_time, transform_to_cityscapes_palette(msg.frame)))
 
     def on_segmented_frame(self, msg):
         if self._last_seq_num_segmented + 1 != msg.timestamp.coordinates[1]:
@@ -143,9 +143,6 @@ class SegmentationEvalOperator(Op):
             return base + self._sim_interval
 
     def __compute_mean_iou(self, ground_frame, segmented_frame):
-        # Transform the ground frame to Cityscapes palette; the segmented
-        # frame is transformed by segmentation operators.
-        ground_frame = transform_to_cityscapes(ground_frame)
         (mean_iou, class_iou) = compute_semantic_iou(ground_frame,
                                                      segmented_frame)
         self._logger.info('IoU class scores: {}'.format(class_iou))

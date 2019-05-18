@@ -16,7 +16,6 @@ from erdos.timestamp import Timestamp
 from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_ms
 
 from perception.messages import SegmentedFrameMessage
-from perception.segmentation.utils import transform_to_cityscapes
 import pylot_utils
 import simulation.messages
 import simulation.utils
@@ -261,7 +260,7 @@ class CarlaOperator(Op):
                     simulation.messages.FrameMessage(
                         pylot_utils.bgra_to_bgr(to_bgra_array(measurement)), timestamp))
             elif data_stream.get_label('camera_type') == 'SemanticSegmentation':
-                frame = transform_to_cityscapes(labels_to_array(measurement))
+                frame = labels_to_array(measurement)
                 data_stream.send(SegmentedFrameMessage(frame, 0, timestamp))
             elif data_stream.get_label('camera_type') == 'Depth':
                 # NOTE: depth_to_array flips the image.

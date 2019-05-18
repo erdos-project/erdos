@@ -22,7 +22,7 @@ CITYSCAPES_CLASSES = {
 # outputs to ground truth.
 
 
-def transform_to_cityscapes(frame_array):
+def transform_to_cityscapes_palette(frame_array):
     result = np.zeros((frame_array.shape[0], frame_array.shape[1], 3))
     for key, value in CITYSCAPES_CLASSES.items():
         result[np.where(frame_array == key)] = value

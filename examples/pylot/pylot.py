@@ -142,7 +142,7 @@ def add_waypointer_op(graph,
         })
     graph.connect([carla_op], [waypointer_op])
     graph.connect([waypointer_op], [agent_op])
-    return agent_op
+    return waypointer_op
 
 
 def add_lidar_visualizer_op(graph, carla_op):
