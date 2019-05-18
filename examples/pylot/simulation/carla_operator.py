@@ -183,6 +183,7 @@ class CarlaOperator(Op):
         self.get_output_stream('world_transform').send(
             Message(world_transform, timestamp))
         self.get_output_stream('world_transform').send(watermark)
+
         self.get_output_stream('vehicle_pos').send(
             Message(vehicle_pos, timestamp))
         self.get_output_stream('vehicle_pos').send(watermark)
@@ -196,48 +197,13 @@ class CarlaOperator(Op):
             Message(player_measurements.forward_speed, timestamp))
         self.get_output_stream('forward_speed').send(watermark)
 
-        vehicles, pedestrians, traffic_lights, speed_limit_signs = self.__get_ground_agents(measurements)
-
-        vehicles_msg = simulation.messages.GroundVehiclesMessage(
-            vehicles, timestamp)
-        self.get_output_stream('vehicles').send(vehicles_msg)
-        self.get_output_stream('vehicles').send(watermark)
-        pedestrians_msg = simulation.messages.GroundPedestriansMessage(
-            pedestrians, timestamp)
-        self.get_output_stream('pedestrians').send(pedestrians_msg)
-        self.get_output_stream('pedestrians').send(watermark)
-        traffic_lights_msg = simulation.messages.GroundTrafficLightsMessage(
-            traffic_lights, timestamp)
-        self.get_output_stream('traffic_lights').send(traffic_lights_msg)
-        self.get_output_stream('traffic_lights').send(watermark)
-        traffic_sings_msg = simulation.messages.GroundSpeedSignsMessage(
-            speed_limit_signs, timestamp)
-        self.get_output_stream('traffic_signs').send(traffic_sings_msg)
-        self.get_output_stream('traffic_signs').send(watermark)
-
-        # Send sensor data
-        for name, measurement in sensor_data.items():
-            data_stream = self.get_output_stream(name)
-            if data_stream.get_label('camera_type') == 'SceneFinal':
-                # Transform the Carla RGB images to BGR.
-                data_stream.send(
-                    simulation.messages.FrameMessage(
-                        pylot_utils.bgra_to_bgr(to_bgra_array(measurement)), timestamp))
-            elif data_stream.get_label('camera_type') == 'SemanticSegmentation':
-                frame = labels_to_array(measurement)
-                data_stream.send(SegmentedFrameMessage(frame, 0, timestamp))
-            elif data_stream.get_label('camera_type') == 'Depth':
-                # NOTE: depth_to_array flips the image.
-                data_stream.send(
-                    simulation.messages.DepthFrameMessage(
-                        depth_to_array(measurement),
-                        self._transforms[name],
-                        measurement.fov,
-                        timestamp))
-            else:
-                data_stream.send(Message(measurement, timestamp))
-            data_stream.send(watermark)
-
+        # Extract agent data from measurements.
+        agents = self.__get_ground_agents(measurements)
+        # Send agent data on data streams.
+        self.__send_ground_agent_data(agents, timestamp, watermark)
+        # Send sensor data on data stream.
+        self.__send_sensor_data(sensor_data, timestamp, watermark)
+        # Send control command to the simulator.
         self.client.send_control(**self.control)
         end_time = time.time()
 
@@ -296,6 +262,48 @@ class CarlaOperator(Op):
                 speed_limit_signs.append(speed_sign)
 
         return vehicles, pedestrians, traffic_lights, speed_limit_signs
+
+    def __send_ground_agent_data(self, agents, timestamp, watermark):
+        vehicles, pedestrians, traffic_lights, speed_limit_signs = agents
+        vehicles_msg = simulation.messages.GroundVehiclesMessage(
+            vehicles, timestamp)
+        self.get_output_stream('vehicles').send(vehicles_msg)
+        self.get_output_stream('vehicles').send(watermark)
+        pedestrians_msg = simulation.messages.GroundPedestriansMessage(
+            pedestrians, timestamp)
+        self.get_output_stream('pedestrians').send(pedestrians_msg)
+        self.get_output_stream('pedestrians').send(watermark)
+        traffic_lights_msg = simulation.messages.GroundTrafficLightsMessage(
+            traffic_lights, timestamp)
+        self.get_output_stream('traffic_lights').send(traffic_lights_msg)
+        self.get_output_stream('traffic_lights').send(watermark)
+        traffic_sings_msg = simulation.messages.GroundSpeedSignsMessage(
+            speed_limit_signs, timestamp)
+        self.get_output_stream('traffic_signs').send(traffic_sings_msg)
+        self.get_output_stream('traffic_signs').send(watermark)
+
+    def __send_sensor_data(self, sensor_data, timestamp, watermark):
+        for name, measurement in sensor_data.items():
+            data_stream = self.get_output_stream(name)
+            if data_stream.get_label('camera_type') == 'SceneFinal':
+                # Transform the Carla RGB images to BGR.
+                data_stream.send(
+                    simulation.messages.FrameMessage(
+                        pylot_utils.bgra_to_bgr(to_bgra_array(measurement)), timestamp))
+            elif data_stream.get_label('camera_type') == 'SemanticSegmentation':
+                frame = labels_to_array(measurement)
+                data_stream.send(SegmentedFrameMessage(frame, 0, timestamp))
+            elif data_stream.get_label('camera_type') == 'Depth':
+                # NOTE: depth_to_array flips the image.
+                data_stream.send(
+                    simulation.messages.DepthFrameMessage(
+                        depth_to_array(measurement),
+                        self._transforms[name],
+                        measurement.fov,
+                        timestamp))
+            else:
+                data_stream.send(Message(measurement, timestamp))
+            data_stream.send(watermark)
 
     def read_data_at_frequency(self):
         period = 1.0 / self._flags.carla_step_frequency
