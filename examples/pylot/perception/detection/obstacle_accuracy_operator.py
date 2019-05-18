@@ -286,11 +286,11 @@ class ObstacleAccuracyOperator(Op):
                                    depth_array):
         tl_bboxes = []
         for tl in traffic_lights:
-            pos = map_ground_3D_transform_to_2D(world_transform,
+            pos = map_ground_3D_transform_to_2D(tl.location,
+                                                world_transform,
                                                 self._rgb_transform,
                                                 self._rgb_intrinsic,
-                                                self._rgb_img_size,
-                                                tl.transform)
+                                                self._rgb_img_size)
             if pos is not None:
                 x = int(pos[0])
                 y = int(pos[1])
@@ -304,11 +304,11 @@ class ObstacleAccuracyOperator(Op):
                                   depth_array):
         ts_bboxes = []
         for traffic_sign in traffic_signs:
-            pos = map_ground_3D_transform_to_2D(world_transform,
+            pos = map_ground_3D_transform_to_2D(traffic_sign.location,
+                                                world_transform,
                                                 self._rgb_transform,
                                                 self._rgb_intrinsic,
-                                                self._rgb_img_size,
-                                                traffic_sign.transform)
+                                                self._rgb_img_size)
             if pos is not None:
                 x = int(pos[0])
                 y = int(pos[1])

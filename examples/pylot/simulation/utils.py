@@ -9,6 +9,7 @@ import carla.carla_server_pb2
 from carla.sensor import Camera, PointCloud
 from carla.transform import Transform
 
+from simulation.messages import Location
 
 Extent = namedtuple('Extent', 'x, y, z')
 
@@ -178,7 +179,7 @@ def get_2d_bbox_from_3d_box(
         bounding_box, rgb_transform, rgb_intrinsic, rgb_img_size,
         middle_depth_threshold, neighbor_threshold):
     corners = map_ground_bounding_box_to_2D(
-        depth_array, world_transform, obj_transform,
+        world_transform, obj_transform,
         bounding_box, rgb_transform, rgb_intrinsic,
         rgb_img_size)
     if len(corners) == 8:
@@ -261,8 +262,7 @@ def select_max_bbox(ends):
     return (xmin, xmax, ymin, ymax)
 
 
-def map_ground_bounding_box_to_2D(distance_img,
-                                  world_transform,
+def map_ground_bounding_box_to_2D(world_transform,
                                   obj_transform,
                                   bounding_box,
                                   rgb_transform,
@@ -307,41 +307,31 @@ def map_ground_bounding_box_to_2D(distance_img,
         pos2d = np.dot(rgb_intrinsic, transformed_3d_pos[:3])
 
         # Normalize the 2D points.
-        pos2d = np.array([
-            pos2d[0] / pos2d[2],
-            pos2d[1] / pos2d[2],
-            pos2d[2]
-        ])
-
+        loc_2d = Location(float(image_width - pos2d[0] / pos2d[2]),
+                          float(image_height - pos2d[1] / pos2d[2]),
+                          pos2d[2])
         # Add the points to the image.
-        if pos2d[2] > 0: # If the point is in front of the camera.
-            x_2d = float(image_width - pos2d[0])
-            y_2d = float(image_height - pos2d[1])
-            if (x_2d >= 0 or y_2d >= 0) and (x_2d < image_width or y_2d < image_height):
-                coords.append((x_2d, y_2d, pos2d[2]))
+        if loc_2d.z > 0: # If the point is in front of the camera.
+            if (loc_2d.x >= 0 or loc_2d.y >= 0) and (loc_2d.x < image_width or loc_2d.y < image_height):
+                coords.append((loc_2d.x, loc_2d.y, loc_2d.z))
 
     return coords
 
 
-def map_ground_3D_transform_to_2D(world_transform,
+def map_ground_3D_transform_to_2D(location,
+                                  world_transform,
                                   rgb_transform,
                                   rgb_intrinsic,
-                                  rgb_img_size,
-                                  obstacle_transform):
+                                  rgb_img_size)
     extrinsic_mat = world_transform * rgb_transform
-    pos = obstacle_transform.to_transform_pb2().location
-    pos_vector = np.array([[pos.x], [pos.y], [pos.z], [1.0]])
-    transformed_3d_pos = np.dot(inv(extrinsic_mat.matrix),
-                                pos_vector)
+    pos_vector = np.array([[location.x], [location.y], [location.z], [1.0]])
+    transformed_3d_pos = np.dot(inv(extrinsic_mat.matrix), pos_vector)
     pos2d = np.dot(rgb_intrinsic, transformed_3d_pos[:3])
-    pos2d = np.array([
-        pos2d[0] / pos2d[2],
-        pos2d[1] / pos2d[2],
-        pos2d[2]])
     (img_width, img_height) = rgb_img_size
-    if pos2d[2] > 0:
-        x_2d = img_width - pos2d[0]
-        y_2d = img_height - pos2d[1]
-        if (x_2d >= 0 and x_2d < img_width and y_2d >= 0 and y_2d < img_height):
-            return (x_2d, y_2d, pos2d[2])
+    loc_2d = Location(img_width - pos2d[0] / pos2d[2],
+                      img_height- pos2d[1] / pos2d[2],
+                      pos2d[2]])
+    if (loc_2d.z > 0 and loc_2d.x >= 0 and loc_2d.x < img_width and
+        loc_2d.y >= 0 and loc_2d.y < img_height):
+        return (loc_2d.x, loc_2d.y, loc_2d.z)
     return None
