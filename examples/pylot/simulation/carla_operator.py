@@ -65,6 +65,9 @@ class CarlaOperator(Op):
             self.__add_lidar(name=lidar_stream_name)
         self.agent_id_map = {}
         self.pedestrian_count = 0
+        # Register custom serializers for Messages and WatermarkMessages
+        ray.register_custom_serializer(Message, use_pickle=True)
+        ray.register_custom_serializer(WatermarkMessage, use_pickle=True)
 
     @staticmethod
     def setup_streams(input_streams, camera_setups, lidar_stream_names):
@@ -163,40 +166,13 @@ class CarlaOperator(Op):
             'Got readings for game time {} and platform time {}'.format(
                 measurements.game_timestamp, measurements.platform_timestamp))
 
-        # Send measurements
-        player_measurements = measurements.player_measurements
-        vehicle_pos = ((player_measurements.transform.location.x,
-                        player_measurements.transform.location.y,
-                        player_measurements.transform.location.z),
-                       (player_measurements.transform.orientation.x,
-                        player_measurements.transform.orientation.y,
-                        player_measurements.transform.orientation.z))
-
-        world_transform = Transform(player_measurements.transform)
-
         timestamp = Timestamp(
             coordinates=[measurements.game_timestamp, self.message_num])
         self.message_num += 1
-        ray.register_custom_serializer(Message, use_pickle=True)
-        ray.register_custom_serializer(WatermarkMessage, use_pickle=True)
         watermark = WatermarkMessage(timestamp)
-        self.get_output_stream('world_transform').send(
-            Message(world_transform, timestamp))
-        self.get_output_stream('world_transform').send(watermark)
 
-        self.get_output_stream('vehicle_pos').send(
-            Message(vehicle_pos, timestamp))
-        self.get_output_stream('vehicle_pos').send(watermark)
-        acceleration = (player_measurements.acceleration.x,
-                        player_measurements.acceleration.y,
-                        player_measurements.acceleration.z)
-        self.get_output_stream('acceleration').send(
-            Message(acceleration, timestamp))
-        self.get_output_stream('acceleration').send(watermark)
-        self.get_output_stream('forward_speed').send(
-            Message(player_measurements.forward_speed, timestamp))
-        self.get_output_stream('forward_speed').send(watermark)
-
+        # Send player data on data streams.
+        self.__send_player_data(measurements.player_measurements, timestamp, watermark)
         # Extract agent data from measurements.
         agents = self.__get_ground_agents(measurements)
         # Send agent data on data streams.
@@ -213,6 +189,37 @@ class CarlaOperator(Op):
             measurement_runtime, total_runtime))
         self._csv_logger.info('{},{},{},{}'.format(
             time_epoch_ms(), self.name, measurement_runtime, total_runtime))
+
+    def __send_player_data(self, player_measurements, timestamp, watermark):
+        world_transform = Transform(player_measurements.transform)
+        self.get_output_stream('world_transform').send(
+            Message(world_transform, timestamp))
+        self.get_output_stream('world_transform').send(watermark)
+
+        location = simulation.messages.Location(
+            player_measurements.transform.location.x,
+            player_measurements.transform.location.y,
+            player_measurements.transform.location.z)
+        orientation = simulation.messages.Orientation(
+            player_measurements.transform.orientation.x,
+            player_measurements.transform.orientation.y,
+            player_measurements.transform.orientation.z)
+        vehicle_pos = simulation.messages.Position(location, orientation)
+        self.get_output_stream('vehicle_pos').send(
+            Message(vehicle_pos, timestamp))
+        self.get_output_stream('vehicle_pos').send(watermark)
+
+        acceleration = simulation.messages.Acceleration(
+            player_measurements.acceleration.x,
+            player_measurements.acceleration.y,
+            player_measurements.acceleration.z)
+        self.get_output_stream('acceleration').send(
+            Message(acceleration, timestamp))
+        self.get_output_stream('acceleration').send(watermark)
+
+        self.get_output_stream('forward_speed').send(
+            Message(player_measurements.forward_speed, timestamp))
+        self.get_output_stream('forward_speed').send(watermark)
 
     def __get_ground_agents(self, measurements):
         vehicles = []

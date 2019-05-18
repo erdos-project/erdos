@@ -29,10 +29,14 @@ class DepthFrameMessage(Message):
         return 'timestamp: {}, width: {}, height: {}, fov: {}'.format(
             self.timestamp, self.width, self.height, self.fov)
 
-
+Acceleration = namedtuple('Acceleration', 'x, y, z')
 Location = namedtuple('Location', 'x, y, z')
-
-Vehicle = namedtuple('Vehicle', 'position, transform, bounding_box, forward_speed')
+Orientation = namedtuple('Orientation', 'x, y, z')
+Position = namedtuple('Position', 'location, orientation')
+Vehicle = namedtuple('Vehicle', 'location, transform, bounding_box, forward_speed')
+Pedestrian = namedtuple('Pedestrian', 'id, location, transform, bounding_box, forward_speed')
+TrafficLight = namedtuple('TrafficLight', 'location, transform, state')
+SpeedLimitSign = namedtuple('SpeedLimitSign', 'location, transform, limit')
 
 
 class GroundVehiclesMessage(Message):
@@ -43,9 +47,6 @@ class GroundVehiclesMessage(Message):
     def __str__(self):
         return 'timestamp: {}, vehicles: {}'.format(
             self.timestamp, self.vehicles)
-
-
-Pedestrian = namedtuple('Pedestrian', 'id, position, transform, bounding_box, forward_speed')
 
 
 class GroundPedestriansMessage(Message):
@@ -59,9 +60,6 @@ class GroundPedestriansMessage(Message):
             self.timestamp, self.pedestrians)
 
 
-TrafficLight = namedtuple('TrafficLight', 'position, transform, state')
-
-
 class GroundTrafficLightsMessage(Message):
     def __init__(self, traffic_lights, timestamp, stream_name='default'):
         super(GroundTrafficLightsMessage, self).__init__(
@@ -71,8 +69,6 @@ class GroundTrafficLightsMessage(Message):
     def __str__(self):
         return 'timestamp: {}, traffic lights: {}'.format(
             self.timestamp, self.traffic_lights)
-
-SpeedLimitSign = namedtuple('SpeedLimitSign', 'position, transform, limit')
 
 
 class GroundSpeedSignsMessage(Message):

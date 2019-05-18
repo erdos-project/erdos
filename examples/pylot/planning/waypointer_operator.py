@@ -44,20 +44,14 @@ class WaypointerOperator(Op):
         self.get_output_stream('waypoints').send(output_msg)
 
     def get_waypoints(self, vehicle_pos):
-        vehicle_x = vehicle_pos[0][0]
-        vehicle_y = vehicle_pos[0][1]
-        vehicle_ori_x = vehicle_pos[1][0]
-        vehicle_ori_y = vehicle_pos[1][1]
-        vehicle_ori_z = vehicle_pos[1][2]
-
         waypoints_world, waypoints, route = self._waypointer.get_next_waypoints(
-            (vehicle_x, vehicle_y, 0.22),
-            (vehicle_ori_x, vehicle_ori_y, vehicle_ori_z),
+            (vehicle_pos.location.x, vehicle_pos.location.y, 0.22),
+            (vehicle_pos.orientation.x, vehicle_pos.orientation.y, vehicle_pos.orientation.z),
             self._goal_location,
             self._goal_orientation)
 
         if waypoints_world == []:
-            waypoints_world = [[vehicle_x, vehicle_y, 0.22]]
+            waypoints_world = [[vehicle_pos.location.x, vehicle_pos.location.y, 0.22]]
 
         # Make a function, maybe util function to get the magnitues
         wp = [
@@ -65,10 +59,11 @@ class WaypointerOperator(Op):
             waypoints_world[int(self._wp_num_steer * len(waypoints_world))][1]
         ]
 
-        wp_vector, wp_mag = get_world_vec_dist(wp[0], wp[1], vehicle_x, vehicle_y)
+        wp_vector, wp_mag = get_world_vec_dist(
+            wp[0], wp[1], vehicle_pos.location.x, vehicle_pos.location.y)
 
         if wp_mag > 0:
-            wp_angle = get_angle(wp_vector, [vehicle_ori_x, vehicle_ori_y])
+            wp_angle = get_angle(wp_vector, [vehicle_pos.orientation.x, vehicle_pos.orientation.y])
         else:
             wp_angle = 0
 
@@ -78,9 +73,9 @@ class WaypointerOperator(Op):
         ]
 
         wp_vector_speed, _ = get_world_vec_dist(
-            wp_speed[0], wp_speed[1], vehicle_x, vehicle_y)
+            wp_speed[0], wp_speed[1], vehicle_pos.location.x, vehicle_pos.location.y)
 
         wp_angle_speed = get_angle(
-            wp_vector_speed, [vehicle_ori_x, vehicle_ori_y])
+            wp_vector_speed, [vehicle_pos.orientation.x, vehicle_pos.orientation.y])
 
         return (wp_angle, wp_vector, wp_angle_speed, wp_vector_speed)

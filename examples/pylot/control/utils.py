@@ -36,16 +36,14 @@ def is_pedestrian_on_near_hit_zone(p_dist, p_angle, flags):
 
 def is_traffic_light_visible(vehicle_pos, tl_pos, flags):
     _, tl_dist = get_world_vec_dist(
-        vehicle_pos[0][0],
-        vehicle_pos[0][1],
+        vehicle_pos.location.x,
+        vehicle_pos.location.y,
         tl_pos[0],
         tl_pos[1])
     return tl_dist > flags.traffic_light_min_dist_thres
 
 
 def is_traffic_light_active(vehicle_pos, tl_pos, city_map):
-    x_vehicle = vehicle_pos[0][0]
-    y_vehicle = vehicle_pos[0][1]
     tl_x = tl_pos[0]
     tl_y = tl_pos[1]
 
@@ -101,7 +99,7 @@ def is_traffic_light_active(vehicle_pos, tl_pos, city_map):
 
     if closest_lane_point is not None:
         return (math.fabs(
-            city_map.get_lane_orientation_degrees([x_vehicle, y_vehicle, 38])
+            city_map.get_lane_orientation_degrees([vehicle_pos.location.x, vehicle_pos.location.y, 38])
             - city_map.get_lane_orientation_degrees(
                 [closest_lane_point[0], closest_lane_point[1], 38])) < 1)
     else:
@@ -119,8 +117,8 @@ def stop_pedestrian(vehicle_pos,
     p_vector, p_dist = get_world_vec_dist(
         x_pedestrian,
         y_pedestrian,
-        vehicle_pos[0][0],
-        vehicle_pos[0][1])
+        vehicle_pos.location.x,
+        vehicle_pos.location.y)
     p_angle = get_angle(p_vector, wp_vector)
     if is_pedestrian_on_hit_zone(p_dist, p_angle, flags):
         speed_factor_p_temp = p_dist / (flags.coast_factor * flags.pedestrian_distance_hit_thres)
@@ -132,25 +130,21 @@ def stop_pedestrian(vehicle_pos,
 
 
 def is_vehicle_on_same_lane(vehicle_pos, obs_vehicle, city_map):
-    x_vehicle = vehicle_pos[0][0]
-    y_vehicle = vehicle_pos[0][1]
     x_agent = obs_vehicle[0]
     y_agent = obs_vehicle[1]
     if city_map.is_point_on_intersection([x_agent, y_agent, 38]):
         return True
     return (math.fabs(
-        city_map.get_lane_orientation_degrees([x_vehicle, y_vehicle, 38]) -
+        city_map.get_lane_orientation_degrees([vehicle_pos.location.x, vehicle_pos.location.y, 38]) -
         city_map.get_lane_orientation_degrees([x_agent, y_agent, 38])) < 1)
 
 
 def stop_vehicle(vehicle_pos, vehicle, wp_vector, speed_factor_v, flags):
-    x_vehicle = vehicle_pos[0][0]
-    y_vehicle = vehicle_pos[0][1]
     x_agent = vehicle[0]
     y_agent = vehicle[1]
     speed_factor_v_temp = 1
     v_vector, v_dist = get_world_vec_dist(
-        x_agent, y_agent, x_vehicle, y_vehicle)
+        x_agent, y_agent, vehicle_pos.location.x, vehicle_pos.location.y)
     v_angle = get_angle(v_vector, wp_vector)
 
     if ((-0.5 * flags.vehicle_angle_thres / flags.coast_factor <
@@ -180,14 +174,12 @@ def stop_traffic_light(vehicle_pos,
                        wp_angle,
                        speed_factor_tl,
                        flags):
-    x_vehicle = vehicle_pos[0][0]
-    y_vehicle = vehicle_pos[0][1]
     speed_factor_tl_temp = 1
     if tl_state != 0:  # Not green
         tl_x = tl_pos[0]
         tl_y = tl_pos[1]
         tl_vector, tl_dist = get_world_vec_dist(
-            tl_x, tl_y, x_vehicle, y_vehicle)
+            tl_x, tl_y, vehicle_pos.location.x, vehicle_pos.location.y)
         tl_angle = get_angle(tl_vector, wp_vector)
 
         if ((0 < tl_angle < flags.traffic_light_angle_thres / flags.coast_factor and

@@ -119,7 +119,13 @@ class FusionOperator(Op):
         self.get_output_stream(self._output_stream_name).send(output_msg)
 
     def update_pos(self, msg):
-        self._car_positions.append((msg.timestamp, msg.data))
+        vehicle_pos = ((msg.data.location.x,
+                        msg.data.location.y,
+                        msg.data.location.z),
+                       (msg.data.orientation.x,
+                        msg.data.orientation.y,
+                        msg.data.orientation.z))
+        self._car_positions.append((msg.timestamp, vehicle_pos))
 
     def update_objects(self, msg):
         # Filter objects
