@@ -9,41 +9,6 @@ from carla.sensor import Camera, PointCloud
 from carla.transform import Transform
 
 
-# We are transforming protobuf objects to python objects and
-# back because we cannot pickle protobuf objects.
-class Transform(object):
-    def __init__(self, transform):
-        self.location = (transform.location.x, transform.location.y,
-                         transform.location.z)
-        self.orientation = (transform.orientation.x,
-                            transform.orientation.y,
-                            transform.orientation.z)
-        self.rotation = (transform.rotation.pitch,
-                         transform.rotation.yaw,
-                         transform.rotation.roll)
-
-    def populate_pb2(self, transform):
-        transform.location.x = self.location[0]
-        transform.location.y = self.location[1]
-        transform.location.z = self.location[2]
-        transform.orientation.x = self.orientation[0]
-        transform.orientation.y = self.orientation[1]
-        transform.orientation.z = self.orientation[2]
-        transform.rotation.pitch = self.rotation[0]
-        transform.rotation.yaw = self.rotation[1]
-        transform.rotation.roll = self.rotation[2]
-
-    def to_transform_pb2(self):
-        transform = carla.carla_server_pb2.Transform()
-        self.populate_pb2(transform)
-        return transform
-
-    def __repr__(self):
-        return self.__str__()
-
-    def __str__(self):
-        return "location: {}, orientation: {}, rotation: {}".format(self.location, self.orientation, self.rotation)
-
 class BoundingBox(object):
     def __init__(self, bb):
         self.transform = Transform(bb.transform)
@@ -302,16 +267,15 @@ def select_max_bbox(ends):
 
 def map_ground_bounding_box_to_2D(distance_img,
                                   world_transform,
-                                  obstacle_transform,
+                                  obj_transform,
                                   bounding_box,
                                   rgb_transform,
                                   rgb_intrinsic,
                                   rgb_img_size):
     (image_width, image_height) = rgb_img_size
     extrinsic_mat = world_transform * rgb_transform
-    obj_transform = carla.transform.Transform(obstacle_transform.to_transform_pb2())
     bbox_pb2 = bounding_box.to_bounding_box_pb2()
-    bbox_transform = carla.transform.Transform(bbox_pb2.transform)
+    bbox_transform = bounding_box.transform
     ext = bbox_pb2.extent
 
     # 8 bounding box vertices relative to (0,0,0)

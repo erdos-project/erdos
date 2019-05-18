@@ -204,7 +204,7 @@ class CarlaOperator(Op):
 
         for agent in measurements.non_player_agents:
             if agent.HasField('vehicle'):
-                pos = simulation.utils.Transform(agent.vehicle.transform)
+                pos = Transform(agent.vehicle.transform)
                 bb = simulation.utils.BoundingBox(agent.vehicle.bounding_box)
                 forward_speed = agent.vehicle.forward_speed
                 vehicle = simulation.messages.Vehicle(pos, bb, forward_speed)
@@ -215,21 +215,19 @@ class CarlaOperator(Op):
                     self.agent_id_map[agent.id] = self.pedestrian_count
 
                 pedestrian_index = self.agent_id_map[agent.id]
-                pos = simulation.utils.Transform(agent.pedestrian.transform)
+                pos = Transform(agent.pedestrian.transform)
                 bb = simulation.utils.BoundingBox(agent.pedestrian.bounding_box)
                 forward_speed = agent.pedestrian.forward_speed
                 pedestrian = simulation.messages.Pedestrian(
                     pedestrian_index, pos, bb, forward_speed)
                 pedestrians.append(pedestrian)
             elif agent.HasField('traffic_light'):
-                transform = simulation.utils.Transform(
-                    agent.traffic_light.transform)
+                transform = Transform(agent.traffic_light.transform)
                 traffic_light = simulation.messages.TrafficLight(
                     transform, agent.traffic_light.state)
                 traffic_lights.append(traffic_light)
             elif agent.HasField('speed_limit_sign'):
-                transform = simulation.utils.Transform(
-                    agent.speed_limit_sign.transform)
+                transform = Transform(agent.speed_limit_sign.transform)
                 speed_sign = simulation.messages.SpeedLimitSign(
                     transform, agent.speed_limit_sign.speed_limit)
                 speed_limit_signs.append(speed_sign)
