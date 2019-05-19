@@ -121,7 +121,7 @@ class LocalROSNode(LocalRayNode):
             num_cpus=0, resources={self.server: 1})
         master = rosgraph.Master("/mynode")
         parsed_ros_uri = urlparse(master.lookupNode("/rosout"))
-        master_ip = redis_address.split(":")[0]
+        master_ip = ray.services.get_node_ip_address()
         ros_uri = "{}://{}:{}/".format(parsed_ros_uri.scheme, master_ip,
                                        parsed_ros_uri.port)
 
