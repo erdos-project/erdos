@@ -27,7 +27,8 @@ class SegmentationDLAOperator(Op):
         self._output_stream_name = output_stream_name
         # TODO(ionel): Figure out how to set GPU memory fraction.
         self._network = dla.DLASeg.DLASeg()
-        self._network.load_state_dict(torch.load('dependencies/dla/DLASeg.pth'))
+        self._network.load_state_dict(
+            torch.load(self._flags.segmentation_dla_model_path))
         if self._flags.segmentation_gpu:
             self._network = self._network.cuda()
 

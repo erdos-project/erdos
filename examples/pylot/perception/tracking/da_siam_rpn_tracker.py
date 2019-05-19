@@ -32,7 +32,7 @@ class MultiObjectDaSiamRPNTracker(MultiObjectTracker):
         # Initialize the siam network.
         self._siam_net = SiamRPNvot()
         self._siam_net.load_state_dict(
-            torch.load('dependencies/data/SiamRPNVOT.model'))
+            torch.load(flags.da_siam_rpn_model_path))
         self._siam_net.eval().cuda()
 
     def reinitialize(self, frame, bboxes):

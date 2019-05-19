@@ -27,7 +27,7 @@ RGB_CAMERA_NAME='front_center_camera'
 
 class ERDOSAgent(AutonomousAgent):
     def setup(self, path_to_conf_file):
-        flags.FLAGS([__file__])
+        flags.FLAGS([__file__, '--flagfile={}'.format(path_to_conf_file)])
         self.track = Track.ALL_SENSORS_HDMAP_WAYPOINTS
 
         self.message_num = 0

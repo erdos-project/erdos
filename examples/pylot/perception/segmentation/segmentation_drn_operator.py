@@ -27,12 +27,12 @@ class SegmentationDRNOperator(Op):
         self._output_stream_name = output_stream_name
         arch = "drn_d_22"
         classes = 19
-        pretrained = "dependencies/data/drn_d_22_cityscapes.pth"
         self._pallete = drn.segment.CITYSCAPE_PALETTE
         # TODO(ionel): Figure out how to set GPU memory fraction.
         self._model = DRNSeg(
             arch, classes, pretrained_model=None, pretrained=False)
-        self._model.load_state_dict(torch.load(pretrained))
+        self._model.load_state_dict(
+            torch.load(self._flags.segmentation_drn_model_path))
         # TODO(ionel): Automatically detect if GPU is available.
         if self._flags.segmentation_gpu:
             self._model = torch.nn.DataParallel(self._model).cuda()

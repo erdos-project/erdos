@@ -194,19 +194,19 @@ def create_detector_ops(graph):
         detector_ops.append(create_detector_op_helper(
             graph,
             'detector_ssd_mobilenet_v1',
-            'dependencies/data/ssd_mobilenet_v1_coco_2018_01_28/frozen_inference_graph.pb',
+            FLAGS.detector_ssd_mobilenet_v1_model_path,
             FLAGS.obj_detection_gpu_memory_fraction))
     if FLAGS.detector_frcnn_resnet101:
         detector_ops.append(create_detector_op_helper(
             graph,
             'detector_faster_rcnn_resnet101',
-            'dependencies/data/faster_rcnn_resnet101_coco_2018_01_28/frozen_inference_graph.pb',
+            FLAGS.detector_frcnn_resnet101_model_path,
             FLAGS.obj_detection_gpu_memory_fraction))
     if FLAGS.detector_ssd_resnet50_v1:
         detector_ops.append(create_detector_op_helper(
             graph,
             'detector_ssd_resnet50_v1',
-            'dependencies/data/ssd_resnet50_v1_fpn_shared_box_predictor_640x640_coco14_sync_2018_07_03/frozen_inference_graph.pb',
+            FLAGS.detector_ssd_resnet50_v1_model_path,
             FLAGS.obj_detection_gpu_memory_fraction))
     if FLAGS.detector_center_net:
         obj_det_op = graph.add(
