@@ -55,7 +55,8 @@ class Graph(object):
         self.input_op = self.add(NoopOp, name='input_op')
         self.output_op = self.add(NoopOp, name='output_op')
 
-    def add(self, op_cls, name="", init_args=None, setup_args=None, _resources=None):
+    def add(self, op_cls, name="", init_args=None, setup_args=None,
+            input_streams=[], _resources=None):
         """Adds an operator to the execution graph.
 
         Args:
@@ -80,6 +81,11 @@ class Graph(object):
         assert (op_id not in self.op_handles), \
             'Duplicate operator name {}. Ensure name uniqueness ' \
             'or do not operator specify name'.format(handle.name)
+        # XXX(ionel): Hack so that we can feed in data from drivers into
+        # operators.
+        handle.driver_input_streams = input_streams
+        # Deep copy streams.
+        handle.input_streams = input_streams[:]
         if issubclass(op_cls, Graph):
             self.graph_handles[op_id] = handle
         self.op_handles[op_id] = handle
@@ -244,7 +250,8 @@ class Graph(object):
             # Empty input streams in order to ensure that we don't maintain
             # inputs streams that are removed between iterations.
             for op_id, op_handle in self.op_handles.items():
-                op_handle.input_streams = []
+                # Deep copy input streams.
+                op_handle.input_streams = op_handle.driver_input_streams[:]
             # We do this to break the reference cycle and ensure that the
             # output data stream object of the upstream operator is different
             # from the input data stream object of the downstream operator.

@@ -17,6 +17,7 @@ class OpHandle(object):
         self.init_args = init_args if init_args else {}
         self.setup_args = setup_args if setup_args else {}
         self.graph_name = graph_name
+        self.driver_input_streams = []
         self.input_streams = []
         self.output_streams = []
         self.framework = framework
