@@ -136,7 +136,7 @@ class Graph(object):
         raise NotImplementedError(
             "setups_streams will be exposed after API changes.")
 
-    def execute(self, framework=None):
+    def execute(self, framework=None, blocking=True):
         """Execute the current graph.
 
         Args:
@@ -179,17 +179,18 @@ class Graph(object):
                 dependent_op_handles)
             executor.execute()
 
-        # 9. Keep driver running.
-        if self.framework == "ros":
-            procs = list()
-            for op_handle in self.op_handles.values():
-                procs.append(op_handle.executor_handle)
-            for p in procs:
-                p.join()
-        else:
-            # TODO(yika): FIX! Temporary solution to keep Ray master running.
-            while True:
-                time.sleep(5)
+        if blocking:
+            # 9. Keep driver running.
+            if self.framework == "ros":
+                procs = list()
+                for op_handle in self.op_handles.values():
+                    procs.append(op_handle.executor_handle)
+                for p in procs:
+                    p.join()
+            else:
+                # TODO(yika): FIX! Temporary solution to keep Ray master running.
+                while True:
+                    time.sleep(5)
 
     def _flatten_subgraphs(self):
         """Set up subgraphs"""
