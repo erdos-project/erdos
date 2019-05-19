@@ -52,7 +52,7 @@ class ROSExecutor(Executor):
             for input_stream in self.op_handle.input_streams
         ]
         ros_output_streams = [
-            ROSOutputDataStream(op, output_stream)
+            ROSOutputDataStream(output_stream)
             for output_stream in self.op_handle.output_streams
         ]
         op._add_input_streams(ros_input_streams)
