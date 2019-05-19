@@ -322,7 +322,7 @@ def map_ground_3D_transform_to_2D(location,
                                   world_transform,
                                   rgb_transform,
                                   rgb_intrinsic,
-                                  rgb_img_size)
+                                  rgb_img_size):
     extrinsic_mat = world_transform * rgb_transform
     pos_vector = np.array([[location.x], [location.y], [location.z], [1.0]])
     transformed_3d_pos = np.dot(inv(extrinsic_mat.matrix), pos_vector)
@@ -330,7 +330,7 @@ def map_ground_3D_transform_to_2D(location,
     (img_width, img_height) = rgb_img_size
     loc_2d = Location(img_width - pos2d[0] / pos2d[2],
                       img_height- pos2d[1] / pos2d[2],
-                      pos2d[2]])
+                      pos2d[2])
     if (loc_2d.z > 0 and loc_2d.x >= 0 and loc_2d.x < img_width and
         loc_2d.y >= 0 and loc_2d.y < img_height):
         return (loc_2d.x, loc_2d.y, loc_2d.z)
