@@ -56,7 +56,6 @@ class TrafficLightDetOperator(Op):
                              'Red': [255, 0, 0],
                              'Yellow': [255, 255, 0],
                              'Off': [0, 0, 0]}
-        self._last_seq_num = -1
 
     @staticmethod
     def setup_streams(input_streams, output_stream_name):
@@ -65,13 +64,6 @@ class TrafficLightDetOperator(Op):
         return [create_traffic_lights_stream(output_stream_name)]
 
     def on_frame(self, msg):
-        if self._last_seq_num + 1 != msg.timestamp.coordinates[1]:
-            self._logger.error('Expected msg with seq num {} but received {}'.format(
-                (self._last_seq_num + 1), msg.timestamp.coordinates[1]))
-            if self._flags.fail_on_message_loss:
-                assert self._last_seq_num + 1 == msg.timestamp.coordinates[1]
-        self._last_seq_num = msg.timestamp.coordinates[1]
-
         start_time = time.time()
         assert msg.encoding == 'BGR', 'Expects BGR frames'
         image_np = bgr_to_rgb(msg.frame)

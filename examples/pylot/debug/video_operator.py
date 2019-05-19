@@ -10,7 +10,6 @@ class VideoOperator(Op):
         super(VideoOperator, self).__init__(name)
         self._logger = setup_logging(self.name, log_file_name)
         self._flags = flags
-        self._last_seq_num = -1
 
     @staticmethod
     def setup_streams(input_streams, filter_name=None):
@@ -21,13 +20,6 @@ class VideoOperator(Op):
         return []
 
     def display_frame(self, msg):
-        if self._last_seq_num + 1 != msg.timestamp.coordinates[1]:
-            self._logger.error('Expected msg with seq num {} but received {}'.format(
-                (self._last_seq_num + 1), msg.timestamp.coordinates[1]))
-            if self._flags.fail_on_message_loss:
-                assert self._last_seq_num + 1 == msg.timestamp.coordinates[1]
-        self._last_seq_num = msg.timestamp.coordinates[1]
-
         assert msg.encoding == 'BGR', 'Expects BGR frames'
         add_timestamp(msg.timestamp, msg.frame)
         cv2.imshow(self.name, msg.frame)

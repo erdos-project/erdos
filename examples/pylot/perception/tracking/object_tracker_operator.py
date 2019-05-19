@@ -43,7 +43,6 @@ class ObjectTrackerOp(Op):
         self._ready_to_update = False
         self._ready_to_update_timestamp = None
         self._to_process = deque()
-        self._last_seq_num = -1
         self._lock = threading.Lock()
 
     @staticmethod
@@ -55,15 +54,6 @@ class ObjectTrackerOp(Op):
         return [DataStream(name=output_stream_name)]
 
     def on_frame_msg(self, msg):
-        # Ensure that we're not missing messages.
-        if self._last_seq_num + 1 != msg.timestamp.coordinates[1]:
-            self._logger.error(
-                'Expected msg with seq num {} but received {}'.format(
-                    (self._last_seq_num + 1), msg.timestamp.coordinates[1]))
-            if self._flags.fail_on_message_loss:
-                assert self._last_seq_num + 1 == msg.timestamp.coordinates[1]
-        self._last_seq_num = msg.timestamp.coordinates[1]
-
         self._lock.acquire()
         start_time = time.time()
         assert msg.encoding == 'BGR', 'Expects BGR frames'
@@ -120,8 +110,7 @@ class ObjectTrackerOp(Op):
         # We can't checkpoint the tracker itself because it has internal state.
         state = [self._ready_to_update_timestamp,
                  self._ready_to_update,
-                 self._to_process,
-                 self._last_seq_num]
+                 self._to_process]
         # XXX(ionel): This doesn't work if we have other time dimensions.
         file_name = '{}{}.checkpoint'.format(
             self._name, timestamp.coordinates[1])
@@ -133,7 +122,6 @@ class ObjectTrackerOp(Op):
         self._ready_to_update_timestamp = state[0]
         self._ready_to_update = state[1]
         self._to_process = state[2]
-        self._last_seq_num = state[3]
 
     def __get_highest_confidence_pedestrian(self, detected_objs):
         max_confidence = 0

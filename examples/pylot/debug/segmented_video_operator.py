@@ -14,7 +14,6 @@ class SegmentedVideoOperator(Op):
         super(SegmentedVideoOperator, self).__init__(name)
         self._logger = setup_logging(self.name, log_file_name)
         self._flags = flags
-        self._last_seq_num = -1
 
     @staticmethod
     def setup_streams(input_streams):
@@ -23,13 +22,6 @@ class SegmentedVideoOperator(Op):
         return []
 
     def display_frame(self, msg):
-        if self._last_seq_num + 1 != msg.timestamp.coordinates[1]:
-            self._logger.error('Expected msg with seq num {} but received {}'.format(
-                (self._last_seq_num + 1), msg.timestamp.coordinates[1]))
-            if self._flags.fail_on_message_loss:
-                assert self._last_seq_num + 1 == msg.timestamp.coordinates[1]
-        self._last_seq_num = msg.timestamp.coordinates[1]
-
         frame = transform_to_cityscapes_palette(msg.frame)
         img = Image.fromarray(np.uint8(frame))
         open_cv_image = rgb_to_bgr(np.array(img))

@@ -20,7 +20,6 @@ class LaneDetectionOperator(Op):
         self._logger = setup_logging(self.name, log_file_name)
         self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
         self._output_stream_name = output_stream_name
-        self._last_seq_num = -1
 
     @staticmethod
     def setup_streams(input_streams, output_stream_name):
@@ -30,13 +29,6 @@ class LaneDetectionOperator(Op):
         return [create_detected_lane_stream(output_stream_name)]
 
     def on_msg_camera_stream(self, msg):
-        if self._last_seq_num + 1 != msg.timestamp.coordinates[1]:
-            self._logger.error('Expected msg with seq num {} but received {}'.format(
-                (self._last_seq_num + 1), msg.timestamp.coordinates[1]))
-            if self._flags.fail_on_message_loss:
-                assert self._last_seq_num + 1 == msg.timestamp.coordinates[1]
-        self._last_seq_num = msg.timestamp.coordinates[1]
-
         start_time = time.time()
         assert msg.encoding == 'BGR', 'Expects BGR frames'
         image_np = msg.frame
