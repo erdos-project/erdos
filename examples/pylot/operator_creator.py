@@ -2,7 +2,6 @@ from absl import flags
 
 # import Control operators.
 from control.control_operator import ControlOperator
-from control.erdos_agent_operator import ERDOSAgentOperator
 from control.ground_agent_operator import GroundAgentOperator
 # Import debug operators.
 from debug.camera_replay_operator import CameraReplayOperator
@@ -10,14 +9,12 @@ from debug.lidar_visualizer_operator import LidarVisualizerOperator
 from debug.segmented_video_operator import SegmentedVideoOperator
 from debug.video_operator import VideoOperator
 # Import perception operators.
-from perception.detection.detection_eval_ground_operator import DetectionEvalGroundOperator
 from perception.detection.detection_operator import DetectionOperator
 try:
     from perception.detection.detection_center_net_operator import DetectionCenterNetOperator
 except ImportError:
     print("Error importing CenterNet detector.")
 from perception.detection.lane_detection_operator import LaneDetectionOperator
-from perception.detection.obstacle_accuracy_operator import ObstacleAccuracyOperator
 from perception.detection.traffic_light_det_operator import TrafficLightDetOperator
 from perception.fusion.fusion_operator import FusionOperator
 from perception.fusion.fusion_verification_operator import FusionVerificationOperator
@@ -31,8 +28,6 @@ from perception.segmentation.segmentation_eval_ground_operator import Segmentati
 from perception.tracking.object_tracker_operator import ObjectTrackerOp
 # Import planning operators.
 from planning.waypointer_operator import WaypointerOperator
-# Import operators that interact with the simulator.
-from simulation.carla_operator import CarlaOperator
 
 FLAGS = flags.FLAGS
 
@@ -54,24 +49,6 @@ def create_camera_replay_ops(graph):
     return camera_ops
 
 
-def create_carla_op(graph, camera_setups):
-    carla_op = graph.add(
-        CarlaOperator,
-        name='carla',
-        init_args={
-            'flags': FLAGS,
-            'camera_setups': camera_setups,
-            'lidar_stream_names': [],
-            'log_file_name': FLAGS.log_file_name,
-            'csv_file_name': FLAGS.csv_log_file_name
-        },
-        setup_args={
-            'camera_setups': camera_setups,
-            'lidar_stream_names': []
-        })
-    return carla_op
-
-
 def create_ground_agent_op(graph):
     agent_op = graph.add(
         GroundAgentOperator,
@@ -83,22 +60,6 @@ def create_ground_agent_op(graph):
             'log_file_name': FLAGS.log_file_name,
             'csv_file_name': FLAGS.csv_log_file_name
         })
-    return agent_op
-
-
-def create_erdos_agent_op(graph, depth_camera_name):
-    agent_op = graph.add(
-        ERDOSAgentOperator,
-        name='erdos_agent',
-        init_args={
-            # TODO(ionel): Do not hardcode city name!
-            'city_name': 'Town01',
-            'depth_camera_name': depth_camera_name,
-            'flags': FLAGS,
-            'log_file_name': FLAGS.log_file_name,
-            'csv_file_name': FLAGS.csv_log_file_name
-        },
-        setup_args={'depth_camera_name': depth_camera_name})
     return agent_op
 
 
@@ -261,20 +222,6 @@ def create_object_tracking_op(graph):
     return tracker_op
 
 
-def create_obstacle_accuracy_op(graph,
-                             rgb_camera_setup,
-                             depth_camera_name):
-    obstacle_accuracy_op = graph.add(
-        ObstacleAccuracyOperator,
-        name='obstacle_accuracy',
-        setup_args={'depth_camera_name': depth_camera_name},
-        init_args={'rgb_camera_setup': rgb_camera_setup,
-                   'flags': FLAGS,
-                   'log_file_name': FLAGS.log_file_name,
-                   'csv_file_name': FLAGS.csv_log_file_name})
-    return obstacle_accuracy_op
-
-
 def create_segmentation_drn_op(graph):
     segmentation_op = graph.add(
         SegmentationDRNOperator,
@@ -350,23 +297,6 @@ def create_fusion_ops(graph):
         name='fusion_verifier',
         init_args={'log_file_name': FLAGS.log_file_name})
     return (fusion_op, fusion_verification_op)
-
-
-def create_eval_ground_truth_detector_op(graph,
-                                      rgb_camera_setup,
-                                      depth_camera_name):
-    ground_truth_op = graph.add(
-        DetectionEvalGroundOperator,
-        name='eval_ground_detection',
-        setup_args={'depth_camera_name': depth_camera_name},
-        init_args={
-            'rgb_camera_setup': rgb_camera_setup,
-            'flags': FLAGS,
-            'log_file_name': FLAGS.log_file_name,
-            'csv_file_name': FLAGS.csv_log_file_name
-        },
-    )
-    return ground_truth_op
 
 
 def add_visualization_operators(graph,

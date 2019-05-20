@@ -11,12 +11,13 @@ from srunner.challenge.autoagents.autonomous_agent import AutonomousAgent, Track
 from erdos.data_stream import DataStream
 import erdos.graph
 from erdos.message import Message
+from erdos.operators import NoopOp
 from erdos.ros.ros_output_data_stream import ROSOutputDataStream
 from erdos.timestamp import Timestamp
 
 import config
 from debug.video_operator import VideoOperator
-#import operator_creator
+import operator_creator
 from perception.segmentation.segmentation_drn_operator import SegmentationDRNOperator
 import pylot_utils
 import simulation.messages
@@ -25,7 +26,21 @@ FLAGS = flags.FLAGS
 RGB_CAMERA_NAME='front_center_camera'
 
 
+def add_visualization_operators(graph, rgb_camera_name):
+    visualization_ops = []
+    if FLAGS.visualize_rgb_camera:
+        camera_video_op = operator_creator.create_camera_video_op(
+            graph, 'rgb_camera', rgb_camera_name)
+        visualization_ops.append(camera_video_op)
+    if FLAGS.visualize_segmentation:
+        # Segmented camera. The stream comes from CARLA.
+        segmented_video_op = operator_creator.create_segmented_video_op(graph)
+        visualization_ops.append(segmented_video_op)
+    return visualization_ops
+
+
 class ERDOSAgent(AutonomousAgent):
+
     def setup(self, path_to_conf_file):
         flags.FLAGS([__file__, '--flagfile={}'.format(path_to_conf_file)])
         self.track = Track.ALL_SENSORS_HDMAP_WAYPOINTS
@@ -34,30 +49,40 @@ class ERDOSAgent(AutonomousAgent):
 
         # Set up graph
         self.graph = erdos.graph.get_current_graph()
-        self.camera_stream = ROSOutputDataStream(
-            DataStream(name=RGB_CAMERA_NAME,
-                       uid=RGB_CAMERA_NAME,
-                       labels={'sensor_type': 'camera',
-                               'camera_type': 'SceneFinal'}))
 
-        # video_op = self.graph.add(
-        #     VideoOperator,
-        #     name='video_op',
-        #     init_args={'flags': FLAGS,
-        #                'log_file_name': FLAGS.log_file_name},
-        #     setup_args={'filter_name': RGB_CAMERA_NAME},
-        #     input_streams=[self.camera_stream])
+        scenario_input_op = self.__create_scenario_input_op()
 
-        segmentation_op = self.graph.add(
-            SegmentationDRNOperator,
-            name='segmentation_drn',
-            setup_args={'output_stream_name': 'segmented_stream'},
-            init_args={'output_stream_name': 'segmented_stream',
-                       'flags': FLAGS,
-                       'log_file_name': FLAGS.log_file_name,
-                       'csv_file_name': FLAGS.csv_log_file_name},
-            _resources = {"GPU": FLAGS.segmentation_drn_gpu_memory_fraction},
-            input_streams=[self.camera_stream])
+        visualization_ops = add_visualization_operators(self.graph, RGB_CAMERA_NAME)
+
+        segmentation_ops = []
+        if FLAGS.segmentation_drn:
+            segmentation_op = operator_creator.create_segmentation_drn_op(self.graph)
+            segmentation_ops.append(segmentation_op)
+
+        if FLAGS.segmentation_dla:
+            segmentation_op = operator_creator.create_segmentation_dla_op(self.graph)
+            segmentation_ops.append(segmentation_op)
+
+        obj_detector_ops = []
+        tracker_ops = []
+        if FLAGS.obj_detection:
+            obj_detector_ops = operator_creator.create_detector_ops(self.graph)
+            if FLAGS.obj_tracking:
+                tracker_op = operator_creator.create_object_tracking_op(self.graph)
+                tracker_ops.append(tracker_op)
+
+        traffic_light_det_ops = []
+        if FLAGS.traffic_light_det:
+            traffic_light_det_ops.append(operator_creator.create_traffic_light_op(self.graph))
+
+        lane_detection_ops = []
+        if FLAGS.lane_detection:
+            lane_detection_ops.append(operator_creator.create_lane_detection_op(self.graph))
+
+        self.graph.connect(
+            [scenario_input_op],
+            segmentation_ops + obj_detector_ops + tracker_ops +
+            traffic_light_det_ops + lane_detection_ops + visualization_ops)
 
         # Execute graph
         self.graph.execute(FLAGS.framework, blocking=False)
@@ -121,3 +146,15 @@ class ERDOSAgent(AutonomousAgent):
         control.hand_brake = False
 
         return control
+
+
+    def __create_scenario_input_op(self):
+        self.camera_stream = ROSOutputDataStream(
+            DataStream(name=RGB_CAMERA_NAME,
+                       uid=RGB_CAMERA_NAME,
+                       labels={'sensor_type': 'camera',
+                               'camera_type': 'SceneFinal'}))
+
+        return self.graph.add(NoopOp,
+                              name='scenario_input',
+                              input_streams=[self.camera_stream])

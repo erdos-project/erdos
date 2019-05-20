@@ -18,18 +18,36 @@ flags.DEFINE_bool('ground_agent_operator', True,
 # Modules to enable.
 flags.DEFINE_bool('segmentation_drn', False,
                   'True to enable DRN segmantation operator')
+flags.DEFINE_string('segmentation_drn_model_path',
+                    'dependencies/data/drn_d_22_cityscapes.pth',
+                    'Path to the model')
 flags.DEFINE_bool('segmentation_dla', False,
                   'True to enable DLA segmantation operator')
+flags.DEFINE_string('segmentation_dla_model_path',
+                    'dependencies/dla/DLASeg.pth',
+                    'Path to the model')
 flags.DEFINE_bool('segmentation_gpu', True,
                   'True, if segmentation should use a GPU')
 flags.DEFINE_bool('obj_detection', False,
                   'True to enable object detection operator')
 flags.DEFINE_bool('detector_ssd_mobilenet_v1', False,
                   'True to enable SSD mobilenet v1 detector')
+flags.DEFINE_string(
+    'detector_ssd_mobilenet_v1_model_path',
+    'dependencies/data/ssd_mobilenet_v1_coco_2018_01_28/frozen_inference_graph.pb',
+    'Path to the model')
 flags.DEFINE_bool('detector_frcnn_resnet101', False,
                   'True to enable faster RCNN resnet101 detector')
+flags.DEFINE_string(
+    'detector_frcnn_resnet101_model_path',
+    'dependencies/data/faster_rcnn_resnet101_coco_2018_01_28/frozen_inference_graph.pb',
+    'Path to the model')
 flags.DEFINE_bool('detector_ssd_resnet50_v1', False,
                   'True to enable SSD resnet50 v1 detector')
+flags.DEFINE_string(
+    'detector_ssd_resnet50_v1_model_path',
+    'dependencies/data/ssd_resnet50_v1_fpn_shared_box_predictor_640x640_coco14_sync_2018_07_03/frozen_inference_graph.pb',
+    'Path to the model')
 flags.DEFINE_bool('detector_center_net', False,
                   'True to enable CenterNet detector')
 flags.DEFINE_string('detector_center_net_model_path',
@@ -43,6 +61,9 @@ flags.DEFINE_bool('obj_tracking', False,
                   'True to enable object tracking operator')
 flags.DEFINE_string('tracker_type', 'cv2',
                     'Tracker type: cv2 | crv | da_siam_rpn')
+flags.DEFINE_string('da_siam_rpn_model_path',
+                    'dependencies/data/SiamRPNVOT.model',
+                    'Path to the model')
 flags.DEFINE_bool('lane_detection', False, 'True to enable lane detection')
 flags.DEFINE_bool('fusion', False, 'True to enable fusion operator')
 flags.DEFINE_bool('traffic_light_det', False,

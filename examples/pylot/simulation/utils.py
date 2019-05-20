@@ -5,7 +5,6 @@ import numpy as np
 from numpy.linalg import inv
 from numpy.matlib import repmat
 
-import carla.carla_server_pb2
 from carla.sensor import Camera, PointCloud
 from carla.transform import Transform
 
