@@ -8,6 +8,7 @@ from collections import deque
 import config
 from control.ground_agent_operator import GroundAgentOperator
 from perception.detection.utils import get_bounding_boxes_from_segmented, visualize_ground_bboxes
+from perception.segmentation.utils import get_traffic_sign_pixels
 from planning.waypointer_operator import WaypointerOperator
 from simulation.carla_operator import CarlaOperator
 from simulation.utils import get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform
@@ -224,13 +225,7 @@ class GroundTruthObjectLoggerOp(Op):
         return vec_bboxes
 
     def __get_traffic_sign_bboxes(self, segmented_frame):
-        # Shape is height, width
-        traffic_signs_frame = np.zeros((segmented_frame.shape[0],
-                                        segmented_frame.shape[1]),
-                                       dtype=np.bool)
-        # 12 is the key for TrafficSigns segmentation in Carla.
-        # Apply mask to only select traffic signs and traffic lights.
-        traffic_signs_frame[np.where(segmented_frame == 12)] = True
+        traffic_signs_frame = get_traffic_sign_pixels(segmented_frame)
         bboxes = get_bounding_boxes_from_segmented(traffic_signs_frame)
         traffic_sign_bboxes = [('traffic sign', bbox) for bbox in bboxes]
         return traffic_sign_bboxes

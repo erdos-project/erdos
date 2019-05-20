@@ -112,12 +112,11 @@ class GroundAgentOperator(Op):
 
         if self._flags.stop_for_vehicles:
             for vehicle in vehicles:
-                obs_vehicle_pos = (vehicle.location.x, vehicle.location.y)
                 if agent_utils.is_vehicle_on_same_lane(
-                        self._vehicle_pos, obs_vehicle_pos, self._map):
+                        self._vehicle_pos, vehicle.location, self._map):
                     new_speed_factor_v = agent_utils.stop_vehicle(
                         self._vehicle_pos,
-                        obs_vehicle_pos,
+                        vehicle.location,
                         wp_vector,
                         speed_factor_v,
                         self._flags)
@@ -125,11 +124,10 @@ class GroundAgentOperator(Op):
 
         if self._flags.stop_for_pedestrians:
             for pedestrian in pedestrians:
-                ped_pos = (pedestrian.location.x, pedestrian.location.y)
-                if agent_utils.is_pedestrian_hitable(ped_pos, self._map):
+                if agent_utils.is_pedestrian_hitable(pedestrian.location, self._map):
                     new_speed_factor_p = agent_utils.stop_pedestrian(
                         self._vehicle_pos,
-                        ped_pos,
+                        pedestrian.location,
                         wp_vector,
                         speed_factor_p,
                         self._flags)
@@ -137,14 +135,13 @@ class GroundAgentOperator(Op):
 
         if self._flags.stop_for_traffic_lights:
             for tl in traffic_lights:
-                tl_pos = (tl.location.x, tl.location.y)
                 if (agent_utils.is_traffic_light_active(
-                        self._vehicle_pos, tl_pos, self._map) and
+                        self._vehicle_pos, tl.location, self._map) and
                     agent_utils.is_traffic_light_visible(
-                        self._vehicle_pos, tl_pos, self._flags)):
+                        self._vehicle_pos, tl.location, self._flags)):
                     new_speed_factor_tl = agent_utils.stop_traffic_light(
                         self._vehicle_pos,
-                        tl_pos,
+                        tl.location,
                         tl.state,
                         wp_vector,
                         wp_angle,

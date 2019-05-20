@@ -87,7 +87,8 @@ def point_cloud_from_rgbd(depth_msg, world_transform):
 
 def get_3d_world_position(x, y, depth_msg, world_transform):
     pc = point_cloud_from_rgbd(depth_msg, world_transform)
-    return pc.array.tolist()[y * depth_msg.width + x]
+    (x, y, z) = pc.array.tolist()[y * depth_msg.width + x]
+    return Location(x, y, z)
 
 
 def get_camera_intrinsic_and_transform(name,

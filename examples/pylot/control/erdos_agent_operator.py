@@ -157,12 +157,11 @@ class ERDOSAgentOperator(Op):
         for tl in self._traffic_lights[0].detected_objects:
             x = (tl.corners[0] + tl.corners[1]) / 2
             y = (tl.corners[2] + tl.corners[3]) / 2
-            (x3d, y3d, z3d) = get_3d_world_position(
-                x, y, depth_msg, world_transform)
+            pos = get_3d_world_position(x, y, depth_msg, world_transform)
             state = 0
             if tl.label is not 'Green':
                 state = 1
-            traffic_lights.append((x3d, y3d, state))
+            traffic_lights.append((pos, state))
         return traffic_lights
 
     def __transform_detector_output(self, depth_msg, world_transform):
@@ -172,17 +171,15 @@ class ERDOSAgentOperator(Op):
             x = (detected_obj.corners[0] + detected_obj.corners[1]) / 2
             y = (detected_obj.corners[2] + detected_obj.corners[3]) / 2
             if detected_obj.label == 'person':
-                (x3d, y3d, z3d) = get_3d_world_position(
-                    x, y, depth_msg, world_transform)
-                pedestrians.append((x3d, y3d))
+                pos = get_3d_world_position(x, y, depth_msg, world_transform)
+                pedestrians.append(pos)
             elif (detected_obj.label == 'car' or
                   detected_obj.label == 'bicycle' or
                   detected_obj.label == 'motorcycle' or
                   detected_obj.label == 'bus' or
                   detected_obj.label == 'truck'):
-                (x3d, y3d, z3d) = get_3d_world_position(
-                    x, y, depth_msg, world_transform)
-                vehicles.append((x3d, y3d))
+                pos = get_3d_world_position(x, y, depth_msg, world_transform)
+                vehicles.append(pos)
         return (pedestrians, vehicles)
 
     def __stop_for_agents(
@@ -192,29 +189,31 @@ class ERDOSAgentOperator(Op):
         speed_factor_p = 1
         speed_factor_v = 1
 
-        for vehicle in vehicles:
-            if agent_utils.is_vehicle_on_same_lane(self._vehicle_pos, vehicle, self._map):
+        for obs_vehicle_pos in vehicles:
+            if agent_utils.is_vehicle_on_same_lane(
+                    self._vehicle_pos, obs_vehicle_pos, self._map):
                 new_speed_factor_v = agent_utils.stop_vehicle(
-                    self._vehicle_pos, vehicle, wp_vector, speed_factor_v, self._flags)
+                    self._vehicle_pos, obs_vehicle_pos, wp_vector,
+                    speed_factor_v, self._flags)
                 speed_factor_v = min(speed_factor_v, new_speed_factor_v)
 
-        for pedestrian in pedestrians:
-            if agent_utils.is_pedestrian_hitable(pedestrian, self._map):
+        for obs_ped_pos in pedestrians:
+            if agent_utils.is_pedestrian_hitable(obs_ped_pos, self._map):
                 new_speed_factor_p = agent_utils.stop_pedestrian(
                     self._vehicle_pos,
-                    pedestrian,
+                    obs_ped_pos,
                     wp_vector,
                     speed_factor_p,
                     self._flags)
                 speed_factor_p = min(speed_factor_p, new_speed_factor_p)
 
         for tl in traffic_lights:
-            if (agent_utils.is_traffic_light_active(self._vehicle_pos, tl, self._map) and
-                agent_utils.is_traffic_light_visible(self._vehicle_pos, tl, self._flags)):
-                tl_state = tl[2]
+            if (agent_utils.is_traffic_light_active(self._vehicle_pos, tl[0], self._map) and
+                agent_utils.is_traffic_light_visible(self._vehicle_pos, tl[0], self._flags)):
+                tl_state = tl[1]
                 new_speed_factor_tl = agent_utils.stop_traffic_light(
                     self._vehicle_pos,
-                    tl,
+                    tl[0],
                     tl_state,
                     wp_vector,
                     wp_angle,

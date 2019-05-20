@@ -22,6 +22,21 @@ CITYSCAPES_CLASSES = {
 # outputs to ground truth.
 
 
+def is_segmented_road_pixel(segmented_frame, x, y):
+    return segmented_frame[x][y] == 7
+
+
+def get_traffic_sign_pixels(segmented_frame):
+    # Shape is height, width
+    traffic_signs_frame = np.zeros((segmented_frame.shape[0],
+                                    segmented_frame.shape[1]),
+                                   dtype=np.bool)
+    # 12 is the key for TrafficSigns segmentation in Carla.
+    # Apply mask to only select traffic signs and traffic lights.
+    traffic_signs_frame[np.where(segmented_frame == 12)] = True
+    return traffic_signs_frame
+
+
 def transform_to_cityscapes_palette(frame_array):
     result = np.zeros((frame_array.shape[0], frame_array.shape[1], 3))
     for key, value in CITYSCAPES_CLASSES.items():
