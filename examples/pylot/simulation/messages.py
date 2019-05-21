@@ -37,7 +37,8 @@ Vehicle = namedtuple('Vehicle', 'location, transform, bounding_box, forward_spee
 Pedestrian = namedtuple('Pedestrian', 'id, location, transform, bounding_box, forward_speed')
 TrafficLight = namedtuple('TrafficLight', 'location, transform, state')
 SpeedLimitSign = namedtuple('SpeedLimitSign', 'location, transform, limit')
-
+LocationGeo = namedtuple('LocationGeo', 'latitude, longitude, altitude')
+CanBus = namedtuple('CanBus', 'drag_coefficient, max_rpm, steering_curve, moi, torque_curve, speed, clutch_strength, use_gear_autobox, damping_rate_full_throttle, damping_rate_zero_throttle_clutch_disengaged, mass, wheels, center_of_mass')
 
 class GroundVehiclesMessage(Message):
     def __init__(self, vehicles, timestamp, stream_name='default'):

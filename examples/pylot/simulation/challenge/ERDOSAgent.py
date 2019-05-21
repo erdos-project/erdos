@@ -93,38 +93,49 @@ class ERDOSAgent(AutonomousAgent):
 
     def sensors(self):
         """
-        Define the sensor suite required by the agent
-
-        :return: a list containing the required sensors in the following format:
-
-        [
-            {'type': 'sensor.camera.rgb', 'x': 0.7, 'y': -0.4, 'z': 1.60, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
-                      'width': 300, 'height': 200, 'fov': 100, 'id': 'Left'},
-
-            {'type': 'sensor.camera.rgb', 'x': 0.7, 'y': 0.4, 'z': 1.60, 'roll': 0.0, 'pitch': 0.0, 'yaw': 0.0,
-                      'width': 300, 'height': 200, 'fov': 100, 'id': 'Right'},
-
-            {'type': 'sensor.lidar.ray_cast', 'x': 0.7, 'y': 0.0, 'z': 1.60, 'yaw': 0.0, 'pitch': 0.0, 'roll': 0.0,
-             'id': 'LIDAR'}
-
-
+        Define the sensor suite required by the agent.
         """
-        # sensors = [{'type': 'sensor.camera.rgb', 'x': 0.7, 'y': 0.0, 'z': 1.60, 'roll':0.0, 'pitch':0.0, 'yaw': 0.0,
-        #             'width': 800, 'height': 600, 'fov':100, 'id': 'Center'},
-        #            {'type': 'sensor.camera.rgb', 'x': 0.7, 'y': -0.4, 'z': 1.60, 'roll': 0.0, 'pitch': 0.0,
+        # sensors = [{'type': 'sensor.camera.rgb', 'x': 0.7, 'y': -0.4, 'z': 1.60, 'roll': 0.0, 'pitch': 0.0,
         #             'yaw': -45.0, 'width': 800, 'height': 600, 'fov': 100, 'id': 'Left'},
         #            {'type': 'sensor.camera.rgb', 'x': 0.7, 'y': 0.4, 'z': 1.60, 'roll': 0.0, 'pitch': 0.0, 'yaw': 45.0,
         #             'width': 800, 'height': 600, 'fov': 100, 'id': 'Right'},
-        #            {'type': 'sensor.lidar.ray_cast', 'x': 0.7, 'y': -0.4, 'z': 1.60, 'roll': 0.0, 'pitch': 0.0,
-        #             'yaw': -45.0, 'id': 'LIDAR'},
-        #            {'type': 'sensor.other.gnss', 'x': 0.7, 'y': -0.4, 'z': 1.60, 'id': 'GPS'},
-        #            {'type': 'sensor.can_bus', 'reading_frequency': 25, 'id': 'can_bus'},
-        #            {'type': 'sensor.hd_map', 'reading_frequency': 1, 'id': 'hdmap'},
         #           ]
 
-        sensors = [{'type': 'sensor.camera.rgb', 'x': 0.7, 'y': 0.0, 'z': 1.60, 'roll':0.0, 'pitch':0.0, 'yaw': 0.0,
-                    'width': 800, 'height': 600, 'fov':100, 'id': RGB_CAMERA_NAME}]
+        can_sensor = [{'type': 'sensor.can_bus',
+                       'reading_frequency': 25,
+                       'id': 'can_bus'}]
+        gps_sensor = [{'type': 'sensor.other.gnss',
+                       'x': 0.7,
+                       'y': -0.4,
+                       'z': 1.60,
+                       'id': 'GPS'}]
+        hd_map_sensor = [{'type': 'sensor.hd_map',
+                          'reading_frequency': 1,
+                          'id': 'hdmap'}]
+        front_camera_sensor = [{'type': 'sensor.camera.rgb',
+                                'x': 0.7,
+                                'y': 0.0,
+                                'z': 1.60,
+                                'roll':0.0,
+                                'pitch':0.0,
+                                'yaw': 0.0,
+                                'width': 800,
+                                'height': 600,
+                                'fov':100,
+                                'id': RGB_CAMERA_NAME}]
+        # lidar_sensor = [{'type': 'sensor.lidar.ray_cast',
+        #                  'x': 0.7,
+        #                  'y': -0.4,
+        #                  'z': 1.60,
+        #                  'roll': 0.0,
+        #                  'pitch': 0.0,
+        #                  'yaw': -45.0,
+        #                  'id': 'LIDAR'}]
+        sensors = can_sensor + gps_sensor + hd_map_sensor + front_camera_sensor
         return sensors
+
+
+# self._global_plan is [({'lat': 49.001610853132775, 'z': 0.0, 'lon': 7.999952677036802}, <RoadOption.LANEFOLLOW: 4>), ...]
 
     def run_step(self, input_data, timestamp):
         erdos_timestamp = Timestamp(coordinates=[timestamp, self.message_num])
@@ -135,6 +146,16 @@ class ERDOSAgent(AutonomousAgent):
                 self.camera_stream.send(
                     simulation.messages.FrameMessage(pylot_utils.bgra_to_bgr(val[1]),
                                                      erdos_timestamp))
+            elif key == 'can_bus':
+                can_bus = simulation.messages.CanBus(**val[1])
+            elif key == 'GPS':
+                gps = simulation.messages.LocationGeo(val[1][0], val[1][1], val[1][2])
+            elif key == 'hdmap':
+                opendrive = val[1]['opendrive']
+                map = carla.Map('test', opendrive)
+                transform = val[1]['transform']
+                pc_file = val[1]['map_file']
+
 
         # DO SOMETHING SMART
 
