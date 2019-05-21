@@ -11,14 +11,12 @@ from control.messages import ControlMessage
 import control.utils as agent_utils
 from pid_controller.pid import PID
 from simulation.utils import get_3d_world_position
-from simulation.planner.map import CarlaMap
 import pylot_utils
 
 
 class ERDOSAgentOperator(Op):
     def __init__(self,
                  name,
-                 city_name,
                  depth_camera_name,
                  flags,
                  log_file_name=None,
@@ -27,7 +25,6 @@ class ERDOSAgentOperator(Op):
         self._flags = flags
         self._logger = setup_logging(self.name, log_file_name)
         self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
-        self._map = CarlaMap(city_name)
         self._pid = PID(p=self._flags.pid_p,
                         i=self._flags.pid_i,
                         d=self._flags.pid_d)
@@ -191,14 +188,14 @@ class ERDOSAgentOperator(Op):
 
         for obs_vehicle_pos in vehicles:
             if agent_utils.is_vehicle_on_same_lane(
-                    self._vehicle_pos, obs_vehicle_pos, self._map):
+                    self._vehicle_pos, obs_vehicle_pos):
                 new_speed_factor_v = agent_utils.stop_vehicle(
                     self._vehicle_pos, obs_vehicle_pos, wp_vector,
                     speed_factor_v, self._flags)
                 speed_factor_v = min(speed_factor_v, new_speed_factor_v)
 
         for obs_ped_pos in pedestrians:
-            if agent_utils.is_pedestrian_hitable(obs_ped_pos, self._map):
+            if agent_utils.is_pedestrian_hitable(obs_ped_pos):
                 new_speed_factor_p = agent_utils.stop_pedestrian(
                     self._vehicle_pos,
                     obs_ped_pos,
@@ -208,7 +205,7 @@ class ERDOSAgentOperator(Op):
                 speed_factor_p = min(speed_factor_p, new_speed_factor_p)
 
         for tl in traffic_lights:
-            if (agent_utils.is_traffic_light_active(self._vehicle_pos, tl[0], self._map) and
+            if (agent_utils.is_traffic_light_active(self._vehicle_pos, tl[0]) and
                 agent_utils.is_traffic_light_visible(self._vehicle_pos, tl[0], self._flags)):
                 tl_state = tl[1]
                 new_speed_factor_tl = agent_utils.stop_traffic_light(

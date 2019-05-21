@@ -2,6 +2,7 @@ from absl import flags
 
 # import Control operators.
 from control.control_operator import ControlOperator
+from control.erdos_agent_operator import ERDOSAgentOperator
 from control.ground_agent_operator import GroundAgentOperator
 # Import debug operators.
 from debug.camera_replay_operator import CameraReplayOperator
@@ -10,11 +11,13 @@ from debug.segmented_video_operator import SegmentedVideoOperator
 from debug.video_operator import VideoOperator
 # Import perception operators.
 from perception.detection.detection_operator import DetectionOperator
+from perception.detection.detection_eval_ground_operator import DetectionEvalGroundOperator
 try:
     from perception.detection.detection_center_net_operator import DetectionCenterNetOperator
 except ImportError:
     print("Error importing CenterNet detector.")
 from perception.detection.lane_detection_operator import LaneDetectionOperator
+from perception.detection.obstacle_accuracy_operator import ObstacleAccuracyOperator
 from perception.detection.traffic_light_det_operator import TrafficLightDetOperator
 from perception.fusion.fusion_operator import FusionOperator
 from perception.fusion.fusion_verification_operator import FusionVerificationOperator
@@ -47,6 +50,20 @@ def create_camera_replay_ops(graph):
     #                          name='replay_rgb_camera')
     # camera_streams = replay_rgb_op([])
     return camera_ops
+
+
+def create_erdos_agent_op(graph, depth_camera_name):
+    agent_op = graph.add(
+        ERDOSAgentOperator,
+        name='erdos_agent',
+        init_args={
+            'depth_camera_name': depth_camera_name,
+            'flags': FLAGS,
+            'log_file_name': FLAGS.log_file_name,
+            'csv_file_name': FLAGS.csv_log_file_name
+        },
+        setup_args={'depth_camera_name': depth_camera_name})
+    return agent_op
 
 
 def create_ground_agent_op(graph):
@@ -180,6 +197,37 @@ def create_detector_ops(graph):
                        'csv_file_name': FLAGS.csv_log_file_name})
         detector_ops.append(obj_det_op)
     return detector_ops
+
+
+def create_eval_ground_truth_detector_op(graph,
+                                      rgb_camera_setup,
+                                      depth_camera_name):
+    ground_truth_op = graph.add(
+        DetectionEvalGroundOperator,
+        name='eval_ground_detection',
+        setup_args={'depth_camera_name': depth_camera_name},
+        init_args={
+            'rgb_camera_setup': rgb_camera_setup,
+            'flags': FLAGS,
+            'log_file_name': FLAGS.log_file_name,
+            'csv_file_name': FLAGS.csv_log_file_name
+        },
+    )
+    return ground_truth_op
+
+
+def create_obstacle_accuracy_op(graph,
+                             rgb_camera_setup,
+                             depth_camera_name):
+    obstacle_accuracy_op = graph.add(
+        ObstacleAccuracyOperator,
+        name='obstacle_accuracy',
+        setup_args={'depth_camera_name': depth_camera_name},
+        init_args={'rgb_camera_setup': rgb_camera_setup,
+                   'flags': FLAGS,
+                   'log_file_name': FLAGS.log_file_name,
+                   'csv_file_name': FLAGS.csv_log_file_name})
+    return obstacle_accuracy_op
 
 
 def create_traffic_light_op(graph):

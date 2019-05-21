@@ -18,8 +18,19 @@ def get_angle(vec_dst, vec_src):
     return angle
 
 
-def is_pedestrian_hitable(pos, city_map):
-    return city_map.is_point_on_lane([pos.x, pos.y, 38])
+def is_pedestrian_hitable(pos):
+    # TODO(ionel): Implement.
+    return True
+
+
+def is_traffic_light_active(vehicle_pos, tl_pos):
+    # TODO(ionel): Implement.
+    return True
+
+
+def is_vehicle_on_same_lane(vehicle_pos, obs_vehicle_pos):
+    # TODO(ionel): Implement.
+    return True
 
 
 def is_pedestrian_on_hit_zone(p_dist, p_angle, flags):
@@ -39,67 +50,6 @@ def is_traffic_light_visible(vehicle_pos, tl_pos, flags):
         tl_pos.x,
         tl_pos.y)
     return tl_dist > flags.traffic_light_min_dist_thres
-
-
-def is_traffic_light_active(vehicle_pos, tl_pos, city_map):
-
-    def search_closest_lane_point(x_agent, y_agent, depth):
-        step_size = 4
-        if depth > 1:
-            return None
-        try:
-            degrees = city_map.get_lane_orientation_degrees(
-                [x_agent, y_agent, 38])
-        except:
-            return None
-        if not city_map.is_point_on_lane([x_agent, y_agent, 38]):
-            result = search_closest_lane_point(x_agent + step_size,
-                                               y_agent, depth + 1)
-            if result is not None:
-                return result
-            result = search_closest_lane_point(
-                x_agent, y_agent + step_size, depth + 1)
-            if result is not None:
-                return result
-            result = search_closest_lane_point(
-                x_agent + step_size, y_agent + step_size, depth + 1)
-            if result is not None:
-                return result
-            result = search_closest_lane_point(
-                x_agent + step_size, y_agent - step_size, depth + 1)
-            if result is not None:
-                return result
-            result = search_closest_lane_point(
-                x_agent - step_size, y_agent + step_size, depth + 1)
-            if result is not None:
-                return result
-            result = search_closest_lane_point(x_agent - step_size,
-                                               y_agent, depth + 1)
-            if result is not None:
-                return result
-            result = search_closest_lane_point(
-                x_agent, y_agent - step_size, depth + 1)
-            if result is not None:
-                return result
-            result = search_closest_lane_point(
-                x_agent - step_size, y_agent - step_size, depth + 1)
-            if result is not None:
-                return result
-        else:
-            if degrees < 6:
-                return [x_agent, y_agent]
-            else:
-                return None
-
-    closest_lane_point = search_closest_lane_point(tl_pos.x, tl_pos.y, 0)
-
-    if closest_lane_point is not None:
-        return (math.fabs(
-            city_map.get_lane_orientation_degrees([vehicle_pos.location.x, vehicle_pos.location.y, 38])
-            - city_map.get_lane_orientation_degrees(
-                [closest_lane_point[0], closest_lane_point[1], 38])) < 1)
-    else:
-        return None
 
 
 def stop_pedestrian(vehicle_pos,
@@ -122,13 +72,6 @@ def stop_pedestrian(vehicle_pos,
         speed_factor_p = speed_factor_p_temp
     return speed_factor_p
 
-
-def is_vehicle_on_same_lane(vehicle_pos, obs_vehicle_pos, city_map):
-    if city_map.is_point_on_intersection([obs_vehicle_pos.x, obs_vehicle_pos.y, 38]):
-        return True
-    return (math.fabs(
-        city_map.get_lane_orientation_degrees([vehicle_pos.location.x, vehicle_pos.location.y, 38]) -
-        city_map.get_lane_orientation_degrees([obs_vehicle_pos.x, obs_vehicle_pos.y, 38])) < 1)
 
 
 def stop_vehicle(vehicle_pos, obs_vehicle_pos, wp_vector, speed_factor_v, flags):

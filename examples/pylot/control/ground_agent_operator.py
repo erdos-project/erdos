@@ -8,6 +8,7 @@ from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_
 
 from control.messages import ControlMessage
 import control.utils as agent_utils
+import control.ground_utils
 from pid_controller.pid import PID
 from simulation.planner.map import CarlaMap
 import pylot_utils
@@ -112,7 +113,7 @@ class GroundAgentOperator(Op):
 
         if self._flags.stop_for_vehicles:
             for vehicle in vehicles:
-                if agent_utils.is_vehicle_on_same_lane(
+                if ground_utils.is_vehicle_on_same_lane(
                         self._vehicle_pos, vehicle.location, self._map):
                     new_speed_factor_v = agent_utils.stop_vehicle(
                         self._vehicle_pos,
@@ -124,7 +125,7 @@ class GroundAgentOperator(Op):
 
         if self._flags.stop_for_pedestrians:
             for pedestrian in pedestrians:
-                if agent_utils.is_pedestrian_hitable(pedestrian.location, self._map):
+                if ground_utils.is_pedestrian_hitable(pedestrian.location, self._map):
                     new_speed_factor_p = agent_utils.stop_pedestrian(
                         self._vehicle_pos,
                         pedestrian.location,
@@ -135,7 +136,7 @@ class GroundAgentOperator(Op):
 
         if self._flags.stop_for_traffic_lights:
             for tl in traffic_lights:
-                if (agent_utils.is_traffic_light_active(
+                if (ground_utils.is_traffic_light_active(
                         self._vehicle_pos, tl.location, self._map) and
                     agent_utils.is_traffic_light_visible(
                         self._vehicle_pos, tl.location, self._flags)):

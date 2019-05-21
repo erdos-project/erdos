@@ -8,9 +8,6 @@ from erdos.operators import ReplayOp
 import config
 import operator_creator
 
-from control.erdos_agent_operator import ERDOSAgentOperator
-from perception.detection.detection_eval_ground_operator import DetectionEvalGroundOperator
-from perception.detection.obstacle_accuracy_operator import ObstacleAccuracyOperator
 # Import operators that interact with the simulator.
 from simulation.carla_operator import CarlaOperator
 
@@ -36,53 +33,6 @@ def create_carla_op(graph, camera_setups):
             'lidar_stream_names': []
         })
     return carla_op
-
-
-def create_erdos_agent_op(graph, depth_camera_name):
-    agent_op = graph.add(
-        ERDOSAgentOperator,
-        name='erdos_agent',
-        init_args={
-            # TODO(ionel): Do not hardcode city name!
-            'city_name': 'Town01',
-            'depth_camera_name': depth_camera_name,
-            'flags': FLAGS,
-            'log_file_name': FLAGS.log_file_name,
-            'csv_file_name': FLAGS.csv_log_file_name
-        },
-        setup_args={'depth_camera_name': depth_camera_name})
-    return agent_op
-
-
-def create_eval_ground_truth_detector_op(graph,
-                                      rgb_camera_setup,
-                                      depth_camera_name):
-    ground_truth_op = graph.add(
-        DetectionEvalGroundOperator,
-        name='eval_ground_detection',
-        setup_args={'depth_camera_name': depth_camera_name},
-        init_args={
-            'rgb_camera_setup': rgb_camera_setup,
-            'flags': FLAGS,
-            'log_file_name': FLAGS.log_file_name,
-            'csv_file_name': FLAGS.csv_log_file_name
-        },
-    )
-    return ground_truth_op
-
-
-def create_obstacle_accuracy_op(graph,
-                             rgb_camera_setup,
-                             depth_camera_name):
-    obstacle_accuracy_op = graph.add(
-        ObstacleAccuracyOperator,
-        name='obstacle_accuracy',
-        setup_args={'depth_camera_name': depth_camera_name},
-        init_args={'rgb_camera_setup': rgb_camera_setup,
-                   'flags': FLAGS,
-                   'log_file_name': FLAGS.log_file_name,
-                   'csv_file_name': FLAGS.csv_log_file_name})
-    return obstacle_accuracy_op
 
 
 def main(argv):
@@ -141,7 +91,7 @@ def main(argv):
     # This operator evaluates the temporal decay of the ground truth of
     # object detection across timestamps.
     if FLAGS.eval_ground_truth_object_detection:
-        eval_ground_det_op = create_eval_ground_truth_detector_op(
+        eval_ground_det_op = operator_creator.create_eval_ground_truth_detector_op(
             graph, rgb_camera_setup, DEPTH_CAMERA_NAME)
         graph.connect([carla_op], [eval_ground_det_op])
 
@@ -151,7 +101,7 @@ def main(argv):
         graph.connect([carla_op], obj_detector_ops)
 
         if FLAGS.evaluate_obj_detection:
-            obstacle_accuracy_op = create_obstacle_accuracy_op(
+            obstacle_accuracy_op = operator_creator.create_obstacle_accuracy_op(
                 graph, rgb_camera_setup, DEPTH_CAMERA_NAME)
             graph.connect(obj_detector_ops + [carla_op],
                           [obstacle_accuracy_op])
@@ -182,7 +132,7 @@ def main(argv):
         graph.connect([agent_op], [carla_op])
     else:
         # TODO(ionel): The ERDOS agent doesn't use obj tracker and fusion.
-        agent_op = create_erdos_agent_op(graph, DEPTH_CAMERA_NAME)
+        agent_op = operator_creator.create_erdos_agent_op(graph, DEPTH_CAMERA_NAME)
         input_ops = [carla_op] + traffic_light_det_ops + obj_detector_ops +\
                     segmentation_ops + lane_detection_ops
         graph.connect(input_ops, [agent_op])
