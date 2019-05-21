@@ -92,11 +92,9 @@ class GroundTruthObjectLoggerOp(Op):
         self._pedestrians = deque()
         self._segmented_imgs = deque()
         self._vehicles = deque()
-        (camera_name, pp, img_size, pos) = rgb_camera_setup
+        (camera_name, _, img_size, pos) = rgb_camera_setup
         (self._rgb_intrinsic, self._rgb_transform,
          self._rgb_img_size) = get_camera_intrinsic_and_transform(
-             name=camera_name,
-             postprocessing=pp,
              image_size=img_size,
              position=pos)
         self._last_notification = -1

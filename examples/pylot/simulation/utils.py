@@ -5,17 +5,22 @@ import numpy as np
 from numpy.linalg import inv
 from numpy.matlib import repmat
 
-from carla.sensor import Camera, PointCloud
-from carla.transform import Transform
-
 from simulation.messages import Location
 
 Extent = namedtuple('Extent', 'x, y, z')
+Scale = namedtuple('Scale', 'x y z')
+Scale.__new__.__defaults__ = (1.0, 1.0, 1.0)
 
 
 class BoundingBox(object):
     def __init__(self, bb):
-        self.transform = Transform(bb.transform)
+        pos = Location(bb.transform.location.x,
+                       bb.transform.location.y,
+                       bb.transform.location.z)
+        self.transform = Transform(pos,
+                                   bb.transform.rotation.pitch,
+                                   bb.transform.rotation.yaw,
+                                   bb.transform.rotation.roll)
         self.extent = Extent(bb.extent.x, bb.extent.y, bb.extent.z)
 
     def __repr__(self):
@@ -24,8 +29,57 @@ class BoundingBox(object):
     def __str__(self):
         return "transform: {}, x: {}, y: {}, z: {}".format(str(self.transform), self.extent)
 
+class Transform(object):
 
-def depth_to_local_point_cloud(depth_msg, color=None, max_depth=0.9):
+    def __init__(self, pos=None, pitch=0, yaw=0, roll=0, scale=None, matrix=None):
+        if scale is None:
+            scale = Scale()
+        if matrix is None:
+            self.matrix = np.matrix(np.identity(4))
+            cy = math.cos(np.radians(yaw))
+            sy = math.sin(np.radians(yaw))
+            cr = math.cos(np.radians(roll))
+            sr = math.sin(np.radians(roll))
+            cp = math.cos(np.radians(pitch))
+            sp = math.sin(np.radians(pitch))
+            self.matrix[0, 3] = pos.x
+            self.matrix[1, 3] = pos.y
+            self.matrix[2, 3] = pos.z
+            self.matrix[0, 0] = scale.x * (cp * cy)
+            self.matrix[0, 1] = scale.y * (cy * sp * sr - sy * cr)
+            self.matrix[0, 2] = -scale.z * (cy * sp * cr + sy * sr)
+            self.matrix[1, 0] = scale.x * (sy * cp)
+            self.matrix[1, 1] = scale.y * (sy * sp * sr + cy * cr)
+            self.matrix[1, 2] = scale.z * (cy * sr - sy * sp * cr)
+            self.matrix[2, 0] = scale.x * (sp)
+            self.matrix[2, 1] = -scale.y * (cp * sr)
+            self.matrix[2, 2] = scale.z * (cp * cr)
+        else:
+            self.matrix = matrix
+
+    def transform_points(self, points):
+        """
+        Given a 4x4 transformation matrix, transform an array of 3D points.
+        Expected point foramt: [[X0,Y0,Z0],..[Xn,Yn,Zn]]
+        """
+        # Needed format: [[X0,..Xn],[Z0,..Zn],[Z0,..Zn]]. So let's transpose
+        # the point matrix.
+        points = points.transpose()
+        # Add 0s row: [[X0..,Xn],[Y0..,Yn],[Z0..,Zn],[0,..0]]
+        points = np.append(points, np.ones((1, points.shape[1])), axis=0)
+        # Point transformation
+        points = self.matrix * points
+        # Return all but last row
+        return points[0:3].transpose()
+
+    def __mul__(self, other):
+        return Transform(matrix=np.dot(self.matrix, other.matrix))
+
+    def __str__(self):
+        return str(self.matrix)
+
+
+def depth_to_local_point_cloud(depth_msg, max_depth=0.9):
     far = 1000.0  # max depth in meters.
     normalized_depth = depth_msg.frame
     # (Intrinsic) K Matrix
@@ -40,8 +94,6 @@ def depth_to_local_point_cloud(depth_msg, color=None, max_depth=0.9):
                      depth_msg.height, 1).reshape(pixel_length)
     v_coord = repmat(np.c_[depth_msg.height-1:-1:-1],
                      1, depth_msg.width).reshape(pixel_length)
-    if color is not None:
-        color = color.reshape(pixel_length, 3)
     normalized_depth = np.reshape(normalized_depth, pixel_length)
 
     # Search for pixels where the depth is greater than max_depth to
@@ -50,8 +102,6 @@ def depth_to_local_point_cloud(depth_msg, color=None, max_depth=0.9):
     normalized_depth = np.delete(normalized_depth, max_depth_indexes)
     u_coord = np.delete(u_coord, max_depth_indexes)
     v_coord = np.delete(v_coord, max_depth_indexes)
-    if color is not None:
-        color = np.delete(color, max_depth_indexes, axis=0)
 
     # pd2 = [u,v,1]
     p2d = np.array([u_coord, v_coord, np.ones_like(u_coord)])
@@ -60,57 +110,24 @@ def depth_to_local_point_cloud(depth_msg, color=None, max_depth=0.9):
     p3d = np.dot(np.linalg.inv(k), p2d)
     p3d *= normalized_depth * far
 
-    # Formating the output to:
-    # [[X1,Y1,Z1,R1,G1,B1],[X2,Y2,Z2,R2,G2,B2], ... [Xn,Yn,Zn,Rn,Gn,Bn]]
-    if color is not None:
-        # np.concatenate((np.transpose(p3d), color), axis=1)
-        return PointCloud(
-            depth_msg.timestamp.coordinates[0],
-            np.transpose(p3d),
-            color_array=color)
     # [[X1,Y1,Z1],[X2,Y2,Z2], ... [Xn,Yn,Zn]]
-    return PointCloud(depth_msg.timestamp.coordinates[0], np.transpose(p3d))
-
-
-def point_cloud_from_rgbd(depth_msg, world_transform):
-    far = 1.0
-    point_cloud = depth_to_local_point_cloud(
-        depth_msg, color=None, max_depth=far)
-    car_to_world_transform = world_transform * depth_msg.transform
-    point_cloud.apply_transform(car_to_world_transform)
-    # filename = './point_cloud_tmp.ply'
-    # point_cloud.save_to_disk(filename)
-    # pcd = read_point_cloud(filename)
-    # draw_geometries([pcd])
-    return point_cloud
+    return np.transpose(p3d)
 
 
 def get_3d_world_position(x, y, depth_msg, world_transform):
-    pc = point_cloud_from_rgbd(depth_msg, world_transform)
-    (x, y, z) = pc.array.tolist()[y * depth_msg.width + x]
+    far = 1.0
+    point_cloud = depth_to_local_point_cloud(depth_msg, max_depth=far)
+    car_to_world_transform = world_transform * depth_msg.transform
+    point_cloud = car_to_world_transform.transform_points(point_cloud)
+    (x, y, z) = point_cloud.tolist()[y * depth_msg.width + x]
     return Location(x, y, z)
 
 
-def get_camera_intrinsic_and_transform(name,
-                                       postprocessing,
-                                       field_of_view=90.0,
-                                       image_size=(800, 600),
+def get_camera_intrinsic_and_transform(image_size=(800, 600),
                                        position=(2.0, 0.0, 1.4),
                                        rotation_pitch=0,
                                        rotation_roll=0,
                                        rotation_yaw=0):
-    camera = Camera(
-        name,
-        PostProcessing=postprocessing,
-        FOV=field_of_view,
-        ImageSizeX=image_size[0],
-        ImageSizeY=image_size[1],
-        PositionX=position[0],
-        PositionY=position[1],
-        PositionZ=position[2],
-        RotationPitch=rotation_pitch,
-        RotationRoll=rotation_roll,
-        RotationYaw=rotation_yaw)
 
     image_width = image_size[0]
     image_height = image_size[1]
@@ -119,7 +136,13 @@ def get_camera_intrinsic_and_transform(name,
     intrinsic_mat[0][2] = image_width / 2
     intrinsic_mat[1][2] = image_height / 2
     intrinsic_mat[0][0] = intrinsic_mat[1][1] = image_width / (2.0 * math.tan(90.0 * math.pi / 360.0))
-    return (intrinsic_mat, camera.get_unreal_transform(), (image_width, image_height))
+
+    pos = Location(position[0], position[1], position[2])
+    transform = Transform(pos, rotation_pitch, rotation_roll, rotation_yaw)
+    to_unreal_transform = Transform(Location(0, 0, 0), 0, -90, -90, Scale(x=-1))
+    camera_transform = transform * to_unreal_transform
+
+    return (intrinsic_mat, camera_transform, (image_width, image_height))
 
 
 def get_bounding_box_from_corners(corners):
