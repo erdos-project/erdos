@@ -87,7 +87,7 @@ class GroundTruthObjectLoggerOp(Op):
         self._flags = flags
         # Queue of incoming data.
         self._bgr_imgs = deque()
-        self._world_transforms = deque()
+        self._vehicle_transforms = deque()
         self._depth_imgs = deque()
         self._pedestrians = deque()
         self._segmented_imgs = deque()
@@ -109,8 +109,8 @@ class GroundTruthObjectLoggerOp(Op):
             pylot_utils.is_ground_segmented_camera_stream).add_callback(
                 GroundTruthObjectLoggerOp.on_segmented_frame)
         input_streams.filter(
-            pylot_utils.is_world_transform_stream).add_callback(
-                GroundTruthObjectLoggerOp.on_world_transform_update)
+            pylot_utils.is_vehicle_transform_stream).add_callback(
+                GroundTruthObjectLoggerOp.on_vehicle_transform_update)
         input_streams.filter(
             pylot_utils.is_ground_pedestrians_stream).add_callback(
                 GroundTruthObjectLoggerOp.on_pedestrians_update)
@@ -131,29 +131,29 @@ class GroundTruthObjectLoggerOp(Op):
         depth_msg = self._depth_imgs.popleft()
         bgr_msg = self._bgr_imgs.popleft()
         segmented_msg = self._segmented_imgs.popleft()
-        world_trans_msg = self._world_transforms.popleft()
+        vehicle_trans_msg = self._vehicle_transforms.popleft()
         pedestrians_msg = self._pedestrians.popleft()
         vehicles_msg = self._vehicles.popleft()
         self._logger.info('Timestamps {} {} {} {} {} {}'.format(
             depth_msg.timestamp, bgr_msg.timestamp, segmented_msg.timestamp,
-            world_trans_msg.timestamp, pedestrians_msg.timestamp,
+            vehicle_trans_msg.timestamp, pedestrians_msg.timestamp,
             vehicles_msg.timestamp))
 
         assert (depth_msg.timestamp == bgr_msg.timestamp ==
-                segmented_msg.timestamp == world_trans_msg.timestamp ==
+                segmented_msg.timestamp == vehicle_trans_msg.timestamp ==
                 pedestrians_msg.timestamp == vehicles_msg.timestamp)
 
         if self._last_notification % self._flags.log_every_nth_frame != 0:
             return
 
         depth_array = depth_msg.frame
-        world_transform = world_trans_msg.data
+        vehicle_transform = vehicle_trans_msg.data
 
         ped_bboxes = self.__get_pedestrians_bboxes(
-            pedestrians_msg.pedestrians, world_transform, depth_array)
+            pedestrians_msg.pedestrians, vehicle_transform, depth_array)
 
         vec_bboxes = self.__get_vehicles_bboxes(
-            vehicles_msg.vehicles, world_transform, depth_array)
+            vehicles_msg.vehicles, vehicle_transform, depth_array)
 
         traffic_sign_bboxes = self.__get_traffic_sign_bboxes(
             segmented_msg.frame)
@@ -176,8 +176,8 @@ class GroundTruthObjectLoggerOp(Op):
                                     ped_vis_bboxes, vec_vis_bboxes,
                                     traffic_sign_vis_bboxes)
 
-    def on_world_transform_update(self, msg):
-        self._world_transforms.append(msg)
+    def on_vehicle_transform_update(self, msg):
+        self._vehicle_transforms.append(msg)
 
     def on_pedestrians_update(self, msg):
         self._pedestrians.append(msg)
@@ -197,12 +197,12 @@ class GroundTruthObjectLoggerOp(Op):
     def execute(self):
         self.spin()
 
-    def __get_pedestrians_bboxes(self, pedestrians, world_transform,
+    def __get_pedestrians_bboxes(self, pedestrians, vehicle_transform,
                                  depth_array):
         bboxes = []
         for pedestrian in pedestrians:
             bbox = get_2d_bbox_from_3d_box(
-                depth_array, world_transform, pedestrian.transform,
+                depth_array, vehicle_transform, pedestrian.transform,
                 pedestrian.bounding_box, self._rgb_transform, self._rgb_intrinsic,
                 self._rgb_img_size, 1.5, 3.0)
             if bbox is not None:
@@ -210,11 +210,11 @@ class GroundTruthObjectLoggerOp(Op):
                 bboxes.append(('pedestrian', ((xmin, ymin), (xmax, ymax))))
         return bboxes
 
-    def __get_vehicles_bboxes(self, vehicles, world_transform, depth_array):
+    def __get_vehicles_bboxes(self, vehicles, vehicle_transform, depth_array):
         vec_bboxes = []
         for vehicle in vehicles:
             bbox = get_2d_bbox_from_3d_box(
-                depth_array, world_transform, vehicle.transform,
+                depth_array, vehicle_transform, vehicle.transform,
                 vehicle.bounding_box, self._rgb_transform, self._rgb_intrinsic,
                 self._rgb_img_size, 3.0, 3.0)
             if bbox is not None:

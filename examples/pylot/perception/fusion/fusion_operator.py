@@ -45,7 +45,7 @@ class FusionOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams, output_stream_name):
-        input_streams.filter(pylot_utils.is_ground_vehicle_pos_stream).add_callback(
+        input_streams.filter(pylot_utils.is_ground_vehicle_transform_stream).add_callback(
             FusionOperator.update_pos)
         input_streams.filter(pylot_utils.is_obstacles_stream).add_callback(
             FusionOperator.update_objects)

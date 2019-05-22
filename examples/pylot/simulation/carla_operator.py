@@ -79,8 +79,7 @@ class CarlaOperator(Op):
                                     labels={'sensor_type': 'lidar'})
                          for lidar in lidar_stream_names]
         return [
-            DataStream(name='world_transform'),
-            DataStream(name='vehicle_pos'),
+            DataStream(name='vehicle_transform'),
             DataStream(name='acceleration'),
             DataStream(data_type=Float64, name='forward_speed'),
             DataStream(name='traffic_lights'),
@@ -194,23 +193,19 @@ class CarlaOperator(Op):
             player_measurements.transform.location.x,
             player_measurements.transform.location.y,
             player_measurements.transform.location.z)
-        world_transform = simulation.utils.Transform(
-            location,
-            player_measurements.transform.rotation.pitch,
-            player_measurements.transform.rotation.yaw,
-            player_measurements.transform.rotation.roll)
-        self.get_output_stream('world_transform').send(
-            Message(world_transform, timestamp))
-        self.get_output_stream('world_transform').send(watermark)
-
         orientation = simulation.messages.Orientation(
             player_measurements.transform.orientation.x,
             player_measurements.transform.orientation.y,
             player_measurements.transform.orientation.z)
-        vehicle_pos = simulation.messages.Position(location, orientation)
-        self.get_output_stream('vehicle_pos').send(
-            Message(vehicle_pos, timestamp))
-        self.get_output_stream('vehicle_pos').send(watermark)
+        vehicle_transform = simulation.utils.Transform(
+            location,
+            player_measurements.transform.rotation.pitch,
+            player_measurements.transform.rotation.yaw,
+            player_measurements.transform.rotation.roll,
+            orientation=orientation)
+        self.get_output_stream('vehicle_transform').send(
+            Message(vehicle_transform, timestamp))
+        self.get_output_stream('vehicle_transform').send(watermark)
 
         acceleration = simulation.messages.Acceleration(
             player_measurements.acceleration.x,

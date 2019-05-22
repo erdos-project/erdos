@@ -28,11 +28,10 @@ class ERDOSAgentOperator(Op):
         self._pid = PID(p=self._flags.pid_p,
                         i=self._flags.pid_i,
                         d=self._flags.pid_d)
-        self._world_transform = []
+        self._vehicle_transforms = []
         self._depth_msgs = []
         self._traffic_lights = []
         self._obstacles = []
-        self._vehicle_pos = None
         self._vehicle_acc = None
         self._vehicle_speed = None
         self._wp_angle = None
@@ -45,10 +44,8 @@ class ERDOSAgentOperator(Op):
             ERDOSAgentOperator.on_depth_camera_update)
 
         # XXX(ionel): We get the exact position from the simulator.
-        input_streams.filter(pylot_utils.is_world_transform_stream).add_callback(
-            ERDOSAgentOperator.on_world_transform_update)
-        input_streams.filter(pylot_utils.is_ground_vehicle_pos_stream).add_callback(
-            ERDOSAgentOperator.on_vehicle_pos_update)
+        input_streams.filter(pylot_utils.is_ground_vehicle_transform_stream).add_callback(
+            ERDOSAgentOperator.on_vehicle_transform_update)
         input_streams.filter(pylot_utils.is_ground_acceleration_stream).add_callback(
             ERDOSAgentOperator.on_vehicle_acceleration_update)
         input_streams.filter(pylot_utils.is_ground_forward_speed_stream).add_callback(
@@ -77,22 +74,23 @@ class ERDOSAgentOperator(Op):
             self._obstacles[0].timestamp,
             self._traffic_lights[0].timestamp,
             self._depth_msgs[0].timestamp,
-            self._world_transform[0].timestamp))
-        world_transform = self._world_transform[0].data
-        self._world_transform = self._world_transform[1:]
+            self._vehicle_transforms[0].timestamp))
+        vehicle_transform = self._vehicle_transforms[0].data
+        self._vehicle_transforms = self._vehicle_transforms[1:]
 
         depth_msg = self._depth_msgs[0]
         self._depth_msgs = self._depth_msgs[1:]
 
-        traffic_lights = self.__transform_tl_output(depth_msg, world_transform)
+        traffic_lights = self.__transform_tl_output(depth_msg, vehicle_transform)
         self._traffic_lights = self._traffic_lights[1:]
 
         (pedestrians, vehicles) = self.__transform_detector_output(
-            depth_msg, world_transform)
+            depth_msg, vehicle_transform)
         self._obstacles = self._obstacles[1:]
 
         speed_factor, state = self.__stop_for_agents(
-            self._wp_angle, self._wp_vector, vehicles, pedestrians, traffic_lights)
+            vehicle_transform,  self._wp_angle, self._wp_vector, vehicles,
+            pedestrians, traffic_lights)
 
         control_msg = self.get_control_message(
             self._wp_angle, self._wp_angle_speed, speed_factor,
@@ -100,9 +98,10 @@ class ERDOSAgentOperator(Op):
         self.get_output_stream('action_stream').send(control_msg)
 
     def __is_ready_to_run(self):
-        vehicle_data = self._vehicle_pos and self._vehicle_speed and self._wp_angle
+        vehicle_data = ((len(self._vehicle_transforms) > 0) and
+                        self._vehicle_speed and self._wp_angle)
         perception_data = (len(self._obstacles) > 0) and (len(self._traffic_lights) > 0)
-        ground_data = (len(self._depth_msgs) > 0) and (len(self._world_transform) > 0)
+        ground_data = (len(self._depth_msgs) > 0)
         return vehicle_data and perception_data and ground_data
 
     def on_waypoints_update(self, msg):
@@ -110,8 +109,8 @@ class ERDOSAgentOperator(Op):
         self._wp_vector = msg.wp_vector
         self._wp_angle_speed = msg.wp_angle_speed
 
-    def on_world_transform_update(self, msg):
-        self._world_transform.append(msg)
+    def on_vehicle_transform_update(self, msg):
+        self._vehicle_transforms.append(msg)
 
     def on_depth_camera_update(self, msg):
         self._depth_msgs.append(msg)
@@ -136,10 +135,6 @@ class ERDOSAgentOperator(Op):
         # TODO(ionel): Implement!
         pass
 
-    def on_vehicle_pos_update(self, msg):
-        self._logger.info("Received vehicle pos %s", msg)
-        self._vehicle_pos = msg.data
-
     def on_vehicle_acceleration_update(self, msg):
         self._vehicle_acc = msg.data
 
@@ -149,38 +144,43 @@ class ERDOSAgentOperator(Op):
     def execute(self):
         self.spin()
 
-    def __transform_tl_output(self, depth_msg, world_transform):
+    def __transform_tl_output(self, depth_msg, vehicle_transform):
         traffic_lights = []
         for tl in self._traffic_lights[0].detected_objects:
             x = (tl.corners[0] + tl.corners[1]) / 2
             y = (tl.corners[2] + tl.corners[3]) / 2
-            pos = get_3d_world_position(x, y, depth_msg, world_transform)
+            pos = get_3d_world_position(x, y, depth_msg, vehicle_transform)
             state = 0
             if tl.label is not 'Green':
                 state = 1
             traffic_lights.append((pos, state))
         return traffic_lights
 
-    def __transform_detector_output(self, depth_msg, world_transform):
+    def __transform_detector_output(self, depth_msg, vehicle_transform):
         vehicles = []
         pedestrians = []
         for detected_obj in self._obstacles[0].detected_objects:
             x = (detected_obj.corners[0] + detected_obj.corners[1]) / 2
             y = (detected_obj.corners[2] + detected_obj.corners[3]) / 2
             if detected_obj.label == 'person':
-                pos = get_3d_world_position(x, y, depth_msg, world_transform)
+                pos = get_3d_world_position(x, y, depth_msg, vehicle_transform)
                 pedestrians.append(pos)
             elif (detected_obj.label == 'car' or
                   detected_obj.label == 'bicycle' or
                   detected_obj.label == 'motorcycle' or
                   detected_obj.label == 'bus' or
                   detected_obj.label == 'truck'):
-                pos = get_3d_world_position(x, y, depth_msg, world_transform)
+                pos = get_3d_world_position(x, y, depth_msg, vehicle_transform)
                 vehicles.append(pos)
         return (pedestrians, vehicles)
 
-    def __stop_for_agents(
-            self, wp_angle, wp_vector, vehicles, pedestrians, traffic_lights):
+    def __stop_for_agents(self,
+                          vehicle_transform,
+                          wp_angle,
+                          wp_vector,
+                          vehicles,
+                          pedestrians,
+                          traffic_lights):
         speed_factor = 1
         speed_factor_tl = 1
         speed_factor_p = 1
@@ -188,16 +188,16 @@ class ERDOSAgentOperator(Op):
 
         for obs_vehicle_pos in vehicles:
             if agent_utils.is_vehicle_on_same_lane(
-                    self._vehicle_pos, obs_vehicle_pos):
+                    vehicle_transform, obs_vehicle_pos):
                 new_speed_factor_v = agent_utils.stop_vehicle(
-                    self._vehicle_pos, obs_vehicle_pos, wp_vector,
+                    vehicle_transform, obs_vehicle_pos, wp_vector,
                     speed_factor_v, self._flags)
                 speed_factor_v = min(speed_factor_v, new_speed_factor_v)
 
         for obs_ped_pos in pedestrians:
             if agent_utils.is_pedestrian_hitable(obs_ped_pos):
                 new_speed_factor_p = agent_utils.stop_pedestrian(
-                    self._vehicle_pos,
+                    vehicle_transform,
                     obs_ped_pos,
                     wp_vector,
                     speed_factor_p,
@@ -205,11 +205,13 @@ class ERDOSAgentOperator(Op):
                 speed_factor_p = min(speed_factor_p, new_speed_factor_p)
 
         for tl in traffic_lights:
-            if (agent_utils.is_traffic_light_active(self._vehicle_pos, tl[0]) and
-                agent_utils.is_traffic_light_visible(self._vehicle_pos, tl[0], self._flags)):
+            if (agent_utils.is_traffic_light_active(
+                    vehicle_transform, tl[0]) and
+                agent_utils.is_traffic_light_visible(
+                    vehicle_transform, tl[0], self._flags)):
                 tl_state = tl[1]
                 new_speed_factor_tl = agent_utils.stop_traffic_light(
-                    self._vehicle_pos,
+                    vehicle_transform,
                     tl[0],
                     tl_state,
                     wp_vector,

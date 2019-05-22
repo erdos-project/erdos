@@ -39,12 +39,8 @@ def is_ground_traffic_signs_stream(stream):
     return stream.name == 'traffic_signs'
 
 
-def is_ground_vehicle_pos_stream(stream):
-    return stream.name == 'vehicle_pos'
-
-
-def is_world_transform_stream(stream):
-    return stream.name == 'world_transform'
+def is_ground_vehicle_transform_stream(stream):
+    return stream.name == 'vehicle_transform'
 
 
 def is_ground_acceleration_stream(stream):

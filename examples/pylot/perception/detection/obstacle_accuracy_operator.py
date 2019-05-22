@@ -20,7 +20,7 @@ class ObstacleAccuracyOperator(Op):
         self._flags = flags
         self._logger = setup_logging(self.name, log_file_name)
         self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
-        self._world_transforms = []
+        self._vehicle_transforms = []
         self._pedestrians = []
         self._vehicles = []
         self._traffic_lights = []
@@ -46,8 +46,8 @@ class ObstacleAccuracyOperator(Op):
             ObstacleAccuracyOperator.on_depth_camera_update)
         input_streams.filter(pylot_utils.is_camera_stream).add_callback(
             ObstacleAccuracyOperator.on_bgr_camera_update)
-        input_streams.filter(pylot_utils.is_world_transform_stream).add_callback(
-            ObstacleAccuracyOperator.on_world_transform_update)
+        input_streams.filter(pylot_utils.is_vehicle_transform_stream).add_callback(
+            ObstacleAccuracyOperator.on_vehicle_transform_update)
         input_streams.filter(pylot_utils.is_ground_pedestrians_stream).add_callback(
             ObstacleAccuracyOperator.on_pedestrians_update)
         input_streams.filter(pylot_utils.is_ground_vehicles_stream).add_callback(
@@ -163,9 +163,9 @@ class ObstacleAccuracyOperator(Op):
         if index > 0:
             self._ground_obstacles = self._ground_obstacles[index:]
 
-    def on_world_transform_update(self, msg):
+    def on_vehicle_transform_update(self, msg):
         if msg.timestamp.coordinates[1] >= 2:
-            self._world_transforms.append(msg)
+            self._vehicle_transforms.append(msg)
 
     def on_pedestrians_update(self, msg):
         if msg.timestamp.coordinates[1] >= 2:
@@ -232,7 +232,7 @@ class ObstacleAccuracyOperator(Op):
 
     def __get_bboxes(self):
         self._logger.info("Timestamps {} {} {} {} {} {} {}".format(
-            self._world_transforms[0].timestamp,
+            self._vehicle_transforms[0].timestamp,
             self._pedestrians[0].timestamp,
             self._vehicles[0].timestamp,
             self._traffic_lights[0].timestamp,
@@ -241,8 +241,8 @@ class ObstacleAccuracyOperator(Op):
             self._bgr_imgs[0].timestamp))
 
         timestamp = self._pedestrians[0].timestamp
-        world_transform = self._world_transforms[0].data
-        self._world_transforms = self._world_transforms[1:]
+        vehicle_transform = self._vehicle_transforms[0].data
+        self._vehicle_transforms = self._vehicle_transforms[1:]
 
         # Get the latest BGR and depth images.
         # NOTE: depth_to_array flips the image.
@@ -256,24 +256,24 @@ class ObstacleAccuracyOperator(Op):
         pedestrians = self._pedestrians[0].pedestrians
         self._pedestrians = self._pedestrians[1:]
         ped_bboxes = self.__get_pedestrians_bboxes(
-            pedestrians, world_transform, depth_array)
+            pedestrians, vehicle_transform, depth_array)
 
         # Get bboxes for vehicles.
         vehicles = self._vehicles[0].vehicles
         self._vehicles = self._vehicles[1:]
         vec_bboxes = self.__get_vehicles_bboxes(
-            vehicles, world_transform, depth_array)
+            vehicles, vehicle_transform, depth_array)
 
         # Get bboxes for traffic lights.
         traffic_lights = self._traffic_lights[0].traffic_lights
         self._traffic_lights = self._traffic_lights[1:]
-        # self.__get_traffic_light_bboxes(traffic_lights, world_transform,
+        # self.__get_traffic_light_bboxes(traffic_lights, vehicle_transform,
         #                                 depth_array)
 
         # Get bboxes for the traffic signs.
         traffic_signs = self._traffic_signs[0].speed_signs
         self._traffic_signs = self._traffic_signs[1:]
-        # self.__get_traffic_sign_bboxes(traffic_signs, world_transform,
+        # self.__get_traffic_sign_bboxes(traffic_signs, vehicle_transform,
         #                                depth_array)
 
         if self._flags.visualize_ground_obstacles:
@@ -282,12 +282,12 @@ class ObstacleAccuracyOperator(Op):
 
         return (ped_bboxes, vec_bboxes)
 
-    def __get_traffic_light_bboxes(self, traffic_lights, world_transform,
+    def __get_traffic_light_bboxes(self, traffic_lights, vehicle_transform,
                                    depth_array):
         tl_bboxes = []
         for tl in traffic_lights:
             pos = map_ground_3D_transform_to_2D(tl.location,
-                                                world_transform,
+                                                vehicle_transform,
                                                 self._rgb_transform,
                                                 self._rgb_intrinsic,
                                                 self._rgb_img_size)
@@ -300,12 +300,12 @@ class ObstacleAccuracyOperator(Op):
                     tl_bboxes.append((x - 2, x + 2, y - 2, y + 2))
         return tl_bboxes
 
-    def __get_traffic_sign_bboxes(self, traffic_signs, world_transform,
+    def __get_traffic_sign_bboxes(self, traffic_signs, vehicle_transform,
                                   depth_array):
         ts_bboxes = []
         for traffic_sign in traffic_signs:
             pos = map_ground_3D_transform_to_2D(traffic_sign.location,
-                                                world_transform,
+                                                vehicle_transform,
                                                 self._rgb_transform,
                                                 self._rgb_intrinsic,
                                                 self._rgb_img_size)
@@ -318,23 +318,23 @@ class ObstacleAccuracyOperator(Op):
                     ts_bboxes.append((x - 2, x + 2, y - 2, y + 2))
         return ts_bboxes
 
-    def __get_pedestrians_bboxes(self, pedestrians, world_transform,
+    def __get_pedestrians_bboxes(self, pedestrians, vehicle_transform,
                                  depth_array):
         ped_bboxes = []
         for pedestrian in pedestrians:
             bbox = get_2d_bbox_from_3d_box(
-                depth_array, world_transform, pedestrian.transform,
+                depth_array, vehicle_transform, pedestrian.transform,
                 pedestrian.bounding_box, self._rgb_transform, self._rgb_intrinsic,
                 self._rgb_img_size, 1.5, 3.0)
             if bbox is not None:
                 ped_bboxes.append(bbox)
         return ped_bboxes
 
-    def __get_vehicles_bboxes(self, vehicles, world_transform, depth_array):
+    def __get_vehicles_bboxes(self, vehicles, vehicle_transform, depth_array):
         vec_bboxes = []
         for vehicle in vehicles:
             bbox = get_2d_bbox_from_3d_box(
-                depth_array, world_transform, vehicle.transform,
+                depth_array, vehicle_transform, vehicle.transform,
                 vehicle.bounding_box, self._rgb_transform, self._rgb_intrinsic,
                 self._rgb_img_size, 3.0, 3.0)
             if bbox is not None:

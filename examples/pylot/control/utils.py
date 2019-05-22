@@ -23,12 +23,12 @@ def is_pedestrian_hitable(pos):
     return True
 
 
-def is_traffic_light_active(vehicle_pos, tl_pos):
+def is_traffic_light_active(vehicle_transform, tl_pos):
     # TODO(ionel): Implement.
     return True
 
 
-def is_vehicle_on_same_lane(vehicle_pos, obs_vehicle_pos):
+def is_vehicle_on_same_lane(vehicle_transform, obs_vehicle_pos):
     # TODO(ionel): Implement.
     return True
 
@@ -43,16 +43,16 @@ def is_pedestrian_on_near_hit_zone(p_dist, p_angle, flags):
             p_dist < flags.pedestrian_distance_emergency_thres)
 
 
-def is_traffic_light_visible(vehicle_pos, tl_pos, flags):
+def is_traffic_light_visible(vehicle_transform, tl_pos, flags):
     _, tl_dist = get_world_vec_dist(
-        vehicle_pos.location.x,
-        vehicle_pos.location.y,
+        vehicle_transform.location.x,
+        vehicle_transform.location.y,
         tl_pos.x,
         tl_pos.y)
     return tl_dist > flags.traffic_light_min_dist_thres
 
 
-def stop_pedestrian(vehicle_pos,
+def stop_pedestrian(vehicle_transform,
                     pedestrian_pos,
                     wp_vector,
                     speed_factor_p,
@@ -61,8 +61,8 @@ def stop_pedestrian(vehicle_pos,
     p_vector, p_dist = get_world_vec_dist(
         pedestrian_pos.x,
         pedestrian_pos.y,
-        vehicle_pos.location.x,
-        vehicle_pos.location.y)
+        vehicle_transform.location.x,
+        vehicle_transform.location.y)
     p_angle = get_angle(p_vector, wp_vector)
     if is_pedestrian_on_hit_zone(p_dist, p_angle, flags):
         speed_factor_p_temp = p_dist / (flags.coast_factor * flags.pedestrian_distance_hit_thres)
@@ -74,10 +74,10 @@ def stop_pedestrian(vehicle_pos,
 
 
 
-def stop_vehicle(vehicle_pos, obs_vehicle_pos, wp_vector, speed_factor_v, flags):
+def stop_vehicle(vehicle_transform, obs_vehicle_pos, wp_vector, speed_factor_v, flags):
     speed_factor_v_temp = 1
     v_vector, v_dist = get_world_vec_dist(
-        obs_vehicle_pos.x, obs_vehicle_pos.y, vehicle_pos.location.x, vehicle_pos.location.y)
+        obs_vehicle_pos.x, obs_vehicle_pos.y, vehicle_transform.location.x, vehicle_transform.location.y)
     v_angle = get_angle(v_vector, wp_vector)
 
     if ((-0.5 * flags.vehicle_angle_thres / flags.coast_factor <
@@ -100,7 +100,7 @@ def stop_vehicle(vehicle_pos, obs_vehicle_pos, wp_vector, speed_factor_v, flags)
     return speed_factor_v
 
 
-def stop_traffic_light(vehicle_pos,
+def stop_traffic_light(vehicle_transform,
                        tl_pos,
                        tl_state,
                        wp_vector,
@@ -110,7 +110,7 @@ def stop_traffic_light(vehicle_pos,
     speed_factor_tl_temp = 1
     if tl_state != 0:  # Not green
         tl_vector, tl_dist = get_world_vec_dist(
-            tl_pos.x, tl_pos.y, vehicle_pos.location.x, vehicle_pos.location.y)
+            tl_pos.x, tl_pos.y, vehicle_transform.location.x, vehicle_transform.location.y)
         tl_angle = get_angle(tl_vector, wp_vector)
 
         if ((0 < tl_angle < flags.traffic_light_angle_thres / flags.coast_factor and

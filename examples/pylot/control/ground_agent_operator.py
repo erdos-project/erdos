@@ -27,7 +27,7 @@ class GroundAgentOperator(Op):
         self._map = CarlaMap(city_name)
         self._flags = flags
         self._pid = PID(p=flags.pid_p, i=flags.pid_i, d=flags.pid_d)
-        self._vehicle_pos = None
+        self._vehicle_transform = None
         self._vehicle_acc = None
         self._vehicle_speed = None
         self._pedestrians = []
@@ -40,8 +40,8 @@ class GroundAgentOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams):
-        input_streams.filter(pylot_utils.is_ground_vehicle_pos_stream).add_callback(
-            GroundAgentOperator.on_vehicle_pos_update)
+        input_streams.filter(pylot_utils.is_ground_vehicle_transform_stream).add_callback(
+            GroundAgentOperator.on_vehicle_transform_update)
         input_streams.filter(pylot_utils.is_ground_acceleration_stream).add_callback(
             GroundAgentOperator.on_vehicle_acceleration_update)
         input_streams.filter(pylot_utils.is_ground_forward_speed_stream).add_callback(
@@ -65,9 +65,9 @@ class GroundAgentOperator(Op):
         self._wp_vector = msg.wp_vector
         self._wp_angle_speed = msg.wp_angle_speed
 
-    def on_vehicle_pos_update(self, msg):
+    def on_vehicle_transform_update(self, msg):
         self._logger.info("Received vehicle pos %s", msg)
-        self._vehicle_pos = msg.data
+        self._vehicle_transform = msg.data
 
     def on_vehicle_acceleration_update(self, msg):
         self._vehicle_acc = msg.data
@@ -90,7 +90,7 @@ class GroundAgentOperator(Op):
     # TODO(ionel): Set the frequency programmatically.
     @frequency(10)
     def run_step(self):
-        if (self._vehicle_pos is None or self._vehicle_acc is None
+        if (self._vehicle_transform is None or self._vehicle_acc is None
                 or self._vehicle_speed is None or self._pedestrians == []
                 or self._vehicles == [] or self._traffic_lights == []
                 or self._wp_angle is None):
@@ -113,10 +113,10 @@ class GroundAgentOperator(Op):
 
         if self._flags.stop_for_vehicles:
             for vehicle in vehicles:
-                if ground_utils.is_vehicle_on_same_lane(
-                        self._vehicle_pos, vehicle.location, self._map):
+                if control.ground_utils.is_vehicle_on_same_lane(
+                        self._vehicle_transform, vehicle.location, self._map):
                     new_speed_factor_v = agent_utils.stop_vehicle(
-                        self._vehicle_pos,
+                        self._vehicle_transform,
                         vehicle.location,
                         wp_vector,
                         speed_factor_v,
@@ -125,9 +125,10 @@ class GroundAgentOperator(Op):
 
         if self._flags.stop_for_pedestrians:
             for pedestrian in pedestrians:
-                if ground_utils.is_pedestrian_hitable(pedestrian.location, self._map):
+                if control.ground_utils.is_pedestrian_hitable(
+                        pedestrian.location, self._map):
                     new_speed_factor_p = agent_utils.stop_pedestrian(
-                        self._vehicle_pos,
+                        self._vehicle_transform,
                         pedestrian.location,
                         wp_vector,
                         speed_factor_p,
@@ -136,12 +137,12 @@ class GroundAgentOperator(Op):
 
         if self._flags.stop_for_traffic_lights:
             for tl in traffic_lights:
-                if (ground_utils.is_traffic_light_active(
-                        self._vehicle_pos, tl.location, self._map) and
+                if (control.ground_utils.is_traffic_light_active(
+                        self._vehicle_transform, tl.location, self._map) and
                     agent_utils.is_traffic_light_visible(
-                        self._vehicle_pos, tl.location, self._flags)):
+                        self._vehicle_transform, tl.location, self._flags)):
                     new_speed_factor_tl = agent_utils.stop_traffic_light(
-                        self._vehicle_pos,
+                        self._vehicle_transform,
                         tl.location,
                         tl.state,
                         wp_vector,

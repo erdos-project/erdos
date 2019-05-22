@@ -6,7 +6,7 @@ def is_pedestrian_hitable(pos, city_map):
     return city_map.is_point_on_lane([pos.x, pos.y, 38])
 
 
-def is_traffic_light_active(vehicle_pos, tl_pos, city_map):
+def is_traffic_light_active(vehicle_transform, tl_pos, city_map):
 
     def search_closest_lane_point(x_agent, y_agent, depth):
         step_size = 4
@@ -60,16 +60,18 @@ def is_traffic_light_active(vehicle_pos, tl_pos, city_map):
 
     if closest_lane_point is not None:
         return (math.fabs(
-            city_map.get_lane_orientation_degrees([vehicle_pos.location.x, vehicle_pos.location.y, 38])
+            city_map.get_lane_orientation_degrees(
+                [vehicle_transform.location.x, vehicle_transform.location.y, 38])
             - city_map.get_lane_orientation_degrees(
                 [closest_lane_point[0], closest_lane_point[1], 38])) < 1)
     else:
         return None
 
 
-def is_vehicle_on_same_lane(vehicle_pos, obs_vehicle_pos, city_map):
+def is_vehicle_on_same_lane(vehicle_transform, obs_vehicle_pos, city_map):
     if city_map.is_point_on_intersection([obs_vehicle_pos.x, obs_vehicle_pos.y, 38]):
         return True
     return (math.fabs(
-        city_map.get_lane_orientation_degrees([vehicle_pos.location.x, vehicle_pos.location.y, 38]) -
+        city_map.get_lane_orientation_degrees(
+            [vehicle_transform.location.x, vehicle_transform.location.y, 38]) -
         city_map.get_lane_orientation_degrees([obs_vehicle_pos.x, obs_vehicle_pos.y, 38])) < 1)

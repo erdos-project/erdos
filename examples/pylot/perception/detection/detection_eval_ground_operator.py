@@ -27,7 +27,7 @@ class DetectionEvalGroundOperator(Op):
         self._flags = flags
         # Queue of incoming data.
         self._bgr_imgs = deque()
-        self._world_transforms = deque()
+        self._vehicle_transforms = deque()
         self._depth_imgs = deque()
         self._pedestrians = deque()
         self._ground_bboxes = deque()
@@ -46,8 +46,8 @@ class DetectionEvalGroundOperator(Op):
                 DetectionEvalGroundOperator.on_depth_camera_update)
         input_streams.filter(pylot_utils.is_camera_stream).add_callback(
             DetectionEvalGroundOperator.on_bgr_camera_update)
-        input_streams.filter(pylot_utils.is_world_transform_stream).add_callback(
-            DetectionEvalGroundOperator.on_world_transform_update)
+        input_streams.filter(pylot_utils.is_vehicle_transform_stream).add_callback(
+            DetectionEvalGroundOperator.on_vehicle_transform_update)
         input_streams.filter(pylot_utils.is_ground_pedestrians_stream).add_callback(
             DetectionEvalGroundOperator.on_pedestrians_update)
 
@@ -72,23 +72,23 @@ class DetectionEvalGroundOperator(Op):
         # we did not miss any data.
         depth_msg = self._depth_imgs.popleft()
         bgr_msg = self._bgr_imgs.popleft()
-        world_trans_msg = self._world_transforms.popleft()
+        vehicle_trans_msg = self._vehicle_transforms.popleft()
         pedestrians_msg = self._pedestrians.popleft()
 
         self._logger.info('Timestamps {} {} {} {}'.format(
-            depth_msg.timestamp, bgr_msg.timestamp, world_trans_msg.timestamp,
+            depth_msg.timestamp, bgr_msg.timestamp, vehicle_trans_msg.timestamp,
             pedestrians_msg.timestamp))
 
         assert (depth_msg.timestamp == bgr_msg.timestamp ==
-                world_trans_msg.timestamp == pedestrians_msg.timestamp)
+                vehicle_trans_msg.timestamp == pedestrians_msg.timestamp)
 
-        world_transform = world_trans_msg.data
+        vehicle_transform = vehicle_trans_msg.data
 
         bboxes = []
         self._logger.info('Number of pedestrians {}'.format(
             len(pedestrians_msg.pedestrians)))
         for pedestrian in pedestrians_msg.pedestrians:
-            bbox = get_2d_bbox_from_3d_box(depth_msg.frame, world_transform,
+            bbox = get_2d_bbox_from_3d_box(depth_msg.frame, vehicle_transform,
                                            pedestrian.transform, pedestrian.bounding_box,
                                            self._rgb_transform,
                                            self._rgb_intrinsic,
@@ -134,10 +134,10 @@ class DetectionEvalGroundOperator(Op):
                 0] > self._flags.eval_ground_truth_ignore_first:
             self._bgr_imgs.append(bgr_msg)
 
-    def on_world_transform_update(self, transform_msg):
+    def on_vehicle_transform_update(self, transform_msg):
         if transform_msg.timestamp.coordinates[
                 0] > self._flags.eval_ground_truth_ignore_first:
-            self._world_transforms.append(transform_msg)
+            self._vehicle_transforms.append(transform_msg)
 
     def on_pedestrians_update(self, msg):
         if msg.timestamp.coordinates[

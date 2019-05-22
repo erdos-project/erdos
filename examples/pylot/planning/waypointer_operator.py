@@ -29,11 +29,11 @@ class WaypointerOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams):
-        input_streams.filter(pylot_utils.is_ground_vehicle_pos_stream).add_callback(
-            WaypointerOperator.on_vehicle_pos_update)
+        input_streams.filter(pylot_utils.is_ground_vehicle_transform_stream).add_callback(
+            WaypointerOperator.on_vehicle_transform_update)
         return [pylot_utils.create_waypoints_stream()]
 
-    def on_vehicle_pos_update(self, msg):
+    def on_vehicle_transform_update(self, msg):
         start_time = time.time()
         (wp_angle, wp_vector, wp_angle_speed, wp_vector_speed) = self.get_waypoints(msg.data)
         runtime = (time.time() - start_time) * 1000
@@ -43,15 +43,19 @@ class WaypointerOperator(Op):
             wp_angle, wp_vector, wp_angle_speed, wp_vector_speed, msg.timestamp)
         self.get_output_stream('waypoints').send(output_msg)
 
-    def get_waypoints(self, vehicle_pos):
+    def get_waypoints(self, vehicle_transform):
         waypoints_world, waypoints, route = self._waypointer.get_next_waypoints(
-            (vehicle_pos.location.x, vehicle_pos.location.y, 0.22),
-            (vehicle_pos.orientation.x, vehicle_pos.orientation.y, vehicle_pos.orientation.z),
+            (vehicle_transform.location.x, vehicle_transform.location.y, 0.22),
+            (vehicle_transform.orientation.x,
+             vehicle_transform.orientation.y,
+             vehicle_transform.orientation.z),
             self._goal_location,
             self._goal_orientation)
 
         if waypoints_world == []:
-            waypoints_world = [[vehicle_pos.location.x, vehicle_pos.location.y, 0.22]]
+            waypoints_world = [[vehicle_transform.location.x,
+                                vehicle_transform.location.y,
+                                0.22]]
 
         # Make a function, maybe util function to get the magnitues
         wp = [
@@ -60,10 +64,12 @@ class WaypointerOperator(Op):
         ]
 
         wp_vector, wp_mag = get_world_vec_dist(
-            wp[0], wp[1], vehicle_pos.location.x, vehicle_pos.location.y)
+            wp[0], wp[1], vehicle_transform.location.x, vehicle_transform.location.y)
 
         if wp_mag > 0:
-            wp_angle = get_angle(wp_vector, [vehicle_pos.orientation.x, vehicle_pos.orientation.y])
+            wp_angle = get_angle(
+                wp_vector,
+                [vehicle_transform.orientation.x, vehicle_transform.orientation.y])
         else:
             wp_angle = 0
 
@@ -73,9 +79,13 @@ class WaypointerOperator(Op):
         ]
 
         wp_vector_speed, _ = get_world_vec_dist(
-            wp_speed[0], wp_speed[1], vehicle_pos.location.x, vehicle_pos.location.y)
+            wp_speed[0],
+            wp_speed[1],
+            vehicle_transform.location.x,
+            vehicle_transform.location.y)
 
         wp_angle_speed = get_angle(
-            wp_vector_speed, [vehicle_pos.orientation.x, vehicle_pos.orientation.y])
+            wp_vector_speed,
+            [vehicle_transform.orientation.x, vehicle_transform.orientation.y])
 
         return (wp_angle, wp_vector, wp_angle_speed, wp_vector_speed)

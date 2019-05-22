@@ -31,7 +31,10 @@ class BoundingBox(object):
 
 class Transform(object):
 
-    def __init__(self, pos=None, pitch=0, yaw=0, roll=0, scale=None, matrix=None):
+    def __init__(self, pos=None, pitch=0, yaw=0, roll=0, orientation=None,
+                 scale=None, matrix=None):
+        self.orientation = orientation
+        self.location = pos
         if scale is None:
             scale = Scale()
         if matrix is None:
@@ -114,11 +117,11 @@ def depth_to_local_point_cloud(depth_msg, max_depth=0.9):
     return np.transpose(p3d)
 
 
-def get_3d_world_position(x, y, depth_msg, world_transform):
+def get_3d_world_position(x, y, depth_msg, vehicle_transform):
     far = 1.0
     point_cloud = depth_to_local_point_cloud(depth_msg, max_depth=far)
-    car_to_world_transform = world_transform * depth_msg.transform
-    point_cloud = car_to_world_transform.transform_points(point_cloud)
+    car_transform = vehicle_transform * depth_msg.transform
+    point_cloud = car_transform.transform_points(point_cloud)
     (x, y, z) = point_cloud.tolist()[y * depth_msg.width + x]
     return Location(x, y, z)
 
@@ -198,11 +201,11 @@ def get_bounding_box_sampling_points(ends):
 
 
 def get_2d_bbox_from_3d_box(
-        depth_array, world_transform, obj_transform,
+        depth_array, vehicle_transform, obj_transform,
         bounding_box, rgb_transform, rgb_intrinsic, rgb_img_size,
         middle_depth_threshold, neighbor_threshold):
     corners = map_ground_bounding_box_to_2D(
-        world_transform, obj_transform,
+        vehicle_transform, obj_transform,
         bounding_box, rgb_transform, rgb_intrinsic,
         rgb_img_size)
     if len(corners) == 8:
@@ -285,14 +288,14 @@ def select_max_bbox(ends):
     return (xmin, xmax, ymin, ymax)
 
 
-def map_ground_bounding_box_to_2D(world_transform,
+def map_ground_bounding_box_to_2D(vehicle_transform,
                                   obj_transform,
                                   bounding_box,
                                   rgb_transform,
                                   rgb_intrinsic,
                                   rgb_img_size):
     (image_width, image_height) = rgb_img_size
-    extrinsic_mat = world_transform * rgb_transform
+    extrinsic_mat = vehicle_transform * rgb_transform
 
     # 8 bounding box vertices relative to (0,0,0)
     bbox = np.array([
@@ -342,11 +345,11 @@ def map_ground_bounding_box_to_2D(world_transform,
 
 
 def map_ground_3D_transform_to_2D(location,
-                                  world_transform,
+                                  vehicle_transform,
                                   rgb_transform,
                                   rgb_intrinsic,
                                   rgb_img_size):
-    extrinsic_mat = world_transform * rgb_transform
+    extrinsic_mat = vehicle_transform * rgb_transform
     pos_vector = np.array([[location.x], [location.y], [location.z], [1.0]])
     transformed_3d_pos = np.dot(inv(extrinsic_mat.matrix), pos_vector)
     pos2d = np.dot(rgb_intrinsic, transformed_3d_pos[:3])
