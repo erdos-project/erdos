@@ -1,5 +1,10 @@
 from absl import flags
 import cv2
+import math
+try:
+    import queue as queue
+except ImportError:
+    import Queue as queue
 import rospy
 import scipy.misc
 
@@ -21,6 +26,8 @@ import operator_creator
 from perception.segmentation.segmentation_drn_operator import SegmentationDRNOperator
 import pylot_utils
 import simulation.messages
+import simulation.utils
+
 
 FLAGS = flags.FLAGS
 RGB_CAMERA_NAME='front_center_camera'
@@ -39,12 +46,24 @@ def add_visualization_operators(graph, rgb_camera_name):
     return visualization_ops
 
 
+def get_distance(loc1, loc2):
+    x_diff = loc1.x - loc2.x
+    y_diff = loc1.y - loc2.y
+    return math.sqrt(x_diff**2 + y_diff**2)
+
+
 class ERDOSAgent(AutonomousAgent):
 
     def setup(self, path_to_conf_file):
         flags.FLAGS([__file__, '--flagfile={}'.format(path_to_conf_file)])
         self.track = Track.ALL_SENSORS_HDMAP_WAYPOINTS
 
+        self.vehicle_transform = None
+        self.waypoints = None
+        self._sampling_resolution = 1
+        self._min_distance = self._sampling_resolution * 0.9
+        self.last_waypoint = None
+        self.last_road_option = None
         self.message_num = 0
 
         # Set up graph
@@ -110,7 +129,7 @@ class ERDOSAgent(AutonomousAgent):
                        'z': 1.60,
                        'id': 'GPS'}]
         hd_map_sensor = [{'type': 'sensor.hd_map',
-                          'reading_frequency': 1,
+                          'reading_frequency': 5,
                           'id': 'hdmap'}]
         front_camera_sensor = [{'type': 'sensor.camera.rgb',
                                 'x': 0.7,
@@ -134,12 +153,16 @@ class ERDOSAgent(AutonomousAgent):
         sensors = can_sensor + gps_sensor + hd_map_sensor + front_camera_sensor
         return sensors
 
-
-# self._global_plan is [({'lat': 49.001610853132775, 'z': 0.0, 'lon': 7.999952677036802}, <RoadOption.LANEFOLLOW: 4>), ...]
-
     def run_step(self, input_data, timestamp):
+        if self.waypoints is None:
+            self.waypoints = queue.Queue()
+            for waypoint_option in self._global_plan_world_coord:
+                self.waypoints.put(waypoint_option)
+
         erdos_timestamp = Timestamp(coordinates=[timestamp, self.message_num])
         self.message_num += 1
+        throttle = 1.0
+        brake = 0.0
         for key, val in input_data.items():
             print("{} {} {}".format(key, val[0], type(val[1])))
             if key == RGB_CAMERA_NAME:
@@ -153,7 +176,26 @@ class ERDOSAgent(AutonomousAgent):
             elif key == 'hdmap':
                 opendrive = val[1]['opendrive']
                 map = carla.Map('test', opendrive)
-                transform = val[1]['transform']
+                vec_trans_dict = val[1]['transform']
+                loc = simulation.messages.Location(
+                    vec_trans_dict['x'],
+                    vec_trans_dict['y'],
+                    vec_trans_dict['z'])
+                self.vehicle_transform = simulation.utils.Transform(
+                    loc,
+                    vec_trans_dict['pitch'],
+                    vec_trans_dict['yaw'],
+                    vec_trans_dict['roll'])
+
+                next_waypoint, road_option = self.__compute_next_waypoint()
+                if next_waypoint:
+                    target_speed = self.__local_control_decision(next_waypoint)
+                    if target_speed == 0:
+                        throttle = 0.0
+                        brake = 1.0
+                    else:
+                        throttle = 1.0
+                        brake = 0.0
                 pc_file = val[1]['map_file']
 
 
@@ -162,12 +204,49 @@ class ERDOSAgent(AutonomousAgent):
         # RETURN CONTROL
         control = carla.VehicleControl()
         control.steer = 0.0
-        control.throttle = 1.0
-        control.brake = 0.0
+        control.throttle = throttle
+        control.brake = brake
         control.hand_brake = False
 
         return control
 
+    def __compute_next_waypoint(self):
+        if self.waypoints is None:
+            return None, None
+        if self.waypoints.empty():
+            print('Reached end of waypoints')
+            return None, None
+        if self.last_waypoint is None:
+            # If there was no last waypoint, pop one from the queue.
+            next_waypoint, next_road_option = self.waypoints.get()
+        else:
+            # Find the next waypoint which is more than 90% left to complete.
+            next_waypoint = self.last_waypoint
+            next_road_option = self.last_road_option
+            while (self.waypoints.empty() is False and
+                   get_distance(
+                       next_waypoint.location,
+                       self.vehicle_transform.location) < self._min_distance):
+                next_waypoint, next_road_option = self.waypoints.get()
+
+        # If the next waypoint is different from the last waypoint, send
+        # the next waypoint
+        if next_waypoint != self.last_waypoint:
+            self.last_waypoint = next_waypoint
+            self.last_road_option = next_road_option
+            print('New waypoint {} {}'.format(self.last_waypoint, self.last_road_option))
+            return next_waypoint, next_road_option
+        else:
+            print('No new waypoint')
+            return None, None
+
+    def __local_control_decision(self, waypoint):
+        if get_distance(waypoint.location,
+                        self.vehicle_transform.location) > 0.08:
+            target_speed = 20
+        else:
+            target_speed = 0
+        return target_speed
 
     def __create_scenario_input_op(self):
         self.camera_stream = ROSOutputDataStream(
