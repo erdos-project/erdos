@@ -109,6 +109,15 @@ def is_detected_lane_stream(stream):
     return stream.get_label('detected_lanes') == 'true'
 
 
+def is_global_trajectory_stream(stream):
+    return (stream.get_label('global') == 'true' and
+            stream.get_label('waypoints') == 'true')
+
+
+def is_open_drive_stream(stream):
+    return stream.name == 'open_drive_stream'
+
+
 def add_timestamp(timestamp, image_np):
     txt_font = cv2.FONT_HERSHEY_SIMPLEX
     timestamp_txt = '{}'.format(timestamp)

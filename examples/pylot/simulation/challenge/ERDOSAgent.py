@@ -1,10 +1,4 @@
 from absl import flags
-import cv2
-import math
-try:
-    import queue as queue
-except ImportError:
-    import Queue as queue
 import rospy
 import scipy.misc
 
@@ -15,7 +9,7 @@ from srunner.challenge.autoagents.autonomous_agent import AutonomousAgent, Track
 
 from erdos.data_stream import DataStream
 import erdos.graph
-from erdos.message import Message
+from erdos.message import Message, WatermarkMessage
 from erdos.operators import NoopOp
 from erdos.ros.ros_output_data_stream import ROSOutputDataStream
 from erdos.timestamp import Timestamp
@@ -24,6 +18,7 @@ import config
 from debug.video_operator import VideoOperator
 import operator_creator
 from perception.segmentation.segmentation_drn_operator import SegmentationDRNOperator
+from planning.planning_operator import PlanningOperator
 import pylot_utils
 import simulation.messages
 import simulation.utils
@@ -46,10 +41,28 @@ def add_visualization_operators(graph, rgb_camera_name):
     return visualization_ops
 
 
-def get_distance(loc1, loc2):
-    x_diff = loc1.x - loc2.x
-    y_diff = loc1.y - loc2.y
-    return math.sqrt(x_diff**2 + y_diff**2)
+def to_erdos_transform(transform):
+    loc = simulation.messages.Location(
+        transform.location.x,
+        transform.location.y,
+        transform.location.z)
+    return simulation.utils.Transform(
+        loc,
+        transform.rotation.pitch,
+        transform.rotation.yaw,
+        transform.rotation.roll)
+
+
+def create_planning_op(graph):
+    planning_op = graph.add(
+        PlanningOperator,
+        name='planning',
+        init_args={
+            'flags': FLAGS,
+            'log_file_name': FLAGS.log_file_name,
+            'csv_file_name': FLAGS.csv_log_file_name
+        })
+    return planning_op
 
 
 class ERDOSAgent(AutonomousAgent):
@@ -58,13 +71,11 @@ class ERDOSAgent(AutonomousAgent):
         flags.FLAGS([__file__, '--flagfile={}'.format(path_to_conf_file)])
         self.track = Track.ALL_SENSORS_HDMAP_WAYPOINTS
 
-        self.vehicle_transform = None
-        self.waypoints = None
-        self._sampling_resolution = 1
-        self._min_distance = self._sampling_resolution * 0.9
-        self.last_waypoint = None
-        self.last_road_option = None
-        self.message_num = 0
+        self._vehicle_transform = None
+        self._waypoints = None
+        self._sent_open_drive_data = False
+        self._open_drive_data = None
+        self._message_num = 0
 
         # Set up graph
         self.graph = erdos.graph.get_current_graph()
@@ -98,17 +109,22 @@ class ERDOSAgent(AutonomousAgent):
         if FLAGS.lane_detection:
             lane_detection_ops.append(operator_creator.create_lane_detection_op(self.graph))
 
+        planning_ops = [create_planning_op(self.graph)]
+
         self.graph.connect(
             [scenario_input_op],
             segmentation_ops + obj_detector_ops + tracker_ops +
-            traffic_light_det_ops + lane_detection_ops + visualization_ops)
+            traffic_light_det_ops + lane_detection_ops + planning_ops + visualization_ops)
 
         # Execute graph
         self.graph.execute(FLAGS.framework, blocking=False)
 
         rospy.init_node("erdos_driver", anonymous=True)
 
-        self.camera_stream.setup()
+        self._camera_stream.setup()
+        self._global_trajectory_stream.setup()
+        self._open_drive_stream.setup()
+        self._vehicle_transform_stream.setup()
 
     def sensors(self):
         """
@@ -154,48 +170,58 @@ class ERDOSAgent(AutonomousAgent):
         return sensors
 
     def run_step(self, input_data, timestamp):
-        if self.waypoints is None:
-            self.waypoints = queue.Queue()
-            for waypoint_option in self._global_plan_world_coord:
-                self.waypoints.put(waypoint_option)
+        erdos_timestamp = Timestamp(coordinates=[timestamp, self._message_num])
+        watermark = WatermarkMessage(erdos_timestamp)
+        self._message_num += 1
 
-        erdos_timestamp = Timestamp(coordinates=[timestamp, self.message_num])
-        self.message_num += 1
-        throttle = 1.0
-        brake = 0.0
+        # Send once the global waypoints.
+        if self._waypoints is None:
+            self._waypoints = self._global_plan_world_coord
+            data = [(to_erdos_transform(transform), road_option)
+                    for (transform, road_option) in self._waypoints]
+            self._global_trajectory_stream.send(Message(data, erdos_timestamp))
+            self._global_trajectory_stream.send(watermark)
+        assert self._waypoints == self._global_plan_world_coord,\
+            'Global plan has been updated.'
+
         for key, val in input_data.items():
             print("{} {} {}".format(key, val[0], type(val[1])))
             if key == RGB_CAMERA_NAME:
-                self.camera_stream.send(
+                self._camera_stream.send(
                     simulation.messages.FrameMessage(pylot_utils.bgra_to_bgr(val[1]),
                                                      erdos_timestamp))
+                self._camera_stream.send(watermark)
             elif key == 'can_bus':
                 can_bus = simulation.messages.CanBus(**val[1])
             elif key == 'GPS':
                 gps = simulation.messages.LocationGeo(val[1][0], val[1][1], val[1][2])
             elif key == 'hdmap':
-                opendrive = val[1]['opendrive']
-                map = carla.Map('test', opendrive)
+                # Sending once opendrive data
+                if not self._sent_open_drive_data:
+                    self._open_drive_data = val[1]['opendrive']
+                    self._sent_open_drive_data = True
+                    self._open_drive_stream.send(
+                        Message(self._open_drive_data, erdos_timestamp))
+                    self._open_drive_stream.send(watermark)
+                assert self._open_drive_data == val[1]['opendrive'],\
+                    'Opendrive data changed.'
+
+                # Sending vehicle transform data.
                 vec_trans_dict = val[1]['transform']
                 loc = simulation.messages.Location(
                     vec_trans_dict['x'],
                     vec_trans_dict['y'],
                     vec_trans_dict['z'])
-                self.vehicle_transform = simulation.utils.Transform(
+                self._vehicle_transform = simulation.utils.Transform(
                     loc,
                     vec_trans_dict['pitch'],
                     vec_trans_dict['yaw'],
                     vec_trans_dict['roll'])
+                self._vehicle_transform_stream.send(
+                    Message(self._vehicle_transform, erdos_timestamp))
+                self._vehicle_transform_stream.send(watermark)
 
-                next_waypoint, road_option = self.__compute_next_waypoint()
-                if next_waypoint:
-                    target_speed = self.__local_control_decision(next_waypoint)
-                    if target_speed == 0:
-                        throttle = 0.0
-                        brake = 1.0
-                    else:
-                        throttle = 1.0
-                        brake = 0.0
+                # TODO(ionel): Send point cloud data.
                 pc_file = val[1]['map_file']
 
 
@@ -204,57 +230,38 @@ class ERDOSAgent(AutonomousAgent):
         # RETURN CONTROL
         control = carla.VehicleControl()
         control.steer = 0.0
-        control.throttle = throttle
-        control.brake = brake
+        control.throttle = 1.0
+        control.brake = 0.0
         control.hand_brake = False
 
         return control
 
-    def __compute_next_waypoint(self):
-        if self.waypoints is None:
-            return None, None
-        if self.waypoints.empty():
-            print('Reached end of waypoints')
-            return None, None
-        if self.last_waypoint is None:
-            # If there was no last waypoint, pop one from the queue.
-            next_waypoint, next_road_option = self.waypoints.get()
-        else:
-            # Find the next waypoint which is more than 90% left to complete.
-            next_waypoint = self.last_waypoint
-            next_road_option = self.last_road_option
-            while (self.waypoints.empty() is False and
-                   get_distance(
-                       next_waypoint.location,
-                       self.vehicle_transform.location) < self._min_distance):
-                next_waypoint, next_road_option = self.waypoints.get()
-
-        # If the next waypoint is different from the last waypoint, send
-        # the next waypoint
-        if next_waypoint != self.last_waypoint:
-            self.last_waypoint = next_waypoint
-            self.last_road_option = next_road_option
-            print('New waypoint {} {}'.format(self.last_waypoint, self.last_road_option))
-            return next_waypoint, next_road_option
-        else:
-            print('No new waypoint')
-            return None, None
-
-    def __local_control_decision(self, waypoint):
-        if get_distance(waypoint.location,
-                        self.vehicle_transform.location) > 0.08:
-            target_speed = 20
-        else:
-            target_speed = 0
-        return target_speed
-
     def __create_scenario_input_op(self):
-        self.camera_stream = ROSOutputDataStream(
+        self._camera_stream = ROSOutputDataStream(
             DataStream(name=RGB_CAMERA_NAME,
                        uid=RGB_CAMERA_NAME,
                        labels={'sensor_type': 'camera',
                                'camera_type': 'SceneFinal'}))
 
+        self._vehicle_transform_stream = ROSOutputDataStream(
+            DataStream(name='vehicle_transform',
+                       uid='vehicle_transform'))
+
+        # Stream on which we send the global trajectory.
+        self._global_trajectory_stream = ROSOutputDataStream(
+            DataStream(name='global_trajectory_stream',
+                       uid='global_trajectory_stream',
+                       labels={'global': 'true',
+                               'waypoints': 'true'}))
+
+        # Stream on which we send the opendrive map.
+        self._open_drive_stream = ROSOutputDataStream(
+            DataStream(name='open_drive_stream',
+                       uid='open_drive_stream'))
+
         return self.graph.add(NoopOp,
                               name='scenario_input',
-                              input_streams=[self.camera_stream])
+                              input_streams=[self._camera_stream,
+                                             self._vehicle_transform_stream,
+                                             self._global_trajectory_stream,
+                                             self._open_drive_stream])
