@@ -182,9 +182,9 @@ class ERDOSAgent(AutonomousAgent):
                           'reading_frequency': 30,
                           'id': 'hdmap'}]
         front_camera_sensor = [{'type': 'sensor.camera.rgb',
-                                'x': 0.7,
+                                'x': 2.0,
                                 'y': 0.0,
-                                'z': 1.60,
+                                'z': 1.40,
                                 'roll':0.0,
                                 'pitch':0.0,
                                 'yaw': 0.0,
