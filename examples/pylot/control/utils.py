@@ -18,6 +18,18 @@ def get_angle(vec_dst, vec_src):
     return angle
 
 
+def get_speed(velocity_vector):
+    """ Compute the speed of the vehicle in km/h.
+    Args:
+        vehicle: A velocity vector.
+    Returns:
+        The speed of the given vehicle as a float in km/h.
+    """
+    speed = 3.6 * math.sqrt(velocity_vector.x**2 + velocity_vector.y**2 +
+                            velocity_vector.z**2)
+    return speed
+
+
 def is_pedestrian_hitable(pos):
     # TODO(ionel): Implement.
     return True

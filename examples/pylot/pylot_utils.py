@@ -85,10 +85,10 @@ def is_fusion_stream(stream):
     return stream.get_label('fusion_output') == 'true'
 
 
-def create_agent_action_stream():
+def create_control_stream():
     # XXX(ionel): HACK! We set no_watermark to avoid closing the cycle in
     # the data-flow.
-    return DataStream(name='action_stream',
+    return DataStream(name='control_stream',
                       labels={'no_watermark': 'true'})
 
 
@@ -116,6 +116,10 @@ def is_global_trajectory_stream(stream):
 
 def is_open_drive_stream(stream):
     return stream.name == 'open_drive_stream'
+
+
+def is_can_bus_stream(stream):
+    return stream.name == 'can_bus'
 
 
 def add_timestamp(timestamp, image_np):

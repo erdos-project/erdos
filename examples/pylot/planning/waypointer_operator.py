@@ -40,7 +40,11 @@ class WaypointerOperator(Op):
         self._csv_logger.info('{},{},{}'.format(
             time_epoch_ms(), self.name, runtime))
         output_msg = WaypointMessage(
-            wp_angle, wp_vector, wp_angle_speed, wp_vector_speed, msg.timestamp)
+            msg.timestamp,
+            wp_angle=wp_angle,
+            wp_vector=wp_vector,
+            wp_angle_speed=wp_angle_speed,
+            wp_vector_speed=wp_vector_speed)
         self.get_output_stream('waypoints').send(output_msg)
 
     def get_waypoints(self, vehicle_transform):

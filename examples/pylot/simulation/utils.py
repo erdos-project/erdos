@@ -5,7 +5,7 @@ import numpy as np
 from numpy.linalg import inv
 from numpy.matlib import repmat
 
-from simulation.messages import Location
+from simulation.messages import Location, Rotation
 
 Extent = namedtuple('Extent', 'x, y, z')
 Scale = namedtuple('Scale', 'x y z')
@@ -34,6 +34,7 @@ class Transform(object):
     def __init__(self, pos=None, pitch=0, yaw=0, roll=0, orientation=None,
                  scale=None, matrix=None):
         self.orientation = orientation
+        self.rotation = Rotation(pitch, yaw, roll)
         self.location = pos
         if scale is None:
             scale = Scale()

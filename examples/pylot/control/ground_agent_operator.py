@@ -58,7 +58,7 @@ class GroundAgentOperator(Op):
             GroundAgentOperator.on_waypoints_update)
         # Set no watermark on the output stream so that we do not
         # close the watermark loop with the carla operator.
-        return [pylot_utils.create_agent_action_stream()]
+        return [pylot_utils.create_control_stream()]
 
     def on_waypoints_update(self, msg):
         self._wp_angle = msg.wp_angle
@@ -102,7 +102,7 @@ class GroundAgentOperator(Op):
         control_msg = self.get_control_message(
             self._wp_angle, self._wp_angle_speed, speed_factor,
             self._vehicle_speed * 3.6, Timestamp(coordinates=[0]))
-        self.get_output_stream('action_stream').send(control_msg)
+        self.get_output_stream('control_stream').send(control_msg)
 
     def stop_for_agents(self, wp_angle, wp_vector, vehicles, pedestrians,
                         traffic_lights):

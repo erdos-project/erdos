@@ -9,6 +9,7 @@ from erdos.op import Op
 from erdos.utils import frequency, setup_csv_logging, setup_logging
 
 import pylot_utils
+from planning.messages import WaypointMessage
 
 
 def get_distance(loc1, loc2):
@@ -39,22 +40,18 @@ class PlanningOperator(Op):
             PlanningOperator.on_opendrive_map)
         input_streams.filter(pylot_utils.is_global_trajectory_stream).add_callback(
             PlanningOperator.on_global_trajectory)
-        return []
+        return [pylot_utils.create_waypoints_stream()]
 
     def on_vehicle_transform_update(self, msg):
         self._vehicle_transform = msg.data
-        throttle = 1.0
-        brake = 0.0
         next_waypoint, road_option = self.__compute_next_waypoint()
+        target_speed = 0
         if next_waypoint:
             target_speed = self.__local_control_decision(next_waypoint)
-            if target_speed == 0:
-                throttle = 0.0
-                brake = 1.0
-            else:
-                throttle = 1.0
-                brake = 0.0
-        # TODO(ionel): Publish data.
+            self.get_output_stream('waypoints').send(
+                WaypointMessage(msg.timestamp,
+                                waypoint=next_waypoint,
+                                target_speed=target_speed))
 
     def on_opendrive_map(self, msg):
         assert self._map is None, 'Already receveid opendrive map'
@@ -70,7 +67,7 @@ class PlanningOperator(Op):
         if self._waypoints is None:
             return None, None
         if self._waypoints.empty():
-            print('Reached end of waypoints')
+            self._logger.info('Reached end of waypoints')
             return None, None
         if self._last_waypoint is None:
             # If there was no last waypoint, pop one from the queue.
@@ -90,18 +87,19 @@ class PlanningOperator(Op):
         if next_waypoint != self._last_waypoint:
             self._last_waypoint = next_waypoint
             self._last_road_option = next_road_option
-            print('New waypoint {} {}'.format(
+            self._logger.info('New waypoint {} {}'.format(
                 self._last_waypoint, self._last_road_option))
             return next_waypoint, next_road_option
         else:
-            print('No new waypoint')
+            self._logger.info('No new waypoint')
             return None, None
 
 
     def __local_control_decision(self, waypoint):
         if get_distance(waypoint.location,
                         self._vehicle_transform.location) > 0.08:
-            target_speed = 20
+            target_speed = 10
         else:
+            # We are reaching a waypoint reduce the speed to 0.
             target_speed = 0
         return target_speed

@@ -1,6 +1,10 @@
 from absl import flags
+import pickle
 import rospy
+from std_msgs.msg import String
 import scipy.misc
+import time
+import threading
 
 import carla
 
@@ -15,6 +19,7 @@ from erdos.ros.ros_output_data_stream import ROSOutputDataStream
 from erdos.timestamp import Timestamp
 
 import config
+from control.pid_control_operator import PIDControlOperator
 from debug.video_operator import VideoOperator
 import operator_creator
 from perception.segmentation.segmentation_drn_operator import SegmentationDRNOperator
@@ -65,12 +70,30 @@ def create_planning_op(graph):
     return planning_op
 
 
+def create_control_op(graph):
+    control_op = graph.add(
+        PIDControlOperator,
+        name='controller',
+        init_args={
+            'longitudinal_control_args': {
+                'K_P': FLAGS.pid_p,
+                'K_I': FLAGS.pid_i,
+                'K_D': FLAGS.pid_d,
+            },
+            'flags': FLAGS,
+            'log_file_name': FLAGS.log_file_name,
+            'csv_file_name': FLAGS.csv_log_file_name
+        })
+    return control_op
+
+
 class ERDOSAgent(AutonomousAgent):
 
     def setup(self, path_to_conf_file):
         flags.FLAGS([__file__, '--flagfile={}'.format(path_to_conf_file)])
         self.track = Track.ALL_SENSORS_HDMAP_WAYPOINTS
 
+        self._lock = threading.Lock()
         self._vehicle_transform = None
         self._waypoints = None
         self._sent_open_drive_data = False
@@ -111,20 +134,31 @@ class ERDOSAgent(AutonomousAgent):
 
         planning_ops = [create_planning_op(self.graph)]
 
+        control_op = create_control_op(self.graph)
+
         self.graph.connect(
             [scenario_input_op],
             segmentation_ops + obj_detector_ops + tracker_ops +
-            traffic_light_det_ops + lane_detection_ops + planning_ops + visualization_ops)
+            traffic_light_det_ops + lane_detection_ops + planning_ops +
+            visualization_ops + [control_op])
+
+        self.graph.connect(planning_ops, [control_op])
 
         # Execute graph
         self.graph.execute(FLAGS.framework, blocking=False)
 
         rospy.init_node("erdos_driver", anonymous=True)
+        # Subscribe to the control stream
+        rospy.Subscriber('default/controller/control_stream',
+                         String,
+                         callback=self.on_control_msg,
+                         queue_size=None)
 
         self._camera_stream.setup()
         self._global_trajectory_stream.setup()
         self._open_drive_stream.setup()
         self._vehicle_transform_stream.setup()
+        self._can_bus_stream.setup()
 
     def sensors(self):
         """
@@ -137,7 +171,7 @@ class ERDOSAgent(AutonomousAgent):
         #           ]
 
         can_sensor = [{'type': 'sensor.can_bus',
-                       'reading_frequency': 25,
+                       'reading_frequency': 60,
                        'id': 'can_bus'}]
         gps_sensor = [{'type': 'sensor.other.gnss',
                        'x': 0.7,
@@ -145,7 +179,7 @@ class ERDOSAgent(AutonomousAgent):
                        'z': 1.60,
                        'id': 'GPS'}]
         hd_map_sensor = [{'type': 'sensor.hd_map',
-                          'reading_frequency': 5,
+                          'reading_frequency': 30,
                           'id': 'hdmap'}]
         front_camera_sensor = [{'type': 'sensor.camera.rgb',
                                 'x': 0.7,
@@ -170,6 +204,8 @@ class ERDOSAgent(AutonomousAgent):
         return sensors
 
     def run_step(self, input_data, timestamp):
+        with self._lock:
+            self._control = None
         erdos_timestamp = Timestamp(coordinates=[timestamp, self._message_num])
         watermark = WatermarkMessage(erdos_timestamp)
         self._message_num += 1
@@ -185,7 +221,7 @@ class ERDOSAgent(AutonomousAgent):
             'Global plan has been updated.'
 
         for key, val in input_data.items():
-            print("{} {} {}".format(key, val[0], type(val[1])))
+            #print("{} {} {}".format(key, val[0], type(val[1])))
             if key == RGB_CAMERA_NAME:
                 self._camera_stream.send(
                     simulation.messages.FrameMessage(pylot_utils.bgra_to_bgr(val[1]),
@@ -193,6 +229,8 @@ class ERDOSAgent(AutonomousAgent):
                 self._camera_stream.send(watermark)
             elif key == 'can_bus':
                 can_bus = simulation.messages.CanBus(**val[1])
+                self._can_bus_stream.send(Message(can_bus, erdos_timestamp))
+                self._can_bus_stream.send(watermark)
             elif key == 'GPS':
                 gps = simulation.messages.LocationGeo(val[1][0], val[1][1], val[1][2])
             elif key == 'hdmap':
@@ -225,16 +263,24 @@ class ERDOSAgent(AutonomousAgent):
                 pc_file = val[1]['map_file']
 
 
-        # DO SOMETHING SMART
+        # Wait until the control is set.
+        while self._control is None:
+            time.sleep(0.01)
 
-        # RETURN CONTROL
-        control = carla.VehicleControl()
-        control.steer = 0.0
-        control.throttle = 1.0
-        control.brake = 0.0
-        control.hand_brake = False
+        return self._control
 
-        return control
+    def on_control_msg(self, msg):
+        msg = pickle.loads(msg.data)
+        if not isinstance(msg, WatermarkMessage):
+            with self._lock:
+                print("Received control message {}".format(msg))
+                self._control = carla.VehicleControl()
+                self._control.throttle = msg.throttle
+                self._control.brake = msg.brake
+                self._control.steer = msg.steer
+                self._control.reverse = msg.reverse
+                self._control.hand_brake = msg.hand_brake
+                self._control.manual_gear_shift = False
 
     def __create_scenario_input_op(self):
         self._camera_stream = ROSOutputDataStream(
@@ -259,9 +305,13 @@ class ERDOSAgent(AutonomousAgent):
             DataStream(name='open_drive_stream',
                        uid='open_drive_stream'))
 
+        self._can_bus_stream = ROSOutputDataStream(
+            DataStream(name='can_bus', uid='can_bus'))
+
         return self.graph.add(NoopOp,
                               name='scenario_input',
                               input_streams=[self._camera_stream,
                                              self._vehicle_transform_stream,
                                              self._global_trajectory_stream,
-                                             self._open_drive_stream])
+                                             self._open_drive_stream,
+                                             self._can_bus_stream])

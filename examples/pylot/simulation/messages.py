@@ -32,6 +32,7 @@ class DepthFrameMessage(Message):
 Acceleration = namedtuple('Acceleration', 'x, y, z')
 Location = namedtuple('Location', 'x, y, z')
 Orientation = namedtuple('Orientation', 'x, y, z')
+Rotation = namedtuple('Rotation', 'pitch, yaw, roll')
 Position = namedtuple('Position', 'location, orientation')
 Vehicle = namedtuple('Vehicle', 'location, transform, bounding_box, forward_speed')
 Pedestrian = namedtuple('Pedestrian', 'id, location, transform, bounding_box, forward_speed')
