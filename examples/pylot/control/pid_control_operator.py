@@ -111,7 +111,7 @@ class PIDControlOperator(Op):
         waypoint.
 
         Args:
-            waypoint: `simulation.messages.Transform` to retrieve the
+            waypoint: `simulation.utils.Transform` to retrieve the
                 waypoint information from.
 
         Returns:

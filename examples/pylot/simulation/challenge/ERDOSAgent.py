@@ -47,7 +47,7 @@ def add_visualization_operators(graph, rgb_camera_name):
 
 
 def to_erdos_transform(transform):
-    loc = simulation.messages.Location(
+    loc = simulation.utils.Location(
         transform.location.x,
         transform.location.y,
         transform.location.z)
@@ -229,11 +229,11 @@ class ERDOSAgent(AutonomousAgent):
                                                      erdos_timestamp))
                 self._camera_stream.send(watermark)
             elif key == 'can_bus':
-                can_bus = simulation.messages.CanBus(**val[1])
+                can_bus = simulation.utils.CanBus(**val[1])
                 self._can_bus_stream.send(Message(can_bus, erdos_timestamp))
                 self._can_bus_stream.send(watermark)
             elif key == 'GPS':
-                gps = simulation.messages.LocationGeo(val[1][0], val[1][1], val[1][2])
+                gps = simulation.utils.LocationGeo(val[1][0], val[1][1], val[1][2])
             elif key == 'hdmap':
                 # Sending once opendrive data
                 if not self._sent_open_drive_data:
@@ -247,7 +247,7 @@ class ERDOSAgent(AutonomousAgent):
 
                 # Sending vehicle transform data.
                 vec_trans_dict = val[1]['transform']
-                loc = simulation.messages.Location(
+                loc = simulation.utils.Location(
                     vec_trans_dict['x'],
                     vec_trans_dict['y'],
                     vec_trans_dict['z'])

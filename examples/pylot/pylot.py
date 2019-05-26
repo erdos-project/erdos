@@ -7,6 +7,7 @@ from erdos.operators import ReplayOp
 
 import config
 import operator_creator
+import simulation.utils
 
 
 FLAGS = flags.FLAGS
@@ -53,20 +54,22 @@ def main(argv):
     # Define graph
     graph = erdos.graph.get_current_graph()
 
-    rgb_camera_setup = (RGB_CAMERA_NAME,
-                        'SceneFinal',
-                        (FLAGS.carla_camera_image_width,
-                         FLAGS.carla_camera_image_height),
-                        (2.0, 0.0, 1.4))
-    camera_setups = [rgb_camera_setup,
-                     (DEPTH_CAMERA_NAME, 'Depth',
-                      (FLAGS.carla_camera_image_width,
-                       FLAGS.carla_camera_image_height),
-                      (2.0, 0.0, 1.4)),
-                     (SEGMENTED_CAMERA_NAME, 'SemanticSegmentation',
-                      (FLAGS.carla_camera_image_width,
-                       FLAGS.carla_camera_image_height),
-                      (2.0, 0.0, 1.4))]
+    rgb_camera_setup = simulation.utils.CameraSetup(
+        RGB_CAMERA_NAME,
+        'SceneFinal',
+        (FLAGS.carla_camera_image_width, FLAGS.carla_camera_image_height),
+        (2.0, 0.0, 1.4))
+    depth_camera_setup = simulation.utils.CameraSetup(
+        DEPTH_CAMERA_NAME,
+        'Depth',
+        (FLAGS.carla_camera_image_width, FLAGS.carla_camera_image_height),
+        (2.0, 0.0, 1.4))
+    segmented_camera_setup = simulation.utils.CameraSetup(
+        SEGMENTED_CAMERA_NAME,
+        'SemanticSegmentation',
+        (FLAGS.carla_camera_image_width, FLAGS.carla_camera_image_height),
+        (2.0, 0.0, 1.4))
+    camera_setups = [rgb_camera_setup, depth_camera_setup, segmented_camera_setup]
 
     # Add operators to the graph.
     if '0.8' in FLAGS.carla_version:

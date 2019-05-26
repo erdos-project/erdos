@@ -5,8 +5,18 @@ import numpy as np
 from numpy.linalg import inv
 from numpy.matlib import repmat
 
-from simulation.messages import Location, Rotation
-
+CameraSetup = namedtuple('CameraSetup', 'name, type, resolution, pos')
+Acceleration = namedtuple('Acceleration', 'x, y, z')
+Location = namedtuple('Location', 'x, y, z')
+Orientation = namedtuple('Orientation', 'x, y, z')
+Rotation = namedtuple('Rotation', 'pitch, yaw, roll')
+Position = namedtuple('Position', 'location, orientation')
+Vehicle = namedtuple('Vehicle', 'location, transform, bounding_box, forward_speed')
+Pedestrian = namedtuple('Pedestrian', 'id, location, transform, bounding_box, forward_speed')
+TrafficLight = namedtuple('TrafficLight', 'location, transform, state')
+SpeedLimitSign = namedtuple('SpeedLimitSign', 'location, transform, limit')
+LocationGeo = namedtuple('LocationGeo', 'latitude, longitude, altitude')
+CanBus = namedtuple('CanBus', 'drag_coefficient, max_rpm, steering_curve, moi, torque_curve, speed, clutch_strength, use_gear_autobox, damping_rate_full_throttle, damping_rate_zero_throttle_clutch_disengaged, mass, wheels, center_of_mass')
 Extent = namedtuple('Extent', 'x, y, z')
 Scale = namedtuple('Scale', 'x y z')
 Scale.__new__.__defaults__ = (1.0, 1.0, 1.0)
@@ -81,6 +91,34 @@ class Transform(object):
 
     def __str__(self):
         return str(self.matrix)
+
+
+def depth_to_array(image):
+    """
+    Convert an image containing CARLA encoded depth-map to a 2D array containing
+    the depth value of each pixel normalized between [0.0, 1.0].
+    """
+    array = to_bgra_array(image)
+    array = array.astype(np.float32)
+    # Apply (R + G * 256 + B * 256 * 256) / (256 * 256 * 256 - 1).
+    normalized_depth = np.dot(array[:, :, :3], [65536.0, 256.0, 1.0])
+    normalized_depth /= 16777215.0  # (256.0 * 256.0 * 256.0 - 1.0)
+    return normalized_depth
+
+
+def to_bgra_array(image):
+    """Convert a CARLA raw image to a BGRA np array."""
+    array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
+    array = np.reshape(array, (image.height, image.width, 4))
+    return array
+
+
+def labels_to_array(image):
+    """
+    Convert an image containing CARLA semantic segmentation labels to a 2D array
+    containing the label of each pixel.
+    """
+    return to_bgra_array(image)[:, :, 2]
 
 
 def depth_to_local_point_cloud(depth_msg, max_depth=0.9):
