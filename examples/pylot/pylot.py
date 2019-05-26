@@ -8,8 +8,6 @@ from erdos.operators import ReplayOp
 import config
 import operator_creator
 
-# Import operators that interact with the simulator.
-from simulation.carla_legacy_operator import CarlaLegacyOperator
 
 FLAGS = flags.FLAGS
 RGB_CAMERA_NAME = 'front_rgb_camera'
@@ -17,7 +15,9 @@ DEPTH_CAMERA_NAME = 'front_depth_camera'
 SEGMENTED_CAMERA_NAME = 'front_semantic_camera'
 
 
-def create_carla_op(graph, camera_setups):
+def create_carla_legacy_op(graph, camera_setups):
+    # Import operator that works with Carla 0.8.4
+    from simulation.carla_legacy_operator import CarlaLegacyOperator
     carla_op = graph.add(
         CarlaLegacyOperator,
         name='carla',
@@ -31,6 +31,19 @@ def create_carla_op(graph, camera_setups):
         setup_args={
             'camera_setups': camera_setups,
             'lidar_stream_names': []
+        })
+    return carla_op
+
+
+def create_carla_op(graph):
+    from simulation.carla_operator import CarlaOperator
+    carla_op = graph.add(
+        CarlaOperator,
+        name='carla',
+        init_args={
+            'flags': FLAGS,
+            'log_file_name': FLAGS.log_file_name,
+            'csv_file_name': FLAGS.csv_log_file_name
         })
     return carla_op
 
@@ -56,7 +69,13 @@ def main(argv):
                       (2.0, 0.0, 1.4))]
 
     # Add operators to the graph.
-    carla_op = create_carla_op(graph, camera_setups)
+    if '0.8' in FLAGS.carla_version:
+        carla_op = create_carla_legacy_op(graph, camera_setups)
+    elif '0.9' in FLAGS.carla_version:
+        carla_op = create_carla_op(graph)
+    else:
+        raise ValueError(
+            'Unexpected Carla version {}'.format(FLAGS.carla_version))
 
     # Add visual operators.
     operator_creator.add_visualization_operators(

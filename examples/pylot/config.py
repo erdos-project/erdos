@@ -118,6 +118,7 @@ flags.DEFINE_float('brake_strength', 1,
 flags.DEFINE_integer('coast_factor', 2, 'Factor to control coasting')
 
 # Carla flags.
+flags.DEFINE_string('carla_version', '0.8.4', 'Carla simulator version.')
 flags.DEFINE_string('carla_host', 'localhost', 'Carla host.')
 flags.DEFINE_integer('carla_port', 2000, 'Carla port.')
 flags.DEFINE_bool('carla_synchronous_mode', True,
