@@ -9,7 +9,7 @@ import config
 import operator_creator
 
 # Import operators that interact with the simulator.
-from simulation.carla_operator import CarlaOperator
+from simulation.carla_legacy_operator import CarlaLegacyOperator
 
 FLAGS = flags.FLAGS
 RGB_CAMERA_NAME = 'front_rgb_camera'
@@ -19,7 +19,7 @@ SEGMENTED_CAMERA_NAME = 'front_semantic_camera'
 
 def create_carla_op(graph, camera_setups):
     carla_op = graph.add(
-        CarlaOperator,
+        CarlaLegacyOperator,
         name='carla',
         init_args={
             'flags': FLAGS,

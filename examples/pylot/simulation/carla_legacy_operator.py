@@ -20,7 +20,7 @@ import simulation.messages
 import simulation.utils
 
 
-class CarlaOperator(Op):
+class CarlaLegacyOperator(Op):
     """Provides an ERDOS interface to the CARLA simulator.
 
     Args:
@@ -34,7 +34,7 @@ class CarlaOperator(Op):
                  lidar_stream_names=[],
                  log_file_name=None,
                  csv_file_name=None):
-        super(CarlaOperator, self).__init__(name)
+        super(CarlaLegacyOperator, self).__init__(name)
         self._flags = flags
         self._logger = setup_logging(self.name, log_file_name)
         self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
@@ -70,7 +70,7 @@ class CarlaOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams, camera_setups, lidar_stream_names):
-        input_streams.add_callback(CarlaOperator.update_control)
+        input_streams.add_callback(CarlaLegacyOperator.update_control)
         camera_streams = [DataStream(name=camera,
                                      labels={'sensor_type': 'camera',
                                              'camera_type': camera_type})

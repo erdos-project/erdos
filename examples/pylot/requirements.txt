@@ -7,6 +7,7 @@ opencv-python
 opencv-contrib-python
 pid_controller
 pillow
+pptk
 protobuf
 ray
 rospkg

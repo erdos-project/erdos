@@ -1,4 +1,5 @@
-from open3d import draw_geometries, read_point_cloud
+import open3d
+import pptk
 
 from erdos.op import Op
 from erdos.utils import setup_logging
@@ -20,14 +21,11 @@ class LidarVisualizerOperator(Op):
         return []
 
     def display_point_cloud(self, msg):
-        self._logger.info("Got point cloud {}".format(msg.data.point_cloud))
         #        filename = './carla-point-cloud{}.ply'.format(self.cnt)
-        filename = './point_cloud_tmp.ply'
-        msg.data.save_to_disk(filename)
-        self.cnt += 1
-        # TODO(ionel): Do not write to file, directly pass point cloud.
-        pcd = read_point_cloud(filename)
-        draw_geometries([pcd])
+        pptk.viewer(msg.data)
+        # pcd = open3d.PointCloud()
+        # pcd.points = open3d.Vector3dVector(msg.data)
+        # open3d.draw_geometries([pcd])
 
     def execute(self):
         self.spin()

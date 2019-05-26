@@ -10,7 +10,7 @@ from control.ground_agent_operator import GroundAgentOperator
 from perception.detection.utils import get_bounding_boxes_from_segmented, visualize_ground_bboxes
 from perception.segmentation.utils import get_traffic_sign_pixels
 from planning.waypointer_operator import WaypointerOperator
-from simulation.carla_operator import CarlaOperator
+from simulation.carla_legacy_operator import CarlaLegacyOperator
 from simulation.utils import get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform
 import pylot_utils
 
@@ -231,7 +231,7 @@ class GroundTruthObjectLoggerOp(Op):
 
 def add_carla_op(graph, camera_setups):
     carla_op = graph.add(
-        CarlaOperator,
+        CarlaLegacyOperator,
         name='carla',
         init_args={
             'flags': FLAGS,

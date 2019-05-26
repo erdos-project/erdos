@@ -192,15 +192,16 @@ class ERDOSAgent(AutonomousAgent):
                                 'height': 600,
                                 'fov':100,
                                 'id': RGB_CAMERA_NAME}]
-        # lidar_sensor = [{'type': 'sensor.lidar.ray_cast',
-        #                  'x': 0.7,
-        #                  'y': -0.4,
-        #                  'z': 1.60,
-        #                  'roll': 0.0,
-        #                  'pitch': 0.0,
-        #                  'yaw': -45.0,
-        #                  'id': 'LIDAR'}]
-        sensors = can_sensor + gps_sensor + hd_map_sensor + front_camera_sensor
+        # TODO(ionel): Put the Lidar in the same location as the camera.
+        lidar_sensor = [{'type': 'sensor.lidar.ray_cast',
+                         'x': 0.7,
+                         'y': -0.4,
+                         'z': 1.60,
+                         'roll': 0.0,
+                         'pitch': 0.0,
+                         'yaw': -45.0,
+                         'id': 'LIDAR'}]
+        sensors = can_sensor + gps_sensor + hd_map_sensor + front_camera_sensor + lidar_sensor
         return sensors
 
     def run_step(self, input_data, timestamp):
@@ -261,7 +262,9 @@ class ERDOSAgent(AutonomousAgent):
 
                 # TODO(ionel): Send point cloud data.
                 pc_file = val[1]['map_file']
-
+            elif key == 'LIDAR':
+                # TODO(ionel): Send point cloud data.
+                pass
 
         # Wait until the control is set.
         while self._control is None:
