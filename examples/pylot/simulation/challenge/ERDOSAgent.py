@@ -290,7 +290,7 @@ class ERDOSAgent(AutonomousAgent):
             DataStream(name=RGB_CAMERA_NAME,
                        uid=RGB_CAMERA_NAME,
                        labels={'sensor_type': 'camera',
-                               'camera_type': 'SceneFinal'}))
+                               'camera_type': 'sensor.camera.rgb'}))
 
         self._vehicle_transform_stream = ROSOutputDataStream(
             DataStream(name='vehicle_transform',

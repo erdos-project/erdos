@@ -6,6 +6,7 @@ from numpy.linalg import inv
 from numpy.matlib import repmat
 
 CameraSetup = namedtuple('CameraSetup', 'name, type, resolution, pos')
+LidarSetup = namedtuple('LidarSetup', 'name, type, pos, range, rotation_frequency, channels, upper_fov, lower_fov, points_per_second')
 Acceleration = namedtuple('Acceleration', 'x, y, z')
 Location = namedtuple('Location', 'x, y, z')
 Orientation = namedtuple('Orientation', 'x, y, z')

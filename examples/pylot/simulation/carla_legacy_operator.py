@@ -103,6 +103,13 @@ class CarlaLegacyOperator(Op):
             name: A string naming the camera.
             postprocessing: "SceneFinal", "Depth", "SemanticSegmentation".
         """
+        if postprocessing == 'sensor.camera.rgb':
+            postprocessing = 'SceneFinal'
+        elif postprocessing == 'sensor.camera.depth':
+            postprocessing = 'Depth'
+        elif postprocessing == 'sensor.camera.semantic_segmentation':
+            postprocessing = 'SemanticSegmentation'
+
         camera = Camera(
             name,
             PostProcessing=postprocessing,
@@ -310,15 +317,15 @@ class CarlaLegacyOperator(Op):
     def __send_sensor_data(self, sensor_data, timestamp, watermark):
         for name, measurement in sensor_data.items():
             data_stream = self.get_output_stream(name)
-            if data_stream.get_label('camera_type') == 'SceneFinal':
+            if data_stream.get_label('camera_type') == 'sensor.camera.rgb':
                 # Transform the Carla RGB images to BGR.
                 data_stream.send(
                     simulation.messages.FrameMessage(
                         pylot_utils.bgra_to_bgr(to_bgra_array(measurement)), timestamp))
-            elif data_stream.get_label('camera_type') == 'SemanticSegmentation':
+            elif data_stream.get_label('camera_type') == 'sensor.camera.semantic_segmentation':
                 frame = labels_to_array(measurement)
                 data_stream.send(SegmentedFrameMessage(frame, 0, timestamp))
-            elif data_stream.get_label('camera_type') == 'Depth':
+            elif data_stream.get_label('camera_type') == 'sensor.camera.depth':
                 # NOTE: depth_to_array flips the image.
                 data_stream.send(
                     simulation.messages.DepthFrameMessage(

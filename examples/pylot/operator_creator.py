@@ -1,7 +1,6 @@
 from absl import flags
 
 # import Control operators.
-from control.control_operator import ControlOperator
 from control.erdos_agent_operator import ERDOSAgentOperator
 from control.ground_agent_operator import GroundAgentOperator
 # Import debug operators.
@@ -200,8 +199,8 @@ def create_detector_ops(graph):
 
 
 def create_eval_ground_truth_detector_op(graph,
-                                      rgb_camera_setup,
-                                      depth_camera_name):
+                                         rgb_camera_setup,
+                                         depth_camera_name):
     ground_truth_op = graph.add(
         DetectionEvalGroundOperator,
         name='eval_ground_detection',
@@ -348,33 +347,36 @@ def create_fusion_ops(graph):
 
 
 def add_visualization_operators(graph,
-                                carla_op,
+                                camera_ops,
+                                lidar_ops=None,
                                 rgb_camera_name=None,
                                 depth_camera_name=None):
     if FLAGS.visualize_rgb_camera:
         camera_video_op = create_camera_video_op(graph,
                                                  'rgb_camera',
                                                  rgb_camera_name)
-        graph.connect([carla_op], [camera_video_op])
+        graph.connect(camera_ops, [camera_video_op])
 
     if FLAGS.visualize_depth_camera:
         depth_video_op = create_camera_video_op(graph,
                                                 'depth_camera_video',
                                                 depth_camera_name)
-        graph.connect([carla_op], [depth_video_op])
+        graph.connect(camera_ops, [depth_video_op])
 
     if FLAGS.visualize_lidar:
         lidar_visualizer_op = create_lidar_visualizer_ops(graph)
-        graph.connect([carla_op], [lidar_visualizer_op])
+        graph.connect(lidar_ops, [lidar_visualizer_op])
 
     if FLAGS.visualize_segmentation:
         # Segmented camera. The stream comes from CARLA.
         segmented_video_op = create_segmented_video_op(graph)
-        graph.connect([carla_op], [segmented_video_op])
+        graph.connect(camera_ops, [segmented_video_op])
 
 
 def add_recording_operators(graph,
+                            camera_ops,
                             carla_op,
+                            lidar_ops=None,
                             rgb_camera_name=None,
                             depth_camera_name=None):
     if FLAGS.record_rgb_camera:
@@ -382,7 +384,7 @@ def add_recording_operators(graph,
                                          'record_rgb_camera',
                                          'pylot_rgb_camera_data.erdos',
                                          rgb_camera_name)
-        graph.connect([carla_op], [record_rgb_op])
+        graph.connect(camera_ops, [record_rgb_op])
 
     if FLAGS.record_depth_camera:
         record_depth_camera_op = create_record_op(
@@ -390,11 +392,11 @@ def add_recording_operators(graph,
             'record_depth_camera',
             'pylot_depth_camera_data.erdos',
             depth_camera_name)
-        graph.connect([carla_op], [record_depth_camera_op])
+        graph.connect(camera_ops, [record_depth_camera_op])
 
     if FLAGS.record_lidar:
         record_lidar_op = create_lidar_record_op(graph)
-        graph.connect([carla_op], [record_lidar_op])
+        graph.connect(lidar_ops, [record_lidar_op])
 
     if FLAGS.record_ground_truth:
         record_carla_op = create_record_carla_op(graph)

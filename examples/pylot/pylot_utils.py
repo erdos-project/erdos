@@ -5,12 +5,12 @@ from erdos.data_stream import DataStream
 # Sensor streams
 def is_camera_stream(stream):
     return (stream.get_label('sensor_type') == 'camera' and
-            stream.get_label('camera_type') == 'SceneFinal')
+            stream.get_label('camera_type') == 'sensor.camera.rgb')
 
 
 def is_depth_camera_stream(stream):
     return (stream.get_label('sensor_type') == 'camera' and
-            stream.get_label('camera_type') == 'Depth')
+            stream.get_label('camera_type') == 'sensor.camera.depth')
 
 
 def is_lidar_stream(stream):
@@ -20,7 +20,13 @@ def is_lidar_stream(stream):
 # Ground streams
 def is_ground_segmented_camera_stream(stream):
     return (stream.get_label('sensor_type') == 'camera' and
-            stream.get_label('camera_type') == 'SemanticSegmentation')
+            stream.get_label('camera_type') == 'sensor.camera.semantic_segmentation')
+
+def create_vehicle_id_stream():
+    return DataStream(name='vehicle_id_stream')
+
+def is_ground_vehicle_id_stream(stream):
+    return stream.name == 'vehicle_id_stream'
 
 
 def is_ground_pedestrians_stream(stream):

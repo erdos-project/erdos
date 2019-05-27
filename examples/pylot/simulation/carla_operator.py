@@ -1,7 +1,9 @@
 import random
+import time
 import carla
 
-import carla_utils
+import pylot_utils
+import simulation.carla_utils
 
 # ERDOS specific imports.
 from erdos.op import Op
@@ -47,7 +49,7 @@ class CarlaOperator(Op):
         self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
 
         # Connect to CARLA and retrieve the world running.
-        self._client, self._world = carla_utils.get_world()
+        self._client, self._world = simulation.carla_utils.get_world()
         if self._client is None or self._world is None:
             raise ValueError('There was an issue connecting to the simulator.')
 
@@ -56,10 +58,10 @@ class CarlaOperator(Op):
         # previous runs of the simulation may persist. We need to clean them
         # up right now. In future, move this logic to a seperate destroy
         # function.
-        carla_utils.reset_world(self._world)
+        simulation.carla_utils.reset_world(self._world)
 
         # Set the weather.
-        weather, name = carla_utils.get_weathers()[self._flags.carla_weather - 1]
+        weather, name = simulation.carla_utils.get_weathers()[self._flags.carla_weather - 1]
         self._logger.info('Setting the weather to {}'.format(name))
         self._world.set_weather(weather)
         # Turn on the synchronous mode so we can control the simulation.
@@ -72,6 +74,10 @@ class CarlaOperator(Op):
         # the downstream operators.
         self._driving_vehicle = self._spawn_driving_vehicle()
 
+        # Tick once to ensure that the actors are spawned before the data-flow
+        # starts.
+        self._world.tick()
+
         self._message_cnt = 0
 
     @staticmethod
@@ -81,7 +87,7 @@ class CarlaOperator(Op):
                 'The CarlaOperator should only receive control stream. '
                 'Please check the graph connections.')
         input_streams.add_callback(CarlaOperator.on_control_msg)
-        return []
+        return [pylot_utils.create_vehicle_id_stream()]
 
     def on_control_msg(self, msg):
         # TODO(ionel): Implement!
@@ -184,7 +190,7 @@ class CarlaOperator(Op):
             msg.elapsed_seconds))
 
         # Set the world simulation view with respect to the vehicle.
-        v_pose = self.driving_vehicle.get_transform()
+        v_pose = self._driving_vehicle.get_transform()
         v_pose.location -= 10 * carla.Location(v_pose.get_forward_vector())
         v_pose.location.z = 5
         self._world.get_spectator().set_transform(v_pose)
@@ -193,8 +199,6 @@ class CarlaOperator(Op):
         timestamp = Timestamp(
             coordinates=[msg.elapsed_seconds, self._message_cnt])
         self._message_cnt += 1
-        # TODO(ionel): Figure out stream name.
-        self.get_output_stream('vehicle').send(WatermarkMessage(timestamp))
 
     @frequency(10)
     def tick_at_frequency(self):
@@ -203,6 +207,12 @@ class CarlaOperator(Op):
 
     def execute(self):
         # Register a callback function and a function that ticks the world.
+        timestamp = Timestamp(coordinates=[0, 0])
+        vehicle_id_msg = Message(
+            self._driving_vehicle.id, timestamp)
+        self.get_output_stream('vehicle_id_stream').send(vehicle_id_msg)
+        self.get_output_stream('vehicle_id_stream').send(
+            WatermarkMessage(timestamp))
         self._world.on_tick(self.on_world_tick)
         self.tick_at_frequency()
         self.spin()
