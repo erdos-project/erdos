@@ -203,11 +203,11 @@ class CarlaOperator(Op):
         self._logger.info('The world is at the timestamp {}'.format(
             msg.elapsed_seconds))
 
-        # Set the world simulation view with respect to the vehicle.
-        v_pose = self._driving_vehicle.get_transform()
-        v_pose.location -= 10 * carla.Location(v_pose.get_forward_vector())
-        v_pose.location.z = 5
-        self._world.get_spectator().set_transform(v_pose)
+        # # Set the world simulation view with respect to the vehicle.
+        # v_pose = self._driving_vehicle.get_transform()
+        # v_pose.location -= 10 * carla.Location(v_pose.get_forward_vector())
+        # v_pose.location.z = 5
+        # self._world.get_spectator().set_transform(v_pose)
 
         # Create a timestamp and send a WatermarkMessage on the output stream.
         timestamp = Timestamp(

@@ -63,7 +63,7 @@ class LidarDriverOperator(Op):
         msg = None
 
         self.get_output_stream(self._lidar_setup.name).send(msg)
-        self.get_output_stream(self._lidar_setup.name).send(watermark_msg)
+#        self.get_output_stream(self._lidar_setup.name).send(watermark_msg)
 
     def on_vehicle_id(self, msg):
         """ This function receives the identifier for the vehicle, retrieves

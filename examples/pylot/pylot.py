@@ -63,6 +63,20 @@ def create_camera_driver_op(graph, camera_setup):
     return camera_op
 
 
+def create_planning_op(graph, goal_location):
+    from planning.planning_operator import PlanningOperator
+    planning_op = graph.add(
+        PlanningOperator,
+        name='planning',
+        init_args={
+            'goal_location': goal_location,
+            'flags': FLAGS,
+            'log_file_name': FLAGS.log_file_name,
+            'csv_file_name': FLAGS.csv_log_file_name
+        })
+    return planning_op
+
+
 def main(argv):
 
     # Define graph
@@ -179,9 +193,15 @@ def main(argv):
 
     goal_location = (234.269989014, 59.3300170898, 39.4306259155)
     goal_orientation = (1.0, 0.0, 0.22)
-    waypointer_op = operator_creator.create_waypointer_op(graph, goal_location, goal_orientation)
-    graph.connect([carla_op], [waypointer_op])
-    graph.connect([waypointer_op], [agent_op])
+
+    if '0.8' in FLAGS.carla_version:
+        waypointer_op = operator_creator.create_waypointer_op(graph, goal_location, goal_orientation)
+        graph.connect([carla_op], [waypointer_op])
+        graph.connect([waypointer_op], [agent_op])
+    elif '0.9' in FLAGS.carla_version:
+        planning_op = create_planning_op(graph, goal_location)
+        graph.connect([carla_op], [planning_op])
+        graph.connect([planning_op], [agent_op])
 
     graph.execute(FLAGS.framework)
 

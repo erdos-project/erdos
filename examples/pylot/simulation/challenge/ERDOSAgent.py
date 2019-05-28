@@ -22,7 +22,7 @@ from control.pid_control_operator import PIDControlOperator
 from debug.video_operator import VideoOperator
 import operator_creator
 from perception.segmentation.segmentation_drn_operator import SegmentationDRNOperator
-from planning.planning_operator import PlanningOperator
+from planning.challenge_planning_operator import ChallengePlanningOperator
 import pylot_utils
 import simulation.messages
 import simulation.utils
@@ -47,7 +47,7 @@ def add_visualization_operators(graph, rgb_camera_name):
 
 def create_planning_op(graph):
     planning_op = graph.add(
-        PlanningOperator,
+        ChallengePlanningOperator,
         name='planning',
         init_args={
             'flags': FLAGS,

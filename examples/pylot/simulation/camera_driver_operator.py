@@ -91,7 +91,7 @@ class CameraDriverOperator(Op):
             msg = SegmentedFrameMessage(frame, 0, timestamp)
         # Send the message containing the frame.
         self.get_output_stream(self._camera_setup.name).send(msg)
-        self.get_output_stream(self._camera_setup.name).send(watermark_msg)
+#        self.get_output_stream(self._camera_setup.name).send(watermark_msg)
 
     def on_vehicle_id(self, msg):
         """ This function receives the identifier for the vehicle, retrieves
