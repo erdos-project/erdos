@@ -5,6 +5,7 @@ from erdos.op import Op
 from erdos.utils import setup_logging
 
 # Pylot specific imports.
+import pylot_utils
 import simulation.carla_utils
 
 
@@ -54,7 +55,7 @@ class WaypointVisualizerOperator(Op):
                 "The WaypointVisualizerOperator should not receive more than"
                 " two inputs. Please check the graph connections.")
 
-        input_streams.filter_name('global_route').add_callback(
+        input_streams.filter(pylot_utils.is_waypoints_stream).add_callback(
             WaypointVisualizerOperator.on_wp_update)
         return []
 
@@ -66,8 +67,13 @@ class WaypointVisualizerOperator(Op):
             msg: A message of type `planning.messages.WaypointMessage` to
                 be drawn on the screen.
         """
-        begin = carla.Location(*msg.location) + carla.Location(z=0.5)
-        end = begin + carla.Location(*msg.fwd_vector)
+        loc = carla.Location(msg.waypoint.location.x,
+                             msg.waypoint.location.y,
+                             msg.waypoint.location.z)
+        begin = loc + carla.Location(z=0.5)
+        end = begin + carla.Location(msg.waypoint.orientation.x,
+                                     msg.waypoint.orientation.y,
+                                     msg.waypoint.orientation.z)
         self._world.debug.draw_arrow(begin,
                                      end,
                                      arrow_size=0.3,

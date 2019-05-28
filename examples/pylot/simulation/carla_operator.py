@@ -83,10 +83,6 @@ class CarlaOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams):
-        if len(input_streams) > 1:
-            raise ValueError(
-                'The CarlaOperator should only receive control stream. '
-                'Please check the graph connections.')
         input_streams.add_callback(CarlaOperator.on_control_msg)
         ground_agent_streams = [
             DataStream(name='vehicle_transform'),
@@ -203,12 +199,6 @@ class CarlaOperator(Op):
         self._logger.info('The world is at the timestamp {}'.format(
             msg.elapsed_seconds))
 
-        # # Set the world simulation view with respect to the vehicle.
-        # v_pose = self._driving_vehicle.get_transform()
-        # v_pose.location -= 10 * carla.Location(v_pose.get_forward_vector())
-        # v_pose.location.z = 5
-        # self._world.get_spectator().set_transform(v_pose)
-
         # Create a timestamp and send a WatermarkMessage on the output stream.
         timestamp = Timestamp(
             coordinates=[msg.elapsed_seconds, self._message_cnt])
@@ -230,6 +220,7 @@ class CarlaOperator(Op):
         self.get_output_stream('vehicle_id_stream').send(vehicle_id_msg)
         self.get_output_stream('vehicle_id_stream').send(
             WatermarkMessage(timestamp))
+
         self._world.on_tick(self.on_world_tick)
         self.tick_at_frequency()
         self.spin()
@@ -240,6 +231,12 @@ class CarlaOperator(Op):
         self.get_output_stream('forward_speed').send(
             Message(speed, timestamp))
         self.get_output_stream('forward_speed').send(watermark_msg)
+
+        # Set the world simulation view with respect to the vehicle.
+        v_pose = self._driving_vehicle.get_transform()
+        v_pose.location -= 10 * carla.Location(v_pose.get_forward_vector())
+        v_pose.location.z = 5
+        self._world.get_spectator().set_transform(v_pose)
 
         vec_transform = simulation.utils.to_erdos_transform(
             self._driving_vehicle.get_transform())

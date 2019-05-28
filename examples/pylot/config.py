@@ -161,6 +161,7 @@ flags.DEFINE_bool('visualize_traffic_light_output', False,
                   'True to enable visualization of traffic light output')
 flags.DEFINE_bool('visualize_lane_detection', False,
                   'True to visualize lane detection')
+flags.DEFINE_bool('visualize_waypoints', False, 'True to visualize waypoints')
 
 # Accuracy evaluation flags.
 flags.DEFINE_bool('evaluate_obj_detection', False,

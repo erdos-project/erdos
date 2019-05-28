@@ -58,10 +58,14 @@ class PlanningOperator(Op):
             # current vehicle location.
             next_waypoint = [self._vehicle_transform]
         else:
-            next_waypoint = to_erdos_transform(route[0][0].transform)
+            if len(route) > 1:
+                # Take next 2nd waypoint because the first one is too close.
+                next_waypoint = to_erdos_transform(route[1][0].transform)
+            else:
+                next_waypoint = to_erdos_transform(route[0][0].transform)
 
-        wp_vector, wp_mag = get_world_vec_dist(route[0][0].transform.location.x,
-                                               route[0][0].transform.location.y,
+        wp_vector, wp_mag = get_world_vec_dist(next_waypoint.location.x,
+                                               next_waypoint.location.y,
                                                self._vehicle_transform.location.x,
                                                self._vehicle_transform.location.y)
 

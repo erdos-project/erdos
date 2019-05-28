@@ -76,6 +76,35 @@ def create_planning_op(graph, goal_location):
         })
     return planning_op
 
+def create_control_op(graph):
+    from control.pid_control_operator import PIDControlOperator
+    control_op = graph.add(
+        PIDControlOperator,
+        name='controller',
+        init_args={
+            'longitudinal_control_args': {
+                'K_P': FLAGS.pid_p,
+                'K_I': FLAGS.pid_i,
+                'K_D': FLAGS.pid_d,
+            },
+            'flags': FLAGS,
+            'log_file_name': FLAGS.log_file_name,
+            'csv_file_name': FLAGS.csv_log_file_name
+        })
+    return control_op
+
+
+def create_waypoint_visualizer_op(graph):
+    from debug.waypoint_visualize_operator import WaypointVisualizerOperator
+    waypoint_viz_op = graph.add(
+        WaypointVisualizerOperator,
+        name='waypoint_viz',
+        init_args={
+            'flags': FLAGS,
+            'log_file_name': FLAGS.log_file_name
+        })
+    return waypoint_viz_op
+
 
 def main(argv):
 
@@ -202,6 +231,10 @@ def main(argv):
         planning_op = create_planning_op(graph, goal_location)
         graph.connect([carla_op], [planning_op])
         graph.connect([planning_op], [agent_op])
+
+        if FLAGS.visualize_waypoints:
+            waypoint_viz_op = create_waypoint_visualizer_op(graph)
+            graph.connect([planning_op], [waypoint_viz_op])
 
     graph.execute(FLAGS.framework)
 
