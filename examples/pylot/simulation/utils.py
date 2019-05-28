@@ -114,11 +114,13 @@ class Transform(object):
 
 
 def to_erdos_transform(transform):
+    fwd_vector = transform.get_forward_vector()
     return Transform(
         Location(carla_loc=transform.location),
         transform.rotation.pitch,
         transform.rotation.yaw,
-        transform.rotation.roll)
+        transform.rotation.roll,
+        Orientation(fwd_vector.x, fwd_vector.y, fwd_vector.z))
 
 
 def depth_to_array(image):

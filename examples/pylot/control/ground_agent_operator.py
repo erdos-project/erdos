@@ -29,10 +29,10 @@ class GroundAgentOperator(Op):
         self._pid = PID(p=flags.pid_p, i=flags.pid_i, d=flags.pid_d)
         self._vehicle_transform = None
         self._vehicle_speed = None
-        self._pedestrians = []
-        self._vehicles = []
-        self._traffic_lights = []
-        self._traffic_signs = []
+        self._pedestrians = None
+        self._vehicles = None
+        self._traffic_lights = None
+        self._traffic_signs = None
         self._wp_angle = None
         self._wp_vector = None
         self._wp_angle_speed = None
@@ -85,10 +85,9 @@ class GroundAgentOperator(Op):
     @frequency(10)
     def run_step(self):
         if (self._vehicle_transform is None or self._vehicle_speed is None
-                or self._pedestrians == [] or self._vehicles == []
-                or self._traffic_lights == [] or self._wp_angle is None):
+                or self._pedestrians is None or self._vehicles is None
+                or self._traffic_lights is None or self._wp_angle is None):
             return
-
         speed_factor, state = self.stop_for_agents(
             self._wp_angle, self._wp_vector, self._vehicles, self._pedestrians,
             self._traffic_lights)
