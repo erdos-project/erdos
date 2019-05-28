@@ -64,11 +64,6 @@ class CameraDriverOperator(Op):
             input_streams: The streams that this operator is connected to.
             camera_setup: A CameraSetup tuple.
         """
-        if len(input_streams) > 1:
-            raise ValueError(
-                "The CameraDriverOperator should not receive more than one input "
-                "stream. Please check the graph connection.")
-        
         input_streams.add_callback(CameraDriverOperator.on_vehicle_id)
         return [DataStream(name=camera_setup.name,
                            labels={'sensor_type': 'camera',
@@ -85,18 +80,9 @@ class CameraDriverOperator(Op):
             msg = simulation.messages.FrameMessage(
                 pylot_utils.bgra_to_bgr(to_bgra_array(carla_image)), timestamp)
         elif self._camera_setup.type == 'sensor.camera.depth':
-            loc = simulation.utils.Location(
-                carla_image.transform.location.x,
-                carla_image.transform.location.y,
-                carla_image.transform.location.z)
-            transform = simulation.utils.Transform(
-                pos=loc,
-                pitch=carla_image.transform.rotation.pitch,
-                yaw=carla_image.transform.rotation.yaw,
-                roll=carla_image.transform.rotation.roll)
             msg = simulation.messages.DepthFrameMessage(
                 depth_to_array(carla_image),
-                transform,
+                simulation.utils.to_erdos_transform(carla_image.transform),
                 carla_image.fov,
                 timestamp)
         elif self._camera_setup.type == 'sensor.camera.semantic_segmentation':

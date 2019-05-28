@@ -48,10 +48,6 @@ class LidarDriverOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams, lidar_setup):
-        if len(input_streams) > 1:
-            raise ValueError(
-                "The LidarDriverOperator should not receive more than one input "
-                "stream. Please check the graph connection.")
         input_streams.add_callback(LidarDriverOperator.on_vehicle_id)
         return [DataStream(name=lidar_setup.name,
                            labels={'sensor_type': 'lidar'})]

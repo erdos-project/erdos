@@ -32,7 +32,6 @@ class ERDOSAgentOperator(Op):
         self._depth_msgs = []
         self._traffic_lights = []
         self._obstacles = []
-        self._vehicle_acc = None
         self._vehicle_speed = None
         self._wp_angle = None
         self._wp_vector = None
@@ -46,8 +45,6 @@ class ERDOSAgentOperator(Op):
         # XXX(ionel): We get the exact position from the simulator.
         input_streams.filter(pylot_utils.is_ground_vehicle_transform_stream).add_callback(
             ERDOSAgentOperator.on_vehicle_transform_update)
-        input_streams.filter(pylot_utils.is_ground_acceleration_stream).add_callback(
-            ERDOSAgentOperator.on_vehicle_acceleration_update)
         input_streams.filter(pylot_utils.is_ground_forward_speed_stream).add_callback(
             ERDOSAgentOperator.on_forward_speed_update)
 
@@ -94,7 +91,7 @@ class ERDOSAgentOperator(Op):
 
         control_msg = self.get_control_message(
             self._wp_angle, self._wp_angle_speed, speed_factor,
-            self._vehicle_speed * 3.6, Timestamp(coordinates=[0]))
+            self._vehicle_speed, Timestamp(coordinates=[0]))
         self.get_output_stream('control_stream').send(control_msg)
 
     def __is_ready_to_run(self):
@@ -134,9 +131,6 @@ class ERDOSAgentOperator(Op):
     def on_detected_lane_update(self, msg):
         # TODO(ionel): Implement!
         pass
-
-    def on_vehicle_acceleration_update(self, msg):
-        self._vehicle_acc = msg.data
 
     def on_forward_speed_update(self, msg):
         self._vehicle_speed = msg.data

@@ -4,6 +4,7 @@ import carla
 
 import pylot_utils
 import simulation.carla_utils
+import simulation.utils
 
 # ERDOS specific imports.
 from erdos.op import Op
@@ -87,7 +88,13 @@ class CarlaOperator(Op):
                 'The CarlaOperator should only receive control stream. '
                 'Please check the graph connections.')
         input_streams.add_callback(CarlaOperator.on_control_msg)
-        return [pylot_utils.create_vehicle_id_stream()]
+        ground_agent_streams = [
+            DataStream(name='traffic_lights'),
+            DataStream(name='pedestrians'),
+            DataStream(name='vehicles'),
+            DataStream(name='traffic_signs')]
+
+        return ground_agent_streams + [pylot_utils.create_vehicle_id_stream()]
 
     def on_control_msg(self, msg):
         # TODO(ionel): Implement!
@@ -198,7 +205,9 @@ class CarlaOperator(Op):
         # Create a timestamp and send a WatermarkMessage on the output stream.
         timestamp = Timestamp(
             coordinates=[msg.elapsed_seconds, self._message_cnt])
+        watermark_msg = WatermarkMessage(timestamp)
         self._message_cnt += 1
+        self.__publish_ground_agent_data(timestamp, watermark_msg)
 
     @frequency(10)
     def tick_at_frequency(self):
@@ -216,3 +225,76 @@ class CarlaOperator(Op):
         self._world.on_tick(self.on_world_tick)
         self.tick_at_frequency()
         self.spin()
+
+    def __publish_ground_agent_data(self, timestamp, watermark_msg):
+        # Get all the actors in the simulation.
+        actor_list = self._world.get_actors()
+
+        vec_actors = actor_list.filter('vehicle.*')
+        vehicles = []
+        # TODO(ionel): Handle hero vehicle!
+        for vec_actor in vec_actors:
+            loc = vec_actor.get_location()
+            pos = simulation.utils.Location(loc.x, loc.y, loc.z)
+            transform = simulation.utils.to_erdos_transform(vec_actor.get_transform())
+            # TODO(ionel): Set the vehicle bounding box.
+            speed = simulation.utils.get_speed(vec_actor.get_velocity())
+            vehicle = simulation.utils.Vehicle(pos, transform, None, speed)
+            vehicles.append(vehicle)
+
+        pedestrian_actors =actor_list.filter('*walker*')
+        pedestrians = []
+        for ped_actor in pedestrian_actors:
+            loc = ped_actor.get_location()
+            pos = simulation.utils.Location(loc.x, loc.y, loc.z)
+            transform = simulation.utils.to_erdos_transform(ped_actor.get_transform())
+            speed = simulation.utils.get_speed(vec_actor.get_velocity())
+            # TODO(ionel): Pedestrians do not have a bounding box in 0.9.5.
+            pedestrian = simulation.utils.Pedestrian(
+                    ped_actor.id, pos, transform, None, speed)
+            pedestrians.append(pedestrian)
+
+        tl_actors = actor_list.filter('traffic.traffic_light*')
+        traffic_lights = []
+        for tl_actor in tl_actors:
+            loc = tl_actor.get_location()
+            pos = simulation.utils.Location(loc.x, loc.y, loc.z)
+            transform = simulation.utils.to_erdos_transform(tl_actor.get_transform())
+            traffic_light = simulation.utils.TrafficLight(
+                pos, transform, tl_actor.get_state())
+            traffic_lights.append(traffic_light)
+
+        traffic_sign_actors = actor_list.filter('traffic.speed_limit*')
+        speed_limits = []
+        for ts_actor in traffic_sign_actors:
+            loc = ts_actor.get_location()
+            pos = simulation.utils.Location(loc.x, loc.y, loc.z)
+            transform = simulation.utils.to_erdos_transform(ts_actor.get_transform())
+            speed_limit = int(ts_actor.type_id.split('.')[-1])
+            speed_sign = simulation.utils.SpeedLimitSign(
+                pos, transform, speed_limit)
+            speed_limits.append(speed_sign)
+
+        traffic_stop_actors = actor_list.filter('traffic.stop')
+        for ts_actor in traffic_stop_actors:
+            loc = ts_actor.get_location()
+            pos = simulation.utils.Location(loc.x, loc.y, loc.z)
+            transform = simulation.utils.to_erdos_transform(ts_actor.get_transform())
+            # TODO(ionel): Send traffic stops.
+
+        vehicles_msg = simulation.messages.GroundVehiclesMessage(
+            vehicles, timestamp)
+        self.get_output_stream('vehicles').send(vehicles_msg)
+        self.get_output_stream('vehicles').send(watermark_msg)
+        pedestrians_msg = simulation.messages.GroundPedestriansMessage(
+            pedestrians, timestamp)
+        self.get_output_stream('pedestrians').send(pedestrians_msg)
+        self.get_output_stream('pedestrians').send(watermark_msg)
+        traffic_lights_msg = simulation.messages.GroundTrafficLightsMessage(
+            traffic_lights, timestamp)
+        self.get_output_stream('traffic_lights').send(traffic_lights_msg)
+        self.get_output_stream('traffic_lights').send(watermark_msg)
+        traffic_signs_msg = simulation.messages.GroundSpeedSignsMessage(
+            speed_limits, timestamp)
+        self.get_output_stream('traffic_signs').send(traffic_signs_msg)
+        self.get_output_stream('traffic_signs').send(watermark_msg)

@@ -8,7 +8,6 @@ from numpy.matlib import repmat
 CameraSetup = namedtuple('CameraSetup', 'name, type, resolution, pos')
 LidarSetup = namedtuple('LidarSetup', 'name, type, pos, range, rotation_frequency, channels, upper_fov, lower_fov, points_per_second')
 Acceleration = namedtuple('Acceleration', 'x, y, z')
-Location = namedtuple('Location', 'x, y, z')
 Orientation = namedtuple('Orientation', 'x, y, z')
 Rotation = namedtuple('Rotation', 'pitch, yaw, roll')
 Position = namedtuple('Position', 'location, orientation')
@@ -39,6 +38,26 @@ class BoundingBox(object):
 
     def __str__(self):
         return "transform: {}, x: {}, y: {}, z: {}".format(str(self.transform), self.extent)
+
+
+class Location(object):
+    def __init__(self, x=None, y=None, z=None, carla_loc=None):
+        if carla_loc:
+            self.x = carla_loc.x
+            self.y = carla_loc.y
+            self.z = carla_loc.z
+        else:
+            assert x is not None and y is not None and z is not None
+            self.x = x
+            self.y = y
+            self.z = z
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        return 'location: ({}, {}, {})'.format(self.x, self.y, self.z)
+
 
 class Transform(object):
 
@@ -94,6 +113,14 @@ class Transform(object):
         return str(self.matrix)
 
 
+def to_erdos_transform(transform):
+    return Transform(
+        Location(carla_loc=transform.location),
+        transform.rotation.pitch,
+        transform.rotation.yaw,
+        transform.rotation.roll)
+
+
 def depth_to_array(image):
     """
     Convert an image containing CARLA encoded depth-map to a 2D array containing
@@ -120,6 +147,18 @@ def labels_to_array(image):
     containing the label of each pixel.
     """
     return to_bgra_array(image)[:, :, 2]
+
+
+def get_speed(velocity_vector):
+    """ Compute the speed of the vehicle in km/h.
+    Args:
+        vehicle: A velocity vector.
+    Returns:
+        The speed of the given vehicle as a float in km/h.
+    """
+    speed = 3.6 * math.sqrt(velocity_vector.x**2 + velocity_vector.y**2 +
+                            velocity_vector.z**2)
+    return speed
 
 
 def depth_to_local_point_cloud(depth_msg, max_depth=0.9):

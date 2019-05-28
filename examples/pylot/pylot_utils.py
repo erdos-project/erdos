@@ -49,10 +49,6 @@ def is_ground_vehicle_transform_stream(stream):
     return stream.name == 'vehicle_transform'
 
 
-def is_ground_acceleration_stream(stream):
-    return stream.name == 'acceleration'
-
-
 def is_ground_forward_speed_stream(stream):
     return stream.name == 'forward_speed'
 

@@ -80,7 +80,6 @@ class CarlaLegacyOperator(Op):
                          for lidar in lidar_stream_names]
         return [
             DataStream(name='vehicle_transform'),
-            DataStream(name='acceleration'),
             DataStream(data_type=Float64, name='forward_speed'),
             DataStream(name='traffic_lights'),
             DataStream(name='pedestrians'),
@@ -197,9 +196,7 @@ class CarlaLegacyOperator(Op):
 
     def __send_player_data(self, player_measurements, timestamp, watermark):
         location = simulation.utils.Location(
-            player_measurements.transform.location.x,
-            player_measurements.transform.location.y,
-            player_measurements.transform.location.z)
+            carla_loc=player_measurements.transform.location)
         orientation = simulation.utils.Orientation(
             player_measurements.transform.orientation.x,
             player_measurements.transform.orientation.y,
@@ -214,16 +211,8 @@ class CarlaLegacyOperator(Op):
             Message(vehicle_transform, timestamp))
         self.get_output_stream('vehicle_transform').send(watermark)
 
-        acceleration = simulation.utils.Acceleration(
-            player_measurements.acceleration.x,
-            player_measurements.acceleration.y,
-            player_measurements.acceleration.z)
-        self.get_output_stream('acceleration').send(
-            Message(acceleration, timestamp))
-        self.get_output_stream('acceleration').send(watermark)
-
         self.get_output_stream('forward_speed').send(
-            Message(player_measurements.forward_speed, timestamp))
+            Message(player_measurements.forward_speed * 3.6, timestamp))
         self.get_output_stream('forward_speed').send(watermark)
 
     def __get_ground_agents(self, measurements):
@@ -234,14 +223,9 @@ class CarlaLegacyOperator(Op):
         for agent in measurements.non_player_agents:
             if agent.HasField('vehicle'):
                 pos = simulation.utils.Location(
-                    agent.vehicle.transform.location.x,
-                    agent.vehicle.transform.location.y,
-                    agent.vehicle.transform.location.z)
-                transform = simulation.utils.Transform(
-                    pos,
-                    agent.vehicle.transform.rotation.pitch,
-                    agent.vehicle.transform.rotation.yaw,
-                    agent.vehicle.transform.rotation.roll)
+                    carla_loc=agent.vehicle.transform.location)
+                transform = simulation.utils.to_erdos_transform(
+                    agent.vehicle.transform)
                 bb = simulation.utils.BoundingBox(agent.vehicle.bounding_box)
                 forward_speed = agent.vehicle.forward_speed
                 vehicle = simulation.utils.Vehicle(pos, transform, bb, forward_speed)
@@ -253,14 +237,9 @@ class CarlaLegacyOperator(Op):
 
                 pedestrian_index = self.agent_id_map[agent.id]
                 pos = simulation.utils.Location(
-                    agent.pedestrian.transform.location.x,
-                    agent.pedestrian.transform.location.y,
-                    agent.pedestrian.transform.location.z)
-                transform = simulation.utils.Transform(
-                    pos,
-                    agent.pedestrian.transform.rotation.pitch,
-                    agent.pedestrian.transform.rotation.yaw,
-                    agent.pedestrian.transform.rotation.roll)
+                    carla_loc=agent.pedestrian.transform.location)
+                transform = simulation.utils.to_erdos_transform(
+                    agent.pedestrian.transform)
                 bb = simulation.utils.BoundingBox(agent.pedestrian.bounding_box)
                 forward_speed = agent.pedestrian.forward_speed
                 pedestrian = simulation.utils.Pedestrian(
@@ -268,27 +247,17 @@ class CarlaLegacyOperator(Op):
                 pedestrians.append(pedestrian)
             elif agent.HasField('traffic_light'):
                 pos = simulation.utils.Location(
-                    agent.traffic_light.transform.location.x,
-                    agent.traffic_light.transform.location.y,
-                    agent.traffic_light.transform.location.z)
-                transform = simulation.utils.Transform(
-                    pos,
-                    agent.traffic_light.transform.rotation.pitch,
-                    agent.traffic_light.transform.rotation.yaw,
-                    agent.traffic_light.transform.rotation.roll)
+                    carla_loc=agent.traffic_light.transform.location)
+                transform = simulation.utils.to_erdos_transform(
+                    agent.traffic_light.transform)
                 traffic_light = simulation.utils.TrafficLight(
                     pos, transform, agent.traffic_light.state)
                 traffic_lights.append(traffic_light)
             elif agent.HasField('speed_limit_sign'):
                 pos = simulation.utils.Location(
-                    agent.speed_limit_sign.transform.location.x,
-                    agent.speed_limit_sign.transform.location.y,
-                    agent.speed_limit_sign.transform.location.z)
-                transform = simulation.utils.Transform(
-                    pos,
-                    agent.speed_limit_sign.transform.rotation.pitch,
-                    agent.speed_limit_sign.transform.rotation.yaw,
-                    agent.speed_limit_sign.transform.rotation.roll)
+                    carla_loc=agent.speed_limit_sign.transform.location)
+                transform = simulation.utils.to_erdos_transform(
+                    agent.speed_limit_sign.transform)
                 speed_sign = simulation.utils.SpeedLimitSign(
                     pos, transform, agent.speed_limit_sign.speed_limit)
                 speed_limit_signs.append(speed_sign)

@@ -28,7 +28,6 @@ class GroundAgentOperator(Op):
         self._flags = flags
         self._pid = PID(p=flags.pid_p, i=flags.pid_i, d=flags.pid_d)
         self._vehicle_transform = None
-        self._vehicle_acc = None
         self._vehicle_speed = None
         self._pedestrians = []
         self._vehicles = []
@@ -42,8 +41,6 @@ class GroundAgentOperator(Op):
     def setup_streams(input_streams):
         input_streams.filter(pylot_utils.is_ground_vehicle_transform_stream).add_callback(
             GroundAgentOperator.on_vehicle_transform_update)
-        input_streams.filter(pylot_utils.is_ground_acceleration_stream).add_callback(
-            GroundAgentOperator.on_vehicle_acceleration_update)
         input_streams.filter(pylot_utils.is_ground_forward_speed_stream).add_callback(
             GroundAgentOperator.on_forward_speed_update)
         input_streams.filter(pylot_utils.is_ground_pedestrians_stream).add_callback(
@@ -69,9 +66,6 @@ class GroundAgentOperator(Op):
         self._logger.info("Received vehicle pos %s", msg)
         self._vehicle_transform = msg.data
 
-    def on_vehicle_acceleration_update(self, msg):
-        self._vehicle_acc = msg.data
-
     def on_forward_speed_update(self, msg):
         self._vehicle_speed = msg.data
 
@@ -90,10 +84,9 @@ class GroundAgentOperator(Op):
     # TODO(ionel): Set the frequency programmatically.
     @frequency(10)
     def run_step(self):
-        if (self._vehicle_transform is None or self._vehicle_acc is None
-                or self._vehicle_speed is None or self._pedestrians == []
-                or self._vehicles == [] or self._traffic_lights == []
-                or self._wp_angle is None):
+        if (self._vehicle_transform is None or self._vehicle_speed is None
+                or self._pedestrians == [] or self._vehicles == []
+                or self._traffic_lights == [] or self._wp_angle is None):
             return
 
         speed_factor, state = self.stop_for_agents(
@@ -101,7 +94,7 @@ class GroundAgentOperator(Op):
             self._traffic_lights)
         control_msg = self.get_control_message(
             self._wp_angle, self._wp_angle_speed, speed_factor,
-            self._vehicle_speed * 3.6, Timestamp(coordinates=[0]))
+            self._vehicle_speed, Timestamp(coordinates=[0]))
         self.get_output_stream('control_stream').send(control_msg)
 
     def stop_for_agents(self, wp_angle, wp_vector, vehicles, pedestrians,

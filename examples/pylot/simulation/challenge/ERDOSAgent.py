@@ -10,7 +10,6 @@ import carla
 
 from srunner.challenge.autoagents.autonomous_agent import AutonomousAgent, Track
 
-
 from erdos.data_stream import DataStream
 import erdos.graph
 from erdos.message import Message, WatermarkMessage
@@ -44,18 +43,6 @@ def add_visualization_operators(graph, rgb_camera_name):
         segmented_video_op = operator_creator.create_segmented_video_op(graph)
         visualization_ops.append(segmented_video_op)
     return visualization_ops
-
-
-def to_erdos_transform(transform):
-    loc = simulation.utils.Location(
-        transform.location.x,
-        transform.location.y,
-        transform.location.z)
-    return simulation.utils.Transform(
-        loc,
-        transform.rotation.pitch,
-        transform.rotation.yaw,
-        transform.rotation.roll)
 
 
 def create_planning_op(graph):
@@ -214,7 +201,7 @@ class ERDOSAgent(AutonomousAgent):
         # Send once the global waypoints.
         if self._waypoints is None:
             self._waypoints = self._global_plan_world_coord
-            data = [(to_erdos_transform(transform), road_option)
+            data = [(simulation.utils.to_erdos_transform(transform), road_option)
                     for (transform, road_option) in self._waypoints]
             self._global_trajectory_stream.send(Message(data, erdos_timestamp))
             self._global_trajectory_stream.send(watermark)
