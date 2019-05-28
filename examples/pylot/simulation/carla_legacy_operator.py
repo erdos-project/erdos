@@ -1,5 +1,4 @@
 import numpy as np
-from std_msgs.msg import Float64
 import time
 import ray
 
@@ -80,7 +79,7 @@ class CarlaLegacyOperator(Op):
                          for lidar in lidar_stream_names]
         return [
             DataStream(name='vehicle_transform'),
-            DataStream(data_type=Float64, name='forward_speed'),
+            DataStream(name='forward_speed'),
             DataStream(name='traffic_lights'),
             DataStream(name='pedestrians'),
             DataStream(name='vehicles'),

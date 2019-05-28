@@ -89,6 +89,8 @@ class CarlaOperator(Op):
                 'Please check the graph connections.')
         input_streams.add_callback(CarlaOperator.on_control_msg)
         ground_agent_streams = [
+            DataStream(name='vehicle_transform'),
+            DataStream(name='forward_speed'),
             DataStream(name='traffic_lights'),
             DataStream(name='pedestrians'),
             DataStream(name='vehicles'),
@@ -97,8 +99,13 @@ class CarlaOperator(Op):
         return ground_agent_streams + [pylot_utils.create_vehicle_id_stream()]
 
     def on_control_msg(self, msg):
-        # TODO(ionel): Implement!
-        pass
+        vec_control = carla.VehicleControl(
+            throttle=msg.throttle,
+            steer=msg.steer,
+            brake=msg.brake,
+            hand_brake=msg.hand_brake,
+            reverse=msg.reverse)
+        self._driving_vehicle.apply_control(vec_control)
 
     def _set_synchronous_mode(self, value):
         """ Sets the synchronous mode to the desired value.
@@ -207,7 +214,8 @@ class CarlaOperator(Op):
             coordinates=[msg.elapsed_seconds, self._message_cnt])
         watermark_msg = WatermarkMessage(timestamp)
         self._message_cnt += 1
-        self.__publish_ground_agent_data(timestamp, watermark_msg)
+        self.__publish_hero_vehicle_data(timestamp, watermark_msg)
+        self.__publish_ground_actors_data(timestamp, watermark_msg)
 
     @frequency(10)
     def tick_at_frequency(self):
@@ -226,7 +234,20 @@ class CarlaOperator(Op):
         self.tick_at_frequency()
         self.spin()
 
-    def __publish_ground_agent_data(self, timestamp, watermark_msg):
+    def __publish_hero_vehicle_data(self, timestamp, watermark_msg):
+        speed = simulation.utils.get_speed(
+            self._driving_vehicle.get_velocity())
+        self.get_output_stream('forward_speed').send(
+            Message(speed, timestamp))
+        self.get_output_stream('forward_speed').send(watermark_msg)
+
+        vec_transform = simulation.utils.to_erdos_transform(
+            self._driving_vehicle.get_transform())
+        self.get_output_stream('vehicle_transform').send(
+            Message(vec_transform, timestamp))
+        self.get_output_stream('vehicle_transform').send(watermark_msg)
+
+    def __publish_ground_actors_data(self, timestamp, watermark_msg):
         # Get all the actors in the simulation.
         actor_list = self._world.get_actors()
 

@@ -64,7 +64,8 @@ class CameraDriverOperator(Op):
             input_streams: The streams that this operator is connected to.
             camera_setup: A CameraSetup tuple.
         """
-        input_streams.add_callback(CameraDriverOperator.on_vehicle_id)
+        input_streams.filter(pylot_utils.is_ground_vehicle_id_stream)\
+                     .add_callback(CameraDriverOperator.on_vehicle_id)
         return [DataStream(name=camera_setup.name,
                            labels={'sensor_type': 'camera',
                                    'camera_type': camera_setup.type})]

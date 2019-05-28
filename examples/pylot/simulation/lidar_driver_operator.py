@@ -1,6 +1,7 @@
 import numpy as np
 import carla
 
+import pylot_utils
 import simulation.carla_utils
 
 # ERDOS specific imports.
@@ -48,7 +49,8 @@ class LidarDriverOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams, lidar_setup):
-        input_streams.add_callback(LidarDriverOperator.on_vehicle_id)
+        input_streams.filter(pylot_utils.is_ground_vehicle_id_stream)\
+                     .add_callback(LidarDriverOperator.on_vehicle_id)
         return [DataStream(name=lidar_setup.name,
                            labels={'sensor_type': 'lidar'})]
 
