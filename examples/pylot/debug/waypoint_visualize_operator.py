@@ -36,11 +36,17 @@ class WaypointVisualizerOperator(Op):
         _, self._world = simulation.carla_utils.get_world()
         if self._world is None:
             raise ValueError("Error connecting to the simulator.")
+        self._colors = [carla.Color(255, 0, 0),
+                        carla.Color(0, 255, 0),
+                        carla.Color(0, 0, 255),
+                        carla.Color(128, 128, 0),
+                        carla.Color(0, 128, 128),
+                        carla.Color(128, 0, 128)]
 
     @staticmethod
     def setup_streams(input_streams):
         """ This method takes in a single input stream called `wp_debug` which
-        sends a `planning.messages.WaypointMessage` to be drawn on
+        sends a `planning.messages.WaypointsMessage` to be drawn on
         the screen.
 
         Args:
@@ -64,17 +70,22 @@ class WaypointVisualizerOperator(Op):
         waypoint to be drawn on the screen.
 
         Args:
-            msg: A message of type `planning.messages.WaypointMessage` to
+            msg: A message of type `planning.messages.WaypointsMessage` to
                 be drawn on the screen.
         """
-        loc = carla.Location(msg.waypoint.location.x,
-                             msg.waypoint.location.y,
-                             msg.waypoint.location.z)
-        begin = loc + carla.Location(z=0.5)
-        end = begin + carla.Location(msg.waypoint.orientation.x,
-                                     msg.waypoint.orientation.y,
-                                     msg.waypoint.orientation.z)
-        self._world.debug.draw_arrow(begin,
-                                     end,
-                                     arrow_size=0.3,
-                                     life_time=30.0)
+        assert len(msg.waypoints) <= len(self._colors)
+        index = 0
+        for waypoint in msg.waypoints:
+            loc = carla.Location(waypoint.location.x,
+                                 waypoint.location.y,
+                                 waypoint.location.z)
+            begin = loc + carla.Location(z=0.5)
+            end = begin + carla.Location(waypoint.orientation.x,
+                                         waypoint.orientation.y,
+                                         waypoint.orientation.z)
+            self._world.debug.draw_arrow(begin,
+                                         end,
+                                         arrow_size=0.3,
+                                         life_time=30.0,
+                                         color=self._colors[index])
+            index += 1

@@ -4,7 +4,7 @@ from erdos.op import Op
 from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_ms
 
 from control.utils import get_angle, get_world_vec_dist
-from planning.messages import WaypointMessage
+from planning.messages import WaypointsMessage
 from simulation.planner.waypointer import Waypointer
 import pylot_utils
 
@@ -39,7 +39,7 @@ class WaypointerOperator(Op):
         runtime = (time.time() - start_time) * 1000
         self._csv_logger.info('{},{},{}'.format(
             time_epoch_ms(), self.name, runtime))
-        output_msg = WaypointMessage(
+        output_msg = WaypointsMessage(
             msg.timestamp,
             wp_angle=wp_angle,
             wp_vector=wp_vector,

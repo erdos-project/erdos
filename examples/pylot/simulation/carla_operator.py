@@ -196,18 +196,19 @@ class CarlaOperator(Op):
         Args:
             msg: Data recieved from the simulation at a tick.
         """
-        self._logger.info('The world is at the timestamp {}'.format(
-            msg.elapsed_seconds))
-
+        game_time = int(msg.elapsed_seconds * 1000)
+        self._logger.info('The world is at the timestamp {}'.format(game_time))
         # Create a timestamp and send a WatermarkMessage on the output stream.
-        timestamp = Timestamp(
-            coordinates=[msg.elapsed_seconds, self._message_cnt])
+        timestamp = Timestamp(coordinates=[game_time, self._message_cnt])
         watermark_msg = WatermarkMessage(timestamp)
         self._message_cnt += 1
         self.__publish_hero_vehicle_data(timestamp, watermark_msg)
         self.__publish_ground_actors_data(timestamp, watermark_msg)
+        # XXX(ionel): We tick after we send data. Otherwise, we may fall
+        # behind.
+        self._world.tick()
 
-    @frequency(10)
+#    @frequency(10)
     def tick_at_frequency(self):
         """ This function ticks the world at the desired frequency. """
         self._world.tick()

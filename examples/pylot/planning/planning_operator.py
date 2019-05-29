@@ -1,3 +1,5 @@
+import time
+
 import carla
 # Import Planner from Carla codebase
 from agents.navigation.global_route_planner import GlobalRoutePlanner
@@ -7,7 +9,7 @@ from erdos.op import Op
 from erdos.utils import frequency, setup_csv_logging, setup_logging
 
 import pylot_utils
-from planning.messages import WaypointMessage
+from planning.messages import WaypointsMessage
 from planning.utils import get_target_speed
 import simulation.carla_utils
 from simulation.utils import to_erdos_transform
@@ -56,16 +58,20 @@ class PlanningOperator(Op):
         if not route or len(route) == 0:
             # If route is empty (e.g., reached destination), set waypoint to
             # current vehicle location.
-            next_waypoint = [self._vehicle_transform]
+            next_waypoints = [self._vehicle_transform]
         else:
-            if len(route) > 1:
-                # Take next 2nd waypoint because the first one is too close.
-                next_waypoint = to_erdos_transform(route[1][0].transform)
-            else:
-                next_waypoint = to_erdos_transform(route[0][0].transform)
+            # Get the next 5 waypoints
+            next_waypoints = route[:min(len(route), 5)]
+            next_waypoints = [to_erdos_transform(waypoint[0].transform) for waypoint in next_waypoints]
 
-        wp_vector, wp_mag = get_world_vec_dist(next_waypoint.location.x,
-                                               next_waypoint.location.y,
+        # Skip first waypoint because it's too close.
+        if len(next_waypoints) > 1:
+            index = 1
+        else:
+            index = 0
+
+        wp_vector, wp_mag = get_world_vec_dist(next_waypoints[index].location.x,
+                                               next_waypoints[index].location.y,
                                                self._vehicle_transform.location.x,
                                                self._vehicle_transform.location.y)
 
@@ -76,13 +82,13 @@ class PlanningOperator(Op):
             wp_angle = 0
 
         target_speed = get_target_speed(
-            self._vehicle_transform.location, next_waypoint)
-        output_msg = WaypointMessage(msg.timestamp,
-                                     waypoint=next_waypoint,
-                                     target_speed=target_speed,
-                                     wp_angle=wp_angle,
-                                     wp_vector=wp_vector,
-                                     wp_angle_speed=wp_angle)
+            self._vehicle_transform.location, next_waypoints[index])
+        output_msg = WaypointsMessage(msg.timestamp,
+                                      waypoints=next_waypoints,
+                                      target_speed=target_speed,
+                                      wp_angle=wp_angle,
+                                      wp_vector=wp_vector,
+                                      wp_angle_speed=wp_angle)
         self.get_output_stream('waypoints').send(output_msg)
 
     def __update_waypoints(self, source_loc, destination_loc):

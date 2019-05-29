@@ -8,7 +8,7 @@ from erdos.op import Op
 from erdos.utils import frequency, setup_csv_logging, setup_logging
 
 import pylot_utils
-from planning.messages import WaypointMessage
+from planning.messages import WaypointsMessage
 from planning.utils import get_target_speed
 
 
@@ -44,9 +44,9 @@ class ChallengePlanningOperator(Op):
             target_speed = get_target_speed(
                 self._vehicle_transform.location, next_waypoint)
             self.get_output_stream('waypoints').send(
-                WaypointMessage(msg.timestamp,
-                                waypoint=next_waypoint,
-                                target_speed=target_speed))
+                WaypointsMessage(msg.timestamp,
+                                 waypoints=[next_waypoint],
+                                 target_speed=target_speed))
 
     def on_opendrive_map(self, msg):
         assert self._map is None, 'Already receveid opendrive map'
