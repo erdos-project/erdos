@@ -5,6 +5,7 @@ from control.erdos_agent_operator import ERDOSAgentOperator
 from control.ground_agent_operator import GroundAgentOperator
 # Import debug operators.
 from debug.camera_replay_operator import CameraReplayOperator
+from debug.depth_camera_visualizer import DepthCameraVisualizer
 from debug.lidar_visualizer_operator import LidarVisualizerOperator
 from debug.segmented_video_operator import SegmentedVideoOperator
 from debug.video_operator import VideoOperator
@@ -118,6 +119,16 @@ def create_camera_video_op(graph, name, filter_name):
                    'log_file_name': FLAGS.log_file_name},
         setup_args={'filter_name': filter_name})
     return video_op
+
+
+def create_depth_camera_visualizer_op(graph, name, filter_name):
+    depth_visualizer_op = graph.add(
+        DepthCameraVisualizer,
+        name=name,
+        init_args={'flags': FLAGS,
+                   'log_file_name': FLAGS.log_file_name},
+        setup_args={'filter_name': filter_name})
+    return depth_visualizer_op
 
 
 def create_segmented_video_op(graph):
@@ -357,9 +368,10 @@ def add_visualization_operators(graph,
         graph.connect(camera_ops, [camera_video_op])
 
     if FLAGS.visualize_depth_camera:
-        depth_video_op = create_camera_video_op(graph,
-                                                'depth_camera_video',
-                                                depth_camera_name)
+        depth_video_op = create_depth_camera_visualizer_op(
+            graph,
+            'depth_camera_video',
+            depth_camera_name)
         graph.connect(camera_ops, [depth_video_op])
 
     if FLAGS.visualize_lidar:
