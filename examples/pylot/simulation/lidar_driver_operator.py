@@ -1,4 +1,6 @@
 import numpy as np
+import threading
+
 import carla
 
 import pylot_utils
@@ -46,6 +48,7 @@ class LidarDriverOperator(Op):
         self._message_cnt = 0
         self._vehicle = None
         self._lidar = None
+        self._lock = threading.Lock()
 
     @staticmethod
     def setup_streams(input_streams, lidar_setup):
@@ -55,15 +58,15 @@ class LidarDriverOperator(Op):
                            labels={'sensor_type': 'lidar'})]
 
     def process_point_clouds(self, carla_pc):
-        timestamp = Timestamp(
-            coordinates=[carla_pc.timestamp, self._message_cnt])
-        watermark_msg = WatermarkMessage(timestamp)
-        self._message_cnt += 1
+        with self._lock:
+            timestamp = Timestamp(
+                coordinates=[carla_pc.timestamp, self._message_cnt])
+            watermark_msg = WatermarkMessage(timestamp)
+            self._message_cnt += 1
+            msg = Message(carla_pc.raw_data, timestamp)
 
-        msg = None
-
-        self.get_output_stream(self._lidar_setup.name).send(msg)
-#        self.get_output_stream(self._lidar_setup.name).send(watermark_msg)
+            self.get_output_stream(self._lidar_setup.name).send(msg)
+            self.get_output_stream(self._lidar_setup.name).send(watermark_msg)
 
     def on_vehicle_id(self, msg):
         """ This function receives the identifier for the vehicle, retrieves
@@ -99,7 +102,7 @@ class LidarDriverOperator(Op):
         lidar_blueprint.set_attribute('lower_fov',
                                       str(self._lidar_setup.lower_fov))
         # TODO(ionel): Set sensor tick.
-        lidar_blueprint.set_attribute('sensor_tick')
+        #        lidar_blueprint.set_attribute('sensor_tick')
 
         transform = carla.Transform(
             carla.Location(*self._lidar_setup.pos),

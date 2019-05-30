@@ -30,7 +30,7 @@ class CarlaLegacyOperator(Op):
                  name,
                  flags,
                  camera_setups=[],
-                 lidar_stream_names=[],
+                 lidar_setups=[],
                  log_file_name=None,
                  csv_file_name=None):
         super(CarlaLegacyOperator, self).__init__(name)
@@ -51,7 +51,6 @@ class CarlaLegacyOperator(Op):
             WeatherId=self._flags.carla_weather,
             QualityLevel=quality)
         self.settings.randomize_seeds()
-        self.lidar_streams = []
         self._transforms = {}
         for cs in camera_setups:
             transform = self.__add_camera(name=cs.name,
@@ -59,8 +58,15 @@ class CarlaLegacyOperator(Op):
                                           image_size=cs.resolution,
                                           position=cs.pos)
             self._transforms[cs.name] = transform
-        for lidar_stream_name in lidar_stream_names:
-            self.__add_lidar(name=lidar_stream_name)
+        for ls in lidar_setups:
+            self.__add_lidar(name=ls.name,
+                             channels=ls.channels,
+                             range=ls.range,
+                             points_per_second=ls.points_per_second,
+                             rotation_frequency=ls.rotation_frequency,
+                             upper_fov=ls.upper_fov,
+                             lower_fov=ls.lower_fov,
+                             position=ls.pos)
         self.agent_id_map = {}
         self.pedestrian_count = 0
         # Register custom serializers for Messages and WatermarkMessages
@@ -68,15 +74,15 @@ class CarlaLegacyOperator(Op):
         ray.register_custom_serializer(WatermarkMessage, use_pickle=True)
 
     @staticmethod
-    def setup_streams(input_streams, camera_setups, lidar_stream_names):
+    def setup_streams(input_streams, camera_setups, lidar_setups):
         input_streams.add_callback(CarlaLegacyOperator.update_control)
         camera_streams = [DataStream(name=cs.name,
                                      labels={'sensor_type': 'camera',
                                              'camera_type': cs.type})
                           for cs in camera_setups]
-        lidar_streams = [DataStream(name=lidar,
-                                    labels={'sensor_type': 'lidar'})
-                         for lidar in lidar_stream_names]
+        lidar_streams = [DataStream(name=ls.name,
+                                    labels={'sensor_type': ls.type})
+                         for ls in lidar_setups]
         return [
             DataStream(name='can_bus'),
             DataStream(name='traffic_lights'),
@@ -126,11 +132,11 @@ class CarlaLegacyOperator(Op):
     def __add_lidar(self,
                     name,
                     channels=32,
-                    max_range=50,
+                    range=50,
                     points_per_second=100000,
                     rotation_frequency=10,
-                    upper_fov_limit=10,
-                    lower_fov_limit=-30,
+                    upper_fov=10,
+                    lower_fov=-30,
                     position=(0, 0, 1.4),
                     rotation_pitch=0,
                     rotation_yaw=0,
@@ -143,11 +149,11 @@ class CarlaLegacyOperator(Op):
         lidar = Lidar(
             name,
             Channels=channels,
-            Range=max_range,
+            Range=range,
             PointsPerSecond=points_per_second,
             RotationFrequency=rotation_frequency,
-            UpperFovLimit=upper_fov_limit,
-            LowerFovLimit=lower_fov_limit,
+            UpperFovLimit=upper_fov,
+            LowerFovLimit=lower_fov,
             PositionX=position[0],
             PositionY=position[1],
             PositionZ=position[2],
@@ -156,8 +162,6 @@ class CarlaLegacyOperator(Op):
             RotationRoll=rotation_roll)
 
         self.settings.add_sensor(lidar)
-        output_stream = DataStream(name=name, labels={"sensor_type": "lidar"})
-        self.lidar_streams.append(output_stream)
 
     def read_carla_data(self):
         read_start_time = time.time()

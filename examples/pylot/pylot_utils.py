@@ -14,7 +14,7 @@ def is_depth_camera_stream(stream):
 
 
 def is_lidar_stream(stream):
-    return stream.get_label('sensor_type') == 'lidar'
+    return stream.get_label('sensor_type') == 'sensor.lidar.ray_cast'
 
 
 # Ground streams

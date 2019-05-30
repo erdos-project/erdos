@@ -347,9 +347,9 @@ def create_fusion_ops(graph):
 
 def add_visualization_operators(graph,
                                 camera_ops,
-                                lidar_ops=None,
-                                rgb_camera_name=None,
-                                depth_camera_name=None):
+                                lidar_ops,
+                                rgb_camera_name,
+                                depth_camera_name):
     if FLAGS.visualize_rgb_camera:
         camera_video_op = create_camera_video_op(graph,
                                                  'rgb_camera',
@@ -363,7 +363,7 @@ def add_visualization_operators(graph,
         graph.connect(camera_ops, [depth_video_op])
 
     if FLAGS.visualize_lidar:
-        lidar_visualizer_op = create_lidar_visualizer_ops(graph)
+        lidar_visualizer_op = create_lidar_visualizer_op(graph)
         graph.connect(lidar_ops, [lidar_visualizer_op])
 
     if FLAGS.visualize_segmentation:

@@ -15,6 +15,9 @@ flags.DEFINE_bool('fail_on_message_loss', True,
 flags.DEFINE_bool('ground_agent_operator', True,
                   'True to use the ground truth controller')
 
+# Sensors to enable.
+flags.DEFINE_bool('lidar', False, 'True to enable the lidar sensor')
+
 # Modules to enable.
 flags.DEFINE_bool('segmentation_drn', False,
                   'True to enable DRN segmantation operator')

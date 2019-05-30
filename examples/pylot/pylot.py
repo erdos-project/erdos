@@ -16,7 +16,7 @@ DEPTH_CAMERA_NAME = 'front_depth_camera'
 SEGMENTED_CAMERA_NAME = 'front_semantic_camera'
 
 
-def create_carla_legacy_op(graph, camera_setups):
+def create_carla_legacy_op(graph, camera_setups, lidar_setups):
     # Import operator that works with Carla 0.8.4
     from simulation.carla_legacy_operator import CarlaLegacyOperator
     carla_op = graph.add(
@@ -25,13 +25,13 @@ def create_carla_legacy_op(graph, camera_setups):
         init_args={
             'flags': FLAGS,
             'camera_setups': camera_setups,
-            'lidar_stream_names': [],
+            'lidar_setups': lidar_setups,
             'log_file_name': FLAGS.log_file_name,
             'csv_file_name': FLAGS.csv_log_file_name
         },
         setup_args={
             'camera_setups': camera_setups,
-            'lidar_stream_names': []
+            'lidar_setups': lidar_setups
         })
     return carla_op
 
@@ -61,6 +61,20 @@ def create_camera_driver_op(graph, camera_setup):
         },
         setup_args={'camera_setup': camera_setup})
     return camera_op
+
+
+def create_lidar_driver_op(graph, lidar_setup):
+    from simulation.lidar_driver_operator import LidarDriverOperator
+    lidar_op = graph.add(
+        LidarDriverOperator,
+        name=lidar_setup.name,
+        init_args={
+            'lidar_setup': lidar_setup,
+            'flags': FLAGS,
+            'log_file_name': FLAGS.log_file_name
+        },
+        setup_args={'lidar_setup': lidar_setup})
+    return lidar_op
 
 
 def create_planning_op(graph, goal_location):
@@ -128,26 +142,46 @@ def main(argv):
         (2.0, 0.0, 1.4))
     camera_setups = [rgb_camera_setup, depth_camera_setup, segmented_camera_setup]
 
+    lidar_setups = []
+    if FLAGS.lidar:
+        lidar_setup = simulation.utils.LidarSetup(
+            name='front_center_lidar',
+            type='sensor.lidar.ray_cast',
+            pos=(2.0, 0.0, 1.4),
+            range=5000,
+            rotation_frequency=20,
+            channels=32,
+            upper_fov=15,
+            lower_fov=-30,
+            points_per_second=500000)
+        lidar_setups.append(lidar_setup)
+
     # Add operators to the graph.
     camera_ops = []
+    lidar_ops = []
     if '0.8' in FLAGS.carla_version:
-        carla_op = create_carla_legacy_op(graph, camera_setups)
+        carla_op = create_carla_legacy_op(graph, camera_setups, lidar_setups)
         camera_ops = [carla_op]
     elif '0.9' in FLAGS.carla_version:
         carla_op = create_carla_op(graph)
         camera_ops = [create_camera_driver_op(graph, cs) for cs in camera_setups]
-        graph.connect([carla_op], camera_ops)
+        lidar_ops = [create_lidar_driver_op(graph, ls) for ls in lidar_setups]
+        graph.connect([carla_op], camera_ops + lidar_ops)
     else:
         raise ValueError(
             'Unexpected Carla version {}'.format(FLAGS.carla_version))
 
     # Add visual operators.
     operator_creator.add_visualization_operators(
-        graph, camera_ops, RGB_CAMERA_NAME, DEPTH_CAMERA_NAME)
+        graph, camera_ops, lidar_ops, RGB_CAMERA_NAME, DEPTH_CAMERA_NAME)
 
     # Add recording operators.
-    operator_creator.add_recording_operators(
-        graph, camera_ops, carla_op, RGB_CAMERA_NAME, DEPTH_CAMERA_NAME)
+    operator_creator.add_recording_operators(graph,
+                                             camera_ops,
+                                             carla_op,
+                                             lidar_ops,
+                                             RGB_CAMERA_NAME,
+                                             DEPTH_CAMERA_NAME)
 
     segmentation_ops = []
     if FLAGS.segmentation_drn:

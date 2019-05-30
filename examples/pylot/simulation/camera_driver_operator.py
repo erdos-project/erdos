@@ -1,4 +1,6 @@
 import numpy as np
+import threading
+
 import carla
 
 from perception.messages import SegmentedFrameMessage
@@ -54,6 +56,7 @@ class CameraDriverOperator(Op):
         self._message_cnt = 0
         self._vehicle = None
         self._camera = None
+        self._lock = threading.Lock()
 
     @staticmethod
     def setup_streams(input_streams, camera_setup):
@@ -71,27 +74,28 @@ class CameraDriverOperator(Op):
                                    'camera_type': camera_setup.type})]
 
     def process_images(self, carla_image):
-        timestamp = Timestamp(
-            coordinates=[carla_image.timestamp, self._message_cnt])
-        watermark_msg = WatermarkMessage(timestamp)
-        self._message_cnt += 1
+        with self._lock:
+            timestamp = Timestamp(
+                coordinates=[carla_image.timestamp, self._message_cnt])
+            watermark_msg = WatermarkMessage(timestamp)
+            self._message_cnt += 1
 
-        msg = None
-        if self._camera_setup.type == 'sensor.camera.rgb':
-            msg = simulation.messages.FrameMessage(
-                pylot_utils.bgra_to_bgr(to_bgra_array(carla_image)), timestamp)
-        elif self._camera_setup.type == 'sensor.camera.depth':
-            msg = simulation.messages.DepthFrameMessage(
-                depth_to_array(carla_image),
-                simulation.utils.to_erdos_transform(carla_image.transform),
-                carla_image.fov,
-                timestamp)
-        elif self._camera_setup.type == 'sensor.camera.semantic_segmentation':
-            frame = labels_to_array(carla_image)
-            msg = SegmentedFrameMessage(frame, 0, timestamp)
-        # Send the message containing the frame.
-        self.get_output_stream(self._camera_setup.name).send(msg)
-#        self.get_output_stream(self._camera_setup.name).send(watermark_msg)
+            msg = None
+            if self._camera_setup.type == 'sensor.camera.rgb':
+                msg = simulation.messages.FrameMessage(
+                    pylot_utils.bgra_to_bgr(to_bgra_array(carla_image)), timestamp)
+            elif self._camera_setup.type == 'sensor.camera.depth':
+                msg = simulation.messages.DepthFrameMessage(
+                    depth_to_array(carla_image),
+                    simulation.utils.to_erdos_transform(carla_image.transform),
+                    carla_image.fov,
+                    timestamp)
+            elif self._camera_setup.type == 'sensor.camera.semantic_segmentation':
+                frame = labels_to_array(carla_image)
+                msg = SegmentedFrameMessage(frame, 0, timestamp)
+                # Send the message containing the frame.
+            self.get_output_stream(self._camera_setup.name).send(msg)
+            self.get_output_stream(self._camera_setup.name).send(watermark_msg)
 
     def on_vehicle_id(self, msg):
         """ This function receives the identifier for the vehicle, retrieves
