@@ -16,10 +16,22 @@ Pedestrian = namedtuple('Pedestrian', 'id, location, transform, bounding_box, fo
 TrafficLight = namedtuple('TrafficLight', 'location, transform, state')
 SpeedLimitSign = namedtuple('SpeedLimitSign', 'location, transform, limit')
 LocationGeo = namedtuple('LocationGeo', 'latitude, longitude, altitude')
-CanBus = namedtuple('CanBus', 'drag_coefficient, max_rpm, steering_curve, moi, torque_curve, speed, clutch_strength, use_gear_autobox, damping_rate_full_throttle, damping_rate_zero_throttle_clutch_disengaged, mass, wheels, center_of_mass')
 Extent = namedtuple('Extent', 'x, y, z')
 Scale = namedtuple('Scale', 'x y z')
 Scale.__new__.__defaults__ = (1.0, 1.0, 1.0)
+
+
+class CanBus(object):
+    def __init__(self, transform, forward_speed):
+        self.transform = None
+        self.forward_speed = forward_speed
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        return "transform: {}, forward speed: {}".format(
+            self.transform, self.forward_speed)
 
 
 class BoundingBox(object):

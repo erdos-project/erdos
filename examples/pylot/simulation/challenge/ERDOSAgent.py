@@ -79,7 +79,8 @@ class ERDOSAgent(AutonomousAgent):
     def setup(self, path_to_conf_file):
         flags.FLAGS([__file__, '--flagfile={}'.format(path_to_conf_file)])
         self.track = Track.ALL_SENSORS_HDMAP_WAYPOINTS
-
+#        self.track = Track.ALL_SENSORS
+#        self.track = Track.CAMERAS
         self._lock = threading.Lock()
         self._vehicle_transform = None
         self._waypoints = None
@@ -216,9 +217,20 @@ class ERDOSAgent(AutonomousAgent):
                                                      erdos_timestamp))
                 self._camera_stream.send(watermark)
             elif key == 'can_bus':
-                can_bus = simulation.utils.CanBus(**val[1])
+                # The can bus dict contains other fields as well, but we don't
+                # curently use them.
+                self._vehicle_transform = simulation.utils.to_erdos_transform(
+                    val[1]['transform'])
+                forward_speed = val[1]['speed']
+
+                can_bus = simulation.utils.CanBus(
+                    self._vehicle_transform, forward_speed)
                 self._can_bus_stream.send(Message(can_bus, erdos_timestamp))
                 self._can_bus_stream.send(watermark)
+                self._vehicle_transform_stream.send(
+                    Message(self._vehicle_transform, erdos_timestamp))
+                self._vehicle_transform_stream.send(watermark)
+
             elif key == 'GPS':
                 gps = simulation.utils.LocationGeo(val[1][0], val[1][1], val[1][2])
             elif key == 'hdmap':
@@ -231,21 +243,6 @@ class ERDOSAgent(AutonomousAgent):
                     self._open_drive_stream.send(watermark)
                 assert self._open_drive_data == val[1]['opendrive'],\
                     'Opendrive data changed.'
-
-                # Sending vehicle transform data.
-                vec_trans_dict = val[1]['transform']
-                loc = simulation.utils.Location(
-                    vec_trans_dict['x'],
-                    vec_trans_dict['y'],
-                    vec_trans_dict['z'])
-                self._vehicle_transform = simulation.utils.Transform(
-                    loc,
-                    vec_trans_dict['pitch'],
-                    vec_trans_dict['yaw'],
-                    vec_trans_dict['roll'])
-                self._vehicle_transform_stream.send(
-                    Message(self._vehicle_transform, erdos_timestamp))
-                self._vehicle_transform_stream.send(watermark)
 
                 # TODO(ionel): Send point cloud data.
                 pc_file = val[1]['map_file']

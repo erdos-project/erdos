@@ -157,7 +157,7 @@ class PIDControlOperator(Op):
         return steering
 
     def on_can_bus_update(self, msg):
-        self._latest_speed = msg.data.speed
+        self._latest_speed = msg.data.forward_speed
 
     def on_vehicle_transform_update(self, msg):
         self._vehicle_transform = msg.data
