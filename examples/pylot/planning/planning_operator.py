@@ -55,20 +55,18 @@ class PlanningOperator(Op):
                            self._vehicle_transform.location.y,
                            self._vehicle_transform.location.z),
             self._goal_location)
+
         if not route or len(route) == 0:
             # If route is empty (e.g., reached destination), set waypoint to
             # current vehicle location.
             next_waypoints = [self._vehicle_transform]
         else:
-            # Get the next 5 waypoints
-            next_waypoints = route[:min(len(route), 5)]
+            # Get the next 9 waypoints
+            next_waypoints = route[:min(len(route), 9)]
             next_waypoints = [to_erdos_transform(waypoint[0].transform) for waypoint in next_waypoints]
 
-        # Skip first waypoint because it's too close.
-        if len(next_waypoints) > 1:
-            index = 1
-        else:
-            index = 0
+        # If possible, skip the first two waypoints because they're too close.
+        index = min(len(next_waypoints) - 1, 3)
 
         wp_vector, wp_mag = get_world_vec_dist(next_waypoints[index].location.x,
                                                next_waypoints[index].location.y,

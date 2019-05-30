@@ -167,7 +167,7 @@ class PIDControlOperator(Op):
         if self._last_waypoint_msg:
             throttle, brake = self._get_throttle_brake(
                 self._last_waypoint_msg.target_speed)
-            steer = self._get_steering(self._last_waypoint_msg.waypoint)
+            steer = self._get_steering(self._last_waypoint_msg.waypoints[0])
         control_msg = ControlMessage(
             steer, throttle, brake, False, False, msg.timestamp)
         self.get_output_stream('control_stream').send(control_msg)

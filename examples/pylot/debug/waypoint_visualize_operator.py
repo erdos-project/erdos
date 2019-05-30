@@ -41,7 +41,10 @@ class WaypointVisualizerOperator(Op):
                         carla.Color(0, 0, 255),
                         carla.Color(128, 128, 0),
                         carla.Color(0, 128, 128),
-                        carla.Color(128, 0, 128)]
+                        carla.Color(128, 0, 128),
+                        carla.Color(64, 64, 0),
+                        carla.Color(64, 0, 64),
+                        carla.Color(0, 64, 64)]
 
     @staticmethod
     def setup_streams(input_streams):

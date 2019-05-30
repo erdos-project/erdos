@@ -1,7 +1,4 @@
-try:
-    import queue as queue
-except ImportError:
-    import Queue as queue
+from collections import deque
 import carla
 
 from erdos.op import Op
@@ -9,7 +6,7 @@ from erdos.utils import frequency, setup_csv_logging, setup_logging
 
 import pylot_utils
 from planning.messages import WaypointsMessage
-from planning.utils import get_target_speed
+from planning.utils import get_distance, get_target_speed
 
 
 class ChallengePlanningOperator(Op):
@@ -23,8 +20,6 @@ class ChallengePlanningOperator(Op):
         self._map = None
         self._waypoints = None
         self._vehicle_transform = None
-        self._last_waypoint = None
-        self._last_road_option = None
 
     @staticmethod
     def setup_streams(input_streams):
@@ -38,8 +33,7 @@ class ChallengePlanningOperator(Op):
 
     def on_vehicle_transform_update(self, msg):
         self._vehicle_transform = msg.data
-        next_waypoint, road_option = self.__compute_next_waypoint()
-        target_speed = 0
+        next_waypoint, _ = self.__compute_next_waypoint()
         if next_waypoint:
             target_speed = get_target_speed(
                 self._vehicle_transform.location, next_waypoint)
@@ -54,37 +48,37 @@ class ChallengePlanningOperator(Op):
 
     def on_global_trajectory(self, msg):
         assert self._waypoints is None, 'Already received global trajectory'
-        self._waypoints = queue.Queue()
+        self._waypoints = deque()
         for waypoint_option in msg.data:
-            self._waypoints.put(waypoint_option)
+            self._waypoints.append(waypoint_option)
 
     def __compute_next_waypoint(self):
-        if self._waypoints is None:
-            return None, None
-        if self._waypoints.empty():
-            self._logger.info('Reached end of waypoints')
-            return None, None
-        if self._last_waypoint is None:
-            # If there was no last waypoint, pop one from the queue.
-            next_waypoint, next_road_option = self._waypoints.get()
-        else:
-            # Find the next waypoint which is more than 90% left to complete.
-            next_waypoint = self._last_waypoint
-            next_road_option = self._last_road_option
-            while (self._waypoints.empty() is False and
-                   get_distance(
-                       next_waypoint.location,
-                       self._vehicle_transform.location) < self._min_distance):
-                next_waypoint, next_road_option = self._waypoints.get()
+        if self._waypoints is None or len(self._waypoints) == 0:
+            return self._vehicle_transform, None
 
-        # If the next waypoint is different from the last waypoint, send
-        # the next waypoint
-        if next_waypoint != self._last_waypoint:
-            self._last_waypoint = next_waypoint
-            self._last_road_option = next_road_option
-            self._logger.info('New waypoint {} {}'.format(
-                self._last_waypoint, self._last_road_option))
-            return next_waypoint, next_road_option
-        else:
-            self._logger.info('No new waypoint')
-            return None, None
+        dist, index = self.__get_closest_waypoint()
+        # Waypoints that are before the closest waypoint are irrelevant now.
+        while index > 0:
+            self._waypoints.popleft()
+            index -= 1
+
+        # The closest waypoint is 90% complete, remove it.
+        if dist < self._min_distance:
+            self._waypoints.popleft()
+
+        return self._waypoints[min(len(self._waypoints) - 1, 3)]
+
+    def __get_closest_waypoint(self):
+        min_dist = 10000000
+        min_index = 0
+        index = 0
+        for waypoint in self._waypoints:
+            # We only check the first 10 waypoints.
+            if index > 10:
+                break
+            dist = get_distance(waypoint[0].location,
+                                self._vehicle_transform.location)
+            if dist < min_dist:
+                min_dist = dist
+                min_index = index
+        return min_dist, min_index
