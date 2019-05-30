@@ -43,11 +43,8 @@ class ERDOSAgentOperator(Op):
             ERDOSAgentOperator.on_depth_camera_update)
 
         # XXX(ionel): We get the exact position from the simulator.
-        input_streams.filter(pylot_utils.is_ground_vehicle_transform_stream).add_callback(
-            ERDOSAgentOperator.on_vehicle_transform_update)
-        input_streams.filter(pylot_utils.is_ground_forward_speed_stream).add_callback(
-            ERDOSAgentOperator.on_forward_speed_update)
-
+        input_streams.filter(pylot_utils.is_can_bus_stream).add_callback(
+            ERDOSAgentOperator.on_can_bus_update)
         input_streams.filter(pylot_utils.is_waypoints_stream).add_callback(
             ERDOSAgentOperator.on_waypoints_update)
         input_streams.filter(pylot_utils.is_traffic_lights_stream).add_callback(
@@ -72,7 +69,7 @@ class ERDOSAgentOperator(Op):
             self._traffic_lights[0].timestamp,
             self._depth_msgs[0].timestamp,
             self._vehicle_transforms[0].timestamp))
-        vehicle_transform = self._vehicle_transforms[0].data
+        vehicle_transform = self._vehicle_transforms[0]
         self._vehicle_transforms = self._vehicle_transforms[1:]
 
         depth_msg = self._depth_msgs[0]
@@ -106,8 +103,9 @@ class ERDOSAgentOperator(Op):
         self._wp_vector = msg.wp_vector
         self._wp_angle_speed = msg.wp_angle_speed
 
-    def on_vehicle_transform_update(self, msg):
-        self._vehicle_transforms.append(msg)
+    def on_can_bus_update(self, msg):
+        self._vehicle_transforms.append(msg.data.transform)
+        self._vehicle_speed = msg.data.forward_speed
 
     def on_depth_camera_update(self, msg):
         self._depth_msgs.append(msg)
@@ -131,9 +129,6 @@ class ERDOSAgentOperator(Op):
     def on_detected_lane_update(self, msg):
         # TODO(ionel): Implement!
         pass
-
-    def on_forward_speed_update(self, msg):
-        self._vehicle_speed = msg.data
 
     def execute(self):
         self.spin()

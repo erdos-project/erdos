@@ -80,8 +80,6 @@ class PIDControlOperator(Op):
         """
         input_streams.filter(pylot_utils.is_waypoints_stream).add_callback(
             PIDControlOperator.on_waypoint)
-        input_streams.filter(pylot_utils.is_ground_vehicle_transform_stream).add_callback(
-            PIDControlOperator.on_vehicle_transform_update)
         input_streams.filter(pylot_utils.is_can_bus_stream).add_callback(
             PIDControlOperator.on_can_bus_update)
         return [pylot_utils.create_control_stream()]
@@ -158,9 +156,7 @@ class PIDControlOperator(Op):
 
     def on_can_bus_update(self, msg):
         self._latest_speed = msg.data.forward_speed
-
-    def on_vehicle_transform_update(self, msg):
-        self._vehicle_transform = msg.data
+        self._vehicle_transform = msg.data.transform
         throttle = 0.0
         brake = 0
         steer = 0

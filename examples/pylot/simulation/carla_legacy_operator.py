@@ -78,8 +78,7 @@ class CarlaLegacyOperator(Op):
                                     labels={'sensor_type': 'lidar'})
                          for lidar in lidar_stream_names]
         return [
-            DataStream(name='vehicle_transform'),
-            DataStream(name='forward_speed'),
+            DataStream(name='can_bus'),
             DataStream(name='traffic_lights'),
             DataStream(name='pedestrians'),
             DataStream(name='vehicles'),
@@ -206,13 +205,10 @@ class CarlaLegacyOperator(Op):
             player_measurements.transform.rotation.yaw,
             player_measurements.transform.rotation.roll,
             orientation=orientation)
-        self.get_output_stream('vehicle_transform').send(
-            Message(vehicle_transform, timestamp))
-        self.get_output_stream('vehicle_transform').send(watermark)
-
-        self.get_output_stream('forward_speed').send(
-            Message(player_measurements.forward_speed * 3.6, timestamp))
-        self.get_output_stream('forward_speed').send(watermark)
+        forward_speed = player_measurements.forward_speed * 3.6
+        can_bus = simulation.utils.CanBus(vehicle_transform, forward_speed)
+        self.get_output_stream('can_bus').send(Message(can_bus, timestamp))
+        self.get_output_stream('can_bus').send(watermark)
 
     def __get_ground_agents(self, measurements):
         vehicles = []

@@ -23,16 +23,16 @@ class ChallengePlanningOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams):
-        input_streams.filter(pylot_utils.is_ground_vehicle_transform_stream).add_callback(
-            ChallengePlanningOperator.on_vehicle_transform_update)
+        input_streams.filter(pylot_utils.is_can_bus_stream).add_callback(
+            ChallengePlanningOperator.on_can_bus_update)
         input_streams.filter(pylot_utils.is_open_drive_stream).add_callback(
             ChallengePlanningOperator.on_opendrive_map)
         input_streams.filter(pylot_utils.is_global_trajectory_stream).add_callback(
             ChallengePlanningOperator.on_global_trajectory)
         return [pylot_utils.create_waypoints_stream()]
 
-    def on_vehicle_transform_update(self, msg):
-        self._vehicle_transform = msg.data
+    def on_can_bus_update(self, msg):
+        self._vehicle_transform = msg.data.transform
         next_waypoint, _ = self.__compute_next_waypoint()
         if next_waypoint:
             target_speed = get_target_speed(

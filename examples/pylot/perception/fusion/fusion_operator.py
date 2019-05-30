@@ -45,7 +45,7 @@ class FusionOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams, output_stream_name):
-        input_streams.filter(pylot_utils.is_ground_vehicle_transform_stream).add_callback(
+        input_streams.filter(pylot_utils.is_can_bus_stream).add_callback(
             FusionOperator.update_pos)
         input_streams.filter(pylot_utils.is_obstacles_stream).add_callback(
             FusionOperator.update_objects)
@@ -119,12 +119,12 @@ class FusionOperator(Op):
         self.get_output_stream(self._output_stream_name).send(output_msg)
 
     def update_pos(self, msg):
-        vehicle_pos = ((msg.data.location.x,
-                        msg.data.location.y,
-                        msg.data.location.z),
-                       (msg.data.orientation.x,
-                        msg.data.orientation.y,
-                        msg.data.orientation.z))
+        vehicle_pos = ((msg.data.transform.location.x,
+                        msg.data.transform.location.y,
+                        msg.data.transform.location.z),
+                       (msg.data.transform.orientation.x,
+                        msg.data.transform.orientation.y,
+                        msg.data.transform.orientation.z))
         self._car_positions.append((msg.timestamp, vehicle_pos))
 
     def update_objects(self, msg):

@@ -140,8 +140,7 @@ def create_record_op(graph, name, filename, filter_name):
 
 def create_record_carla_op(graph):
     input_names = [
-        'vehicle_transform', 'acceleration', 'forward_speed',
-        'traffic_lights', 'pedestrians', 'vehicles', 'traffic_signs'
+        'can_bus', 'traffic_lights', 'pedestrians', 'vehicles', 'traffic_signs'
     ]
     record_carla_op = graph.add(
         RecordOp,

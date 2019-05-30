@@ -45,14 +45,6 @@ def is_ground_traffic_signs_stream(stream):
     return stream.name == 'traffic_signs'
 
 
-def is_ground_vehicle_transform_stream(stream):
-    return stream.name == 'vehicle_transform'
-
-
-def is_ground_forward_speed_stream(stream):
-    return stream.name == 'forward_speed'
-
-
 # ERDOS streams
 def create_segmented_camera_stream(name):
     return DataStream(name=name,

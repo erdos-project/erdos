@@ -85,8 +85,7 @@ class CarlaOperator(Op):
     def setup_streams(input_streams):
         input_streams.add_callback(CarlaOperator.on_control_msg)
         ground_agent_streams = [
-            DataStream(name='vehicle_transform'),
-            DataStream(name='forward_speed'),
+            DataStream(name='can_bus'),
             DataStream(name='traffic_lights'),
             DataStream(name='pedestrians'),
             DataStream(name='vehicles'),
@@ -227,23 +226,20 @@ class CarlaOperator(Op):
         self.spin()
 
     def __publish_hero_vehicle_data(self, timestamp, watermark_msg):
-        speed = simulation.utils.get_speed(
+        vec_transform = simulation.utils.to_erdos_transform(
+            self._driving_vehicle.get_transform())
+        forward_speed = simulation.utils.get_speed(
             self._driving_vehicle.get_velocity())
-        self.get_output_stream('forward_speed').send(
-            Message(speed, timestamp))
-        self.get_output_stream('forward_speed').send(watermark_msg)
+        can_bus = simulation.utils.CanBus(vec_transform, forward_speed)
+        self.get_output_stream('can_bus').send(
+            Message(can_bus, timestamp))
+        self.get_output_stream('can_bus').send(watermark_msg)
 
         # Set the world simulation view with respect to the vehicle.
         v_pose = self._driving_vehicle.get_transform()
         v_pose.location -= 10 * carla.Location(v_pose.get_forward_vector())
         v_pose.location.z = 5
         self._world.get_spectator().set_transform(v_pose)
-
-        vec_transform = simulation.utils.to_erdos_transform(
-            self._driving_vehicle.get_transform())
-        self.get_output_stream('vehicle_transform').send(
-            Message(vec_transform, timestamp))
-        self.get_output_stream('vehicle_transform').send(watermark_msg)
 
     def __publish_ground_actors_data(self, timestamp, watermark_msg):
         # Get all the actors in the simulation.

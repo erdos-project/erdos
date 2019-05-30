@@ -29,13 +29,13 @@ class WaypointerOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams):
-        input_streams.filter(pylot_utils.is_ground_vehicle_transform_stream).add_callback(
-            WaypointerOperator.on_vehicle_transform_update)
+        input_streams.filter(pylot_utils.is_can_bus_stream).add_callback(
+            WaypointerOperator.on_can_bus_update)
         return [pylot_utils.create_waypoints_stream()]
 
-    def on_vehicle_transform_update(self, msg):
+    def on_can_bus_update(self, msg):
         start_time = time.time()
-        (wp_angle, wp_vector, wp_angle_speed, wp_vector_speed) = self.get_waypoints(msg.data)
+        (wp_angle, wp_vector, wp_angle_speed, wp_vector_speed) = self.get_waypoints(msg.data.transform)
         runtime = (time.time() - start_time) * 1000
         self._csv_logger.info('{},{},{}'.format(
             time_epoch_ms(), self.name, runtime))

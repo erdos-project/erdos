@@ -23,7 +23,7 @@ Scale.__new__.__defaults__ = (1.0, 1.0, 1.0)
 
 class CanBus(object):
     def __init__(self, transform, forward_speed):
-        self.transform = None
+        self.transform = transform
         self.forward_speed = forward_speed
 
     def __repr__(self):
@@ -126,13 +126,19 @@ class Transform(object):
 
 
 def to_erdos_transform(transform):
-    fwd_vector = transform.get_forward_vector()
+    orientation = None
+    # get_forward_vector() is only available in carla 0.9.5.
+    get_fwd_vector = getattr(transform, "get_forward_vector", None)
+    if callable(get_fwd_vector):
+        fwd_vector = transform.get_forward_vector()
+        orientation = Orientation(fwd_vector.x, fwd_vector.y, fwd_vector.z)
+
     return Transform(
         Location(carla_loc=transform.location),
         transform.rotation.pitch,
         transform.rotation.yaw,
         transform.rotation.roll,
-        Orientation(fwd_vector.x, fwd_vector.y, fwd_vector.z))
+        orientation)
 
 
 def depth_to_array(image):

@@ -39,10 +39,8 @@ class GroundAgentOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams):
-        input_streams.filter(pylot_utils.is_ground_vehicle_transform_stream).add_callback(
-            GroundAgentOperator.on_vehicle_transform_update)
-        input_streams.filter(pylot_utils.is_ground_forward_speed_stream).add_callback(
-            GroundAgentOperator.on_forward_speed_update)
+        input_streams.filter(pylot_utils.is_can_bus_stream).add_callback(
+            GroundAgentOperator.on_can_bus_update)
         input_streams.filter(pylot_utils.is_ground_pedestrians_stream).add_callback(
             GroundAgentOperator.on_pedestrians_update)
         input_streams.filter(pylot_utils.is_ground_vehicles_stream).add_callback(
@@ -62,12 +60,10 @@ class GroundAgentOperator(Op):
         self._wp_vector = msg.wp_vector
         self._wp_angle_speed = msg.wp_angle_speed
 
-    def on_vehicle_transform_update(self, msg):
+    def on_can_bus_update(self, msg):
         self._logger.info("Received vehicle pos %s", msg)
-        self._vehicle_transform = msg.data
-
-    def on_forward_speed_update(self, msg):
-        self._vehicle_speed = msg.data
+        self._vehicle_transform = msg.data.transform
+        self._vehicle_speed = msg.data.forward_speed
 
     def on_pedestrians_update(self, msg):
         self._pedestrians = msg.pedestrians

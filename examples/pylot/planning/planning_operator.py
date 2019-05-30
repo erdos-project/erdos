@@ -44,12 +44,12 @@ class PlanningOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams):
-        input_streams.filter(pylot_utils.is_ground_vehicle_transform_stream).add_callback(
-            PlanningOperator.on_vehicle_transform_update)
+        input_streams.filter(pylot_utils.is_can_bus_stream).add_callback(
+            PlanningOperator.on_can_bus_update)
         return [pylot_utils.create_waypoints_stream()]
 
-    def on_vehicle_transform_update(self, msg):
-        self._vehicle_transform = msg.data
+    def on_can_bus_update(self, msg):
+        self._vehicle_transform = msg.data.transform
         route = self.__update_waypoints(
             carla.Location(self._vehicle_transform.location.x,
                            self._vehicle_transform.location.y,

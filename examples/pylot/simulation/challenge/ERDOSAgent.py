@@ -145,7 +145,6 @@ class ERDOSAgent(AutonomousAgent):
         self._camera_stream.setup()
         self._global_trajectory_stream.setup()
         self._open_drive_stream.setup()
-        self._vehicle_transform_stream.setup()
         self._can_bus_stream.setup()
 
     def sensors(self):
@@ -222,15 +221,10 @@ class ERDOSAgent(AutonomousAgent):
                 self._vehicle_transform = simulation.utils.to_erdos_transform(
                     val[1]['transform'])
                 forward_speed = val[1]['speed']
-
                 can_bus = simulation.utils.CanBus(
                     self._vehicle_transform, forward_speed)
                 self._can_bus_stream.send(Message(can_bus, erdos_timestamp))
                 self._can_bus_stream.send(watermark)
-                self._vehicle_transform_stream.send(
-                    Message(self._vehicle_transform, erdos_timestamp))
-                self._vehicle_transform_stream.send(watermark)
-
             elif key == 'GPS':
                 gps = simulation.utils.LocationGeo(val[1][0], val[1][1], val[1][2])
             elif key == 'hdmap':
@@ -276,10 +270,6 @@ class ERDOSAgent(AutonomousAgent):
                        labels={'sensor_type': 'camera',
                                'camera_type': 'sensor.camera.rgb'}))
 
-        self._vehicle_transform_stream = ROSOutputDataStream(
-            DataStream(name='vehicle_transform',
-                       uid='vehicle_transform'))
-
         # Stream on which we send the global trajectory.
         self._global_trajectory_stream = ROSOutputDataStream(
             DataStream(name='global_trajectory_stream',
@@ -298,7 +288,6 @@ class ERDOSAgent(AutonomousAgent):
         return self.graph.add(NoopOp,
                               name='scenario_input',
                               input_streams=[self._camera_stream,
-                                             self._vehicle_transform_stream,
                                              self._global_trajectory_stream,
                                              self._open_drive_stream,
                                              self._can_bus_stream])
