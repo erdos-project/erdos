@@ -81,6 +81,9 @@ class ERDOSAgent(AutonomousAgent):
         self.track = Track.ALL_SENSORS_HDMAP_WAYPOINTS
 #        self.track = Track.ALL_SENSORS
 #        self.track = Track.CAMERAS
+        loc = simulation.utils.Location(2.0, 0.0, 1.40)
+        self._camera_transform = simulation.utils.Transform(
+            loc, pitch=0, yaw=0, roll=0)
         self._lock = threading.Lock()
         self._vehicle_transform = None
         self._waypoints = None
@@ -93,15 +96,18 @@ class ERDOSAgent(AutonomousAgent):
 
         scenario_input_op = self.__create_scenario_input_op()
 
-        visualization_ops = add_visualization_operators(self.graph, RGB_CAMERA_NAME)
+        visualization_ops = add_visualization_operators(
+            self.graph, RGB_CAMERA_NAME)
 
         segmentation_ops = []
         if FLAGS.segmentation_drn:
-            segmentation_op = operator_creator.create_segmentation_drn_op(self.graph)
+            segmentation_op = operator_creator.create_segmentation_drn_op(
+                self.graph)
             segmentation_ops.append(segmentation_op)
 
         if FLAGS.segmentation_dla:
-            segmentation_op = operator_creator.create_segmentation_dla_op(self.graph)
+            segmentation_op = operator_creator.create_segmentation_dla_op(
+                self.graph)
             segmentation_ops.append(segmentation_op)
 
         obj_detector_ops = []
@@ -109,16 +115,19 @@ class ERDOSAgent(AutonomousAgent):
         if FLAGS.obj_detection:
             obj_detector_ops = operator_creator.create_detector_ops(self.graph)
             if FLAGS.obj_tracking:
-                tracker_op = operator_creator.create_object_tracking_op(self.graph)
+                tracker_op = operator_creator.create_object_tracking_op(
+                    self.graph)
                 tracker_ops.append(tracker_op)
 
         traffic_light_det_ops = []
         if FLAGS.traffic_light_det:
-            traffic_light_det_ops.append(operator_creator.create_traffic_light_op(self.graph))
+            traffic_light_det_ops.append(
+                operator_creator.create_traffic_light_op(self.graph))
 
         lane_detection_ops = []
         if FLAGS.lane_detection:
-            lane_detection_ops.append(operator_creator.create_lane_detection_op(self.graph))
+            lane_detection_ops.append(
+                operator_creator.create_lane_detection_op(self.graph))
 
         planning_ops = [create_planning_op(self.graph)]
 
@@ -146,6 +155,8 @@ class ERDOSAgent(AutonomousAgent):
         self._global_trajectory_stream.setup()
         self._open_drive_stream.setup()
         self._can_bus_stream.setup()
+        if FLAGS.lidar:
+            self._point_cloud_stream.setup()
 
     def sensors(self):
         """
@@ -168,26 +179,28 @@ class ERDOSAgent(AutonomousAgent):
         hd_map_sensor = [{'type': 'sensor.hd_map',
                           'reading_frequency': 30,
                           'id': 'hdmap'}]
+
         front_camera_sensor = [{'type': 'sensor.camera.rgb',
-                                'x': 2.0,
-                                'y': 0.0,
-                                'z': 1.40,
-                                'roll':0.0,
-                                'pitch':0.0,
-                                'yaw': 0.0,
+                                'x': self._camera_transform.location.x,
+                                'y': self._camera_transform.location.y,
+                                'z': self._camera_transform.location.z,
+                                'roll': self._camera_transform.rotation.roll,
+                                'pitch': self._camera_transform.rotation.pitch,
+                                'yaw': self._camera_transform.rotation.yaw,
                                 'width': 800,
                                 'height': 600,
-                                'fov':100,
+                                'fov': 100,
                                 'id': RGB_CAMERA_NAME}]
-        # TODO(ionel): Put the Lidar in the same location as the camera.
-        lidar_sensor = [{'type': 'sensor.lidar.ray_cast',
-                         'x': 0.7,
-                         'y': -0.4,
-                         'z': 1.60,
-                         'roll': 0.0,
-                         'pitch': 0.0,
-                         'yaw': -45.0,
-                         'id': 'LIDAR'}]
+        lidar_sensor = []
+        if FLAGS.lidar:
+            lidar_sensor = [{'type': 'sensor.lidar.ray_cast',
+                             'x': self._camera_transform.location.x,
+                             'y': self._camera_transform.location.y,
+                             'z': self._camera_transform.location.z,
+                             'roll': self._camera_transform.rotation.roll,
+                             'pitch': self._camera_transform.rotation.pitch,
+                             'yaw': self._camera_transform.rotation.yaw,
+                             'id': 'LIDAR'}]
         sensors = can_sensor + gps_sensor + hd_map_sensor + front_camera_sensor + lidar_sensor
         return sensors
 
@@ -212,8 +225,9 @@ class ERDOSAgent(AutonomousAgent):
             #print("{} {} {}".format(key, val[0], type(val[1])))
             if key == RGB_CAMERA_NAME:
                 self._camera_stream.send(
-                    simulation.messages.FrameMessage(pylot_utils.bgra_to_bgr(val[1]),
-                                                     erdos_timestamp))
+                    simulation.messages.FrameMessage(
+                        pylot_utils.bgra_to_bgr(val[1]),
+                        erdos_timestamp))
                 self._camera_stream.send(watermark)
             elif key == 'can_bus':
                 # The can bus dict contains other fields as well, but we don't
@@ -226,7 +240,8 @@ class ERDOSAgent(AutonomousAgent):
                 self._can_bus_stream.send(Message(can_bus, erdos_timestamp))
                 self._can_bus_stream.send(watermark)
             elif key == 'GPS':
-                gps = simulation.utils.LocationGeo(val[1][0], val[1][1], val[1][2])
+                gps = simulation.utils.LocationGeo(
+                    val[1][0], val[1][1], val[1][2])
             elif key == 'hdmap':
                 # Sending once opendrive data
                 if not self._sent_open_drive_data:
@@ -234,15 +249,24 @@ class ERDOSAgent(AutonomousAgent):
                     self._sent_open_drive_data = True
                     self._open_drive_stream.send(
                         Message(self._open_drive_data, erdos_timestamp))
-                    self._open_drive_stream.send(watermark)
+                    # TODO(ionel): We should have a top watermark.
+                    # This is dangerous!
+                    top_watermark = WatermarkMessage(
+                        Timestamp(coordinates=[1000000000.0, 1000000000]))
+                    self._open_drive_stream.send(top_watermark)
                 assert self._open_drive_data == val[1]['opendrive'],\
                     'Opendrive data changed.'
 
                 # TODO(ionel): Send point cloud data.
                 pc_file = val[1]['map_file']
             elif key == 'LIDAR':
-                # TODO(ionel): Send point cloud data.
-                pass
+                # TODO(ionel): Check if the Lidar transform is correct.
+                msg = simulation.messages.PointCloudMessage(
+                    point_cloud=val[1],
+                    transform=self._camera_transform,
+                    timestamp=erdos_timestamp)
+                self._point_cloud_stream.send(msg)
+                self._point_cloud_stream.send(watermark)
 
         # Wait until the control is set.
         while self._control is None:
@@ -285,9 +309,16 @@ class ERDOSAgent(AutonomousAgent):
         self._can_bus_stream = ROSOutputDataStream(
             DataStream(name='can_bus', uid='can_bus'))
 
+        input_streams = [self._camera_stream, self._global_trajectory_stream,
+                         self._open_drive_stream, self._can_bus_stream]
+
+        if FLAGS.lidar:
+            self._point_cloud_stream = ROSOutputDataStream(
+                DataStream(name='lidar',
+                           uid='lidar',
+                           labels={'sensor_type': 'sensor.lidar.ray_cast'}))
+            input_streams.append(self._point_cloud_stream)
+
         return self.graph.add(NoopOp,
                               name='scenario_input',
-                              input_streams=[self._camera_stream,
-                                             self._global_trajectory_stream,
-                                             self._open_drive_stream,
-                                             self._can_bus_stream])
+                              input_streams=input_streams)

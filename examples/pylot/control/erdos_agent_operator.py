@@ -17,7 +17,6 @@ import pylot_utils
 class ERDOSAgentOperator(Op):
     def __init__(self,
                  name,
-                 depth_camera_name,
                  flags,
                  log_file_name=None,
                  csv_file_name=None):

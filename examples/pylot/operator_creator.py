@@ -57,7 +57,6 @@ def create_erdos_agent_op(graph, depth_camera_name):
         ERDOSAgentOperator,
         name='erdos_agent',
         init_args={
-            'depth_camera_name': depth_camera_name,
             'flags': FLAGS,
             'log_file_name': FLAGS.log_file_name,
             'csv_file_name': FLAGS.csv_log_file_name
@@ -94,12 +93,14 @@ def create_waypointer_op(graph, goal_location, goal_orientation):
         })
     return waypointer_op
 
+
 def create_lidar_visualizer_op(graph):
     lidar_visualizer_op = graph.add(
         LidarVisualizerOperator,
         name='lidar_visualizer',
         init_args={'flags': FLAGS,
                    'log_file_name': FLAGS.log_file_name})
+    return lidar_visualizer_op
 
 
 def create_lidar_record_op(graph):

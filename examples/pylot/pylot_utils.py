@@ -33,8 +33,10 @@ def is_ground_segmented_camera_stream(stream):
     return (stream.get_label('sensor_type') == 'camera' and
             stream.get_label('camera_type') == 'sensor.camera.semantic_segmentation')
 
+
 def create_vehicle_id_stream():
     return DataStream(name='vehicle_id_stream')
+
 
 def is_ground_vehicle_id_stream(stream):
     return stream.name == 'vehicle_id_stream'
