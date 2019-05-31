@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 import threading
 
@@ -5,12 +6,14 @@ import carla
 
 import pylot_utils
 import simulation.carla_utils
+from simulation.messages import PointCloudMessage
+import simulation.utils
+
 
 # ERDOS specific imports.
 from erdos.op import Op
-from erdos.data_stream import DataStream
 from erdos.utils import setup_logging
-from erdos.message import Message, WatermarkMessage
+from erdos.message import WatermarkMessage
 from erdos.timestamp import Timestamp
 
 
@@ -54,8 +57,7 @@ class LidarDriverOperator(Op):
     def setup_streams(input_streams, lidar_setup):
         input_streams.filter(pylot_utils.is_ground_vehicle_id_stream)\
                      .add_callback(LidarDriverOperator.on_vehicle_id)
-        return [DataStream(name=lidar_setup.name,
-                           labels={'sensor_type': 'lidar'})]
+        return [pylot_utils.create_lidar_stream(lidar_setup)]
 
     def process_point_clouds(self, carla_pc):
         with self._lock:
@@ -63,7 +65,15 @@ class LidarDriverOperator(Op):
                 coordinates=[carla_pc.timestamp, self._message_cnt])
             watermark_msg = WatermarkMessage(timestamp)
             self._message_cnt += 1
-            msg = Message(carla_pc.raw_data, timestamp)
+
+            points = np.frombuffer(carla_pc.raw_data, dtype=np.dtype('f4'))
+            points = copy.deepcopy(points)
+            points = np.reshape(points, (int(points.shape[0] / 3), 3))
+
+            msg = PointCloudMessage(
+                points,
+                simulation.utils.to_erdos_transform(carla_pc.transform),
+                timestamp)
 
             self.get_output_stream(self._lidar_setup.name).send(msg)
             self.get_output_stream(self._lidar_setup.name).send(watermark_msg)
@@ -95,8 +105,9 @@ class LidarDriverOperator(Op):
                                       str(self._lidar_setup.range))
         lidar_blueprint.set_attribute('points_per_second',
                                       str(self._lidar_setup.points_per_second))
-        lidar_blueprint.set_attribute('rotation_frequency',
-                                      str(self._lidar_setup.rotation_frequency))
+        lidar_blueprint.set_attribute(
+            'rotation_frequency',
+            str(self._lidar_setup.rotation_frequency))
         lidar_blueprint.set_attribute('upper_fov',
                                       str(self._lidar_setup.upper_fov))
         lidar_blueprint.set_attribute('lower_fov',

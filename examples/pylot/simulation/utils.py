@@ -122,7 +122,10 @@ class Transform(object):
         return Transform(matrix=np.dot(self.matrix, other.matrix))
 
     def __str__(self):
-        return str(self.matrix)
+        if self.location:
+            return "location: {}, rotation: {}".format(self.location, self.rotation)
+        else:
+            return str(self.matrix)
 
 
 def to_erdos_transform(transform):

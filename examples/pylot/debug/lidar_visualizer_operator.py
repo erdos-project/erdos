@@ -22,9 +22,9 @@ class LidarVisualizerOperator(Op):
 
     def display_point_cloud(self, msg):
         #        filename = './carla-point-cloud{}.ply'.format(self.cnt)
-        pptk.viewer(msg.data)
+        pptk.viewer(msg.point_cloud)
         # pcd = open3d.PointCloud()
-        # pcd.points = open3d.Vector3dVector(msg.data)
+        # pcd.points = open3d.Vector3dVector(msg.point_cloud)
         # open3d.draw_geometries([pcd])
 
     def execute(self):

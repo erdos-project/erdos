@@ -76,12 +76,9 @@ class CarlaLegacyOperator(Op):
     @staticmethod
     def setup_streams(input_streams, camera_setups, lidar_setups):
         input_streams.add_callback(CarlaLegacyOperator.update_control)
-        camera_streams = [DataStream(name=cs.name,
-                                     labels={'sensor_type': 'camera',
-                                             'camera_type': cs.type})
+        camera_streams = [pylot_utils.create_camera_stream(cs)
                           for cs in camera_setups]
-        lidar_streams = [DataStream(name=ls.name,
-                                    labels={'sensor_type': ls.type})
+        lidar_streams = [pylot_utils.create_lidar_stream(ls)
                          for ls in lidar_setups]
         return [
             DataStream(name='can_bus'),

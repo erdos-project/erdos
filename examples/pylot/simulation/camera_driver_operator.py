@@ -1,20 +1,17 @@
-import numpy as np
 import threading
 
 import carla
 
 from perception.messages import SegmentedFrameMessage
 import pylot_utils
-from simulation.messages import DepthFrameMessage, FrameMessage
 import simulation.carla_utils
 import simulation.utils
 from simulation.utils import depth_to_array, labels_to_array, to_bgra_array
 
 # ERDOS specific imports.
 from erdos.op import Op
-from erdos.data_stream import DataStream
 from erdos.utils import setup_logging
-from erdos.message import Message, WatermarkMessage
+from erdos.message import WatermarkMessage
 from erdos.timestamp import Timestamp
 
 
@@ -69,9 +66,7 @@ class CameraDriverOperator(Op):
         """
         input_streams.filter(pylot_utils.is_ground_vehicle_id_stream)\
                      .add_callback(CameraDriverOperator.on_vehicle_id)
-        return [DataStream(name=camera_setup.name,
-                           labels={'sensor_type': 'camera',
-                                   'camera_type': camera_setup.type})]
+        return [pylot_utils.create_camera_stream(camera_setup)]
 
     def process_images(self, carla_image):
         with self._lock:

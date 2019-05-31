@@ -1,10 +1,12 @@
-from collections import namedtuple
-
 from erdos.message import Message
 
 
 class FrameMessage(Message):
-    def __init__(self, frame_array, timestamp, encoding='BGR', stream_name='default'):
+    def __init__(self,
+                 frame_array,
+                 timestamp,
+                 encoding='BGR',
+                 stream_name='default'):
         super(FrameMessage, self).__init__(None, timestamp, stream_name)
         self.frame = frame_array
         self.width = frame_array.shape[1]
@@ -17,7 +19,12 @@ class FrameMessage(Message):
 
 
 class DepthFrameMessage(Message):
-    def __init__(self, frame, transform, fov, timestamp, stream_name='default'):
+    def __init__(self,
+                 frame,
+                 transform,
+                 fov,
+                 timestamp,
+                 stream_name='default'):
         super(DepthFrameMessage, self).__init__(None, timestamp, stream_name)
         self.frame = frame
         self.transform = transform
@@ -28,6 +35,22 @@ class DepthFrameMessage(Message):
     def __str__(self):
         return 'timestamp: {}, width: {}, height: {}, fov: {}'.format(
             self.timestamp, self.width, self.height, self.fov)
+
+
+class PointCloudMessage(Message):
+    def __init__(self,
+                 point_cloud,
+                 transform,
+                 timestamp,
+                 stream_name='default'):
+        super(PointCloudMessage, self).__init__(None, timestamp, stream_name)
+        self.point_cloud = point_cloud
+        self.transform = transform
+
+    def __str__(self):
+        return 'timestamp: {}, num point clouds: {}'.format(
+            self.timestamp, len(self.point_cloud))
+
 
 class GroundVehiclesMessage(Message):
     def __init__(self, vehicles, timestamp, stream_name='default'):
