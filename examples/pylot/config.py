@@ -143,6 +143,10 @@ flags.DEFINE_integer('carla_camera_image_width', 800,
 flags.DEFINE_integer('carla_camera_image_height', 600,
                      'Carla camera image height')
 
+# Estimate depth using two cameras.
+flags.DEFINE_bool('depth_estimation', False,
+                  'True to depth estimation using cameras')
+
 # Visualizing operators
 flags.DEFINE_bool('visualize_depth_camera', False,
                   'True to enable depth camera video operator')

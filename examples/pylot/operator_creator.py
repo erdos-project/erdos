@@ -6,6 +6,7 @@ from control.ground_agent_operator import GroundAgentOperator
 # Import debug operators.
 from debug.camera_replay_operator import CameraReplayOperator
 from debug.depth_camera_visualizer import DepthCameraVisualizer
+from debug.depth_estimation_operator import DepthEstimationOp
 from debug.lidar_visualizer_operator import LidarVisualizerOperator
 from debug.segmented_video_operator import SegmentedVideoOperator
 from debug.video_operator import VideoOperator
@@ -174,6 +175,20 @@ def create_detector_op_helper(graph, name, model_path, gpu_memory_fraction):
                    'csv_file_name': FLAGS.csv_log_file_name},
         _resources = {"GPU": gpu_memory_fraction})
     return obj_detector_op
+
+
+def create_depth_estimation_op(graph, left_camera_name, right_camera_name):
+    depth_estimation_op = graph.add(
+        DepthEstimationOp,
+        name='depth_estimation',
+        init_args={
+            'flags': FLAGS,
+            'log_file_name': FLAGS.log_file_name
+        },
+        setup_args={
+            'left_camera_name': left_camera_name,
+            'right_camera_name': right_camera_name})
+    return depth_estimation_op
 
 
 def create_detector_ops(graph):

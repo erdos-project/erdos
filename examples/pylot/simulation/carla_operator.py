@@ -4,6 +4,7 @@ import carla
 
 import pylot_utils
 import simulation.carla_utils
+import simulation.messages
 import simulation.utils
 
 # ERDOS specific imports.

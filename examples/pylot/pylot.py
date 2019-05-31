@@ -2,8 +2,6 @@ from absl import app
 from absl import flags
 
 import erdos.graph
-from erdos.operators import RecordOp
-from erdos.operators import ReplayOp
 
 import config
 import operator_creator
@@ -11,7 +9,9 @@ import simulation.utils
 
 
 FLAGS = flags.FLAGS
-RGB_CAMERA_NAME = 'front_rgb_camera'
+CENTER_CAMERA_NAME = 'front_rgb_camera'
+LEFT_CAMERA_NAME = 'front_left_rgb_camera'
+RIGHT_CAMERA_NAME = 'front_right_rgb_camera'
 DEPTH_CAMERA_NAME = 'front_depth_camera'
 SEGMENTED_CAMERA_NAME = 'front_semantic_camera'
 
@@ -120,13 +120,27 @@ def create_waypoint_visualizer_op(graph):
     return waypoint_viz_op
 
 
+def create_left_right_camera_setups():
+    left_camera_setup = simulation.utils.CameraSetup(
+        LEFT_CAMERA_NAME,
+        'sensor.camera.rgb',
+        (FLAGS.carla_camera_image_width, FLAGS.carla_camera_image_height),
+        (2.0, -0.4, 1.4))
+    right_camera_setup = simulation.utils.CameraSetup(
+        RIGHT_CAMERA_NAME,
+        'sensor.camera.rgb',
+        (FLAGS.carla_camera_image_width, FLAGS.carla_camera_image_height),
+        (2.0, 0.4, 1.4))
+    return [left_camera_setup, right_camera_setup]
+
+
 def main(argv):
 
     # Define graph
     graph = erdos.graph.get_current_graph()
 
     rgb_camera_setup = simulation.utils.CameraSetup(
-        RGB_CAMERA_NAME,
+        CENTER_CAMERA_NAME,
         'sensor.camera.rgb',
         (FLAGS.carla_camera_image_width, FLAGS.carla_camera_image_height),
         (2.0, 0.0, 1.4))
@@ -140,7 +154,12 @@ def main(argv):
         'sensor.camera.semantic_segmentation',
         (FLAGS.carla_camera_image_width, FLAGS.carla_camera_image_height),
         (2.0, 0.0, 1.4))
-    camera_setups = [rgb_camera_setup, depth_camera_setup, segmented_camera_setup]
+    camera_setups = [rgb_camera_setup,
+                     depth_camera_setup,
+                     segmented_camera_setup]
+
+    if FLAGS.depth_estimation:
+        camera_setups = camera_setups + create_left_right_camera_setups()
 
     lidar_setups = []
     if FLAGS.lidar:
@@ -148,7 +167,7 @@ def main(argv):
             name='front_center_lidar',
             type='sensor.lidar.ray_cast',
             pos=(2.0, 0.0, 1.4),
-            range=5000,
+            range=5000,  # in centimers
             rotation_frequency=20,
             channels=32,
             upper_fov=15,
@@ -164,7 +183,8 @@ def main(argv):
         camera_ops = [carla_op]
     elif '0.9' in FLAGS.carla_version:
         carla_op = create_carla_op(graph)
-        camera_ops = [create_camera_driver_op(graph, cs) for cs in camera_setups]
+        camera_ops = [create_camera_driver_op(graph, cs)
+                      for cs in camera_setups]
         lidar_ops = [create_lidar_driver_op(graph, ls) for ls in lidar_setups]
         graph.connect([carla_op], camera_ops + lidar_ops)
     else:
@@ -173,14 +193,14 @@ def main(argv):
 
     # Add visual operators.
     operator_creator.add_visualization_operators(
-        graph, camera_ops, lidar_ops, RGB_CAMERA_NAME, DEPTH_CAMERA_NAME)
+        graph, camera_ops, lidar_ops, CENTER_CAMERA_NAME, DEPTH_CAMERA_NAME)
 
     # Add recording operators.
     operator_creator.add_recording_operators(graph,
                                              camera_ops,
                                              carla_op,
                                              lidar_ops,
-                                             RGB_CAMERA_NAME,
+                                             CENTER_CAMERA_NAME,
                                              DEPTH_CAMERA_NAME)
 
     segmentation_ops = []
@@ -240,6 +260,11 @@ def main(argv):
     if FLAGS.lane_detection:
         lane_detection_ops.append(operator_creator.create_lane_detection_op(graph))
         graph.connect(camera_ops, lane_detection_ops)
+
+    if FLAGS.depth_estimation:
+        depth_estimation_op = operator_creator.create_depth_estimation_op(
+            graph, LEFT_CAMERA_NAME, RIGHT_CAMERA_NAME)
+        graph.connect(camera_ops + lidar_ops + [carla_op], [depth_estimation_op])
 
     agent_op = None
     if FLAGS.ground_agent_operator:

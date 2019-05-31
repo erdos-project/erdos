@@ -2,7 +2,6 @@ from absl import flags
 import pickle
 import rospy
 from std_msgs.msg import String
-import scipy.misc
 import time
 import threading
 
@@ -19,9 +18,7 @@ from erdos.timestamp import Timestamp
 
 import config
 from control.pid_control_operator import PIDControlOperator
-from debug.video_operator import VideoOperator
 import operator_creator
-from perception.segmentation.segmentation_drn_operator import SegmentationDRNOperator
 from planning.challenge_planning_operator import ChallengePlanningOperator
 import pylot_utils
 import simulation.messages
@@ -29,14 +26,16 @@ import simulation.utils
 
 
 FLAGS = flags.FLAGS
-RGB_CAMERA_NAME='front_center_camera'
+CENTER_CAMERA_NAME = 'front_center_camera'
+LEFT_CAMERA_NAME = 'front_left_camera'
+RIGHT_CAMERA_NAME = 'front_right_camera'
 
 
 def add_visualization_operators(graph, rgb_camera_name):
     visualization_ops = []
     if FLAGS.visualize_rgb_camera:
         camera_video_op = operator_creator.create_camera_video_op(
-            graph, 'rgb_camera', rgb_camera_name)
+            graph, rgb_camera_name, rgb_camera_name)
         visualization_ops.append(camera_video_op)
     if FLAGS.visualize_segmentation:
         # Segmented camera. The stream comes from CARLA.
@@ -84,6 +83,11 @@ class ERDOSAgent(AutonomousAgent):
         loc = simulation.utils.Location(2.0, 0.0, 1.40)
         self._camera_transform = simulation.utils.Transform(
             loc, pitch=0, yaw=0, roll=0)
+        self._camera_names = {CENTER_CAMERA_NAME}
+        if FLAGS.depth_estimation:
+            self._camera_names.add(LEFT_CAMERA_NAME)
+            self._camera_names.add(RIGHT_CAMERA_NAME)
+        self._camera_streams = {}
         self._lock = threading.Lock()
         self._vehicle_transform = None
         self._waypoints = None
@@ -97,7 +101,17 @@ class ERDOSAgent(AutonomousAgent):
         scenario_input_op = self.__create_scenario_input_op()
 
         visualization_ops = add_visualization_operators(
-            self.graph, RGB_CAMERA_NAME)
+            self.graph, CENTER_CAMERA_NAME)
+
+        if FLAGS.depth_estimation:
+            left_ops = add_visualization_operators(
+                self.graph, LEFT_CAMERA_NAME)
+            right_ops = add_visualization_operators(
+                self.graph, RIGHT_CAMERA_NAME)
+            self.graph.connect([scenario_input_op], left_ops + right_ops)
+            depth_estimation_op = operator_creator.create_depth_estimation_op(
+                self.graph, LEFT_CAMERA_NAME, RIGHT_CAMERA_NAME)
+            self.graph.connect([scenario_input_op], [depth_estimation_op])
 
         segmentation_ops = []
         if FLAGS.segmentation_drn:
@@ -151,7 +165,8 @@ class ERDOSAgent(AutonomousAgent):
                          callback=self.on_control_msg,
                          queue_size=None)
 
-        self._camera_stream.setup()
+        for name, stream in self._camera_streams.items():
+            stream.setup()
         self._global_trajectory_stream.setup()
         self._open_drive_stream.setup()
         self._can_bus_stream.setup()
@@ -180,17 +195,43 @@ class ERDOSAgent(AutonomousAgent):
                           'reading_frequency': 30,
                           'id': 'hdmap'}]
 
-        front_camera_sensor = [{'type': 'sensor.camera.rgb',
-                                'x': self._camera_transform.location.x,
-                                'y': self._camera_transform.location.y,
-                                'z': self._camera_transform.location.z,
-                                'roll': self._camera_transform.rotation.roll,
-                                'pitch': self._camera_transform.rotation.pitch,
-                                'yaw': self._camera_transform.rotation.yaw,
-                                'width': 800,
-                                'height': 600,
-                                'fov': 100,
-                                'id': RGB_CAMERA_NAME}]
+        camera_sensors = [{'type': 'sensor.camera.rgb',
+                           'x': self._camera_transform.location.x,
+                           'y': self._camera_transform.location.y,
+                           'z': self._camera_transform.location.z,
+                           'roll': self._camera_transform.rotation.roll,
+                           'pitch': self._camera_transform.rotation.pitch,
+                           'yaw': self._camera_transform.rotation.yaw,
+                           'width': 800,
+                           'height': 600,
+                           'fov': 100,
+                           'id': CENTER_CAMERA_NAME}]
+        if FLAGS.depth_estimation:
+            left_camera_sensor = {'type': 'sensor.camera.rgb',
+                                  'x': 2.0,
+                                  'y': -0.4,
+                                  'z': 1.40,
+                                  'roll': 0,
+                                  'pitch': 0,
+                                  'yaw': 0,
+                                  'width': 800,
+                                  'height': 600,
+                                  'fov': 100,
+                                  'id': LEFT_CAMERA_NAME}
+            camera_sensors.append(left_camera_sensor)
+            right_camera_sensor = {'type': 'sensor.camera.rgb',
+                                   'x': 2.0,
+                                   'y': 0.4,
+                                   'z': 1.40,
+                                   'roll': 0,
+                                   'pitch': 0,
+                                   'yaw': 0,
+                                   'width': 800,
+                                   'height': 600,
+                                   'fov': 100,
+                                   'id': RIGHT_CAMERA_NAME}
+            camera_sensors.append(right_camera_sensor)
+
         lidar_sensor = []
         if FLAGS.lidar:
             lidar_sensor = [{'type': 'sensor.lidar.ray_cast',
@@ -201,8 +242,7 @@ class ERDOSAgent(AutonomousAgent):
                              'pitch': self._camera_transform.rotation.pitch,
                              'yaw': self._camera_transform.rotation.yaw,
                              'id': 'LIDAR'}]
-        sensors = can_sensor + gps_sensor + hd_map_sensor + front_camera_sensor + lidar_sensor
-        return sensors
+        return can_sensor + gps_sensor + hd_map_sensor + camera_sensors + lidar_sensor
 
     def run_step(self, input_data, timestamp):
         with self._lock:
@@ -223,12 +263,12 @@ class ERDOSAgent(AutonomousAgent):
 
         for key, val in input_data.items():
             #print("{} {} {}".format(key, val[0], type(val[1])))
-            if key == RGB_CAMERA_NAME:
-                self._camera_stream.send(
+            if key in self._camera_names:
+                self._camera_streams[key].send(
                     simulation.messages.FrameMessage(
                         pylot_utils.bgra_to_bgr(val[1]),
                         erdos_timestamp))
-                self._camera_stream.send(watermark)
+                self._camera_streams[key].send(watermark)
             elif key == 'can_bus':
                 # The can bus dict contains other fields as well, but we don't
                 # curently use them.
@@ -288,11 +328,13 @@ class ERDOSAgent(AutonomousAgent):
                 self._control.manual_gear_shift = False
 
     def __create_scenario_input_op(self):
-        self._camera_stream = ROSOutputDataStream(
-            DataStream(name=RGB_CAMERA_NAME,
-                       uid=RGB_CAMERA_NAME,
-                       labels={'sensor_type': 'camera',
-                               'camera_type': 'sensor.camera.rgb'}))
+        for name in self._camera_names:
+            stream = ROSOutputDataStream(
+                DataStream(name=name,
+                           uid=name,
+                           labels={'sensor_type': 'camera',
+                                   'camera_type': 'sensor.camera.rgb'}))
+            self._camera_streams[name] = stream
 
         # Stream on which we send the global trajectory.
         self._global_trajectory_stream = ROSOutputDataStream(
@@ -309,8 +351,10 @@ class ERDOSAgent(AutonomousAgent):
         self._can_bus_stream = ROSOutputDataStream(
             DataStream(name='can_bus', uid='can_bus'))
 
-        input_streams = [self._camera_stream, self._global_trajectory_stream,
-                         self._open_drive_stream, self._can_bus_stream]
+        input_streams = (self._camera_streams.values() +
+                         [self._global_trajectory_stream,
+                          self._open_drive_stream,
+                          self._can_bus_stream])
 
         if FLAGS.lidar:
             self._point_cloud_stream = ROSOutputDataStream(
