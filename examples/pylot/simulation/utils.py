@@ -78,6 +78,7 @@ class Transform(object):
         self.orientation = orientation
         self.rotation = Rotation(pitch, yaw, roll)
         self.location = pos
+        self.scale = scale
         if scale is None:
             scale = Scale()
         if matrix is None:
@@ -219,9 +220,30 @@ def depth_to_local_point_cloud(depth_msg, max_depth=0.9):
     return np.transpose(p3d)
 
 
+def camera_to_unreal_transform(camera_transform):
+    to_unreal_transform = Transform(
+        Location(0, 0, 0),
+        pitch=0,
+        yaw=90,
+        roll=-90,
+        scale=Scale(x=-1))
+    return camera_transform * to_unreal_transform
+
+
+def lidar_to_unreal_transform(lidar_transform):
+    to_unreal_transform = Transform(
+        Location(0, 0, 0),
+        pitch=0,
+        yaw=90,
+        roll=0,
+        scale=Scale(z=-1))
+    return lidar_transform * to_unreal_transform
+
+
 def get_3d_world_position(x, y, depth_msg, vehicle_transform):
     far = 1.0
     point_cloud = depth_to_local_point_cloud(depth_msg, max_depth=far)
+    # TODO(ionel): Check if have to apply the vehicle transform as well.
     car_transform = vehicle_transform * depth_msg.transform
     point_cloud = car_transform.transform_points(point_cloud)
     (x, y, z) = point_cloud.tolist()[y * depth_msg.width + x]
@@ -232,22 +254,24 @@ def get_camera_intrinsic_and_transform(image_size=(800, 600),
                                        position=(2.0, 0.0, 1.4),
                                        rotation_pitch=0,
                                        rotation_roll=0,
-                                       rotation_yaw=0):
-
+                                       rotation_yaw=0,
+                                       fov=90.0):
     image_width = image_size[0]
     image_height = image_size[1]
     # (Intrinsic) K Matrix
     intrinsic_mat = np.identity(3)
     intrinsic_mat[0][2] = image_width / 2
     intrinsic_mat[1][2] = image_height / 2
-    intrinsic_mat[0][0] = intrinsic_mat[1][1] = image_width / (2.0 * math.tan(90.0 * math.pi / 360.0))
+    intrinsic_mat[0][0] = intrinsic_mat[1][1] = image_width / (2.0 * math.tan(fov * math.pi / 360.0))
 
     pos = Location(position[0], position[1], position[2])
-    transform = Transform(pos, rotation_pitch, rotation_roll, rotation_yaw)
-    to_unreal_transform = Transform(Location(0, 0, 0), 0, -90, -90, Scale(x=-1))
-    camera_transform = transform * to_unreal_transform
+    camera_transform = Transform(
+        pos, rotation_pitch, rotation_roll, rotation_yaw)
+    camera_unreal_transform = camera_to_unreal_transform(camera_transform)
 
-    return (intrinsic_mat, camera_transform, (image_width, image_height))
+    return (intrinsic_mat,
+            camera_unreal_transform,
+            (image_width, image_height))
 
 
 def get_bounding_box_from_corners(corners):
@@ -457,7 +481,7 @@ def map_ground_3D_transform_to_2D(location,
     pos2d = np.dot(rgb_intrinsic, transformed_3d_pos[:3])
     (img_width, img_height) = rgb_img_size
     loc_2d = Location(img_width - pos2d[0] / pos2d[2],
-                      img_height- pos2d[1] / pos2d[2],
+                      img_height - pos2d[1] / pos2d[2],
                       pos2d[2])
     if (loc_2d.z > 0 and loc_2d.x >= 0 and loc_2d.x < img_width and
         loc_2d.y >= 0 and loc_2d.y < img_height):

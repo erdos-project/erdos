@@ -83,6 +83,8 @@ class ERDOSAgent(AutonomousAgent):
         loc = simulation.utils.Location(2.0, 0.0, 1.40)
         self._camera_transform = simulation.utils.Transform(
             loc, pitch=0, yaw=0, roll=0)
+        self._lidar_transform = simulation.utils.Transform(
+            loc, pitch=0, yaw=0, roll=0)
         self._camera_names = {CENTER_CAMERA_NAME}
         if FLAGS.depth_estimation:
             self._camera_names.add(LEFT_CAMERA_NAME)
@@ -235,12 +237,12 @@ class ERDOSAgent(AutonomousAgent):
         lidar_sensor = []
         if FLAGS.lidar:
             lidar_sensor = [{'type': 'sensor.lidar.ray_cast',
-                             'x': self._camera_transform.location.x,
-                             'y': self._camera_transform.location.y,
-                             'z': self._camera_transform.location.z,
-                             'roll': self._camera_transform.rotation.roll,
-                             'pitch': self._camera_transform.rotation.pitch,
-                             'yaw': self._camera_transform.rotation.yaw,
+                             'x': self._lidar_transform.location.x,
+                             'y': self._lidar_transform.location.y,
+                             'z': self._lidar_transform.location.z,
+                             'roll': self._lidar_transform.rotation.roll,
+                             'pitch': self._lidar_transform.rotation.pitch,
+                             'yaw': self._lidar_transform.rotation.yaw,
                              'id': 'LIDAR'}]
         return can_sensor + gps_sensor + hd_map_sensor + camera_sensors + lidar_sensor
 
@@ -300,10 +302,9 @@ class ERDOSAgent(AutonomousAgent):
                 # TODO(ionel): Send point cloud data.
                 pc_file = val[1]['map_file']
             elif key == 'LIDAR':
-                # TODO(ionel): Check if the Lidar transform is correct.
                 msg = simulation.messages.PointCloudMessage(
                     point_cloud=val[1],
-                    transform=self._camera_transform,
+                    transform=self._lidar_transform,
                     timestamp=erdos_timestamp)
                 self._point_cloud_stream.send(msg)
                 self._point_cloud_stream.send(watermark)

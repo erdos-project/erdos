@@ -50,7 +50,9 @@ class CameraDriverOperator(Op):
         if self._world is None:
             raise ValueError("There was an issue connecting to the simulator.")
 
-        self._message_cnt = 0
+        # Starts from 1 because the world ticks once before the drivers are
+        # added.
+        self._message_cnt = 1
         self._vehicle = None
         self._camera = None
         self._lock = threading.Lock()
@@ -70,8 +72,8 @@ class CameraDriverOperator(Op):
 
     def process_images(self, carla_image):
         with self._lock:
-            timestamp = Timestamp(
-                coordinates=[carla_image.timestamp, self._message_cnt])
+            game_time = int(carla_image.timestamp * 1000)
+            timestamp = Timestamp(coordinates=[game_time, self._message_cnt])
             watermark_msg = WatermarkMessage(timestamp)
             self._message_cnt += 1
 

@@ -48,7 +48,9 @@ class LidarDriverOperator(Op):
         if self._world is None:
             raise ValueError("There was an issue connecting to the simulator.")
 
-        self._message_cnt = 0
+        # Starts from 1 because the world ticks once before the drivers are
+        # added.
+        self._message_cnt = 1
         self._vehicle = None
         self._lidar = None
         self._lock = threading.Lock()
@@ -61,8 +63,8 @@ class LidarDriverOperator(Op):
 
     def process_point_clouds(self, carla_pc):
         with self._lock:
-            timestamp = Timestamp(
-                coordinates=[carla_pc.timestamp, self._message_cnt])
+            game_time = int(carla_pc.timestamp * 1000)
+            timestamp = Timestamp(coordinates=[game_time, self._message_cnt])
             watermark_msg = WatermarkMessage(timestamp)
             self._message_cnt += 1
 
