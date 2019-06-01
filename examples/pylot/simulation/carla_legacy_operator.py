@@ -124,7 +124,7 @@ class CarlaLegacyOperator(Op):
             RotationYaw=rotation_yaw)
 
         self.settings.add_sensor(camera)
-        return camera.get_unreal_transform()
+        return camera.get_transform()
 
     def __add_lidar(self,
                     name,

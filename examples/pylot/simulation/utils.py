@@ -244,7 +244,9 @@ def get_3d_world_position(x, y, depth_msg):
     far = 1.0
     point_cloud = depth_to_local_point_cloud(depth_msg, max_depth=far)
     # Transform the points in 3D world coordinates.
-    point_cloud = depth_msg.transform.transform_points(point_cloud)
+    camera_unreal_transform = camera_to_unreal_transform(
+        depth_msg.transform)
+    point_cloud = camera_unreal_transform.transform_points(point_cloud)
     (x, y, z) = point_cloud.tolist()[y * depth_msg.width + x]
     return Location(x, y, z)
 
