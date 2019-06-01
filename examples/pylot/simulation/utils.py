@@ -185,15 +185,20 @@ def get_speed(velocity_vector):
     return speed
 
 
+def create_intrinsic_matrix(width, height, fov=90.0):
+    # (Intrinsic) K Matrix
+    k = np.identity(3)
+    k[0, 2] = width / 2.0
+    k[1, 2] = height / 2.0
+    k[0, 0] = k[1, 1] = width / (2.0 * math.tan(fov * math.pi / 360.0))
+    return k
+
+
 def depth_to_local_point_cloud(depth_msg, max_depth=0.9):
     far = 1000.0  # max depth in meters.
     normalized_depth = depth_msg.frame
-    # (Intrinsic) K Matrix
-    k = np.identity(3)
-    k[0, 2] = depth_msg.width / 2.0
-    k[1, 2] = depth_msg.height / 2.0
-    k[0, 0] = k[1, 1] = depth_msg.width / \
-        (2.0 * math.tan(depth_msg.fov * math.pi / 360.0))
+    intrinsic_mat = create_intrinsic_matrix(
+        depth_msg.width, depth_msg.height, depth_msg.fov)
     # 2d pixel coordinates
     pixel_length = depth_msg.width * depth_msg.height
     u_coord = repmat(np.r_[depth_msg.width-1:-1:-1],
@@ -209,11 +214,11 @@ def depth_to_local_point_cloud(depth_msg, max_depth=0.9):
     u_coord = np.delete(u_coord, max_depth_indexes)
     v_coord = np.delete(v_coord, max_depth_indexes)
 
-    # pd2 = [u,v,1]
+    # p2d = [u,v,1]
     p2d = np.array([u_coord, v_coord, np.ones_like(u_coord)])
 
     # P = [X,Y,Z]
-    p3d = np.dot(np.linalg.inv(k), p2d)
+    p3d = np.dot(inv(intrinsic_mat), p2d)
     p3d *= normalized_depth * far
 
     # [[X1,Y1,Z1],[X2,Y2,Z2], ... [Xn,Yn,Zn]]
@@ -240,7 +245,7 @@ def lidar_to_unreal_transform(lidar_transform):
     return lidar_transform * to_unreal_transform
 
 
-def get_3d_world_position(x, y, depth_msg):
+def get_3d_world_position_with_depth_map(x, y, depth_msg):
     far = 1.0
     point_cloud = depth_to_local_point_cloud(depth_msg, max_depth=far)
     # Transform the points in 3D world coordinates.
@@ -251,28 +256,35 @@ def get_3d_world_position(x, y, depth_msg):
     return Location(x, y, z)
 
 
+def get_3d_world_position(x, y, z, camera_transform, width, height, fov):
+    far = 1000.0  # max depth in meters.
+    intrinsic_mat = create_intrinsic_matrix(width, height, fov)
+    u = width - 1 - y
+    v = height - 1 - x
+    p2d = np.array([[u], [v], [1]])
+    p3d = np.dot(inv(intrinsic_mat), p2d)
+    normalized_depth = np.array([[z]])
+    p3d *= normalized_depth * far
+    p3d = np.transpose(p3d)
+    camera_unreal_transform = camera_to_unreal_transform(
+            camera_transform)
+    point_cloud = camera_unreal_transform.transform_points(p3d)
+    (x, y, z) = point_cloud.tolist()[0]
+    return Location(x, y, z)
+
+
 def get_camera_intrinsic_and_transform(image_size=(800, 600),
                                        position=(2.0, 0.0, 1.4),
                                        rotation_pitch=0,
                                        rotation_roll=0,
                                        rotation_yaw=0,
                                        fov=90.0):
-    image_width = image_size[0]
-    image_height = image_size[1]
-    # (Intrinsic) K Matrix
-    intrinsic_mat = np.identity(3)
-    intrinsic_mat[0][2] = image_width / 2
-    intrinsic_mat[1][2] = image_height / 2
-    intrinsic_mat[0][0] = intrinsic_mat[1][1] = image_width / (2.0 * math.tan(fov * math.pi / 360.0))
-
+    intrinsic_mat = create_intrinsic_matrix(image_size[0], image_size[1], fov)
     pos = Location(position[0], position[1], position[2])
     camera_transform = Transform(
         pos, rotation_pitch, rotation_roll, rotation_yaw)
     camera_unreal_transform = camera_to_unreal_transform(camera_transform)
-
-    return (intrinsic_mat,
-            camera_unreal_transform,
-            (image_width, image_height))
+    return (intrinsic_mat, camera_unreal_transform, image_size)
 
 
 def get_bounding_box_from_corners(corners):
@@ -476,9 +488,11 @@ def map_ground_3D_transform_to_2D(location,
                                   rgb_transform,
                                   rgb_intrinsic,
                                   rgb_img_size):
-    extrinsic_mat = vehicle_transform * rgb_transform
+    transform = vehicle_transform * rgb_transform
+    extrinsic_mat = transform.matrix
+    # The position in world 3D coordiantes.
     pos_vector = np.array([[location.x], [location.y], [location.z], [1.0]])
-    transformed_3d_pos = np.dot(inv(extrinsic_mat.matrix), pos_vector)
+    transformed_3d_pos = np.dot(inv(extrinsic_mat), pos_vector)
     pos2d = np.dot(rgb_intrinsic, transformed_3d_pos[:3])
     (img_width, img_height) = rgb_img_size
     loc_2d = Location(img_width - pos2d[0] / pos2d[2],

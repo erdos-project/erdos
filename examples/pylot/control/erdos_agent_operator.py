@@ -10,7 +10,7 @@ from erdos.utils import frequency, setup_csv_logging, setup_logging, time_epoch_
 from control.messages import ControlMessage
 import control.utils as agent_utils
 from pid_controller.pid import PID
-from simulation.utils import get_3d_world_position
+from simulation.utils import get_3d_world_position_with_depth_map
 import pylot_utils
 
 
@@ -136,7 +136,7 @@ class ERDOSAgentOperator(Op):
         for tl in self._traffic_lights[0].detected_objects:
             x = (tl.corners[0] + tl.corners[1]) / 2
             y = (tl.corners[2] + tl.corners[3]) / 2
-            pos = get_3d_world_position(x, y, depth_msg)
+            pos = get_3d_world_position_with_depth_map(x, y, depth_msg)
             state = 0
             if tl.label is not 'Green':
                 state = 1
@@ -150,14 +150,14 @@ class ERDOSAgentOperator(Op):
             x = (detected_obj.corners[0] + detected_obj.corners[1]) / 2
             y = (detected_obj.corners[2] + detected_obj.corners[3]) / 2
             if detected_obj.label == 'person':
-                pos = get_3d_world_position(x, y, depth_msg)
+                pos = get_3d_world_position_with_depth_map(x, y, depth_msg)
                 pedestrians.append(pos)
             elif (detected_obj.label == 'car' or
                   detected_obj.label == 'bicycle' or
                   detected_obj.label == 'motorcycle' or
                   detected_obj.label == 'bus' or
                   detected_obj.label == 'truck'):
-                pos = get_3d_world_position(x, y, depth_msg)
+                pos = get_3d_world_position_with_depth_map(x, y, depth_msg)
                 vehicles.append(pos)
         return (pedestrians, vehicles)
 
