@@ -259,8 +259,8 @@ def get_3d_world_position_with_depth_map(x, y, depth_msg):
 def get_3d_world_position(x, y, z, camera_transform, width, height, fov):
     far = 1000.0  # max depth in meters.
     intrinsic_mat = create_intrinsic_matrix(width, height, fov)
-    u = width - 1 - y
-    v = height - 1 - x
+    u = width - 1 - x
+    v = height - 1 - y
     p2d = np.array([[u], [v], [1]])
     p3d = np.dot(inv(intrinsic_mat), p2d)
     normalized_depth = np.array([[z]])
