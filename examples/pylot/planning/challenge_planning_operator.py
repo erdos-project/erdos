@@ -1,5 +1,7 @@
 from collections import deque
 import carla
+import math
+import numpy as np
 
 from erdos.op import Op
 from erdos.utils import frequency, setup_csv_logging, setup_logging
@@ -7,6 +9,7 @@ from erdos.utils import frequency, setup_csv_logging, setup_logging
 import pylot_utils
 from planning.messages import WaypointsMessage
 from planning.utils import get_distance, get_target_speed
+from control.utils import get_angle, get_world_vec_dist
 
 
 class ChallengePlanningOperator(Op):
@@ -34,13 +37,34 @@ class ChallengePlanningOperator(Op):
     def on_can_bus_update(self, msg):
         self._vehicle_transform = msg.data.transform
         next_waypoint, _ = self.__compute_next_waypoint()
-        if next_waypoint:
-            target_speed = get_target_speed(
-                self._vehicle_transform.location, next_waypoint)
-            self.get_output_stream('waypoints').send(
-                WaypointsMessage(msg.timestamp,
-                                 waypoints=[next_waypoint],
-                                 target_speed=target_speed))
+        if next_waypoint is None:
+            next_waypoint = [self._vehicle_transform]
+
+        wp_vector, wp_mag = get_world_vec_dist(
+            next_waypoint.location.x,
+            next_waypoint.location.y,
+            self._vehicle_transform.location.x,
+            self._vehicle_transform.location.y)
+
+        if wp_mag > 0:
+            wp_angle = get_angle(
+                wp_vector,
+                [self._vehicle_transform.orientation.x,
+                 self._vehicle_transform.orientation.y])
+        else:
+            wp_angle = 0
+
+        target_speed = get_target_speed(
+            self._vehicle_transform.location, next_waypoint)
+
+        output_msg = WaypointsMessage(
+            msg.timestamp,
+            waypoints=[next_waypoint],
+            target_speed=target_speed,
+            wp_angle=wp_angle,
+            wp_vector=wp_vector,
+            wp_angle_speed=wp_angle)
+        self.get_output_stream('waypoints').send(output_msg)
 
     def on_opendrive_map(self, msg):
         assert self._map is None, 'Already receveid opendrive map'

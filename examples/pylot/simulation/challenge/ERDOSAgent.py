@@ -160,7 +160,7 @@ class ERDOSAgent(AutonomousAgent):
 
         planning_ops = [create_planning_op(self.graph)]
 
-        control_op = create_control_op(self.graph)
+#        control_op = create_control_op(self.graph)
 
         agent_op = create_agent_op(self.graph)
 
@@ -168,21 +168,18 @@ class ERDOSAgent(AutonomousAgent):
             [scenario_input_op],
             segmentation_ops + obj_detector_ops + tracker_ops +
             traffic_light_det_ops + lane_detection_ops + planning_ops +
-            visualization_ops + [control_op])
-
-        self.graph.connect(planning_ops, [control_op])
+            visualization_ops + [agent_op])
 
         self.graph.connect(segmentation_ops + obj_detector_ops + tracker_ops +
                            traffic_light_det_ops + lane_detection_ops +
-                           planning_ops + [scenario_input_op],
-                           [agent_op])
+                           planning_ops, [agent_op])
 
         # Execute graph
         self.graph.execute(FLAGS.framework, blocking=False)
 
         rospy.init_node("erdos_driver", anonymous=True)
         # Subscribe to the control stream
-        rospy.Subscriber('default/controller/control_stream',
+        rospy.Subscriber('default/lidar_erdos_agent/control_stream',
                          String,
                          callback=self.on_control_msg,
                          queue_size=None)
@@ -269,6 +266,7 @@ class ERDOSAgent(AutonomousAgent):
     def run_step(self, input_data, timestamp):
         with self._lock:
             self._control = None
+            self._control_timestamp = None
         game_time = int(timestamp * 1000)
         erdos_timestamp = Timestamp(coordinates=[game_time, self._message_num])
         watermark = WatermarkMessage(erdos_timestamp)
@@ -333,7 +331,7 @@ class ERDOSAgent(AutonomousAgent):
                 self._point_cloud_stream.send(watermark)
 
         # Wait until the control is set.
-        while self._control is None:
+        while self._control_timestamp is None or self._control_timestamp < erdos_timestamp:
             time.sleep(0.01)
 
         return self._control
@@ -342,7 +340,8 @@ class ERDOSAgent(AutonomousAgent):
         msg = pickle.loads(msg.data)
         if not isinstance(msg, WatermarkMessage):
             with self._lock:
-                #print("Received control message {}".format(msg))
+                print("Received control message {}".format(msg))
+                self._control_timestamp = msg.timestamp
                 self._control = carla.VehicleControl()
                 self._control.throttle = msg.throttle
                 self._control.brake = msg.brake

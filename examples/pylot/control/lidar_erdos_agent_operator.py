@@ -1,6 +1,7 @@
 from collections import deque
 import math
 import threading
+import numpy as np
 
 from erdos.op import Op
 from erdos.timestamp import Timestamp
@@ -27,14 +28,11 @@ class LidarERDOSAgentOperator(Op):
         self._pid = PID(p=self._flags.pid_p,
                         i=self._flags.pid_i,
                         d=self._flags.pid_d)
-        self._vehicle_transforms = deque()
+        self._waypoint_msgs = deque()
+        self._can_bus_msgs = deque()
         self._traffic_lights = deque()
         self._obstacles = deque()
         self._point_clouds = deque()
-        self._vehicle_speed = None
-        self._wp_angle = None
-        self._wp_vector = None
-        self._wp_angle_speed = None
         # TODO(ionel): DANGEROUS! DO NOT HARDCODE!
         loc = simulation.utils.Location(2.0, 0.0, 1.40)
         self._camera_transform = simulation.utils.Transform(
@@ -43,7 +41,6 @@ class LidarERDOSAgentOperator(Op):
         self._camera_height = 600
         self._camera_fov = 100
         self._lock = threading.Lock()
-
 
     @staticmethod
     def setup_streams(input_streams):
@@ -66,47 +63,59 @@ class LidarERDOSAgentOperator(Op):
         return [pylot_utils.create_control_stream()]
 
     def on_notification(self, msg):
-        vehicle_transform = None
+        can_bus_msg = None
+        waypoint_msg = None
         pc_msg = None
         tl_output = None
         obstacles = None
 
         with self._lock:
-            vehicle_transform = self._vehicle_transforms.popleft()
+            can_bus_msg = self._can_bus_msgs.popleft()
+            waypoint_msg = self._waypoint_msgs.popleft()
             pc_msg = self._point_clouds.popleft()
             tl_output = self._traffic_lights.popleft()
             obstacles = self._obstacles.popleft()
 
-        point_cloud = pc_msg.point_cloud.tolist()
-        traffic_lights = self.__transform_tl_output(tl_output, point_cloud)
+        self._logger.info("Timestamps {} {} {} {} {}".format(
+            can_bus_msg.timestamp, waypoint_msg.timestamp, pc_msg.timestamp,
+            tl_output.timestamp, obstacles.timestamp))
+        assert (can_bus_msg.timestamp == waypoint_msg.timestamp ==
+                pc_msg.timestamp == tl_output.timestamp == obstacles.timestamp)
 
+        vehicle_transform = can_bus_msg.data.transform
+        vehicle_speed = can_bus_msg.data.forward_speed
+        wp_angle = waypoint_msg.wp_angle
+        wp_vector = waypoint_msg.wp_vector
+        wp_angle_speed = waypoint_msg.wp_angle_speed
+        target_speed = waypoint_msg.target_speed
+        point_cloud = pc_msg.point_cloud.tolist()
+
+        traffic_lights = self.__transform_tl_output(tl_output, point_cloud)
         (pedestrians, vehicles) = self.__transform_detector_output(
             obstacles, point_cloud)
 
-        self._logger.info("Timestamps {} {} {}".format(
-            pc_msg.timestamp, tl_output.timestamp, obstacles.timestamp))
-
-        speed_factor, state = self.__stop_for_agents(
-            vehicle_transform,  self._wp_angle, self._wp_vector, vehicles,
-            pedestrians, traffic_lights)
+        speed_factor, _ = self.__stop_for_agents(
+            vehicle_transform,
+            wp_angle,
+            wp_vector,
+            vehicles,
+            pedestrians,
+            traffic_lights)
 
         control_msg = self.get_control_message(
-            self._wp_angle, self._wp_angle_speed, speed_factor,
-            self._vehicle_speed, Timestamp(coordinates=[0]))
-#        self.get_output_stream('control_stream').send(control_msg)
+            wp_angle, wp_angle_speed, speed_factor,
+            vehicle_speed, msg.timestamp)
+        self.get_output_stream('control_stream').send(control_msg)
 
     def on_waypoints_update(self, msg):
         self._logger.info("Waypoints update at {}".format(msg.timestamp))
         with self._lock:
-            self._wp_angle = msg.wp_angle
-            self._wp_vector = msg.wp_vector
-            self._wp_angle_speed = msg.wp_angle_speed
+            self._waypoint_msgs.append(msg)
 
     def on_can_bus_update(self, msg):
         self._logger.info("Can bus update at {}".format(msg.timestamp))
         with self._lock:
-            self._vehicle_transforms.append(msg.data.transform)
-            self._vehicle_speed = msg.data.forward_speed
+            self._can_bus_msgs.append(msg)
 
     def on_traffic_lights_update(self, msg):
         self._logger.info("Traffic light update at {}".format(msg.timestamp))
@@ -144,6 +153,8 @@ class LidarERDOSAgentOperator(Op):
         closest_point = None
         dist = None
         for (px, py, pz) in point_cloud:
+            if px == 0:
+                continue
             py /= px
             pz /= px
             y_dist = abs(y - py)
