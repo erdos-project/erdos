@@ -13,13 +13,13 @@ from simulation.utils import get_3d_world_position
 import pylot_utils
 
 
-class ERDOSAgentOperator(Op):
+class LidarERDOSAgentOperator(Op):
     def __init__(self,
                  name,
                  flags,
                  log_file_name=None,
                  csv_file_name=None):
-        super(ERDOSAgentOperator, self).__init__(name)
+        super(LidarERDOSAgentOperator, self).__init__(name)
         self._flags = flags
         self._logger = setup_logging(self.name, log_file_name)
         self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
@@ -27,9 +27,9 @@ class ERDOSAgentOperator(Op):
                         i=self._flags.pid_i,
                         d=self._flags.pid_d)
         self._vehicle_transforms = deque()
-        self._traffic_lights = []
-        self._obstacles = []
-        self._point_clouds = []
+        self._traffic_lights = deque()
+        self._obstacles = deque()
+        self._point_clouds = deque()
         self._vehicle_speed = None
         self._wp_angle = None
         self._wp_vector = None
@@ -44,20 +44,20 @@ class ERDOSAgentOperator(Op):
 
 
     @staticmethod
-    def setup_streams(input_streams, depth_camera_name):
+    def setup_streams(input_streams):
         input_streams.filter(pylot_utils.is_can_bus_stream).add_callback(
-            ERDOSAgentOperator.on_can_bus_update)
+            LidarERDOSAgentOperator.on_can_bus_update)
         input_streams.filter(pylot_utils.is_waypoints_stream).add_callback(
-            ERDOSAgentOperator.on_waypoints_update)
+            LidarERDOSAgentOperator.on_waypoints_update)
         input_streams.filter(pylot_utils.is_traffic_lights_stream).add_callback(
-            ERDOSAgentOperator.on_traffic_lights_update)
+            LidarERDOSAgentOperator.on_traffic_lights_update)
         input_streams.filter(pylot_utils.is_obstacles_stream).add_callback(
-            ERDOSAgentOperator.on_obstacles_update)
+            LidarERDOSAgentOperator.on_obstacles_update)
         input_streams.filter(pylot_utils.is_lidar_stream).add_callback(
-            ERDOSAgentOperator.on_lidar_update)
+            LidarERDOSAgentOperator.on_lidar_update)
 
         input_streams.add_completion_callback(
-            ERDOSAgentOperator.on_notification)
+            LidarERDOSAgentOperator.on_notification)
 
         # Set no watermark on the output stream so that we do not
         # close the watermark loop with the carla operator.
@@ -65,7 +65,8 @@ class ERDOSAgentOperator(Op):
 
     def on_notification(self, msg):
         vehicle_transform = self._vehicle_transforms.popleft()
-        point_cloud = self._point_clouds.popleft().tolist()
+        pc_msg = self._point_clouds.popleft()
+        point_cloud = pc_msg.point_cloud.tolist()
 
         tl_output = self._traffic_lights.popleft()
         traffic_lights = self.__transform_tl_output(tl_output, point_cloud)
@@ -75,7 +76,7 @@ class ERDOSAgentOperator(Op):
             obstacles, point_cloud)
 
         self._logger.info("Timestamps {} {} {}".format(
-            point_cloud.timestamp, tl_output.timestamp, obstacles.timestamp))
+            pc_msg.timestamp, tl_output.timestamp, obstacles.timestamp))
 
         speed_factor, state = self.__stop_for_agents(
             vehicle_transform,  self._wp_angle, self._wp_vector, vehicles,
@@ -84,14 +85,16 @@ class ERDOSAgentOperator(Op):
         control_msg = self.get_control_message(
             self._wp_angle, self._wp_angle_speed, speed_factor,
             self._vehicle_speed, Timestamp(coordinates=[0]))
-        self.get_output_stream('control_stream').send(control_msg)
+#        self.get_output_stream('control_stream').send(control_msg)
 
     def on_waypoints_update(self, msg):
+        self._logger.info("Waypoints update at {}".format(msg.timestamp))
         self._wp_angle = msg.wp_angle
         self._wp_vector = msg.wp_vector
         self._wp_angle_speed = msg.wp_angle_speed
 
     def on_can_bus_update(self, msg):
+        self._logger.info("Can bus update at {}".format(msg.timestamp))
         self._vehicle_transforms.append(msg.data.transform)
         self._vehicle_speed = msg.data.forward_speed
 
@@ -104,6 +107,7 @@ class ERDOSAgentOperator(Op):
         self._obstacles.append(msg)
 
     def on_lidar_update(self, msg):
+        self._logger.info("Lidar update at {}".format(msg.timestamp))
         self._point_clouds.append(msg)
 
     def execute(self):

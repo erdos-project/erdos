@@ -18,6 +18,7 @@ from erdos.timestamp import Timestamp
 
 import config
 from control.pid_control_operator import PIDControlOperator
+from control.lidar_erdos_agent_operator import LidarERDOSAgentOperator
 import operator_creator
 from planning.challenge_planning_operator import ChallengePlanningOperator
 import pylot_utils
@@ -54,6 +55,18 @@ def create_planning_op(graph):
             'csv_file_name': FLAGS.csv_log_file_name
         })
     return planning_op
+
+
+def create_agent_op(graph):
+    agent_op = graph.add(
+        LidarERDOSAgentOperator,
+        name='lidar_erdos_agent',
+        init_args={
+            'flags': FLAGS,
+            'log_file_name': FLAGS.log_file_name,
+            'csv_file_name': FLAGS.csv_log_file_name
+        })
+    return agent_op
 
 
 def create_control_op(graph):
@@ -149,6 +162,8 @@ class ERDOSAgent(AutonomousAgent):
 
         control_op = create_control_op(self.graph)
 
+        agent_op = create_agent_op(self.graph)
+
         self.graph.connect(
             [scenario_input_op],
             segmentation_ops + obj_detector_ops + tracker_ops +
@@ -156,6 +171,11 @@ class ERDOSAgent(AutonomousAgent):
             visualization_ops + [control_op])
 
         self.graph.connect(planning_ops, [control_op])
+
+        self.graph.connect(segmentation_ops + obj_detector_ops + tracker_ops +
+                           traffic_light_det_ops + lane_detection_ops +
+                           planning_ops + [scenario_input_op],
+                           [agent_op])
 
         # Execute graph
         self.graph.execute(FLAGS.framework, blocking=False)
@@ -186,7 +206,7 @@ class ERDOSAgent(AutonomousAgent):
         #           ]
 
         can_sensor = [{'type': 'sensor.can_bus',
-                       'reading_frequency': 60,
+                       'reading_frequency': 20,
                        'id': 'can_bus'}]
         gps_sensor = [{'type': 'sensor.other.gnss',
                        'x': 0.7,
@@ -194,7 +214,7 @@ class ERDOSAgent(AutonomousAgent):
                        'z': 1.60,
                        'id': 'GPS'}]
         hd_map_sensor = [{'type': 'sensor.hd_map',
-                          'reading_frequency': 30,
+                          'reading_frequency': 20,
                           'id': 'hdmap'}]
 
         camera_sensors = [{'type': 'sensor.camera.rgb',
@@ -319,7 +339,7 @@ class ERDOSAgent(AutonomousAgent):
         msg = pickle.loads(msg.data)
         if not isinstance(msg, WatermarkMessage):
             with self._lock:
-                print("Received control message {}".format(msg))
+                #print("Received control message {}".format(msg))
                 self._control = carla.VehicleControl()
                 self._control.throttle = msg.throttle
                 self._control.brake = msg.brake
