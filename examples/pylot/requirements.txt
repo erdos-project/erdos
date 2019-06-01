@@ -1,7 +1,7 @@
 absl-py
 cffi
 gdown
-matplotlib
+matplotlib==2.2.4
 open3d-original
 opencv-python
 opencv-contrib-python
