@@ -1,5 +1,6 @@
 from collections import deque
 import math
+import threading
 
 from erdos.op import Op
 from erdos.timestamp import Timestamp
@@ -41,6 +42,7 @@ class LidarERDOSAgentOperator(Op):
         self._camera_width = 800
         self._camera_height = 600
         self._camera_fov = 100
+        self._lock = threading.Lock()
 
 
     @staticmethod
@@ -64,14 +66,20 @@ class LidarERDOSAgentOperator(Op):
         return [pylot_utils.create_control_stream()]
 
     def on_notification(self, msg):
-        vehicle_transform = self._vehicle_transforms.popleft()
-        pc_msg = self._point_clouds.popleft()
-        point_cloud = pc_msg.point_cloud.tolist()
+        vehicle_transform = None
+        pc_msg = None
+        tl_output = None
+        obstacles = None
 
-        tl_output = self._traffic_lights.popleft()
+        with self._lock:
+            vehicle_transform = self._vehicle_transforms.popleft()
+            pc_msg = self._point_clouds.popleft()
+            tl_output = self._traffic_lights.popleft()
+            obstacles = self._obstacles.popleft()
+
+        point_cloud = pc_msg.point_cloud.tolist()
         traffic_lights = self.__transform_tl_output(tl_output, point_cloud)
 
-        obstacles = self._obstacles.popleft()
         (pedestrians, vehicles) = self.__transform_detector_output(
             obstacles, point_cloud)
 
@@ -89,26 +97,31 @@ class LidarERDOSAgentOperator(Op):
 
     def on_waypoints_update(self, msg):
         self._logger.info("Waypoints update at {}".format(msg.timestamp))
-        self._wp_angle = msg.wp_angle
-        self._wp_vector = msg.wp_vector
-        self._wp_angle_speed = msg.wp_angle_speed
+        with self._lock:
+            self._wp_angle = msg.wp_angle
+            self._wp_vector = msg.wp_vector
+            self._wp_angle_speed = msg.wp_angle_speed
 
     def on_can_bus_update(self, msg):
         self._logger.info("Can bus update at {}".format(msg.timestamp))
-        self._vehicle_transforms.append(msg.data.transform)
-        self._vehicle_speed = msg.data.forward_speed
+        with self._lock:
+            self._vehicle_transforms.append(msg.data.transform)
+            self._vehicle_speed = msg.data.forward_speed
 
     def on_traffic_lights_update(self, msg):
         self._logger.info("Traffic light update at {}".format(msg.timestamp))
-        self._traffic_lights.append(msg)
+        with self._lock:
+            self._traffic_lights.append(msg)
 
     def on_obstacles_update(self, msg):
         self._logger.info("Obstacle update at {}".format(msg.timestamp))
-        self._obstacles.append(msg)
+        with self._lock:
+            self._obstacles.append(msg)
 
     def on_lidar_update(self, msg):
         self._logger.info("Lidar update at {}".format(msg.timestamp))
-        self._point_clouds.append(msg)
+        with self._lock:
+            self._point_clouds.append(msg)
 
     def execute(self):
         self.spin()

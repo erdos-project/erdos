@@ -269,7 +269,8 @@ class ERDOSAgent(AutonomousAgent):
     def run_step(self, input_data, timestamp):
         with self._lock:
             self._control = None
-        erdos_timestamp = Timestamp(coordinates=[timestamp, self._message_num])
+        game_time = int(timestamp * 1000)
+        erdos_timestamp = Timestamp(coordinates=[game_time, self._message_num])
         watermark = WatermarkMessage(erdos_timestamp)
         self._message_num += 1
 
@@ -279,6 +280,8 @@ class ERDOSAgent(AutonomousAgent):
             data = [(simulation.utils.to_erdos_transform(transform), road_option)
                     for (transform, road_option) in self._waypoints]
             self._global_trajectory_stream.send(Message(data, erdos_timestamp))
+            self._global_trajectory_stream.send(watermark)
+        else:
             self._global_trajectory_stream.send(watermark)
         assert self._waypoints == self._global_plan_world_coord,\
             'Global plan has been updated.'
@@ -315,7 +318,7 @@ class ERDOSAgent(AutonomousAgent):
                     # This is dangerous!
                     top_watermark = WatermarkMessage(
                         Timestamp(coordinates=[1000000000.0, 1000000000]))
-                    self._open_drive_stream.send(top_watermark)
+                self._open_drive_stream.send(watermark)
                 assert self._open_drive_data == val[1]['opendrive'],\
                     'Opendrive data changed.'
 

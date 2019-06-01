@@ -74,10 +74,19 @@ class DetectionOperator(Op):
             feed_dict={self._image_tensor: image_np_expanded})
 
         num_detections = int(num_detections[0])
-        classes = classes[0][:num_detections]
-        labels = [self._coco_labels[label] for label in classes]
-        boxes = boxes[0][:num_detections]
-        scores = scores[0][:num_detections]
+        res_classes = classes[0][:num_detections]
+        res_boxes = boxes[0][:num_detections]
+        res_scores = scores[0][:num_detections]
+
+        # TODO(ionel): BIG HACK TO FILTER OUT UNKNOWN CLASSES!
+        boxes = []
+        scores = []
+        labels = []
+        for i in range(0, num_detections):
+            if res_classes[i] in self._coco_labels:
+                labels.append(self._coco_labels[res_classes[i]])
+                boxes.append(res_boxes[i])
+                scores.append(res_scores[i])
 
         self._logger.info('Object boxes {}'.format(boxes))
         self._logger.info('Object scores {}'.format(scores))
@@ -93,12 +102,13 @@ class DetectionOperator(Op):
                 ymax = int(boxes[index][2] * msg.height)
                 xmax = int(boxes[index][3] * msg.width)
                 corners = (xmin, xmax, ymin, ymax)
-                detected_objects.append(DetectedObject(corners, scores[index], labels[index]))
+                detected_objects.append(
+                    DetectedObject(corners, scores[index], labels[index]))
             index += 1
 
         if self._flags.visualize_detector_output:
-            visualize_bboxes(self.name, msg.timestamp, image_np, detected_objects,
-                             self._bbox_colors)
+            visualize_bboxes(self.name, msg.timestamp, image_np,
+                             detected_objects, self._bbox_colors)
 
         # Get runtime in ms.
         runtime = (time.time() - start_time) * 1000
