@@ -74,11 +74,10 @@ class ERDOSAgentOperator(Op):
         depth_msg = self._depth_msgs[0]
         self._depth_msgs = self._depth_msgs[1:]
 
-        traffic_lights = self.__transform_tl_output(depth_msg, vehicle_transform)
+        traffic_lights = self.__transform_tl_output(depth_msg)
         self._traffic_lights = self._traffic_lights[1:]
 
-        (pedestrians, vehicles) = self.__transform_detector_output(
-            depth_msg, vehicle_transform)
+        (pedestrians, vehicles) = self.__transform_detector_output(depth_msg)
         self._obstacles = self._obstacles[1:]
 
         speed_factor, state = self.__stop_for_agents(
@@ -132,33 +131,33 @@ class ERDOSAgentOperator(Op):
     def execute(self):
         self.spin()
 
-    def __transform_tl_output(self, depth_msg, vehicle_transform):
+    def __transform_tl_output(self, depth_msg):
         traffic_lights = []
         for tl in self._traffic_lights[0].detected_objects:
             x = (tl.corners[0] + tl.corners[1]) / 2
             y = (tl.corners[2] + tl.corners[3]) / 2
-            pos = get_3d_world_position(x, y, depth_msg, vehicle_transform)
+            pos = get_3d_world_position(x, y, depth_msg)
             state = 0
             if tl.label is not 'Green':
                 state = 1
             traffic_lights.append((pos, state))
         return traffic_lights
 
-    def __transform_detector_output(self, depth_msg, vehicle_transform):
+    def __transform_detector_output(self, depth_msg):
         vehicles = []
         pedestrians = []
         for detected_obj in self._obstacles[0].detected_objects:
             x = (detected_obj.corners[0] + detected_obj.corners[1]) / 2
             y = (detected_obj.corners[2] + detected_obj.corners[3]) / 2
             if detected_obj.label == 'person':
-                pos = get_3d_world_position(x, y, depth_msg, vehicle_transform)
+                pos = get_3d_world_position(x, y, depth_msg)
                 pedestrians.append(pos)
             elif (detected_obj.label == 'car' or
                   detected_obj.label == 'bicycle' or
                   detected_obj.label == 'motorcycle' or
                   detected_obj.label == 'bus' or
                   detected_obj.label == 'truck'):
-                pos = get_3d_world_position(x, y, depth_msg, vehicle_transform)
+                pos = get_3d_world_position(x, y, depth_msg)
                 vehicles.append(pos)
         return (pedestrians, vehicles)
 
