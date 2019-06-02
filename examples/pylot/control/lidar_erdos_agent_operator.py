@@ -4,7 +4,6 @@ import threading
 import numpy as np
 
 from erdos.op import Op
-from erdos.timestamp import Timestamp
 from erdos.utils import setup_csv_logging, setup_logging
 
 from control.messages import ControlMessage
@@ -88,11 +87,15 @@ class LidarERDOSAgentOperator(Op):
         wp_vector = waypoint_msg.wp_vector
         wp_angle_speed = waypoint_msg.wp_angle_speed
         target_speed = waypoint_msg.target_speed
-        point_cloud = pc_msg.point_cloud.tolist()
+        point_cloud = self.__point_cloud_to_world_coordinates(pc_msg)
 
         traffic_lights = self.__transform_tl_output(tl_output, point_cloud)
         (pedestrians, vehicles) = self.__transform_detector_output(
             obstacles, point_cloud)
+
+        self._logger.info('Current location {}'.format(vehicle_transform))
+        self._logger.info('Pedestrians {}'.format(pedestrians))
+        self._logger.info('Vehicles {}'.format(vehicles))
 
         speed_factor, _ = self.__stop_for_agents(
             vehicle_transform,
@@ -102,10 +105,17 @@ class LidarERDOSAgentOperator(Op):
             pedestrians,
             traffic_lights)
 
+        self._logger.info('Current speed factor {}'.format(speed_factor))
+
         control_msg = self.get_control_message(
             wp_angle, wp_angle_speed, speed_factor,
-            vehicle_speed, msg.timestamp)
+            vehicle_speed, target_speed, msg.timestamp)
         self.get_output_stream('control_stream').send(control_msg)
+
+    def __point_cloud_to_world_coordinates(self, point_cloud_msg):
+        transform = simulation.utils.lidar_to_unreal_transform(
+            point_cloud_msg.transform)
+        return transform.transform_points(point_cloud_msg.point_cloud).tolist()
 
     def on_waypoints_update(self, msg):
         self._logger.info("Waypoints update at {}".format(msg.timestamp))
@@ -155,12 +165,11 @@ class LidarERDOSAgentOperator(Op):
         for (px, py, pz) in point_cloud:
             if px == 0:
                 continue
-            py /= px
-            pz /= px
-            y_dist = abs(y - py)
-            z_dist = abs(z - pz)
-            # In front, and close to the point.
-            if px > 0.0 and y_dist < 0.1 and z_dist < 0.1:
+            y_dist = abs(y - py / px)
+            z_dist = abs(z - pz / px)
+            # Check if the lidar point is close to the point we're trying to
+            # get depth for.
+            if y_dist < 0.1 and z_dist < 0.1:
                 if dist is None:
                     closest_point = (px, py, pz)
                     dist = y_dist + z_dist
@@ -262,23 +271,38 @@ class LidarERDOSAgentOperator(Op):
         self._logger.info('Aggent speed factors {}'.format(state))
         return speed_factor, state
 
-    def get_control_message(self, wp_angle, wp_angle_speed, speed_factor,
-                            current_speed, timestamp):
-        current_speed = max(current_speed, 0)
+    def __get_steer(self, wp_angle):
         steer = self._flags.steer_gain * wp_angle
         if steer > 0:
             steer = min(steer, 1)
         else:
             steer = max(steer, -1)
+        return steer
 
+    def __get_throttle_brake_without_factor(self, current_speed, target_speed):
+        self._pid.target = target_speed
+        pid_gain = self._pid(feedback=current_speed)
+        throttle = min(max(self._flags.default_throttle - 1.3 * pid_gain, 0),
+                       self._flags.throttle_max)
+        if pid_gain > 0.5:
+            brake = min(0.35 * pid_gain * self._flags.brake_strength, 1)
+        else:
+            brake = 0
+        return throttle, brake
+
+    def __get_throttle_brake(self,
+                             current_speed,
+                             target_speed,
+                             wp_angle_speed,
+                             speed_factor):
+        # TODO(ionel): DO NOT HARDCODE VALUES!
         # Don't go to fast around corners
         if math.fabs(wp_angle_speed) < 0.1:
-            target_speed_adjusted = self._flags.target_speed * speed_factor
+            target_speed_adjusted = target_speed * speed_factor
         elif math.fabs(wp_angle_speed) < 0.5:
-            target_speed_adjusted = 20 * speed_factor
+            target_speed_adjusted = 6 * speed_factor
         else:
-            target_speed_adjusted = 15 * speed_factor
-
+            target_speed_adjusted = 3 * speed_factor
         self._pid.target = target_speed_adjusted
         pid_gain = self._pid(feedback=current_speed)
         throttle = min(
@@ -289,5 +313,12 @@ class LidarERDOSAgentOperator(Op):
             brake = min(0.35 * pid_gain * self._flags.brake_strength, 1)
         else:
             brake = 0
+        return throttle, brake
 
+    def get_control_message(self, wp_angle, wp_angle_speed, speed_factor,
+                            current_speed, target_speed, timestamp):
+        current_speed = max(current_speed, 0)
+        steer = self.__get_steer(wp_angle)
+        throttle, brake = self.__get_throttle_brake(
+            current_speed, target_speed, wp_angle_speed, speed_factor)
         return ControlMessage(steer, throttle, brake, False, False, timestamp)

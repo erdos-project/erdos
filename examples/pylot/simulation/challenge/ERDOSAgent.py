@@ -297,6 +297,9 @@ class ERDOSAgent(AutonomousAgent):
                 # curently use them.
                 self._vehicle_transform = simulation.utils.to_erdos_transform(
                     val[1]['transform'])
+                # TODO(ionel): Scenario runner computes speed differently from
+                # the way we do it in the CARLA operator. This affects
+                # agent stopping constants. Check!
                 forward_speed = val[1]['speed']
                 can_bus = simulation.utils.CanBus(
                     self._vehicle_transform, forward_speed)

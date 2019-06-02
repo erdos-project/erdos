@@ -37,8 +37,6 @@ class ChallengePlanningOperator(Op):
     def on_can_bus_update(self, msg):
         self._vehicle_transform = msg.data.transform
         next_waypoint, _ = self.__compute_next_waypoint()
-        if next_waypoint is None:
-            next_waypoint = [self._vehicle_transform]
 
         wp_vector, wp_mag = get_world_vec_dist(
             next_waypoint.location.x,
