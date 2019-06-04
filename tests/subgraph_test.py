@@ -6,12 +6,6 @@ from absl import flags
 from multiprocessing import Process
 import numpy as np
 
-try:
-    from std_msgs.msg import Int64
-except ModuleNotFoundError:
-    # ROS not installed
-    Int64 = int
-
 from erdos.data_stream import DataStream
 import erdos.graph
 from erdos.graph import Graph
@@ -35,7 +29,7 @@ class IntegerOp(Op):
 
     @staticmethod
     def setup_streams(input_streams, stream_name="integer_out"):
-        return [DataStream(data_type=Int64, name=stream_name)]
+        return [DataStream(name=stream_name)]
 
     @frequency(1)
     def publish_random_number(self):

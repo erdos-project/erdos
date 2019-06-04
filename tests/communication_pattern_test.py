@@ -14,12 +14,6 @@ from erdos.op import Op
 from erdos.timestamp import Timestamp
 from erdos.utils import frequency
 
-try:
-    from std_msgs.msg import String
-except ModuleNotFoundError:
-    # ROS not installed
-    String = str
-
 FLAGS = flags.FLAGS
 flags.DEFINE_string('framework', 'ros',
                     'Execution framework to use: ros | ray.')
@@ -35,7 +29,7 @@ class PublisherOp(Op):
 
     @staticmethod
     def setup_streams(input_streams):
-        return [DataStream(data_type=String, name='pub_out')]
+        return [DataStream(name='pub_out')]
 
     def publish_msg(self):
         data = 'data %d' % self._cnt
@@ -61,7 +55,7 @@ class SubscriberOp(Op):
     @staticmethod
     def setup_streams(input_streams):
         input_streams.add_callback(SubscriberOp.on_msg)
-        return [DataStream(data_type=String, name='sub_out')]
+        return [DataStream(name='sub_out')]
 
     def on_msg(self, msg):
         data = msg if type(msg) is str else msg.data

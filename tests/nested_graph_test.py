@@ -5,12 +5,6 @@ from absl import app
 from absl import flags
 from multiprocessing import Process
 
-try:
-    from std_msgs.msg import Int64
-except ModuleNotFoundError:
-    # ROS not installed
-    Int64 = int
-
 import erdos.graph
 from erdos.graph import Graph
 

@@ -14,11 +14,6 @@ from erdos.op import Op
 from erdos.timestamp import Timestamp
 from erdos.utils import deadline
 
-try:
-    from std_msgs.msg import String
-except ModuleNotFoundError:
-    # ROS not installed
-    String = str
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('framework', 'ros',
@@ -33,7 +28,7 @@ class PublisherOp(Op):
 
     @staticmethod
     def setup_streams(input_streams):
-        return [DataStream(data_type=String, name='pub_out')]
+        return [DataStream(name='pub_out')]
 
     @deadline(10, "on_next_deadline_miss")
     def publish_msg(self):
@@ -62,7 +57,7 @@ class SubscriberOp(Op):
     @staticmethod
     def setup_streams(input_streams):
         input_streams.add_callback(SubscriberOp.on_msg)
-        return [DataStream(data_type=String, name='sub_out')]
+        return [DataStream(name='sub_out')]
 
     @deadline(10, "on_next_deadline_miss")
     def on_msg(self, msg):

@@ -8,11 +8,6 @@ from erdos.message import Message
 from erdos.utils import frequency
 from erdos.timestamp import Timestamp
 
-try:
-    from std_msgs.msg import String
-except ModuleNotFoundError:
-    # ROS not installed
-    String = str
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string('framework', 'ros',
@@ -27,7 +22,7 @@ class PublisherOperator(Op):
 
     @staticmethod
     def setup_streams(input_streams):
-        return [DataStream(data_type=String, name='publisher')]
+        return [DataStream(name='publisher')]
 
     @frequency(10)
     def publish_message(self):
