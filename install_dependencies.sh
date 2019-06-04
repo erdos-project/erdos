@@ -23,7 +23,7 @@ then
 else
     echo "Unsupported OS version"
     exit 1
-
+fi
 sudo apt-get install -y python-cv-bridge python-rosinstall
 
 # Initialize rosdep
