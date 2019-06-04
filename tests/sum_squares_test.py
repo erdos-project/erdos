@@ -4,12 +4,6 @@ from absl import app
 from absl import flags
 import numpy as np
 
-try:
-    from std_msgs.msg import Int64
-except ModuleNotFoundError:
-    # ROS not installed
-    Int64 = int
-
 from erdos.data_stream import DataStream
 from erdos.message import Message
 import erdos.graph
@@ -31,7 +25,7 @@ class IntegerOp(Op):
 
     @staticmethod
     def setup_streams(input_streams):
-        return [DataStream(data_type=Int64, name="integer_out")]
+        return [DataStream(name="integer_out")]
 
     @frequency(1)
     def publish_random_number(self):
@@ -53,7 +47,7 @@ class SquareOp(Op):
     @staticmethod
     def setup_streams(input_streams):
         input_streams.add_callback(SquareOp.on_next)
-        return [DataStream(data_type=Int64, name="square_output")]
+        return [DataStream(name="square_output")]
 
     def on_next(self, msg):
         value = msg.data
@@ -79,7 +73,7 @@ class SumOp(Op):
     @staticmethod
     def setup_streams(input_streams):
         input_streams.add_callback(SumOp.add)
-        return [DataStream(data_type=Int64, name="sum_output")]
+        return [DataStream(name="sum_output")]
 
     @frequency(1)
     def publish_sum(self):
@@ -119,7 +113,6 @@ def main(argv):
 
     # Execute graph
     graph.execute(FLAGS.framework)
-
 
 if __name__ == "__main__":
     app.run(main)

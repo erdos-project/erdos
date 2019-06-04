@@ -12,9 +12,7 @@ python:
   - "2.7"
 
 before_script:
-  - ./install_dependencies.sh
-  - source /opt/ros/kinetic/setup.bash
-  - export PYTHONPATH=$PYTHONPATH:$(pwd)
+  - ./install.sh
 
 script:
   - ./tests/run_tests.sh

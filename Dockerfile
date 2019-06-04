@@ -22,8 +22,7 @@ SHELL ["/bin/bash", "-c"]
 RUN sudo apt-get -y install git
 RUN mkdir -p /home/erdos/workspace
 RUN cd /home/erdos/workspace && git clone https://github.com/erdos-project/erdos.git
-RUN echo "export PYTHONPATH=\$PYTHONPATH:/home/erdos/workspace/erdos" >> ~/.bashrc
 WORKDIR /home/erdos/workspace/erdos
 
 # Install all the requirements.
-RUN /home/erdos/workspace/erdos/install_dependencies.sh
+RUN cd /home/erdos/workspace/erdos/ && ./install.sh

@@ -22,7 +22,7 @@ ERDOS is currently known to work on Ubuntu LTS 16.04.
 After cloning the repository, run
 
 ```console
-./install_dependencies.sh
+./install.sh
 ```
 
 This script installs ROS and Python dependencies.
@@ -30,17 +30,10 @@ This script installs ROS and Python dependencies.
 ## Running an example
 
 ```console
-export PYTHONPATH=$PYTHONPATH:<PATH_TO_ERDOS_DIR>
-cd examples
-python pylot/pylot.py --framework=ray
-```
-
-```console
-export PYTHONPATH=$PYTHONPATH:<PATH_TO_ERDOS_DIR>
-# Setup the ROS paths
-source /opt/ros/kinetic/setup.bash
-# Run the pipeline using ROS
-python pylot/pylot.py --framework=ros
+# Run the test using Ray
+python tests/sum_squares_test.py --framework=ray
+# Run the test using ROS
+python tests/sum_squares_test.py --framework=ros
 ```
 
 # Getting involved

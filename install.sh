@@ -13,6 +13,7 @@ then
     sudo apt-get update
     sudo apt-get install -y --allow-unauthenticated ros-kinetic-ros-base
     echo "source /opt/ros/kinetic/setup.bash" >> ~/.bashrc
+    source /opt/ros/kinetic/setup.bash
 elif [ $os_version == '18.04' ]
 then
     sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu bionic main" > /etc/apt/sources.list.d/ros-latest.list'
@@ -20,6 +21,7 @@ then
     sudo apt-get update
     sudo apt-get install -y --allow-unauthenticated ros-melodic-ros-base
     echo "source /opt/ros/melodic/setup.bash" >> ~/.bashrc
+    source /opt/ros/melodic/setup.bash
 else
     echo "Unsupported OS version"
     exit 1
@@ -37,4 +39,5 @@ rosdep update
 # Install pip packages
 sudo apt-get install -y python-pip
 
-pip install erdos
+# Install the erdos package
+pip install -e ./
