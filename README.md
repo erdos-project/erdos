@@ -22,7 +22,7 @@ ERDOS is currently known to work on Ubuntu LTS 16.04.
 After cloning the repository, run
 
 ```console
-./install.sh
+source ./install.sh
 ```
 
 This script installs ROS and Python dependencies.
