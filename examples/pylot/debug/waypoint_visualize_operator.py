@@ -33,7 +33,9 @@ class WaypointVisualizerOperator(Op):
         super(WaypointVisualizerOperator, self).__init__(name)
         self._logger = setup_logging(self.name, log_file_name)
         self._flags = flags
-        _, self._world = simulation.carla_utils.get_world()
+        _, self._world = simulation.carla_utils.get_world(
+            self._flags.carla_host,
+            self._flags.carla_port)
         if self._world is None:
             raise ValueError("Error connecting to the simulator.")
         self._colors = [carla.Color(255, 0, 0),

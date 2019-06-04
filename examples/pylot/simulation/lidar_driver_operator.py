@@ -44,7 +44,9 @@ class LidarDriverOperator(Op):
         self._logger = setup_logging(self.name, log_file_name)
         self._lidar_setup = lidar_setup
 
-        _, self._world = simulation.carla_utils.get_world()
+        _, self._world = simulation.carla_utils.get_world(
+            self._flags.carla_host,
+            self._flags.carla_port)
         if self._world is None:
             raise ValueError("There was an issue connecting to the simulator.")
 

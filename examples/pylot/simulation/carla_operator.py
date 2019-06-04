@@ -51,7 +51,9 @@ class CarlaOperator(Op):
         self._csv_logger = setup_csv_logging(self.name + '-csv', csv_file_name)
 
         # Connect to CARLA and retrieve the world running.
-        self._client, self._world = simulation.carla_utils.get_world()
+        self._client, self._world = simulation.carla_utils.get_world(
+            self._flags.carla_host,
+            self._flags.carla_port)
         if self._client is None or self._world is None:
             raise ValueError('There was an issue connecting to the simulator.')
 
