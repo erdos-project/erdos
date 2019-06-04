@@ -16,110 +16,6 @@ DEPTH_CAMERA_NAME = 'front_depth_camera'
 SEGMENTED_CAMERA_NAME = 'front_semantic_camera'
 
 
-def create_carla_legacy_op(graph, camera_setups, lidar_setups):
-    # Import operator that works with Carla 0.8.4
-    from simulation.carla_legacy_operator import CarlaLegacyOperator
-    carla_op = graph.add(
-        CarlaLegacyOperator,
-        name='carla',
-        init_args={
-            'flags': FLAGS,
-            'camera_setups': camera_setups,
-            'lidar_setups': lidar_setups,
-            'log_file_name': FLAGS.log_file_name,
-            'csv_file_name': FLAGS.csv_log_file_name
-        },
-        setup_args={
-            'camera_setups': camera_setups,
-            'lidar_setups': lidar_setups
-        })
-    return carla_op
-
-
-def create_carla_op(graph):
-    from simulation.carla_operator import CarlaOperator
-    carla_op = graph.add(
-        CarlaOperator,
-        name='carla',
-        init_args={
-            'flags': FLAGS,
-            'log_file_name': FLAGS.log_file_name,
-            'csv_file_name': FLAGS.csv_log_file_name
-        })
-    return carla_op
-
-
-def create_camera_driver_op(graph, camera_setup):
-    from simulation.camera_driver_operator import CameraDriverOperator
-    camera_op = graph.add(
-        CameraDriverOperator,
-        name=camera_setup.name,
-        init_args={
-            'camera_setup': camera_setup,
-            'flags': FLAGS,
-            'log_file_name': FLAGS.log_file_name
-        },
-        setup_args={'camera_setup': camera_setup})
-    return camera_op
-
-
-def create_lidar_driver_op(graph, lidar_setup):
-    from simulation.lidar_driver_operator import LidarDriverOperator
-    lidar_op = graph.add(
-        LidarDriverOperator,
-        name=lidar_setup.name,
-        init_args={
-            'lidar_setup': lidar_setup,
-            'flags': FLAGS,
-            'log_file_name': FLAGS.log_file_name
-        },
-        setup_args={'lidar_setup': lidar_setup})
-    return lidar_op
-
-
-def create_planning_op(graph, goal_location):
-    from planning.planning_operator import PlanningOperator
-    planning_op = graph.add(
-        PlanningOperator,
-        name='planning',
-        init_args={
-            'goal_location': goal_location,
-            'flags': FLAGS,
-            'log_file_name': FLAGS.log_file_name,
-            'csv_file_name': FLAGS.csv_log_file_name
-        })
-    return planning_op
-
-def create_control_op(graph):
-    from control.pid_control_operator import PIDControlOperator
-    control_op = graph.add(
-        PIDControlOperator,
-        name='controller',
-        init_args={
-            'longitudinal_control_args': {
-                'K_P': FLAGS.pid_p,
-                'K_I': FLAGS.pid_i,
-                'K_D': FLAGS.pid_d,
-            },
-            'flags': FLAGS,
-            'log_file_name': FLAGS.log_file_name,
-            'csv_file_name': FLAGS.csv_log_file_name
-        })
-    return control_op
-
-
-def create_waypoint_visualizer_op(graph):
-    from debug.waypoint_visualize_operator import WaypointVisualizerOperator
-    waypoint_viz_op = graph.add(
-        WaypointVisualizerOperator,
-        name='waypoint_viz',
-        init_args={
-            'flags': FLAGS,
-            'log_file_name': FLAGS.log_file_name
-        })
-    return waypoint_viz_op
-
-
 def create_left_right_camera_setups():
     left_camera_setup = simulation.utils.CameraSetup(
         LEFT_CAMERA_NAME,
@@ -134,30 +30,30 @@ def create_left_right_camera_setups():
     return [left_camera_setup, right_camera_setup]
 
 
-def main(argv):
-
-    # Define graph
-    graph = erdos.graph.get_current_graph()
-
+def create_camera_setups(position=(2.0, 0.0, 1.4)):
     rgb_camera_setup = simulation.utils.CameraSetup(
         CENTER_CAMERA_NAME,
         'sensor.camera.rgb',
         (FLAGS.carla_camera_image_width, FLAGS.carla_camera_image_height),
-        (2.0, 0.0, 1.4))
+        position)
     depth_camera_setup = simulation.utils.CameraSetup(
         DEPTH_CAMERA_NAME,
         'sensor.camera.depth',
         (FLAGS.carla_camera_image_width, FLAGS.carla_camera_image_height),
-        (2.0, 0.0, 1.4))
+        position)
     segmented_camera_setup = simulation.utils.CameraSetup(
         SEGMENTED_CAMERA_NAME,
         'sensor.camera.semantic_segmentation',
         (FLAGS.carla_camera_image_width, FLAGS.carla_camera_image_height),
-        (2.0, 0.0, 1.4))
-    camera_setups = [rgb_camera_setup,
-                     depth_camera_setup,
-                     segmented_camera_setup]
+        position)
+    return (rgb_camera_setup, depth_camera_setup, segmented_camera_setup)
 
+
+def main(argv):
+    # Define graph
+    graph = erdos.graph.get_current_graph()
+
+    camera_setups = list(create_camera_setups())
     if FLAGS.depth_estimation:
         camera_setups = camera_setups + create_left_right_camera_setups()
 
@@ -179,13 +75,15 @@ def main(argv):
     camera_ops = []
     lidar_ops = []
     if '0.8' in FLAGS.carla_version:
-        carla_op = create_carla_legacy_op(graph, camera_setups, lidar_setups)
+        carla_op = operator_creator.create_carla_legacy_op(
+            graph, camera_setups, lidar_setups)
         camera_ops = [carla_op]
     elif '0.9' in FLAGS.carla_version:
-        carla_op = create_carla_op(graph)
-        camera_ops = [create_camera_driver_op(graph, cs)
+        carla_op = operator_creator.create_carla_op(graph)
+        camera_ops = [operator_creator.create_camera_driver_op(graph, cs)
                       for cs in camera_setups]
-        lidar_ops = [create_lidar_driver_op(graph, ls) for ls in lidar_setups]
+        lidar_ops = [operator_creator.create_lidar_driver_op(graph, ls)
+                     for ls in lidar_setups]
         graph.connect([carla_op], camera_ops + lidar_ops)
     else:
         raise ValueError(
@@ -253,18 +151,21 @@ def main(argv):
 
     traffic_light_det_ops = []
     if FLAGS.traffic_light_det:
-        traffic_light_det_ops.append(operator_creator.create_traffic_light_op(graph))
+        traffic_light_det_ops.append(
+            operator_creator.create_traffic_light_op(graph))
         graph.connect(camera_ops, traffic_light_det_ops)
 
     lane_detection_ops = []
     if FLAGS.lane_detection:
-        lane_detection_ops.append(operator_creator.create_lane_detection_op(graph))
+        lane_detection_ops.append(
+            operator_creator.create_lane_detection_op(graph))
         graph.connect(camera_ops, lane_detection_ops)
 
     if FLAGS.depth_estimation:
         depth_estimation_op = operator_creator.create_depth_estimation_op(
             graph, LEFT_CAMERA_NAME, RIGHT_CAMERA_NAME)
-        graph.connect(camera_ops + lidar_ops + [carla_op], [depth_estimation_op])
+        graph.connect(camera_ops + lidar_ops + [carla_op],
+                      [depth_estimation_op])
 
     agent_op = None
     if FLAGS.ground_agent_operator:
@@ -273,7 +174,8 @@ def main(argv):
         graph.connect([agent_op], [carla_op])
     else:
         # TODO(ionel): The ERDOS agent doesn't use obj tracker and fusion.
-        agent_op = operator_creator.create_erdos_agent_op(graph, DEPTH_CAMERA_NAME)
+        agent_op = operator_creator.create_erdos_agent_op(
+            graph, DEPTH_CAMERA_NAME)
         input_ops = [carla_op] + traffic_light_det_ops + obj_detector_ops +\
                     segmentation_ops + lane_detection_ops
         graph.connect(input_ops, [agent_op])
@@ -283,16 +185,18 @@ def main(argv):
     goal_orientation = (1.0, 0.0, 0.22)
 
     if '0.8' in FLAGS.carla_version:
-        waypointer_op = operator_creator.create_waypointer_op(graph, goal_location, goal_orientation)
+        waypointer_op = operator_creator.create_waypointer_op(
+            graph, goal_location, goal_orientation)
         graph.connect([carla_op], [waypointer_op])
         graph.connect([waypointer_op], [agent_op])
     elif '0.9' in FLAGS.carla_version:
-        planning_op = create_planning_op(graph, goal_location)
+        planning_op = operator_creator.create_planning_op(graph, goal_location)
         graph.connect([carla_op], [planning_op])
         graph.connect([planning_op], [agent_op])
 
         if FLAGS.visualize_waypoints:
-            waypoint_viz_op = create_waypoint_visualizer_op(graph)
+            waypoint_viz_op = operator_creator.create_waypoint_visualizer_op(
+                graph)
             graph.connect([planning_op], [waypoint_viz_op])
 
     graph.execute(FLAGS.framework)

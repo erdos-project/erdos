@@ -36,6 +36,111 @@ from planning.waypointer_operator import WaypointerOperator
 FLAGS = flags.FLAGS
 
 
+def create_carla_legacy_op(graph, camera_setups, lidar_setups):
+    # Import operator that works with Carla 0.8.4
+    from simulation.carla_legacy_operator import CarlaLegacyOperator
+    carla_op = graph.add(
+        CarlaLegacyOperator,
+        name='carla',
+        init_args={
+            'flags': FLAGS,
+            'camera_setups': camera_setups,
+            'lidar_setups': lidar_setups,
+            'log_file_name': FLAGS.log_file_name,
+            'csv_file_name': FLAGS.csv_log_file_name
+        },
+        setup_args={
+            'camera_setups': camera_setups,
+            'lidar_setups': lidar_setups
+        })
+    return carla_op
+
+
+def create_carla_op(graph):
+    from simulation.carla_operator import CarlaOperator
+    carla_op = graph.add(
+        CarlaOperator,
+        name='carla',
+        init_args={
+            'flags': FLAGS,
+            'log_file_name': FLAGS.log_file_name,
+            'csv_file_name': FLAGS.csv_log_file_name
+        })
+    return carla_op
+
+
+def create_camera_driver_op(graph, camera_setup):
+    from simulation.camera_driver_operator import CameraDriverOperator
+    camera_op = graph.add(
+        CameraDriverOperator,
+        name=camera_setup.name,
+        init_args={
+            'camera_setup': camera_setup,
+            'flags': FLAGS,
+            'log_file_name': FLAGS.log_file_name
+        },
+        setup_args={'camera_setup': camera_setup})
+    return camera_op
+
+
+def create_lidar_driver_op(graph, lidar_setup):
+    from simulation.lidar_driver_operator import LidarDriverOperator
+    lidar_op = graph.add(
+        LidarDriverOperator,
+        name=lidar_setup.name,
+        init_args={
+            'lidar_setup': lidar_setup,
+            'flags': FLAGS,
+            'log_file_name': FLAGS.log_file_name
+        },
+        setup_args={'lidar_setup': lidar_setup})
+    return lidar_op
+
+
+def create_planning_op(graph, goal_location):
+    from planning.planning_operator import PlanningOperator
+    planning_op = graph.add(
+        PlanningOperator,
+        name='planning',
+        init_args={
+            'goal_location': goal_location,
+            'flags': FLAGS,
+            'log_file_name': FLAGS.log_file_name,
+            'csv_file_name': FLAGS.csv_log_file_name
+        })
+    return planning_op
+
+
+def create_control_op(graph):
+    from control.pid_control_operator import PIDControlOperator
+    control_op = graph.add(
+        PIDControlOperator,
+        name='controller',
+        init_args={
+            'longitudinal_control_args': {
+                'K_P': FLAGS.pid_p,
+                'K_I': FLAGS.pid_i,
+                'K_D': FLAGS.pid_d,
+            },
+            'flags': FLAGS,
+            'log_file_name': FLAGS.log_file_name,
+            'csv_file_name': FLAGS.csv_log_file_name
+        })
+    return control_op
+
+
+def create_waypoint_visualizer_op(graph):
+    from debug.waypoint_visualize_operator import WaypointVisualizerOperator
+    waypoint_viz_op = graph.add(
+        WaypointVisualizerOperator,
+        name='waypoint_viz',
+        init_args={
+            'flags': FLAGS,
+            'log_file_name': FLAGS.log_file_name
+        })
+    return waypoint_viz_op
+
+
 def create_camera_replay_ops(graph):
     camera_ops = []
     for i in range(0, FLAGS.num_cameras, 1):
@@ -84,6 +189,7 @@ def create_waypointer_op(graph, goal_location, goal_orientation):
     waypointer_op = graph.add(
         WaypointerOperator,
         name='waypointer',
+        # TODO(ionel): Do not hardcode Town name!
         init_args={
             'city_name': 'Town01',
             'goal_location': goal_location,

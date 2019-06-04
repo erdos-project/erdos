@@ -6,19 +6,20 @@ from absl import flags
 from collections import deque
 
 import config
-from control.ground_agent_operator import GroundAgentOperator
 from perception.detection.utils import get_bounding_boxes_from_segmented, visualize_ground_bboxes
-from perception.segmentation.utils import get_traffic_sign_pixels
-from planning.waypointer_operator import WaypointerOperator
-from simulation.carla_legacy_operator import CarlaLegacyOperator
-from simulation.utils import get_2d_bbox_from_3d_box, get_camera_intrinsic_and_transform
+from perception.segmentation.utils import get_traffic_sign_pixels, transform_to_cityscapes_palette
+import simulation.utils
+import operator_creator
 import pylot_utils
 
 import erdos.graph
 from erdos.op import Op
-from erdos.utils import setup_csv_logging, setup_logging, time_epoch_ms
+from erdos.utils import setup_csv_logging, setup_logging
 
 FLAGS = flags.FLAGS
+CENTER_CAMERA_NAME = 'front_rgb_camera'
+DEPTH_CAMERA_NAME = 'front_depth_camera'
+SEGMENTED_CAMERA_NAME = 'front_semantic_camera'
 
 # Flags that control what data is recorded.
 flags.DEFINE_string('data_path', 'data/',
@@ -67,8 +68,9 @@ class CameraLoggerOp(Op):
         self._last_segmented_timestamp = msg.timestamp.coordinates[1]
         if self._last_bgr_timestamp % self._flags.log_every_nth_frame != 0:
             return
+        frame = transform_to_cityscapes_palette(msg.frame)
         # Write the segmented image.
-        img = Image.fromarray(np.uint8(msg.frame))
+        img = Image.fromarray(np.uint8(frame))
         file_name = '{}carla-segmented-{}.png'.format(
             self._flags.data_path, self._last_segmented_timestamp)
         img.save(file_name)
@@ -77,7 +79,7 @@ class CameraLoggerOp(Op):
 class GroundTruthObjectLoggerOp(Op):
     def __init__(self,
                  name,
-                 rgb_camera_setup,
+                 bgr_camera_setup,
                  flags,
                  log_file_name=None,
                  csv_file_name=None):
@@ -87,16 +89,15 @@ class GroundTruthObjectLoggerOp(Op):
         self._flags = flags
         # Queue of incoming data.
         self._bgr_imgs = deque()
-        self._vehicle_transforms = deque()
+        self._can_bus_msgs = deque()
         self._depth_imgs = deque()
         self._pedestrians = deque()
         self._segmented_imgs = deque()
         self._vehicles = deque()
-        (camera_name, _, img_size, pos) = rgb_camera_setup
-        (self._rgb_intrinsic, self._rgb_transform,
-         self._rgb_img_size) = get_camera_intrinsic_and_transform(
-             image_size=img_size,
-             position=pos)
+        (self._bgr_intrinsic, self._bgr_transform,
+         self._bgr_img_size) = simulation.utils.get_camera_intrinsic_and_transform(
+             image_size=bgr_camera_setup.resolution,
+             position=bgr_camera_setup.pos)
         self._last_notification = -1
 
     @staticmethod
@@ -109,8 +110,8 @@ class GroundTruthObjectLoggerOp(Op):
             pylot_utils.is_ground_segmented_camera_stream).add_callback(
                 GroundTruthObjectLoggerOp.on_segmented_frame)
         input_streams.filter(
-            pylot_utils.is_vehicle_transform_stream).add_callback(
-                GroundTruthObjectLoggerOp.on_vehicle_transform_update)
+            pylot_utils.is_can_bus_stream).add_callback(
+                GroundTruthObjectLoggerOp.on_can_bus_update)
         input_streams.filter(
             pylot_utils.is_ground_pedestrians_stream).add_callback(
                 GroundTruthObjectLoggerOp.on_pedestrians_update)
@@ -131,23 +132,23 @@ class GroundTruthObjectLoggerOp(Op):
         depth_msg = self._depth_imgs.popleft()
         bgr_msg = self._bgr_imgs.popleft()
         segmented_msg = self._segmented_imgs.popleft()
-        vehicle_trans_msg = self._vehicle_transforms.popleft()
+        can_bus_msg = self._can_bus_msgs.popleft()
         pedestrians_msg = self._pedestrians.popleft()
         vehicles_msg = self._vehicles.popleft()
         self._logger.info('Timestamps {} {} {} {} {} {}'.format(
             depth_msg.timestamp, bgr_msg.timestamp, segmented_msg.timestamp,
-            vehicle_trans_msg.timestamp, pedestrians_msg.timestamp,
+            can_bus_msg.timestamp, pedestrians_msg.timestamp,
             vehicles_msg.timestamp))
 
         assert (depth_msg.timestamp == bgr_msg.timestamp ==
-                segmented_msg.timestamp == vehicle_trans_msg.timestamp ==
+                segmented_msg.timestamp == can_bus_msg.timestamp ==
                 pedestrians_msg.timestamp == vehicles_msg.timestamp)
 
         if self._last_notification % self._flags.log_every_nth_frame != 0:
             return
 
         depth_array = depth_msg.frame
-        vehicle_transform = vehicle_trans_msg.data
+        vehicle_transform = can_bus_msg.data.transform
 
         ped_bboxes = self.__get_pedestrians_bboxes(
             pedestrians_msg.pedestrians, vehicle_transform, depth_array)
@@ -176,8 +177,8 @@ class GroundTruthObjectLoggerOp(Op):
                                     ped_vis_bboxes, vec_vis_bboxes,
                                     traffic_sign_vis_bboxes)
 
-    def on_vehicle_transform_update(self, msg):
-        self._vehicle_transforms.append(msg)
+    def on_can_bus_update(self, msg):
+        self._can_bus_msgs.append(msg)
 
     def on_pedestrians_update(self, msg):
         self._pedestrians.append(msg)
@@ -201,10 +202,10 @@ class GroundTruthObjectLoggerOp(Op):
                                  depth_array):
         bboxes = []
         for pedestrian in pedestrians:
-            bbox = get_2d_bbox_from_3d_box(
+            bbox = simulation.utils.get_2d_bbox_from_3d_box(
                 depth_array, vehicle_transform, pedestrian.transform,
-                pedestrian.bounding_box, self._rgb_transform, self._rgb_intrinsic,
-                self._rgb_img_size, 1.5, 3.0)
+                pedestrian.bounding_box, self._bgr_transform, self._bgr_intrinsic,
+                self._bgr_img_size, 1.5, 3.0)
             if bbox is not None:
                 (xmin, xmax, ymin, ymax) = bbox
                 bboxes.append(('pedestrian', ((xmin, ymin), (xmax, ymax))))
@@ -213,10 +214,10 @@ class GroundTruthObjectLoggerOp(Op):
     def __get_vehicles_bboxes(self, vehicles, vehicle_transform, depth_array):
         vec_bboxes = []
         for vehicle in vehicles:
-            bbox = get_2d_bbox_from_3d_box(
+            bbox = simulation.utils.get_2d_bbox_from_3d_box(
                 depth_array, vehicle_transform, vehicle.transform,
-                vehicle.bounding_box, self._rgb_transform, self._rgb_intrinsic,
-                self._rgb_img_size, 3.0, 3.0)
+                vehicle.bounding_box, self._bgr_transform, self._bgr_intrinsic,
+                self._bgr_img_size, 3.0, 3.0)
             if bbox is not None:
                 (xmin, xmax, ymin, ymax) = bbox
                 vec_bboxes.append(('vehicle', ((xmin, ymin), (xmax, ymax))))
@@ -229,55 +230,23 @@ class GroundTruthObjectLoggerOp(Op):
         return traffic_sign_bboxes
 
 
-def add_carla_op(graph, camera_setups):
-    carla_op = graph.add(
-        CarlaLegacyOperator,
-        name='carla',
-        init_args={
-            'flags': FLAGS,
-            'camera_setups': camera_setups,
-            'lidar_stream_names': [],
-            'log_file_name': FLAGS.log_file_name,
-            'csv_file_name': FLAGS.csv_log_file_name
-        },
-        setup_args={
-            'camera_setups': camera_setups,
-            'lidar_stream_names': []
-        })
-    return carla_op
-
-
-def add_ground_agent_op(graph, carla_op):
-    agent_op = graph.add(
-        GroundAgentOperator,
-        name='ground_agent',
-        init_args={
-            # TODO(ionel): Do not hardcode city name!
-            'city_name': 'Town01',
-            'flags': FLAGS,
-            'log_file_name': FLAGS.log_file_name,
-            'csv_file_name': FLAGS.csv_log_file_name
-        })
-    return agent_op
-
-
-def add_waypointer_op(graph,
-                      carla_op,
-                      agent_op,
-                      goal_location,
-                      goal_orientation):
-    waypointer_op = graph.add(
-        WaypointerOperator,
-        name='waypointer',
-        init_args={
-            'city_name': 'Town01',
-            'goal_location': goal_location,
-            'goal_orientation': goal_orientation,
-            'flags': FLAGS,
-            'log_file_name': FLAGS.log_file_name,
-            'csv_file_name': FLAGS.csv_log_file_name
-        })
-    return waypointer_op
+def create_camera_setups(position=(2.0, 0.0, 1.4)):
+    rgb_camera_setup = simulation.utils.CameraSetup(
+        CENTER_CAMERA_NAME,
+        'sensor.camera.rgb',
+        (FLAGS.carla_camera_image_width, FLAGS.carla_camera_image_height),
+        position)
+    depth_camera_setup = simulation.utils.CameraSetup(
+        DEPTH_CAMERA_NAME,
+        'sensor.camera.depth',
+        (FLAGS.carla_camera_image_width, FLAGS.carla_camera_image_height),
+        position)
+    segmented_camera_setup = simulation.utils.CameraSetup(
+        SEGMENTED_CAMERA_NAME,
+        'sensor.camera.semantic_segmentation',
+        (FLAGS.carla_camera_image_width, FLAGS.carla_camera_image_height),
+        position)
+    return (rgb_camera_setup, depth_camera_setup, segmented_camera_setup)
 
 
 def main(argv):
@@ -285,8 +254,13 @@ def main(argv):
     # Define graph
     graph = erdos.graph.get_current_graph()
 
+    bgr_camera_setup, depth_camera_setup, segmented_camera_setup = create_camera_setups()
+    camera_setups = [bgr_camera_setup,
+                     depth_camera_setup,
+                     segmented_camera_setup]
+
     logging_ops = []
-    # Add an operator that logs RGB frames and segmented frames.
+    # Add an operator that logs BGR frames and segmented frames.
     camera_logger_op = graph.add(
         CameraLoggerOp,
         name='camera_logger_op',
@@ -295,61 +269,50 @@ def main(argv):
                    'csv_file_name': FLAGS.csv_log_file_name})
     logging_ops.append(camera_logger_op)
 
-    rgb_camera_setup = ('front_rgb_camera',
-                        'SceneFinal',
-                        (FLAGS.carla_camera_image_width,
-                         FLAGS.carla_camera_image_height),
-                        (2.0, 0.0, 1.4))
-    camera_setups = [rgb_camera_setup]
-
-    # Depth camera is required to map from 3D object bounding boxes
-    # to 2D.
-    depth_camera_name = 'front_depth_camera'
-    depth_camera_setup = (depth_camera_name, 'Depth',
-                          (FLAGS.carla_camera_image_width,
-                           FLAGS.carla_camera_image_height),
-                          (2.0, 0.0, 1.4))
-    camera_setups.append(depth_camera_setup)
     # Add operator that converts from 3D bounding boxes
     # to 2D bouding boxes.
     ground_object_logger_op = graph.add(
         GroundTruthObjectLoggerOp,
         name='ground_truth_obj_logger',
-        init_args={'rgb_camera_setup': rgb_camera_setup,
+        init_args={'bgr_camera_setup': bgr_camera_setup,
                    'flags': FLAGS,
                    'log_file_name': FLAGS.log_file_name,
                    'csv_file_name': FLAGS.csv_log_file_name})
     logging_ops.append(ground_object_logger_op)
 
-    # Record segmented frames as well. The CameraLoggerOp records them.
-    segmentation_camera_setup = ('front_semantic_camera',
-                                 'SemanticSegmentation',
-                                 (FLAGS.carla_camera_image_width,
-                                  FLAGS.carla_camera_image_height),
-                                 (2.0, 0.0, 1.4))
-    camera_setups.append(segmentation_camera_setup)
-
     # Add operator that interacts with the Carla simulator.
-    carla_op = add_carla_op(graph, camera_setups)
+    carla_op = None
+    if '0.8' in FLAGS.carla_version:
+        carla_op = operator_creator.create_carla_legacy_op(
+            graph, camera_setups, [])
+        camera_ops = [carla_op]
+    elif '0.9' in FLAGS.carla_version:
+        carla_op = operator_creator.create_carla_op(graph)
+        camera_ops = [operator_creator.create_camera_driver_op(graph, cs)
+                      for cs in camera_setups]
+        graph.connect([carla_op], camera_ops)
+    else:
+        raise ValueError(
+            'Unexpected Carla version {}'.format(FLAGS.carla_version))
+    graph.connect([carla_op] + camera_ops, logging_ops)
 
-    agent_op = add_ground_agent_op(graph, carla_op)
+    agent_op = operator_creator.create_ground_agent_op(graph)
+    graph.connect([carla_op], [agent_op])
+    graph.connect([agent_op], [carla_op])
 
     # Add agent that uses ground data to drive around.
     goal_location = (234.269989014, 59.3300170898, 39.4306259155)
     goal_orientation = (1.0, 0.0, 0.22)
-    waypointer_op = add_waypointer_op(graph,
-                                      carla_op,
-                                      agent_op,
-                                      goal_location,
-                                      goal_orientation)
 
-
-    # Connect the operators.
-    graph.connect([carla_op], [agent_op])
-    graph.connect([agent_op], [carla_op])
-    graph.connect([carla_op], logging_ops)
-    graph.connect([carla_op], [waypointer_op])
-    graph.connect([waypointer_op], [agent_op])
+    if '0.8' in FLAGS.carla_version:
+        waypointer_op = operator_creator.create_waypointer_op(
+            graph, goal_location, goal_orientation)
+        graph.connect([carla_op], [waypointer_op])
+        graph.connect([waypointer_op], [agent_op])
+    elif '0.9' in FLAGS.carla_version:
+        planning_op = operator_creator.create_planning_op(graph, goal_location)
+        graph.connect([carla_op], [planning_op])
+        graph.connect([planning_op], [agent_op])
 
     graph.execute(FLAGS.framework)
 
