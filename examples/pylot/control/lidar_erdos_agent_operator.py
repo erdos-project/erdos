@@ -10,7 +10,7 @@ from control.messages import ControlMessage
 import control.utils as agent_utils
 from pid_controller.pid import PID
 import simulation.utils
-from simulation.utils import get_3d_world_position
+from simulation.utils import get_3d_world_position_with_point_cloud
 import pylot_utils
 
 
@@ -87,7 +87,8 @@ class LidarERDOSAgentOperator(Op):
         wp_vector = waypoint_msg.wp_vector
         wp_angle_speed = waypoint_msg.wp_angle_speed
         target_speed = waypoint_msg.target_speed
-        point_cloud = self.__point_cloud_to_world_coordinates(pc_msg)
+        #point_cloud = self.__point_cloud_to_world_coordinates(pc_msg)
+        point_cloud = pc_msg.point_cloud.tolist()
 
         traffic_lights = self.__transform_tl_output(tl_output, point_cloud)
         (pedestrians, vehicles) = self.__transform_detector_output(
@@ -146,42 +147,17 @@ class LidarERDOSAgentOperator(Op):
         self.spin()
 
     def __transform_to_3d(self, x, y, point_cloud):
-        pos = get_3d_world_position(x,
-                                    y,
-                                    0.001,  # Setting so that it doesn't affect the calculation
-                                    self._camera_transform,
-                                    self._camera_width,
-                                    self._camera_height,
-                                    self._camera_fov)
-        pos_3d = self.__find_closest_lidar_point(pos.y, pos.z, point_cloud)
-        if pos_3d is None:
+        pos = get_3d_world_position_with_point_cloud(x,
+                                                     y,
+                                                     point_cloud,
+                                                     self._camera_transform,
+                                                     self._camera_width,
+                                                     self._camera_height,
+                                                     self._camera_fov)
+        if pos is None:
             self._logger.error(
                 'Could not find lidar point for {} {}'.format(x, y))
-        return pos_3d
-
-    def __find_closest_lidar_point(self, y, z, point_cloud):
-        closest_point = None
-        dist = None
-        for (px, py, pz) in point_cloud:
-            if px == 0:
-                continue
-            y_dist = abs(y - py / px)
-            z_dist = abs(z - pz / px)
-            # Check if the lidar point is close to the point we're trying to
-            # get depth for.
-            if y_dist < 0.1 and z_dist < 0.1:
-                if dist is None:
-                    closest_point = (px, py, pz)
-                    dist = y_dist + z_dist
-                elif y_dist + z_dist < dist:
-                    closest_point = (px, py, pz)
-                    dist = y_dist + z_dist
-        if closest_point:
-            return simulation.utils.Location(closest_point[0],
-                                             closest_point[1],
-                                             closest_point[2])
-        else:
-            return None
+        return pos
 
     def __transform_tl_output(self, tls, point_cloud):
         traffic_lights = []

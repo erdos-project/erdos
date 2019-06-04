@@ -4,6 +4,7 @@ import math
 import numpy as np
 from numpy.linalg import inv
 from numpy.matlib import repmat
+import time
 
 CameraSetup = namedtuple('CameraSetup', 'name, type, resolution, pos')
 LidarSetup = namedtuple('LidarSetup', 'name, type, pos, range, rotation_frequency, channels, upper_fov, lower_fov, points_per_second')
@@ -118,6 +119,9 @@ class Transform(object):
         points = self.matrix * points
         # Return all but last row
         return points[0:3].transpose()
+
+    def inverse_transform(self):
+        return Transform(matrix=inv(self.matrix))
 
     def __mul__(self, other):
         return Transform(matrix=np.dot(self.matrix, other.matrix))
@@ -254,6 +258,44 @@ def get_3d_world_position_with_depth_map(x, y, depth_msg):
     point_cloud = camera_unreal_transform.transform_points(point_cloud)
     (x, y, z) = point_cloud.tolist()[y * depth_msg.width + x]
     return Location(x, y, z)
+
+
+def find_depth(x, y, point_cloud):
+    closest_point = None
+    dist = 1000000
+    # Find the closest lidar point to the point we're trying to get depth for.
+    for (px, py, pz) in point_cloud:
+        # Ignore if the point is behind.
+        if pz <= 0:
+            continue
+        x_dist = abs(x - px / pz)
+        y_dist = abs(y - py / pz)
+        if x_dist < 0.01 and y_dist < 0.01:
+            if y_dist + x_dist < dist:
+                closest_point = (px, py, pz)
+                dist = y_dist + x_dist
+    if closest_point:
+        return closest_point
+    else:
+        return None
+
+
+def get_3d_world_position_with_point_cloud(
+        x, y, pc, camera_transform, width, height, fov):
+    intrinsic_mat = create_intrinsic_matrix(width, height, fov)
+    u = width - 1 - x
+    v = height - 1 - y
+    p3d = np.dot(inv(intrinsic_mat), np.array([[u], [v], [1.0]]))
+    depth = find_depth(p3d[0], p3d[1], pc)
+    if depth:
+        scale = depth[2] / p3d[2]
+        p3d *= np.array([scale])
+        camera_unreal_transform = camera_to_unreal_transform(camera_transform)
+        point_cloud = camera_unreal_transform.transform_points(p3d.transpose())
+        (x, y, z) = point_cloud.tolist()[0]
+        return Location(x, y, z)
+    else:
+        None
 
 
 def get_3d_world_position(x, y, z, camera_transform, width, height, fov):

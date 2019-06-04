@@ -76,13 +76,16 @@ def equality_test(x, y, depth_msg):
         x, y, depth_msg.frame[y][x], depth_msg.transform, 800, 600, 90.0)
     print("{} Computed using depth {}".format((x, y), pos3d))
 
-    pos3d_no_depth = get_3d_world_position(
-        x, y, 0.001, depth_msg.transform, 800, 600, 90.0)
-
-    print("{} Computed using no depth {}".format((x, y), pos3d_no_depth))
-
     pos3d_depth = get_3d_world_position_with_depth_map(x, y, depth_msg)
     print("{} Computed using depth map {}".format((x, y), pos3d_depth))
+
+    global lidar_pc
+    while lidar_pc is None:
+        time.sleep(0.2)
+
+    pos3d_pc = simulation.utils.get_3d_world_position_with_point_cloud(
+        x, y, lidar_pc, depth_msg.transform, 800, 600, 90.0)
+    print("{} Computed using lidar {}".format((x, y), pos3d_pc))
 
 
 def check_equality_tests(depth_msg):
@@ -105,8 +108,6 @@ def on_depth_msg(carla_image):
         carla_image.fov,
         None)
 
-    check_equality_tests(depth_msg)
-
     depth_point_cloud = simulation.utils.depth_to_local_point_cloud(
             depth_msg, max_depth=1.0)
 
@@ -117,6 +118,8 @@ def on_depth_msg(carla_image):
     global depth_pc
     depth_pc = depth_point_cloud
     pptk.viewer(depth_point_cloud)
+
+    check_equality_tests(depth_msg)
 
 
 def add_lidar(transform, callback):
