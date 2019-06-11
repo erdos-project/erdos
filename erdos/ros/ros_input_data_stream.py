@@ -107,7 +107,8 @@ class ROSInputDataStream(DataStream):
             # TODO (sukritk) :: Either define an API to know when the system
             # has to flow watermarks, or figure out if the developer has already
             # sent a watermark for a timestamp and don't send duplicates.
-            if len(self.completion_callbacks) == 0:
+            if (len(self.completion_callbacks) == 0 and
+                not self.op._no_watermark_passthrough):
                 for output_stream in self.op.output_streams.values():
                     output_stream.send(msg)
         else:

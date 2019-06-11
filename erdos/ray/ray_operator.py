@@ -101,7 +101,8 @@ class RayOperator(object):
 
         # TODO (sukritk) :: Same issue as erdos/ros/ros_input_data_stream.py
         # TODO (sukritk) FIX (Ray Issue #4463): Remove when Ray issue is fixed.
-        if not self._completion_callbacks.get(new_msg.stream_uid):
+        if (not self._completion_callbacks.get(new_msg.stream_uid) and
+            not self._op._no_watermark_passthrough):
             watermark_msg = WatermarkMessage(msg.timestamp, msg.stream_name)
             for output_stream in self._op.output_streams.values():
                 output_stream.send(watermark_msg)

@@ -25,13 +25,22 @@ class Op(object):
         freq_actor: A Ray actor used for periodic tasks.
     """
 
-    def __init__(self, name, checkpoint_enable=False, checkpoint_freq=None):
+    def __init__(self,
+                 name,
+                 checkpoint_enable=False,
+                 checkpoint_freq=None,
+                 no_watermark_passthrough=False):
         self.name = name
         self.input_streams = []
         self.output_streams = {}
         self.freq_actor = None
         self.progress_tracker = None
         self.framework = None
+        # In some situations it is useful if watermaks are not automatically
+        # passed to downstream operators (e.g., operators that do not desire
+        # to close a timestamp by default when they receive watermark).
+        # Set this attribute to disable default watermark passing.
+        self._no_watermark_passthrough = no_watermark_passthrough
         self._stream_to_high_watermark = {}
         self._stream_ignore_watermarks = set()  # input streams that do not send watermarks
 
