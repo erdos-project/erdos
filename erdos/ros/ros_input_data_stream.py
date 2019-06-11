@@ -67,9 +67,10 @@ class ROSInputDataStream(DataStream):
             else:
                 if high_watermark >= msg.timestamp:
                     raise Exception(
-                        "The watermark received in the msg {} is not "
-                        "higher than the watermark previously received "
-                        "on the same stream: {}".format(msg, high_watermark))
+                        "The watermark received in the msg {} at operator {} "
+                        "is not higher than the watermark previously received "
+                        "on the same stream: {}".format(
+                            msg, self.op.name, high_watermark))
                 else:
                     self.op._stream_to_high_watermark[msg.stream_name] = \
                             msg.timestamp

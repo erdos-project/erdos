@@ -109,7 +109,7 @@ class Graph(object):
 
         for op_id in input_ops:
             handle = self.op_handles[op_id]
-            handle.dependant_ops += output_ops
+            handle.dependant_ops = handle.dependant_ops.union(output_ops)
 
     def construct(self, input_ops, **kwargs):
         """Constructs a graph

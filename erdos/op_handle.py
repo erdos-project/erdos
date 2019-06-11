@@ -23,7 +23,7 @@ class OpHandle(object):
         self.framework = framework
         self.machine = machine
         self.resources = {} if resources is None else resources
-        self.dependant_ops = []  # handle ids of dependant ops
+        self.dependant_ops = set()  # handle ids of dependant ops
         self.dependent_op_handles = {}
         self.executor_handle = None
         self.progress_tracker = None  # Unused now

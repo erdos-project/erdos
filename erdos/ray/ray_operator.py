@@ -147,12 +147,12 @@ class RayOperator(object):
         ]
         self._op._add_input_streams(ray_input_streams)
         # Wrap output streams in Ray data streams.
-        ray_output_streams = [
-            RayOutputDataStream(
-                self._op,
-                dependant_ops_handles.get(output_stream.uid, []),
-                output_stream) for output_stream in self._output_streams
-        ]
+        ray_output_streams = []
+        for output_stream in self._output_streams:
+            assert output_stream.uid in dependant_ops_handles
+            output_stream = RayOutputDataStream(
+                self._op, output_stream.uid, output_stream)
+            ray_output_streams.append(output_stream)
         self._op._add_output_streams(ray_output_streams)
         self._op._internal_setup_streams()
 

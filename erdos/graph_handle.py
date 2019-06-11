@@ -22,7 +22,7 @@ class GraphHandle(object):
         self.framework = framework
         self.machine = machine
         self.resources = {} if resources is None else resources
-        self.dependant_ops = []  # handle ids of dependant ops
+        self.dependant_ops = set()  # handle ids of dependant ops
         self.dependent_op_handles = {}
         self.executor_handle = None
         self.progress_tracker = None  # Unused now
@@ -40,5 +40,7 @@ class GraphHandle(object):
         # Construct graph
         output_ops = graph.construct([graph.input_op], **self.setup_args)
         graph.connect(output_ops, [graph.output_op])
-        graph.op_handles[graph.output_op].dependant_ops += self.dependant_ops
+        graph.op_handles[graph.output_op].dependant_ops =\
+            graph.op_handles[graph.output_op].dependant_ops.union(
+                self.dependant_ops)
         return graph
