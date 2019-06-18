@@ -122,6 +122,20 @@ class Graph(object):
         """
         raise NotImplementedError("User must define setup_streams in graph.")
 
+    def destroy(self):
+        # TODO(ionel): Graphs are not yet fully supported so we do not need to
+        # handle them here.
+        for op_id, op_handle in self.op_handles.items():
+            op_handle.destroy()
+        time.sleep(1)
+        self.op_handles.clear()
+        self.graph_handles.clear()
+        self.output_stream_to_op_id_sinks.clear()
+        assert self.parent is None
+        # Add back input and output ops.
+        self.input_op = self.add(NoopOp, name='input_op')
+        self.output_op = self.add(NoopOp, name='output_op')
+
     @staticmethod
     def setup_streams(input_streams, **kwargs):
         """Subscribes to input data streams and constructs output data streams.

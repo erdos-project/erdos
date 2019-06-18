@@ -1,3 +1,6 @@
+import time
+
+
 class OpHandle(object):
     def __init__(self,
                  name,
@@ -36,3 +39,14 @@ class OpHandle(object):
         for stream in self.output_streams:
             self.dependent_op_handles[stream.uid] = dependent_op_handles.get(
                 stream.uid, [])
+
+    def destroy(self):
+        # TOOD(ionel): This only works for ROS.
+        # Terminate the ROS process. It is done using the SIGTERM signal.
+        # NOTE: Exit handlers and finally clauses will not be executed.
+        # IMPORTANT: descendant processes of the process will not be
+        # terminated.
+        self.executor_handle.terminate()
+        time.sleep(1)
+        assert not self.executor_handle.is_alive()
+        self.executor_handle.join(timeout=1.0)
