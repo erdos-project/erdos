@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="erdos",
-    version="0.1.1",
+    version="0.1.2",
     author="ERDOS Team",
     description=("A platform for developing robots and autonomous vehicles."),
     long_description=open("README.md").read(),

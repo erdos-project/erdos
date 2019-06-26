@@ -27,7 +27,7 @@ else
     echo "Unsupported OS version"
     exit 1
 fi
-sudo apt-get install -y python-cv-bridge python-rosinstall
+sudo apt-get install -y --allow-unauthenticated python-cv-bridge python-rosinstall
 
 # Initialize rosdep
 sudo rosdep init
