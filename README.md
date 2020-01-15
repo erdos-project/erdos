@@ -16,7 +16,7 @@ docker pull erdosproject/erdos
 
 ## System requirements
 
-ERDOS is currently known to work on Ubuntu LTS 16.04.
+ERDOS is currently known to work on Ubuntu LTS 16.04 and 18.04.
 
 ## Installation instructions
 After cloning the repository, run
