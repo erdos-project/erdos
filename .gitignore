@@ -12,10 +12,14 @@ Cargo.lock
 *.egg-info
 __pycache__
 /env
+*.pyc
 
 # Editor files
 .vscode
 .ipynb_checkpoints
+*~
 
-# Documentation files
-doc/build
+# Generated documentation files
+/doc/build
+.idea/
+venv/
