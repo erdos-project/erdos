@@ -1,6 +1,23 @@
+# Rust files
+/target
+**/*.rs.bk
 *~
+Cargo.lock
+.criterion
+
+# Library files
+*.so
+
+# Python files
+*.egg-info
+__pycache__
+/env
 *.pyc
-examples/pylot/dependencies/data/
+
+# Editor files
+.vscode
+.ipynb_checkpoints
+*~
 
 # Generated documentation files
 /doc/build

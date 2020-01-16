@@ -8,11 +8,10 @@ os:
   - linux
 
 python:
-  #  - "3.5" Disabled because ROS can't run with Python 3.
-  - "2.7"
+  - "3.5"
 
 before_script:
-  - ./install.sh
+  - source ./scripts/install_rust.sh
 
 script:
-  - ./tests/run_tests.sh
+  - cargo test
