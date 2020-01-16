@@ -29,3 +29,7 @@ RUN sudo apt-get -y install git
 RUN mkdir -p /home/erdos/workspace
 RUN cd /home/erdos/workspace && git clone https://github.com/erdos-project/erdos.git
 WORKDIR /home/erdos/workspace/erdos
+RUN cd /home/erdos/workspace/erdos
+RUN cargo build --release
+# Install the python package
+RUN python3 python/setup.py develop
