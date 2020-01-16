@@ -1,4 +1,4 @@
-FROM ubuntu:16.04
+FROM ubuntu:18.04
 
 # Set up an erdos user first.
 RUN apt-get -y update && apt-get -y install sudo
@@ -18,11 +18,14 @@ ENV SHELL /bin/bash
 
 SHELL ["/bin/bash", "-c"]
 
+# Instal rust.
+RUN sudo apt-get -y install curl
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/home/erdos/.cargo/bin:${PATH}"
+RUN rustup default nightly
+
 # Get the erdos directory.
 RUN sudo apt-get -y install git
 RUN mkdir -p /home/erdos/workspace
 RUN cd /home/erdos/workspace && git clone https://github.com/erdos-project/erdos.git
 WORKDIR /home/erdos/workspace/erdos
-
-# Install all the requirements.
-RUN cd /home/erdos/workspace/erdos/ && ./install.sh
