@@ -3,7 +3,7 @@
 ERDOS is a platform for developing self-driving cars and robotics applications.
 
 [![Build Status](https://travis-ci.org/erdos-project/erdos.svg)](https://travis-ci.org/erdos-project/erdos)
-[![Documentation Status](https://readthedocs.org/projects/erdos/badge/?         version=latest)](https://erdos.readthedocs.io/en/latest/?badge=latest)    
+[![Documentation Status](https://readthedocs.org/projects/erdos/badge/?version=latest)](https://erdos.readthedocs.io/en/latest/?badge=latest)
 
 
 # Getting started

@@ -1,17 +1,4 @@
-sudo: required
+language: rust
 
-language: python
-
-dist: xenial
-
-os:
-  - linux
-
-python:
-  - "3.5"
-
-before_script:
-  - source ./scripts/install_rust.sh
-
-script:
-  - cargo test
+rust:
+  - nightly
