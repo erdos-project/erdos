@@ -14,7 +14,7 @@
 
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../../'))
+sys.path.insert(0, os.path.abspath('../../python'))
 
 
 # -- Project information -----------------------------------------------------
@@ -24,9 +24,9 @@ copyright = u'2018, The ERDOS Team'
 author = u'The ERDOS Team'
 
 # The short X.Y version
-version = u''
+version = u'0.2'
 # The full version, including alpha/beta/rc tags
-release = u'0.1'
+release = u'0.2.0'
 
 
 # -- General configuration ---------------------------------------------------
@@ -46,9 +46,9 @@ extensions = [
 # Enable autodoc without requiring installation of listed modules
 import mock
 
-mock_modules = ["ray", "rospy", "actionlib"]
-for mod_name in mock_modules:
-    sys.modules[mod_name] = mock.Mock()
+# mock_modules = ["ray", "rospy", "actionlib"]
+# for mod_name in mock_modules:
+#     sys.modules[mod_name] = mock.Mock()
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -161,7 +161,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
     (master_doc, 'ERDOS', u'ERDOS Documentation',
-     author, 'ERDOS', 'One line description of project.',
+     author, 'ERDOS', 'A platform for developing self-driving cars and robotics applications.',
      'Miscellaneous'),
 ]
 

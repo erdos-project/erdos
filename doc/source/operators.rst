@@ -1,37 +1,45 @@
 Operators
 =========
 
-Operators represent vertices in the execution graph.
+Operators process data in ERDOS applications.
 
-All operators must inherit from the `erdos.Op` class.
+Operators receive messages from streams passed to the `connect` static method.
+Operators also create streams on which they send messages. These streams must
+created and returned by the `connect` method.
+ERDOS expects developers to specify which streams operators read from and write
+to. For more details, see the
+`data streams documentation <data_streams.html>`__.
 
-Operators can receive data by subscribing to data streams provided in the
-`setup_streams` method. Operators can publish data on data streams created in
-and returned by the `setup_streams` method.
-In ERDOS we expect operator developers to specify which output data streams
-they write to, and which input streams they subscribe to. For more details,
-see the `data streams documentation <data_streams.html>`__.
+All operators must implement `erdos.Operator` abstract class.
 
-Operators can set up state by overriding the `__init__` method; however,
-operators that do so should call `Op.__init__` as well.
+Operators set up state in the `__init__` method. Operators should also
+add callbacks to streams in `__init__`.
 
-Implement execution logic by overriding the `execute` method. This method may
+Implement execution logic by overriding the `run` method. This method may
 contain a control loop or call methods that run regularly.
+*Callbacks are not invoked while run executes.*
 
 
 API
 ---
-.. autoclass:: erdos.op.Op
-    :members: setup_streams, execute, get_output_stream
+.. autoclass:: erdos.Operator
+    :members: __init__, connect, run
+
+Examples
+--------
+
+Periodically Publishing Data
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. literalinclude:: _literalinclude/python_examples/simple_pipeline.py
+    :pyobject: SendOp
 
 
-Example: Periodically Publishing Data
--------------------------------------
-.. literalinclude:: _literalinclude/tests/sum_squares_test.py
-    :pyobject: IntegerOp
+Processing Data via Callbacks
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. literalinclude:: _literalinclude/python_examples/simple_pipeline.py
+    :pyobject: CallbackOp
 
-
-Example: Subscribing to Data Streams
-------------------------------------
-.. literalinclude:: _literalinclude/tests/sum_squares_test.py
-    :pyobject: SquareOp
+Processing Data by Pulling Messages
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. literalinclude:: _literalinclude/python_examples/simple_pipeline.py
+    :pyobject: PullOp
