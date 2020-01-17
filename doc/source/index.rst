@@ -1,5 +1,5 @@
 ERDOS
-=================================
+=====
 
 *ERDOS is a platform for developing self-driving cars and robotics
 applications.*
