@@ -9,13 +9,12 @@ import time
 
 class SquareOp(erdos.Operator):
     def __init__(self, read_stream, write_stream):
-        self.write_stream = write_stream
-        read_stream.add_callback(self.callback)
+        read_stream.add_callback(self.callback, [write_stream])
 
-    def callback(self, msg):
+    def callback(self, msg, write_stream):
         print(f"SquareOp: received {msg}")
         msg = erdos.Message(msg.timestamp, msg.data * msg.data)
-        self.write_stream.send(msg)
+        write_stream.send(msg)
 
     @staticmethod
     def connect(read_streams):
