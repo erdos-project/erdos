@@ -1,3 +1,33 @@
+//! # ERDOS
+//!
+//! `ERDOS` is a platform  for developing self-driving cars and robotics
+//!  applications.
+//!
+//! `ERDOS` is a streaming dataflow system designed for self-driving car
+//! pipelines and robotics applications.
+//!
+//! Components of the pipelines are implemented as **operators** which
+//! are connected by **data streams**. The set of operators and streams
+//! forms the **dataflow graph**, the representation of the pipline that
+//! `ERDOS` processes.
+//!
+//! Applications define the dataflow graph by connecting operators to streams
+//! in the **driver** section of the program. Operators are typically
+//! implemented elsewhere.
+//!
+//! `ERDOS` is designed for low latency. Self-driving car pipelines require
+//! end-to-end deadlines on the order of hundreds of milliseconds for safe
+//! driving. Similarly, self-driving cars typically process gigabytes per
+//! second of data on small clusters. Therefore, `ERDOS` is optimized to
+//! send small amounts of data (gigabytes as opposed to terabytes)
+//! as quickly as possible.
+//!
+//! `ERDOS` provides determinisim through **watermarks**. Low watermarks
+//! are a bound on the age of messages received and operators will ignore
+//! any messages older than the most recent watermark received. By processing
+//! on watermarks, applications can avoid non-determinism from processing
+//! messages out of order.
+
 #![feature(get_mut_unchecked)]
 #![feature(specialization)]
 
@@ -422,9 +452,7 @@ pub fn generate_id() -> Uuid {
 }
 
 /// Wrapper around uuid::Uuid that implements Abomonation for fast serialization.
-#[derive(
-    Abomonation, Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize,
-)]
+#[derive(Abomonation, Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Uuid(uuid::Bytes);
 
 impl Uuid {

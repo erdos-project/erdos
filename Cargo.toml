@@ -1,11 +1,17 @@
 [package]
 name = "erdos"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["The ERDOS Team"]
 edition = "2018"
 default-run = "erdos"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license = "Apache"
+readme = "README.md"
+documentation = "https://docs.rs/erdos/0.2.0/erdos/"
+repository = "https://github.com/erdos-project/erdos"
+description = """
+ERDOS is a platform for developing self-driving cars and robotics applications.
+"""
+keywords = ["data-flow", "robotics", "autonomos", "driving"]
 
 [dependencies]
 abomonation = "0.7.3"
