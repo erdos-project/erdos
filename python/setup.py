@@ -10,7 +10,7 @@ requires = []
 
 setup(
     name="erdos",
-    version="0.0.1",
+    version="0.2.0",
     rust_extensions=[
         RustExtension("erdos.internal",
                       path="Cargo.toml",
@@ -21,5 +21,4 @@ setup(
     package_dir={"": package_dir},
     # rust extensions are not zip safe, just like C-extensions.
     zip_safe=False,
-    install_requires=requires
-)
+    install_requires=requires)

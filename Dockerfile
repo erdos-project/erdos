@@ -19,7 +19,7 @@ ENV SHELL /bin/bash
 SHELL ["/bin/bash", "-c"]
 
 # Instal rust.
-RUN sudo apt-get -y install curl
+RUN sudo apt-get -y install curl clang python3
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/home/erdos/.cargo/bin:${PATH}"
 RUN rustup default nightly
