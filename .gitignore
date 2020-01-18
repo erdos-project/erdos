@@ -13,6 +13,7 @@ Cargo.lock
 __pycache__
 /env
 *.pyc
+dist
 
 # Editor files
 .vscode
