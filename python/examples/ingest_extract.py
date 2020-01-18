@@ -12,7 +12,7 @@ class SquareOp(erdos.Operator):
         read_stream.add_callback(self.callback, [write_stream])
 
     def callback(self, msg, write_stream):
-        print(f"SquareOp: received {msg}")
+        print("SquareOp: received {msg}".format(msg=msg))
         msg = erdos.Message(msg.timestamp, msg.data * msg.data)
         write_stream.send(msg)
 
@@ -36,11 +36,11 @@ if __name__ == "__main__":
     while True:
         timestamp = erdos.Timestamp(coordinates=[count])
         send_msg = erdos.Message(timestamp, count)
-        print(f"IngestStream: sending {send_msg}")
+        print("IngestStream: sending {send_msg}".format(send_msg=send_msg))
         ingest_stream.send(send_msg)
         ingest_stream.send(erdos.WatermarkMessage(timestamp))
         recv_msg = extract_stream.read()
-        print(f"ExtractStream: received {recv_msg}")
+        print("ExtractStream: received {recv_msg}".format(recv_msg=recv_msg))
 
         count += 1
         time.sleep(1)
