@@ -22,16 +22,16 @@ class LoopOp(erdos.Operator):
 
     @staticmethod
     def callback(msg, write_stream):
-        print(f"LoopOp: received {msg}")
+        print("LoopOp: received {msg}".format(msg=msg))
         msg.timestamp.coordinates[0] += 1
         msg.data += 1
         time.sleep(1)
-        print(f"LoopOp: sending {msg}")
+        print("LoopOp: sending {msg}".format(msg=msg))
         write_stream.send(msg)
 
     def run(self):
         msg = erdos.Message(erdos.Timestamp(coordinates=[0]), 0)
-        print(f"LoopOp: sending {msg}")
+        print("LoopOp: sending {msg}".format(msg=msg))
         self.write_stream.send(msg)
 
 

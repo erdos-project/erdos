@@ -19,7 +19,7 @@ class SendOp(erdos.Operator):
         while True:
             timestamp = erdos.Timestamp(coordinates=[count])
             msg = erdos.Message(timestamp, count)
-            print(f"SendOp: sending {msg}")
+            print("SendOp: sending {msg}".format(msg=msg))
             self.write_stream.send(msg)
 
             if count % 3 == 2:
@@ -42,13 +42,13 @@ class BatchOp(erdos.Operator):
 
     # TODO: use a callback on a stateful read stream instead of passing self
     def add_to_batch(self, msg):
-        print(f"adding to batch: {msg}")
+        print("adding to batch: {msg}".format(msg=msg))
         self.batch.append(msg.data)
 
     # TODO: use a callback on a stateful read stream instead of passing self
     def send_batch(self, timestamp, write_stream):
         msg = erdos.Message(timestamp, self.batch)
-        print(f"BatchOp: sending batch {msg}")
+        print("BatchOp: sending batch {msg}".format(msg=msg))
         write_stream.send(msg)
         self.batch = []
 
@@ -56,9 +56,9 @@ class BatchOp(erdos.Operator):
 class CallbackWatermarkListener(erdos.Operator):
     def __init__(self, read_stream):
         read_stream.add_watermark_callback(lambda t: print(
-            f"CallbackWatermarkListener: received watermark {t}"))
+            "CallbackWatermarkListener: received watermark {t}".format(t=t)))
         read_stream.add_callback(lambda m: print(
-            f"CallbackWatermarkListener: received message {m}"))
+            "CallbackWatermarkListener: received message {m}".format(m=m)))
 
     @staticmethod
     def connect(*read_streams):
@@ -78,16 +78,18 @@ class PullWatermarkListener(erdos.Operator):
             msg = self.read_stream.read()
             if isinstance(msg, erdos.WatermarkMessage):
                 print(("PullWatermarkListener:"
-                       f"received watermark {msg.timestamp}"))
+                       "received watermark {timestamp}").format(
+                           timestamp=msg.timestamp))
             else:
-                print(f"PullWatermarkListener: received message {msg}")
+                print("PullWatermarkListener: received message {msg}".format(
+                    msg=msg))
 
 
 def driver():
     """Creates the dataflow graph."""
     (count_stream, ) = erdos.connect(SendOp, [])
     (batch_stream, ) = erdos.connect(BatchOp, [count_stream],
-                                      flow_watermarks=True)
+                                     flow_watermarks=True)
     erdos.connect(CallbackWatermarkListener, [batch_stream])
     erdos.connect(PullWatermarkListener, [batch_stream])
 

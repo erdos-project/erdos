@@ -21,11 +21,12 @@ class SendOp(erdos.Operator):
         while True:
             timestamp = erdos.Timestamp(coordinates=[count])
             msg = erdos.Message(timestamp, count)
-            print(f"{self.name}: sending {msg}")
+            print("{name}: sending {msg}".format(name=self.name, msg=msg))
             self.write_stream.send(msg)
 
             watermark = erdos.WatermarkMessage(timestamp)
-            print(f"{self.name}: sending watermark {watermark}")
+            print("{name}: sending watermark {watermark}".format(
+                name=self.name, watermark=watermark))
             self.write_stream.send(watermark)
 
             count += 1
@@ -39,7 +40,7 @@ class JoinOp(erdos.Operator):
         left_stream.add_callback(self.recv_left)
         right_stream.add_callback(self.recv_right)
         erdos.add_watermark_callback([left_stream, right_stream],
-                                      [write_stream], self.send_joined)
+                                     [write_stream], self.send_joined)
 
     @staticmethod
     def connect(left_stream, right_stream):
@@ -47,11 +48,11 @@ class JoinOp(erdos.Operator):
 
     # TODO: use a callback on a stateful read stream instead of passing self
     def recv_left(self, msg):
-        print(f"JoinOp: received {msg} on left stream")
+        print("JoinOp: received {msg} on left stream".format(msg=msg))
         self.left_msgs[msg.timestamp] = msg
 
     def recv_right(self, msg):
-        print(f"JoinOp: received {msg} on right stream")
+        print("JoinOp: received {msg} on right stream".format(msg=msg))
         self.right_msgs[msg.timestamp] = msg
 
     # TODO: use a callback on a stateful read stream instead of passing self
@@ -59,16 +60,20 @@ class JoinOp(erdos.Operator):
         left_msg = self.left_msgs.pop(timestamp)
         right_msg = self.right_msgs.pop(timestamp)
         joined_msg = erdos.Message(timestamp, (left_msg.data, right_msg.data))
-        print(f"JoinOp: sending {joined_msg}")
+        print("JoinOp: sending {joined_msg}".format(joined_msg=joined_msg))
         write_stream.send(joined_msg)
 
 
 def driver():
     """Creates the dataflow graph."""
-    (left_stream, ) = erdos.connect(
-        SendOp, [], True, "FastSendOp", frequency=2)
-    (right_stream, ) = erdos.connect(
-        SendOp, [], True, "SlowSendOp", frequency=1)
+    (left_stream, ) = erdos.connect(SendOp, [],
+                                    True,
+                                    "FastSendOp",
+                                    frequency=2)
+    (right_stream, ) = erdos.connect(SendOp, [],
+                                     True,
+                                     "SlowSendOp",
+                                     frequency=1)
     erdos.connect(JoinOp, [left_stream, right_stream])
 
 

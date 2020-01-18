@@ -20,7 +20,7 @@ class SendOp(erdos.Operator):
         count = 0
         while True:
             msg = erdos.Message(erdos.Timestamp(coordinates=[count]), count)
-            print(f"SendOp: sending {msg}")
+            print("SendOp: sending {msg}".format(msg=msg))
             self.write_stream.send(msg)
 
             count += 1
@@ -34,7 +34,7 @@ class CallbackOp(erdos.Operator):
 
     @staticmethod
     def callback(msg):
-        print(f"CallbackOp: received {msg}")
+        print("CallbackOp: received {msg}".format(msg=msg))
 
     @staticmethod
     def connect(read_streams):
@@ -52,7 +52,7 @@ class PullOp:
     def run(self):
         while True:
             data = self.read_stream.read()
-            print(f"PullOp: received {data}")
+            print("PullOp: received {data}".format(data=data))
 
 
 class TryPullOp:
@@ -66,7 +66,7 @@ class TryPullOp:
     def run(self):
         while True:
             data = self.read_stream.try_read()
-            print(f"TryPullOp: received {data}")
+            print("TryPullOp: received {data}".format(data=data))
             time.sleep(0.5)
 
 

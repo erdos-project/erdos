@@ -46,7 +46,8 @@ def connect(op_type, read_streams, flow_watermarks=True, *args, **kwargs):
         elif isinstance(stream, ReadStream):
             py_read_streams.append(stream._py_read_stream)
         else:
-            raise TypeError(f"Unable to convert {stream} to ReadStream")
+            raise TypeError("Unable to convert {stream} to ReadStream".format(
+                stream=stream))
 
     internal_streams = _internal.connect(op_type, py_read_streams, args,
                                          kwargs, node_id, flow_watermarks)
