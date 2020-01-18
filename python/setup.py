@@ -1,6 +1,6 @@
 import os
 
-from setuptools import setup
+from setuptools import setup, find_packages
 from setuptools_rust import Binding, RustExtension
 
 package_dir = os.path.dirname(__file__)
@@ -18,6 +18,7 @@ setup(
                       features=["python"],
                       binding=Binding.PyO3)
     ],
+    packages=find_packages("python"),
     package_dir={"": package_dir},
     # rust extensions are not zip safe, just like C-extensions.
     zip_safe=False,
