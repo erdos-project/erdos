@@ -4,4 +4,4 @@ rust:
   - nightly
 
 install:
-  - pip install fire
+  - pip install --user fire
