@@ -3,6 +3,7 @@ name = "erdos"
 version = "0.2.0"
 authors = ["The ERDOS Team"]
 edition = "2018"
+build = "build.rs"
 default-run = "erdos"
 license = "Apache-2.0"
 readme = "README.md"
