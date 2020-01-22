@@ -58,22 +58,61 @@ pub mod scheduler;
 
 pub use crate::configuration::Configuration;
 
+/// Makes a callback which automatically flows watermarks to downstream operators.
+/// 
+/// This macro is invoked by `make_operator_runner!`
+#[macro_export]
+macro_rules! flow_watermarks {
+    (($($rs:ident),+), ($($ws:ident),+)) => {
+        $crate::add_watermark_callback!(($($rs.add_state(())),+), ($($ws),+), (|timestamp, $($rs),+, $($ws),+| {
+            $(
+                match $ws.send(Message::new_watermark(timestamp.clone())) {
+                    Ok(_) => (),
+                    Err(_) => eprintln!("Error flowing watermark"),
+                }
+            )+
+        }));
+    };
+    // Cases in which the system doesn't need to flow watermarks
+    (($($rs:ident),+), ()) => ();
+    ((), ($($ws:ident),+)) => ();
+    ((), ()) => ();
+}
+
+/// Makes a callback which automatically flows watermarks to downstream operators.
+/// 
+/// This macro is invoked by `make_operator_runner!`
+#[macro_export]
+macro_rules! make_operator {
+    ($t:ty, $config:expr, ($($rs:ident),+), ($($ws:ident),*)) => {
+        <$t>::new($config.clone(), $($rs.clone()),+, $($ws.clone()),*)
+    };
+
+    ($t:ty, $config:expr, (), ($($ws:ident),+)) => {
+        <$t>::new($config.clone(), $($ws.clone()),*)
+    };
+
+    ($t:ty, $config:expr, (), ()) => {
+        <$t>::new($config.clone())
+    };
+}
+
 /// Makes a closure that runs an operator inside of an operator exectuor when invoked.
 ///
 /// Note: this is intended as an internal macro called by connect_x_write!
 #[macro_export]
 macro_rules! make_operator_runner {
-    ($t:ty, $config:expr, ($($rs:ident),+), ($($ws:ident),+)) => {
+    ($t:ty, $config:expr, ($($rs:ident),*), ($($ws:ident),*)) => {
         {
             // Copy IDs to avoid moving streams into closure
             // Before: $rs is an identifier pointing to a read stream
             // $ws is an identifier pointing to a write stream
             $(
                 let $rs = ($rs.get_id());
-            )+
+            )*
             $(
                 let $ws = ($ws.get_id());
-            )+
+            )*
             // After: $rs is an identifier pointing to a read stream's StreamId
             // $ws is an identifier pointing to a write stream's StreamId
             move |channel_manager: Arc<Mutex<ChannelManager>>| {
@@ -89,29 +128,22 @@ macro_rules! make_operator_runner {
                         );
                         read_stream
                     };
-                )+
+                )*
                 $(
                     let $ws = {
                         let send_endpoints = channel_manager.lock().unwrap().get_send_endpoints($ws).unwrap();
                         WriteStream::from_endpoints(send_endpoints, $ws)
                     };
-                )+
+                )*
                 // After: $rs is an identifier pointing to ReadStream
                 // $ws is an identifier pointing to WriteStream
                 let config = $config.clone();
                 let flow_watermarks = config.flow_watermarks;
                 // TODO: set operator name?
-                let mut op = <$t>::new($config.clone(), $($rs.clone()),+, $($ws.clone()),+);
+                let mut op = $crate::make_operator!($t, $config, ($($rs),*), ($($ws),*));
                 // Pass on watermarks
                 if flow_watermarks {
-                    $crate::add_watermark_callback!(($($rs.add_state(())),+), ($($ws),+), (|timestamp, $($rs),+, $($ws),+| {
-                        $(
-                            match $ws.send(Message::new_watermark(timestamp.clone())) {
-                                Ok(_) => (),
-                                Err(_) => eprintln!("Error passing on watermark"),
-                            }
-                        )+
-                    }));
+                    $crate::flow_watermarks!(($($rs),*), ($($ws),*));
                 }
                 // Wait for all operators to instantiate.
                 // TODO: use a mutex/signaling mechanism instead.
@@ -122,87 +154,6 @@ macro_rules! make_operator_runner {
                 let mut op_executor = OperatorExecutor::new(op_ex_streams, $crate::get_terminal_logger());
                 op_executor
             }
-        }
-    };
-
-    ($t:ty, $config:expr, ($($rs:ident),+), ()) => {
-        {
-            // Copy IDs to avoid moving streams into closure
-            // Before: $rs is an identifier pointing to a read stream
-            $(
-                let $rs = $rs.get_id();
-            )+
-            // After: $rs is an identifier pointing to a read stream's StreamId
-            move |channel_manager: Arc<Mutex<ChannelManager>>| {
-                let mut op_ex_streams: Vec<Box<dyn OperatorExecutorStreamT>> = Vec::new();
-                // Before: $rs is an identifier pointing to a read stream's StreamId
-                $(
-                    let $rs = {
-                        let recv_endpoint = channel_manager.lock().unwrap().take_recv_endpoint($rs).unwrap();
-                        let read_stream = ReadStream::from(InternalReadStream::from_endpoint(recv_endpoint, $rs));
-                        op_ex_streams.push(
-                            Box::new(OperatorExecutorStream::from(&read_stream))
-                        );
-                        read_stream
-                    };
-                )+
-                // After: $rs is an identifier pointing to ReadStream
-                // TODO: name
-                let mut op = <$t>::new($config.clone(),  $($rs),+);
-                // Wait for all operators to instantiate.
-                // TODO: use a mutex/signaling mechanism instead.
-                thread::sleep(Duration::from_millis(500));
-                // TODO: execute the operator in parallel
-                op.run();
-                let mut op_executor = OperatorExecutor::new(op_ex_streams, $crate::get_terminal_logger());
-                op_executor
-            }
-        }
-    };
-
-    ($t:ty, $config:expr, (), ($($ws:ident),+)) => {
-        {
-            // Copy IDs to avoid moving streams into closure
-            // Before: $ws is an identifier pointing to a write stream
-            $(
-                let $ws = ($ws.get_id());
-            )+
-            // After: $ws is an identifier pointing to a write stream's StreamId
-            move |channel_manager: Arc<Mutex<ChannelManager>>| {
-                // Before: $ws is an identifier pointing to a write stream's StreamId
-                $(
-                    let $ws = {
-                        let send_endpoints = channel_manager.lock().unwrap().get_send_endpoints($ws).unwrap();
-                        WriteStream::from_endpoints(send_endpoints, $ws)
-                    };
-                )+
-                // After: $ws is an identifier pointing to WriteStream
-                let mut op_ex_streams: Vec<Box<dyn OperatorExecutorStreamT>> = Vec::new();
-                // TODO: name
-                let mut op = <$t>::new($config.clone(), $($ws),+);
-                // Wait for all operators to instantiate.
-                // TODO: use a mutex/signaling mechanism instead.
-                thread::sleep(Duration::from_millis(500));
-                // TODO: execute the operator in parallel
-                op.run();
-                let mut op_executor = OperatorExecutor::new(op_ex_streams, $crate::get_terminal_logger());
-                op_executor
-            }
-        }
-    };
-
-    ($t:ty, $config:expr, (), ()) => {
-        move |channel_manager: Arc<Mutex<ChannelManager>>| {
-            // TODO: name
-            let op_ex_streams: Vec<Box<dyn OperatorExecutorStreamT>> = Vec::new();
-            let mut op = <$t>::new($config.clone());
-            // Wait for all operators to instantiate.
-            // TODO: use a mutex/signaling mechanism instead.
-            thread::sleep(Duration::from_millis(500));
-            // TODO: execute the operator in parallel
-            op.run();
-            let mut op_executor = OperatorExecutor::new(op_ex_streams, $crate::get_terminal_logger());
-            op_executor
         }
     };
 }
