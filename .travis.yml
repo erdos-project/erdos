@@ -2,3 +2,6 @@ language: rust
 
 rust:
   - nightly
+
+install:
+  - pip install fire
