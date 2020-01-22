@@ -60,7 +60,7 @@ pub use crate::configuration::Configuration;
 
 /// Makes a callback which automatically flows watermarks to downstream operators.
 /// 
-/// This macro is invoked by `make_operator_runner!`
+/// Note: this is intended as an internal macro invoked by `make_operator_runner!`
 #[macro_export]
 macro_rules! flow_watermarks {
     (($($rs:ident),+), ($($ws:ident),+)) => {
@@ -81,7 +81,7 @@ macro_rules! flow_watermarks {
 
 /// Makes a callback which automatically flows watermarks to downstream operators.
 /// 
-/// This macro is invoked by `make_operator_runner!`
+/// Note: this is intended as an internal macro invoked by `make_operator_runner!`
 #[macro_export]
 macro_rules! make_operator {
     ($t:ty, $config:expr, ($($rs:ident),+), ($($ws:ident),*)) => {
