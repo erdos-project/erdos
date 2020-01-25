@@ -2,9 +2,11 @@ use futures::future;
 use std::{sync::Arc, thread, time::Duration};
 use tokio::{codec::Framed, net::TcpStream, prelude::*, runtime::Builder, sync::Mutex};
 
-use crate::communication;
 use crate::communication::{
-    receivers, receivers::ERDOSReceiver, senders, senders::ERDOSSender, MessageCodec,
+    self,
+    receivers::{self, ERDOSReceiver},
+    senders::{self, ERDOSSender},
+    ControlMessage, ControlMessageHandler, MessageCodec,
 };
 use crate::dataflow::graph::default_graph;
 use crate::scheduler::{
@@ -68,7 +70,7 @@ impl Node {
     }
 
     /// Splits a vector of TCPStreams into `ERDOSSender`s and `ERDOSReceiver`s.
-    async fn split_streams(
+    async fn split_data_streams(
         &mut self,
         mut streams: Vec<(NodeId, TcpStream)>,
     ) -> (Vec<ERDOSSender>, Vec<ERDOSReceiver>) {
@@ -80,8 +82,7 @@ impl Node {
             let (split_sink, split_stream) = framed.split();
             // Create an ERDOS receiver for the stream half.
             stream_halves.push(
-                ERDOSReceiver::new(node_id, split_stream, self.channels_to_receivers.clone())
-                    .await,
+                ERDOSReceiver::new(node_id, split_stream, self.channels_to_receivers.clone()).await,
             );
 
             // Create an ERDOS sender for the sink half.
@@ -132,22 +133,39 @@ impl Node {
 
     async fn async_run(&mut self) {
         // Create TCPStreams between all node pairs.
-        let streams = communication::create_tcp_streams(
-            self.config.addr_nodes.clone(),
+        let control_streams = communication::create_tcp_streams(
+            self.config.control_addresses.clone(),
             self.id,
             &self.config.logger,
         )
         .await;
-        let (senders, receivers) = self.split_streams(streams).await;
+        let mut control_handler = ControlMessageHandler::new(control_streams);
+        control_handler.broadcast(ControlMessage::AllOperatorsInitialized);
+        let data_streams = communication::create_tcp_streams(
+            self.config.data_addresses.clone(),
+            self.id,
+            &self.config.logger,
+        )
+        .await;
+        let (senders, receivers) = self.split_data_streams(data_streams).await;
         // Execute threads that send data to other nodes.
         let senders_fut = senders::run_senders(senders);
+        let control_senders_fut = senders::run_control_senders(control_handler.take_senders());
         // Execute threads that receive data from other nodes.
         let recvs_fut = receivers::run_receivers(receivers);
+        let control_recvs_fut = receivers::run_control_receivers(control_handler.take_receivers());
         // Execute operators.
         let ops_fut = self.run_operators();
         // These threads only complete when a failure happens.
-        let (senders_res, receivers_res, ops_res) =
-            future::join3(senders_fut, recvs_fut, ops_fut).await;
+        let (senders_res, receivers_res, control_senders_res, control_receiver_res, ops_res) =
+            future::join5(
+                senders_fut,
+                recvs_fut,
+                control_senders_fut,
+                control_recvs_fut,
+                ops_fut,
+            )
+            .await;
         // TODO(ionel): Remove code after operators execute on tokio.
         if let (&Ok(_), &Ok(_)) = (&senders_res, &receivers_res) {
             // Single node, so block indefinitely
@@ -160,6 +178,15 @@ impl Node {
         }
         if let Err(err) = receivers_res {
             error!(self.config.logger, "Error with ERDOS receivers: {:?}", err);
+        }
+        if let Err(err) = control_senders_res {
+            error!(self.config.logger, "Error with control senders: {:?}", err);
+        }
+        if let Err(err) = control_receiver_res {
+            error!(
+                self.config.logger,
+                "Error with control receivers: {:?}", err
+            );
         }
         if let Err(err) = ops_res {
             error!(

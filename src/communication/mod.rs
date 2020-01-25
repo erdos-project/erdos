@@ -8,25 +8,31 @@ pub mod senders;
 mod serializable;
 
 // Re-export structs as if they were defined here.
+pub use crate::communication::control_message_codec::ControlMessageCodec;
 pub use crate::communication::endpoints::{RecvEndpoint, SendEndpoint};
 pub use crate::communication::errors::{CodecError, CommunicationError, TryRecvError};
 pub use crate::communication::message_codec::MessageCodec;
-pub use crate::communication::pusher::{Pusher, PusherT};
+pub use crate::communication::pusher::{ControlPusher, Pusher, PusherT};
 pub use crate::communication::serializable::Serializable;
 
-use crate::Uuid;
 use byteorder::{ByteOrder, NetworkEndian, WriteBytesExt};
 use bytes::BytesMut;
 use futures::future;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::net::SocketAddr;
+use std::sync::mpsc::Receiver;
 use std::thread::sleep;
 use std::time::Duration;
-use tokio::net::{TcpListener, TcpStream};
-use tokio::prelude::*;
+use tokio::{
+    codec::Framed,
+    net::{TcpListener, TcpStream},
+    prelude::*,
+};
 
-use crate::node::node::NodeId;
+use self::{receivers::ControlReceiver, senders::ControlSender};
+use crate::{node::node::NodeId, Uuid};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ControlMessage {
@@ -55,6 +61,70 @@ impl SerializedMessage {
             },
             data,
         }
+    }
+}
+
+pub struct ControlMessageHandler {
+    tx: ControlPusher,
+    rx: Receiver<ControlMessage>,
+    senders: Vec<ControlSender>,
+    receivers: Vec<ControlReceiver>,
+}
+
+impl ControlMessageHandler {
+    pub fn new(streams: Vec<(NodeId, TcpStream)>) -> Self {
+        let mut senders: Vec<ControlSender> = Vec::new();
+        let mut receivers: Vec<ControlReceiver> = Vec::new();
+        let mut channels_to_senders = HashMap::new();
+        let (handler_tx, handler_rx) = std::sync::mpsc::channel();
+        for (node_id, stream) in streams {
+            // Use the message codec to divide the TCP stream data into messages.
+            let framed = Framed::new(stream, ControlMessageCodec::new());
+            let (split_sink, split_stream) = framed.split();
+            // Create an control receiver for the stream half.
+            receivers.push(ControlReceiver::new(
+                node_id,
+                split_stream,
+                handler_tx.clone(),
+            ));
+            // Create an control sender for the sink half.
+            let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+            senders.push(ControlSender::new(node_id, split_sink, rx));
+            channels_to_senders.insert(node_id, tx);
+        }
+
+        let tx = ControlPusher::new(channels_to_senders);
+
+        Self {
+            tx,
+            rx: handler_rx,
+            senders,
+            receivers,
+        }
+    }
+
+    pub fn send(&mut self, node_id: NodeId, msg: ControlMessage) -> Result<(), CommunicationError> {
+        self.tx.send(node_id, msg)
+    }
+
+    pub fn broadcast(&mut self, msg: ControlMessage) -> Result<(), CommunicationError> {
+        self.tx.broadcast(msg)
+    }
+
+    pub fn try_read(&mut self) -> Result<ControlMessage, TryRecvError> {
+        self.rx.try_recv().map_err(TryRecvError::from)
+    }
+
+    pub fn read(&mut self) -> Result<ControlMessage, CommunicationError> {
+        self.rx.recv().map_err(|_| CommunicationError::Disconnected)
+    }
+
+    pub fn take_senders(&mut self) -> Vec<ControlSender> {
+        self.senders.drain(..).collect()
+    }
+
+    pub fn take_receivers(&mut self) -> Vec<ControlReceiver> {
+        self.receivers.drain(..).collect()
     }
 }
 

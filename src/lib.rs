@@ -454,11 +454,18 @@ pub fn new_app(name: &str) -> clap::App {
                 .help("Number of worker threads per process"),
         )
         .arg(
-            Arg::with_name("addresses")
-                .short("a")
-                .long("addresses")
+            Arg::with_name("data-addresses")
+                .short("d")
+                .long("data-addresses")
                 .default_value("127.0.0.1:9000")
-                .help("Comma separated list of socket addresses of all nodes"),
+                .help("Comma separated list of data socket addresses of all nodes"),
+        )
+        .arg(
+            Arg::with_name("control-addresses")
+                .short("c")
+                .long("control-addresses")
+                .default_value("127.0.0.1:9000")
+                .help("Comma separated list of control socket addresses of all nodes"),
         )
         .arg(
             Arg::with_name("index")
