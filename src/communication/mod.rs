@@ -63,6 +63,7 @@ impl SerializedMessage {
     }
 }
 
+// TODO: update `channels_to_senders` for fault tolerance in case nodes to go down.
 pub struct ControlMessageHandler {
     channels_to_senders: HashMap<NodeId, UnboundedSender<ControlMessage>>,
     rx: UnboundedReceiver<ControlMessage>,

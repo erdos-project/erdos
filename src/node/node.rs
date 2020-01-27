@@ -140,6 +140,46 @@ impl Node {
         (control_handler, control_senders, control_receivers)
     }
 
+    async fn wait_for_local_operators_initialized(
+        &self,
+        rx_from_operators: std::sync::mpsc::Receiver<ControlMessage>,
+        num_local_operators: usize,
+    ) {
+        let mut initialized_operators = HashSet::new();
+        while initialized_operators.len() < num_local_operators {
+            if let Ok(ControlMessage::OperatorInitialized(op_id)) = rx_from_operators.recv() {
+                initialized_operators.insert(op_id);
+            }
+        }
+    }
+
+    async fn broadcast_local_operators_initialized(&self, control_handler: &mut ControlMessageHandler) -> Result<(), String> {
+        control_handler
+            .broadcast(ControlMessage::AllOperatorsInitializedOnNode(self.id))
+            .map_err(|e| format!("Error broadcasting control message: {:?}", e))
+    }
+
+    async fn wait_for_all_operators_initialized(
+        &self,
+        control_handler: &mut ControlMessageHandler,
+    ) -> Result<(), String> {
+        let num_nodes = self.config.data_addresses.len();
+        let mut initialized_nodes = HashSet::new();
+        initialized_nodes.insert(self.id);
+        while initialized_nodes.len() < num_nodes {
+            match control_handler.read().await {
+                Ok(ControlMessage::AllOperatorsInitializedOnNode(node_id)) => {
+                    initialized_nodes.insert(node_id);
+                }
+                Err(e) => {
+                    return Err(format!("Error waiting for other nodes to set up: {:?}", e));
+                }
+                _ => (),
+            }
+        }
+        Ok(())
+    }
+
     async fn run_operators(
         &mut self,
         mut control_handler: ControlMessageHandler,
@@ -160,10 +200,11 @@ impl Node {
             .into_iter()
             .filter(|op| op.node_id == self.id)
             .collect();
-        let num_local_operators = local_operators.len();
 
         let (operator_tx, rx_from_operators) = std::sync::mpsc::channel();
         let mut channels_to_operators = HashMap::new();
+
+        let num_local_operators = local_operators.len();
 
         for operator_info in local_operators {
             debug!(
@@ -181,31 +222,13 @@ impl Node {
         }
 
         // Wait for all operators to finish setting up
-        let mut initialized_operators = HashSet::new();
-        while initialized_operators.len() < num_local_operators {
-            if let Ok(ControlMessage::OperatorInitialized(op_id)) = rx_from_operators.recv() {
-                initialized_operators.insert(op_id);
-            }
-        }
+        self.wait_for_local_operators_initialized(rx_from_operators, num_local_operators)
+            .await;
         // Broadcast all operators initialized on current node
-        control_handler
-            .broadcast(ControlMessage::AllOperatorsInitializedOnNode(self.id))
-            .map_err(|e| format!("Error broadcasting control message: {:?}", e))?;
+        self.broadcast_local_operators_initialized(&mut control_handler).await?;
         // Wait for all other nodes to finish setting up
-        let num_nodes = self.config.data_addresses.len();
-        let mut initialized_nodes = HashSet::new();
-        initialized_nodes.insert(self.id);
-        while initialized_nodes.len() < num_nodes {
-            match control_handler.read().await {
-                Ok(ControlMessage::AllOperatorsInitializedOnNode(node_id)) => {
-                    initialized_nodes.insert(node_id);
-                }
-                Err(e) => {
-                    return Err(format!("Error waiting for other nodes to set up: {:?}", e));
-                }
-                _ => (),
-            }
-        }
+        self.wait_for_all_operators_initialized(&mut control_handler)
+            .await?;
         // Tell all operators to run
         for (op_id, tx) in channels_to_operators {
             tx.send(ControlMessage::RunOperator(op_id))

@@ -119,6 +119,8 @@ impl ControlReceiver {
     }
 
     pub async fn run(&mut self) -> Result<(), CommunicationError> {
+        // TODO: update `self.channel_to_handler` for up-to-date mappings
+        // between channels and handlers (e.g. for fault-tolerance).
         while let Some(res) = self.stream.next().await {
             match res {
                 Ok(msg) => {
