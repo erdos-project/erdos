@@ -12,7 +12,7 @@ pub use crate::communication::control_message_codec::ControlMessageCodec;
 pub use crate::communication::endpoints::{RecvEndpoint, SendEndpoint};
 pub use crate::communication::errors::{CodecError, CommunicationError, TryRecvError};
 pub use crate::communication::message_codec::MessageCodec;
-pub use crate::communication::pusher::{ControlPusher, Pusher, PusherT};
+pub use crate::communication::pusher::{Pusher, PusherT};
 pub use crate::communication::serializable::Serializable;
 
 use byteorder::{ByteOrder, NetworkEndian, WriteBytesExt};
@@ -34,7 +34,6 @@ use crate::{dataflow::stream::StreamId, node::node::NodeId, OperatorId};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ControlMessage {
-    AllOperatorsInitialized,
     AllOperatorsInitializedOnNode(NodeId),
     OperatorInitialized(OperatorId),
     RunOperator(OperatorId),
@@ -65,7 +64,7 @@ impl SerializedMessage {
 }
 
 pub struct ControlMessageHandler {
-    tx: ControlPusher,
+    channels_to_senders: HashMap<NodeId, UnboundedSender<ControlMessage>>,
     rx: UnboundedReceiver<ControlMessage>,
 }
 
@@ -75,17 +74,23 @@ impl ControlMessageHandler {
         handler_rx: UnboundedReceiver<ControlMessage>,
     ) -> Self {
         Self {
-            tx: ControlPusher::new(channels_to_senders),
+            channels_to_senders,
             rx: handler_rx,
         }
     }
 
     pub fn send(&mut self, node_id: NodeId, msg: ControlMessage) -> Result<(), CommunicationError> {
-        self.tx.send(node_id, msg)
+        match self.channels_to_senders.get_mut(&node_id) {
+            Some(tx) => tx.try_send(msg).map_err(CommunicationError::from),
+            None => Err(CommunicationError::Disconnected),
+        }
     }
 
     pub fn broadcast(&mut self, msg: ControlMessage) -> Result<(), CommunicationError> {
-        self.tx.broadcast(msg)
+        for tx in self.channels_to_senders.values_mut() {
+            tx.try_send(msg.clone()).map_err(CommunicationError::from)?;
+        }
+        Ok(())
     }
 
     pub async fn read(&mut self) -> Result<ControlMessage, CommunicationError> {

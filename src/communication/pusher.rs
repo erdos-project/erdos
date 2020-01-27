@@ -1,15 +1,13 @@
 use bytes::BytesMut;
 use serde::Deserialize;
-use std::{any::Any, collections::HashMap, fmt::Debug};
-use tokio::sync::mpsc::UnboundedSender;
+use std::{any::Any, fmt::Debug};
 
 use crate::{
     communication::{
         serializable::{DeserializedMessage, Serializable},
-        CommunicationError, ControlMessage, SendEndpoint,
+        CommunicationError, SendEndpoint,
     },
     dataflow::Data,
-    node::NodeId,
 };
 
 /// Trait used to wrap a bunch of SendEndpoints of different types.
@@ -75,33 +73,6 @@ where
                     }
                 }
             }
-        }
-        Ok(())
-    }
-}
-
-/// Internal structure to send control messages to other processes
-pub struct ControlPusher {
-    channels_to_senders: HashMap<NodeId, UnboundedSender<ControlMessage>>,
-}
-
-impl ControlPusher {
-    pub fn new(channels_to_senders: HashMap<NodeId, UnboundedSender<ControlMessage>>) -> Self {
-        Self {
-            channels_to_senders,
-        }
-    }
-
-    pub fn send(&mut self, node_id: NodeId, msg: ControlMessage) -> Result<(), CommunicationError> {
-        match self.channels_to_senders.get_mut(&node_id) {
-            Some(tx) => tx.try_send(msg).map_err(CommunicationError::from),
-            None => Err(CommunicationError::Disconnected),
-        }
-    }
-
-    pub fn broadcast(&mut self, msg: ControlMessage) -> Result<(), CommunicationError> {
-        for tx in self.channels_to_senders.values_mut() {
-            tx.try_send(msg.clone()).map_err(CommunicationError::from)?;
         }
         Ok(())
     }
