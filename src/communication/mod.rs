@@ -27,22 +27,25 @@ use std::thread::sleep;
 use std::time::Duration;
 use tokio::{
     codec::Framed,
+    sync::mpsc::UnboundedSender,
     net::{TcpListener, TcpStream},
     prelude::*,
 };
 
 use self::{receivers::ControlReceiver, senders::ControlSender};
-use crate::{node::node::NodeId, Uuid};
+use crate::{dataflow::stream::StreamId, node::node::NodeId, OperatorId};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ControlMessage {
     AllOperatorsInitialized,
-    RunOperator(Uuid),
+    AllOperatorsInitializedOnNode(NodeId),
+    OperatorInitialized(OperatorId),
+    RunOperator(OperatorId),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MessageHeader {
-    pub stream_id: Uuid,
+    pub stream_id: StreamId,
     pub data_size: usize,
 }
 
@@ -53,7 +56,7 @@ pub struct SerializedMessage {
 }
 
 impl SerializedMessage {
-    pub fn new(data: BytesMut, stream_id: Uuid) -> Self {
+    pub fn new(data: BytesMut, stream_id: StreamId) -> Self {
         Self {
             header: MessageHeader {
                 stream_id,
@@ -72,7 +75,8 @@ pub struct ControlMessageHandler {
 }
 
 impl ControlMessageHandler {
-    pub fn new(streams: Vec<(NodeId, TcpStream)>) -> Self {
+    pub async fn new(handler_rx: Receiver<ControlMessage>, channels_to_senders: HashMap<NodeId, UnboundedSender<ControlMessage>>) -> Self {
+        /*
         let mut senders: Vec<ControlSender> = Vec::new();
         let mut receivers: Vec<ControlReceiver> = Vec::new();
         let mut channels_to_senders = HashMap::new();
@@ -86,20 +90,21 @@ impl ControlMessageHandler {
                 node_id,
                 split_stream,
                 handler_tx.clone(),
-            ));
+            ).await);
             // Create an control sender for the sink half.
             let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-            senders.push(ControlSender::new(node_id, split_sink, rx));
+            senders.push(ControlSender::new(node_id, split_sink, rx).await);
             channels_to_senders.insert(node_id, tx);
         }
+        */
 
         let tx = ControlPusher::new(channels_to_senders);
 
         Self {
             tx,
             rx: handler_rx,
-            senders,
-            receivers,
+            senders: Vec::new(),
+            receivers: Vec::new(),
         }
     }
 
@@ -119,11 +124,11 @@ impl ControlMessageHandler {
         self.rx.recv().map_err(|_| CommunicationError::Disconnected)
     }
 
-    pub fn take_senders(&mut self) -> Vec<ControlSender> {
+    pub async fn take_senders(&mut self) -> Vec<ControlSender> {
         self.senders.drain(..).collect()
     }
 
-    pub fn take_receivers(&mut self) -> Vec<ControlReceiver> {
+    pub async fn take_receivers(&mut self) -> Vec<ControlReceiver> {
         self.receivers.drain(..).collect()
     }
 }

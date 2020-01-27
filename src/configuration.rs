@@ -19,7 +19,12 @@ pub struct Configuration {
 
 impl Configuration {
     /// Creates a new node configuration.
-    pub fn new(node_index: NodeId, data_addresses: Vec<SocketAddr>, control_addresses: Vec<SocketAddr>, num_worker_threads: usize) -> Self {
+    pub fn new(
+        node_index: NodeId,
+        data_addresses: Vec<SocketAddr>,
+        control_addresses: Vec<SocketAddr>,
+        num_worker_threads: usize,
+    ) -> Self {
         Self {
             index: node_index,
             num_worker_threads,
@@ -47,6 +52,11 @@ impl Configuration {
         for addr in control_addrs.split(",") {
             control_addresses.push(addr.parse().expect("Unable to parse socket address"));
         }
+        assert_eq!(
+            data_addresses.len(),
+            control_addresses.len(),
+            "Each node must have 1 data address and 1 control address"
+        );
         let node_index = args
             .value_of("index")
             .unwrap()

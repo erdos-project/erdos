@@ -61,7 +61,7 @@ where
     }
 
     fn send(&mut self, mut buf: BytesMut) -> Result<(), CommunicationError> {
-        if self.endpoints.len() > 0 {
+        if !self.endpoints.is_empty() {
             match Serializable::decode(&mut buf)? {
                 DeserializedMessage::<D>::Owned(msg) => {
                     for i in 1..self.endpoints.len() {
@@ -94,14 +94,14 @@ impl ControlPusher {
 
     pub fn send(&mut self, node_id: NodeId, msg: ControlMessage) -> Result<(), CommunicationError> {
         match self.channels_to_senders.get_mut(&node_id) {
-            Some(channel) => channel.try_send(msg).map_err(CommunicationError::from),
+            Some(tx) => tx.try_send(msg).map_err(CommunicationError::from),
             None => Err(CommunicationError::Disconnected),
         }
     }
 
     pub fn broadcast(&mut self, msg: ControlMessage) -> Result<(), CommunicationError> {
-        for channel in self.channels_to_senders.values_mut() {
-            channel.try_send(msg.clone()).map_err(CommunicationError::from)?;
+        for tx in self.channels_to_senders.values_mut() {
+            tx.try_send(msg.clone()).map_err(CommunicationError::from)?;
         }
         Ok(())
     }

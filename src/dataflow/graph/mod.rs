@@ -1,7 +1,11 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    mpsc::{Receiver, Sender},
+    Arc, Mutex,
+};
 
 use crate::{
-    node::operator_executor::OperatorExecutor, scheduler::channel_manager::ChannelManager,
+    communication::ControlMessage, node::operator_executor::OperatorExecutor,
+    scheduler::channel_manager::ChannelManager,
 };
 
 pub mod default_graph;
@@ -14,13 +18,29 @@ pub use graph::Graph;
 pub use vertex::{DriverMetadata, OperatorMetadata, Vertex};
 
 pub trait OperatorRunner:
-    'static + (Fn(Arc<Mutex<ChannelManager>>) -> OperatorExecutor) + Sync + Send
+    'static
+    + (Fn(
+        Arc<Mutex<ChannelManager>>,
+        Sender<ControlMessage>,
+        Receiver<ControlMessage>,
+    ) -> OperatorExecutor)
+    + Sync
+    + Send
 {
     fn box_clone(&self) -> Box<dyn OperatorRunner>;
 }
 
-impl<T: 'static + (Fn(Arc<Mutex<ChannelManager>>) -> OperatorExecutor) + Sync + Send + Clone>
-    OperatorRunner for T
+impl<
+        T: 'static
+            + (Fn(
+                Arc<Mutex<ChannelManager>>,
+                Sender<ControlMessage>,
+                Receiver<ControlMessage>,
+            ) -> OperatorExecutor)
+            + Sync
+            + Send
+            + Clone,
+    > OperatorRunner for T
 {
     fn box_clone(&self) -> Box<dyn OperatorRunner> {
         Box::new(self.clone())

@@ -115,7 +115,7 @@ macro_rules! make_operator_runner {
             )*
             // After: $rs is an identifier pointing to a read stream's StreamId
             // $ws is an identifier pointing to a write stream's StreamId
-            move |channel_manager: Arc<Mutex<ChannelManager>>| {
+            move |channel_manager: Arc<Mutex<ChannelManager>>, control_sender: Sender<ControlMessage>, control_receiver: Receiver<ControlMessage>| {
                 let mut op_ex_streams: Vec<Box<dyn OperatorExecutorStreamT>> = Vec::new();
                 // Before: $rs is an identifier pointing to a read stream's StreamId
                 // $ws is an identifier pointing to a write stream's StreamId
@@ -145,9 +145,16 @@ macro_rules! make_operator_runner {
                 if flow_watermarks {
                     $crate::flow_watermarks!(($($rs),*), ($($ws),*));
                 }
-                // Wait for all operators to instantiate.
-                // TODO: use a mutex/signaling mechanism instead.
-                thread::sleep(Duration::from_millis(500));
+                // Notify node that operator is done setting up
+                control_sender.send(ControlMessage::OperatorInitialized(config.id));
+                // Wait for control message to run
+                while true {
+                    if let Ok(ControlMessage::RunOperator(id)) = control_receiver.recv() {
+                        if id == config.id {
+                            break;
+                        }
+                    }
+                }
                 // TODO: execute the operator in parallel?
                 // Currently, callbacks are NOT invoked while operator.execute() runs.
                 op.run();
@@ -167,12 +174,16 @@ macro_rules! imports {
         use std::{
             cell::RefCell,
             rc::Rc,
-            sync::{mpsc, Arc, Mutex},
+            sync::{
+                mpsc::{self, Receiver, Sender},
+                Arc, Mutex,
+            },
             thread,
             time::Duration,
         };
         use $crate::{
             self,
+            communication::ControlMessage,
             dataflow::graph::default_graph,
             dataflow::stream::{InternalReadStream, WriteStreamT},
             dataflow::{Message, OperatorConfig, ReadStream, ReadStreamT, WriteStream},

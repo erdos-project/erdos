@@ -106,7 +106,7 @@ pub struct ControlReceiver {
 }
 
 impl ControlReceiver {
-    pub fn new(
+    pub async fn new(
         node_id: NodeId,
         stream: SplitStream<Framed<TcpStream, ControlMessageCodec>>,
         channel_to_node: Sender<ControlMessage>,
@@ -122,6 +122,7 @@ impl ControlReceiver {
         while let Some(res) = self.stream.next().await {
             match res {
                 Ok(msg) => {
+                    eprintln!("receiver: received message");
                     self.channel_to_node.send(msg).map_err(CommunicationError::from)?;
                 }
                 Err(e) => return Err(CommunicationError::from(e)),
@@ -136,6 +137,10 @@ impl ControlReceiver {
 /// It launches a task that listens for new messages for each TCP connection.
 pub async fn run_control_receivers(mut receivers: Vec<ControlReceiver>) -> Result<(), CommunicationError> {
     // Wait for all futures to finish. It will happen only when all streams are closed.
-    future::join_all(receivers.iter_mut().map(|receiver| receiver.run())).await;
+    for mut receiver in receivers {
+        tokio::spawn(async move {
+            receiver.run().await.unwrap();
+        });
+    }
     Ok(())
 }

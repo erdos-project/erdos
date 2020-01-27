@@ -1,12 +1,17 @@
 use futures::future;
-use std::{sync::Arc, thread, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+    thread,
+    time::Duration,
+};
 use tokio::{codec::Framed, net::TcpStream, prelude::*, runtime::Builder, sync::Mutex};
 
 use crate::communication::{
     self,
-    receivers::{self, ERDOSReceiver},
-    senders::{self, ERDOSSender},
-    ControlMessage, ControlMessageHandler, MessageCodec,
+    receivers::{self, ControlReceiver, ERDOSReceiver},
+    senders::{self, ControlSender, ERDOSSender},
+    ControlMessage, ControlMessageCodec, ControlMessageHandler, MessageCodec,
 };
 use crate::dataflow::graph::default_graph;
 use crate::scheduler::{
@@ -93,7 +98,10 @@ impl Node {
         (sink_halves, stream_halves)
     }
 
-    async fn run_operators(&mut self) -> Result<(), String> {
+    async fn run_operators(
+        &mut self,
+        mut control_handler: ControlMessageHandler,
+    ) -> Result<(), String> {
         let graph = scheduler::schedule(&default_graph::clone());
 
         let channel_manager = ChannelManager::new(
@@ -105,22 +113,64 @@ impl Node {
         .await;
         // Execute operators scheduled on the current node.
         let channel_manager = Arc::new(std::sync::Mutex::new(channel_manager));
-        for operator_info in graph
+        let local_operators: Vec<_> = graph
             .get_operators()
             .into_iter()
             .filter(|op| op.node_id == self.id)
-        {
+            .collect();
+        let num_local_operators = local_operators.len();
+
+        let (operator_tx, rx_from_operators) = std::sync::mpsc::channel();
+        let mut channels_to_operators = HashMap::new();
+
+        for operator_info in local_operators {
             debug!(
                 self.config.logger,
                 "Executing operator {} on node {}", operator_info.id, operator_info.node_id
             );
             let channel_manager_copy = Arc::clone(&channel_manager);
+            let operator_tx_copy = operator_tx.clone();
+            let (tx, rx) = std::sync::mpsc::channel();
+            channels_to_operators.insert(operator_info.id, tx);
             // Launch the operator as a separate async task.
             tokio::spawn(async move {
-                (operator_info.runner)(channel_manager_copy).execute();
+                (operator_info.runner)(channel_manager_copy, operator_tx_copy, rx).execute();
             });
         }
 
+        // Wait for all operators to finish setting up
+        let mut initialized_operators = HashSet::new();
+        while initialized_operators.len() < num_local_operators {
+            if let Ok(ControlMessage::OperatorInitialized(op_id)) = rx_from_operators.recv() {
+                initialized_operators.insert(op_id);
+            }
+        }
+        // Broadcast all operators initialized on current node
+        eprintln!("{}: broadcasting that all ops are ready", self.id);
+        control_handler
+            .broadcast(ControlMessage::AllOperatorsInitializedOnNode(self.id))
+            .map_err(|e| format!("Error broadcasting control message: {:?}", e))?;
+        // Wait for all other nodes to finish setting up
+        let num_nodes = self.config.data_addresses.len();
+        let mut initialized_nodes = HashSet::new();
+        initialized_nodes.insert(self.id);
+        while initialized_nodes.len() < num_nodes {
+            match control_handler.read() {
+                Ok(ControlMessage::AllOperatorsInitializedOnNode(node_id)) => {
+                    initialized_nodes.insert(node_id);
+                }
+                Err(e) => {
+                    return Err(format!("Error waiting for other nodes to set up: {:?}", e));
+                }
+                _ => (),
+            }
+        }
+        eprintln!("All nodes are ready");
+        // Tell all operators to run
+        for (op_id, tx) in channels_to_operators {
+            tx.send(ControlMessage::RunOperator(op_id))
+                .map_err(|e| format!("Error telling operator to run: {}", e))?;
+        }
         // Setup driver on the current node.
         if let Some(driver) = graph.get_driver(self.id) {
             for setup_hook in driver.setup_hooks {
@@ -139,8 +189,27 @@ impl Node {
             &self.config.logger,
         )
         .await;
-        let mut control_handler = ControlMessageHandler::new(control_streams);
-        control_handler.broadcast(ControlMessage::AllOperatorsInitialized);
+        let mut control_receivers = Vec::new();
+        let mut control_senders = Vec::new();
+        let (handler_tx, handler_rx) = std::sync::mpsc::channel();
+
+        let mut channels_to_senders = HashMap::new();
+
+        for (node_id, stream) in control_streams {
+            // Use the message codec to divide the TCP stream data into messages.
+            let framed = Framed::new(stream, ControlMessageCodec::new());
+            let (split_sink, split_stream) = framed.split();
+            // Create an control receiver for the stream half.
+            control_receivers
+                .push(ControlReceiver::new(node_id, split_stream, handler_tx.clone()).await);
+            // Create an control sender for the sink half.
+            let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+            control_senders.push(ControlSender::new(node_id, split_sink, rx).await);
+            channels_to_senders.insert(node_id, tx);
+        }
+        let mut control_handler = ControlMessageHandler::new(handler_rx, channels_to_senders).await;
+
+        // let mut control_handler = ControlMessageHandler::new(control_streams).await;
         let data_streams = communication::create_tcp_streams(
             self.config.data_addresses.clone(),
             self.id,
@@ -150,12 +219,14 @@ impl Node {
         let (senders, receivers) = self.split_data_streams(data_streams).await;
         // Execute threads that send data to other nodes.
         let senders_fut = senders::run_senders(senders);
-        let control_senders_fut = senders::run_control_senders(control_handler.take_senders());
+        let control_senders_fut =
+            senders::run_control_senders(control_senders);
         // Execute threads that receive data from other nodes.
         let recvs_fut = receivers::run_receivers(receivers);
-        let control_recvs_fut = receivers::run_control_receivers(control_handler.take_receivers());
+        let control_recvs_fut =
+           receivers::run_control_receivers(control_receivers);
         // Execute operators.
-        let ops_fut = self.run_operators();
+        let ops_fut = self.run_operators(control_handler);
         // These threads only complete when a failure happens.
         let (senders_res, receivers_res, control_senders_res, control_receiver_res, ops_res) =
             future::join5(
