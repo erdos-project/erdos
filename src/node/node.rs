@@ -5,7 +5,13 @@ use std::{
     thread,
     time::Duration,
 };
-use tokio::{codec::Framed, net::TcpStream, prelude::*, runtime::Builder, sync::Mutex};
+use tokio::{
+    codec::Framed,
+    net::TcpStream,
+    prelude::*,
+    runtime::Builder,
+    sync::{mpsc, Mutex},
+};
 
 use crate::communication::{
     self,
@@ -109,7 +115,7 @@ impl Node {
     ) {
         let mut control_receivers = Vec::new();
         let mut control_senders = Vec::new();
-        let (handler_tx, handler_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (handler_tx, handler_rx) = mpsc::unbounded_channel();
 
         let mut channels_to_senders = HashMap::new();
 
@@ -124,7 +130,7 @@ impl Node {
                 handler_tx.clone(),
             ));
             // Create an control sender for the sink half.
-            let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+            let (tx, rx) = mpsc::unbounded_channel();
             control_senders.push(ControlSender::new(node_id, split_sink, rx));
             channels_to_senders.insert(node_id, tx);
         }
@@ -182,7 +188,6 @@ impl Node {
             }
         }
         // Broadcast all operators initialized on current node
-        eprintln!("{}: broadcasting that all ops are ready", self.id);
         control_handler
             .broadcast(ControlMessage::AllOperatorsInitializedOnNode(self.id))
             .map_err(|e| format!("Error broadcasting control message: {:?}", e))?;
@@ -201,7 +206,6 @@ impl Node {
                 _ => (),
             }
         }
-        eprintln!("All nodes are ready");
         // Tell all operators to run
         for (op_id, tx) in channels_to_operators {
             tx.send(ControlMessage::RunOperator(op_id))
@@ -231,7 +235,8 @@ impl Node {
             &self.config.logger,
         )
         .await;
-        let (control_handler, control_senders, control_receivers) = self.split_control_streams(control_streams).await;
+        let (control_handler, control_senders, control_receivers) =
+            self.split_control_streams(control_streams).await;
         let (senders, receivers) = self.split_data_streams(data_streams).await;
         // Execute threads that send data to other nodes.
         let control_senders_fut = senders::run_control_senders(control_senders);
