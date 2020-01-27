@@ -71,7 +71,7 @@ pub struct ControlSender {
 }
 
 impl ControlSender {
-    pub async fn new(
+    pub fn new(
         node_id: NodeId,
         sink: SplitSink<Framed<TcpStream, ControlMessageCodec>, ControlMessage>,
         rx: UnboundedReceiver<ControlMessage>,
@@ -83,7 +83,6 @@ impl ControlSender {
         loop {
             match self.rx.recv().await {
                 Some(msg) => {
-                    eprintln!("sender: sending message");
                     if let Err(e) = self.sink.send(msg).await.map_err(CommunicationError::from) {
                         return Err(e);
                     }
@@ -101,11 +100,6 @@ impl ControlSender {
 pub async fn run_control_senders(mut senders: Vec<ControlSender>) -> Result<(), CommunicationError> {
     // Waits until all futures complete. This code will only be reached
     // when all the mpsc channels are closed.
-    // future::join_all(senders.iter_mut().map(|sender| sender.run())).await;
-    for mut sender in senders {
-        tokio::spawn(async move {
-            sender.run().await.unwrap();
-        });
-    }
+    future::join_all(senders.iter_mut().map(|sender| sender.run())).await;
     Ok(())
 }

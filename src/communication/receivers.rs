@@ -1,13 +1,13 @@
 use futures::{future, stream::SplitStream};
 use std::{
     collections::HashMap,
-    sync::{mpsc, Arc, mpsc::Sender},
+    sync::{mpsc, Arc},
 };
 use tokio::{
     codec::Framed,
     net::TcpStream,
     prelude::*,
-    sync::Mutex,
+    sync::{mpsc::UnboundedSender, Mutex},
 };
 
 use crate::{
@@ -102,19 +102,19 @@ pub struct ControlReceiver {
     /// Framed TCP read stream.
     stream: SplitStream<Framed<TcpStream, ControlMessageCodec>>,
     /// Mapping between stream id to pushers.
-    channel_to_node: Sender<ControlMessage>,
+    channel_to_handler: UnboundedSender<ControlMessage>,
 }
 
 impl ControlReceiver {
-    pub async fn new(
+    pub fn new(
         node_id: NodeId,
         stream: SplitStream<Framed<TcpStream, ControlMessageCodec>>,
-        channel_to_node: Sender<ControlMessage>,
+        channel_to_handler: UnboundedSender<ControlMessage>,
     ) -> Self {
         Self {
             node_id,
             stream,
-            channel_to_node,
+            channel_to_handler,
         }
     }
 
@@ -122,8 +122,9 @@ impl ControlReceiver {
         while let Some(res) = self.stream.next().await {
             match res {
                 Ok(msg) => {
-                    eprintln!("receiver: received message");
-                    self.channel_to_node.send(msg).map_err(CommunicationError::from)?;
+                    self.channel_to_handler
+                        .try_send(msg)
+                        .map_err(CommunicationError::from)?;
                 }
                 Err(e) => return Err(CommunicationError::from(e)),
             }
@@ -135,12 +136,10 @@ impl ControlReceiver {
 /// Receives TCP messages, and pushes them to the ControlHandler
 /// The function receives a vector of framed TCP receiver halves.
 /// It launches a task that listens for new messages for each TCP connection.
-pub async fn run_control_receivers(mut receivers: Vec<ControlReceiver>) -> Result<(), CommunicationError> {
+pub async fn run_control_receivers(
+    mut receivers: Vec<ControlReceiver>,
+) -> Result<(), CommunicationError> {
     // Wait for all futures to finish. It will happen only when all streams are closed.
-    for mut receiver in receivers {
-        tokio::spawn(async move {
-            receiver.run().await.unwrap();
-        });
-    }
+    future::join_all(receivers.iter_mut().map(|receiver| receiver.run())).await;
     Ok(())
 }

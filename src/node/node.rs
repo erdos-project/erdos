@@ -98,6 +98,42 @@ impl Node {
         (sink_halves, stream_halves)
     }
 
+    /// Splits a vector of TCPStreams into `ControlMessageHandler`, `ControlSender`s and `ControlReceiver`s.
+    async fn split_control_streams(
+        &self,
+        streams: Vec<(NodeId, TcpStream)>,
+    ) -> (
+        ControlMessageHandler,
+        Vec<ControlSender>,
+        Vec<ControlReceiver>,
+    ) {
+        let mut control_receivers = Vec::new();
+        let mut control_senders = Vec::new();
+        let (handler_tx, handler_rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let mut channels_to_senders = HashMap::new();
+
+        for (node_id, stream) in streams {
+            // Use the message codec to divide the TCP stream data into messages.
+            let framed = Framed::new(stream, ControlMessageCodec::new());
+            let (split_sink, split_stream) = framed.split();
+            // Create an control receiver for the stream half.
+            control_receivers.push(ControlReceiver::new(
+                node_id,
+                split_stream,
+                handler_tx.clone(),
+            ));
+            // Create an control sender for the sink half.
+            let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+            control_senders.push(ControlSender::new(node_id, split_sink, rx));
+            channels_to_senders.insert(node_id, tx);
+        }
+
+        let control_handler = ControlMessageHandler::new(channels_to_senders, handler_rx);
+
+        (control_handler, control_senders, control_receivers)
+    }
+
     async fn run_operators(
         &mut self,
         mut control_handler: ControlMessageHandler,
@@ -155,7 +191,7 @@ impl Node {
         let mut initialized_nodes = HashSet::new();
         initialized_nodes.insert(self.id);
         while initialized_nodes.len() < num_nodes {
-            match control_handler.read() {
+            match control_handler.read().await {
                 Ok(ControlMessage::AllOperatorsInitializedOnNode(node_id)) => {
                     initialized_nodes.insert(node_id);
                 }
@@ -189,42 +225,20 @@ impl Node {
             &self.config.logger,
         )
         .await;
-        let mut control_receivers = Vec::new();
-        let mut control_senders = Vec::new();
-        let (handler_tx, handler_rx) = std::sync::mpsc::channel();
-
-        let mut channels_to_senders = HashMap::new();
-
-        for (node_id, stream) in control_streams {
-            // Use the message codec to divide the TCP stream data into messages.
-            let framed = Framed::new(stream, ControlMessageCodec::new());
-            let (split_sink, split_stream) = framed.split();
-            // Create an control receiver for the stream half.
-            control_receivers
-                .push(ControlReceiver::new(node_id, split_stream, handler_tx.clone()).await);
-            // Create an control sender for the sink half.
-            let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-            control_senders.push(ControlSender::new(node_id, split_sink, rx).await);
-            channels_to_senders.insert(node_id, tx);
-        }
-        let mut control_handler = ControlMessageHandler::new(handler_rx, channels_to_senders).await;
-
-        // let mut control_handler = ControlMessageHandler::new(control_streams).await;
         let data_streams = communication::create_tcp_streams(
             self.config.data_addresses.clone(),
             self.id,
             &self.config.logger,
         )
         .await;
+        let (control_handler, control_senders, control_receivers) = self.split_control_streams(control_streams).await;
         let (senders, receivers) = self.split_data_streams(data_streams).await;
         // Execute threads that send data to other nodes.
+        let control_senders_fut = senders::run_control_senders(control_senders);
         let senders_fut = senders::run_senders(senders);
-        let control_senders_fut =
-            senders::run_control_senders(control_senders);
         // Execute threads that receive data from other nodes.
+        let control_recvs_fut = receivers::run_control_receivers(control_receivers);
         let recvs_fut = receivers::run_receivers(receivers);
-        let control_recvs_fut =
-           receivers::run_control_receivers(control_receivers);
         // Execute operators.
         let ops_fut = self.run_operators(control_handler);
         // These threads only complete when a failure happens.
