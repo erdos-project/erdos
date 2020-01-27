@@ -165,7 +165,13 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
                     e.print(py)
                 }
                 // Notify node that operator is done setting up
-                control_sender.send(ControlMessage::OperatorInitialized(op_id));
+                let logger = crate::get_terminal_logger();
+                if let Err(e) = control_sender.send(ControlMessage::OperatorInitialized(op_id)) {
+                    error!(
+                        logger,
+                        "Error sending OperatorInitialized message to control handler: {:?}", e
+                    );
+                }
                 // Wait for control message to run
                 loop {
                     if let Ok(ControlMessage::RunOperator(id)) = control_receiver.recv() {
@@ -179,7 +185,7 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
                     e.print(py)
                 }
 
-                OperatorExecutor::new(op_ex_streams, crate::get_terminal_logger())
+                OperatorExecutor::new(op_ex_streams, logger)
             };
 
         default_graph::add_operator(

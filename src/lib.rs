@@ -139,6 +139,7 @@ macro_rules! make_operator_runner {
                 // $ws is an identifier pointing to WriteStream
                 let config = $config.clone();
                 let flow_watermarks = config.flow_watermarks;
+                let logger = $crate::get_terminal_logger();
                 // TODO: set operator name?
                 let mut op = $crate::make_operator!($t, $config, ($($rs),*), ($($ws),*));
                 // Pass on watermarks
@@ -146,7 +147,12 @@ macro_rules! make_operator_runner {
                     $crate::flow_watermarks!(($($rs),*), ($($ws),*));
                 }
                 // Notify node that operator is done setting up
-                control_sender.send(ControlMessage::OperatorInitialized(config.id));
+                if let Err(e) = control_sender.send(ControlMessage::OperatorInitialized(config.id)) {
+                    slog::error!(
+                        logger,
+                        "Error sending OperatorInitialized message to control handler: {:?}", e
+                    );
+                }
                 // Wait for control message to run
                 loop {
                     if let Ok(ControlMessage::RunOperator(id)) = control_receiver.recv() {
@@ -158,7 +164,7 @@ macro_rules! make_operator_runner {
                 // TODO: execute the operator in parallel?
                 // Currently, callbacks are NOT invoked while operator.execute() runs.
                 op.run();
-                let mut op_executor = OperatorExecutor::new(op_ex_streams, $crate::get_terminal_logger());
+                let mut op_executor = OperatorExecutor::new(op_ex_streams, logger);
                 op_executor
             }
         }
@@ -181,6 +187,7 @@ macro_rules! imports {
             thread,
             time::Duration,
         };
+        extern crate slog;
         use $crate::{
             self,
             communication::ControlMessage,
