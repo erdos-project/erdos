@@ -212,7 +212,7 @@ impl ChannelManager {
             }
         }
 
-        // Send pushers to the ERDOSReceiver which publishes received messages from TCP
+        // Send pushers to the DataReceiver which publishes received messages from TCP
         // on the proper transport channel.
         for (k, v) in receiver_pushers.into_iter() {
             channels_to_receivers.lock().await.send(k, v);

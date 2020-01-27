@@ -12,7 +12,7 @@ use crate::scheduler::endpoints_manager::ChannelsToSenders;
 
 #[allow(dead_code)]
 /// Listens on a `tokio::sync::mpsc` channel, and sends received messages on the network.
-pub struct ERDOSSender {
+pub struct DataSender {
     /// The id of the node the sink is sending data to.
     node_id: NodeId,
     /// Framed TCP write sink.
@@ -21,7 +21,7 @@ pub struct ERDOSSender {
     rx: UnboundedReceiver<SerializedMessage>,
 }
 
-impl ERDOSSender {
+impl DataSender {
     pub async fn new(
         node_id: NodeId,
         sink: SplitSink<Framed<TcpStream, MessageCodec>, SerializedMessage>,
@@ -52,7 +52,7 @@ impl ERDOSSender {
 /// The function launches a task for each TCP sink. Each task listens
 /// on a mpsc channel for new `SerializedMessages` messages, which it
 /// forwards on the TCP stream.
-pub async fn run_senders(mut senders: Vec<ERDOSSender>) -> Result<(), CommunicationError> {
+pub async fn run_senders(mut senders: Vec<DataSender>) -> Result<(), CommunicationError> {
     // Waits until all futures complete. This code will only be reached
     // when all the mpsc channels are closed.
     future::join_all(senders.iter_mut().map(|sender| sender.run())).await;

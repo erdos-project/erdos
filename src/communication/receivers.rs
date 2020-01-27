@@ -21,7 +21,7 @@ use crate::{
 
 /// Listens on a TCP stream, and pushes messages it receives to operator executors.
 #[allow(dead_code)]
-pub struct ERDOSReceiver {
+pub struct DataReceiver {
     /// The id of the node the stream is receiving data from.
     node_id: NodeId,
     /// Framed TCP read stream.
@@ -32,7 +32,7 @@ pub struct ERDOSReceiver {
     stream_id_to_pusher: HashMap<StreamId, Box<dyn PusherT>>,
 }
 
-impl ERDOSReceiver {
+impl DataReceiver {
     pub async fn new(
         node_id: NodeId,
         stream: SplitStream<Framed<TcpStream, MessageCodec>>,
@@ -88,7 +88,7 @@ impl ERDOSReceiver {
 /// Receives TCP messages, and pushes them to operators endpoints.
 /// The function receives a vector of framed TCP receiver halves.
 /// It launches a task that listens for new messages for each TCP connection.
-pub async fn run_receivers(mut receivers: Vec<ERDOSReceiver>) -> Result<(), CommunicationError> {
+pub async fn run_receivers(mut receivers: Vec<DataReceiver>) -> Result<(), CommunicationError> {
     // Wait for all futures to finish. It will happen only when all streams are closed.
     future::join_all(receivers.iter_mut().map(|receiver| receiver.run())).await;
     Ok(())

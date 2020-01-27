@@ -15,8 +15,8 @@ use tokio::{
 
 use crate::communication::{
     self,
-    receivers::{self, ControlReceiver, ERDOSReceiver},
-    senders::{self, ControlSender, ERDOSSender},
+    receivers::{self, ControlReceiver, DataReceiver},
+    senders::{self, ControlSender, DataSender},
     ControlMessage, ControlMessageCodec, ControlMessageHandler, MessageCodec,
 };
 use crate::dataflow::graph::default_graph;
@@ -80,11 +80,11 @@ impl Node {
         });
     }
 
-    /// Splits a vector of TCPStreams into `ERDOSSender`s and `ERDOSReceiver`s.
+    /// Splits a vector of TCPStreams into `DataSender`s and `DataReceiver`s.
     async fn split_data_streams(
         &mut self,
         mut streams: Vec<(NodeId, TcpStream)>,
-    ) -> (Vec<ERDOSSender>, Vec<ERDOSReceiver>) {
+    ) -> (Vec<DataSender>, Vec<DataReceiver>) {
         let mut sink_halves = Vec::new();
         let mut stream_halves = Vec::new();
         while let Some((node_id, stream)) = streams.pop() {
@@ -93,12 +93,12 @@ impl Node {
             let (split_sink, split_stream) = framed.split();
             // Create an ERDOS receiver for the stream half.
             stream_halves.push(
-                ERDOSReceiver::new(node_id, split_stream, self.channels_to_receivers.clone()).await,
+                DataReceiver::new(node_id, split_stream, self.channels_to_receivers.clone()).await,
             );
 
             // Create an ERDOS sender for the sink half.
             sink_halves.push(
-                ERDOSSender::new(node_id, split_sink, self.channels_to_senders.clone()).await,
+                DataSender::new(node_id, split_sink, self.channels_to_senders.clone()).await,
             );
         }
         (sink_halves, stream_halves)
@@ -287,10 +287,10 @@ impl Node {
             }
         }
         if let Err(err) = senders_res {
-            error!(self.config.logger, "Error with ERDOS senders: {:?}", err);
+            error!(self.config.logger, "Error with data senders: {:?}", err);
         }
         if let Err(err) = receivers_res {
-            error!(self.config.logger, "Error with ERDOS receivers: {:?}", err);
+            error!(self.config.logger, "Error with data receivers: {:?}", err);
         }
         if let Err(err) = control_senders_res {
             error!(self.config.logger, "Error with control senders: {:?}", err);
