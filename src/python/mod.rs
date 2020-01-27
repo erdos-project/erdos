@@ -1,9 +1,13 @@
 use pyo3::prelude::*;
 use pyo3::types::*;
 
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    mpsc::{Receiver, Sender},
+    Arc, Mutex,
+};
 
 use crate::{
+    communication::ControlMessage,
     dataflow::{graph::default_graph, stream::InternalReadStream, ReadStream, WriteStream},
     node::{
         operator_executor::{OperatorExecutor, OperatorExecutorStream, OperatorExecutorStreamT},
@@ -65,81 +69,85 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
         let args_arc = Arc::new(args);
         let kwargs_arc = Arc::new(kwargs);
 
-        let operator_runner = move |channel_manager: Arc<Mutex<ChannelManager>>| {
-            // Create python streams from endpoints
-            let py_read_streams: Vec<PyReadStream> = read_stream_ids_clone
-                .clone()
-                .iter()
-                .map(|&id| {
-                    let recv_endpoint = channel_manager
-                        .lock()
-                        .unwrap()
-                        .take_recv_endpoint(id)
-                        .unwrap();
-                    PyReadStream::from(ReadStream::from(InternalReadStream::from_endpoint(
-                        recv_endpoint,
-                        id,
-                    )))
-                })
-                .collect();
-            let py_write_streams: Vec<PyWriteStream> = write_stream_ids_clone
-                .iter()
-                .map(|&id| {
-                    let send_endpoints = channel_manager
-                        .lock()
-                        .unwrap()
-                        .get_send_endpoints(id)
-                        .unwrap();
-                    PyWriteStream::from(WriteStream::from_endpoints(send_endpoints, id))
-                })
-                .collect();
+        let operator_runner =
+            move |channel_manager: Arc<Mutex<ChannelManager>>,
+                  control_sender: Sender<ControlMessage>,
+                  control_receiver: Receiver<ControlMessage>| {
+                // Create python streams from endpoints
+                let py_read_streams: Vec<PyReadStream> = read_stream_ids_clone
+                    .clone()
+                    .iter()
+                    .map(|&id| {
+                        let recv_endpoint = channel_manager
+                            .lock()
+                            .unwrap()
+                            .take_recv_endpoint(id)
+                            .unwrap();
+                        PyReadStream::from(ReadStream::from(InternalReadStream::from_endpoint(
+                            recv_endpoint,
+                            id,
+                        )))
+                    })
+                    .collect();
+                let py_write_streams: Vec<PyWriteStream> = write_stream_ids_clone
+                    .iter()
+                    .map(|&id| {
+                        let send_endpoints = channel_manager
+                            .lock()
+                            .unwrap()
+                            .get_send_endpoints(id)
+                            .unwrap();
+                        PyWriteStream::from(WriteStream::from_endpoints(send_endpoints, id))
+                    })
+                    .collect();
 
-            // Create operator executor streams from read streams
-            let mut op_ex_streams: Vec<Box<dyn OperatorExecutorStreamT>> = Vec::new();
-            for py_read_stream in py_read_streams.iter() {
-                op_ex_streams.push(Box::new(OperatorExecutorStream::from(
-                    &py_read_stream.read_stream,
-                )));
-            }
+                // Create operator executor streams from read streams
+                let mut op_ex_streams: Vec<Box<dyn OperatorExecutorStreamT>> = Vec::new();
+                for py_read_stream in py_read_streams.iter() {
+                    op_ex_streams.push(Box::new(OperatorExecutorStream::from(
+                        &py_read_stream.read_stream,
+                    )));
+                }
 
-            // Instantiate and run the operator in Python
-            let gil = Python::acquire_gil();
-            let py = gil.python();
-            let locals = PyDict::new(py);
-            let py_read_streams: Vec<PyRef<PyReadStream>> = py_read_streams
-                .into_iter()
-                .map(|rs| PyRef::new(py, rs).unwrap())
-                .collect();
-            let py_write_streams: Vec<PyRef<PyWriteStream>> = py_write_streams
-                .into_iter()
-                .map(|ws| PyRef::new(py, ws).unwrap())
-                .collect();
-            locals
-                .set_item("Operator", py_type_arc.clone_ref(py))
-                .err()
-                .map(|e| e.print(py));
-            locals
-                .set_item("py_read_streams", py_read_streams)
-                .err()
-                .map(|e| e.print(py));
-            locals
-                .set_item("py_write_streams", py_write_streams)
-                .err()
-                .map(|e| e.print(py));
-            locals
-                .set_item("flow_watermarks", flow_watermarks)
-                .err()
-                .map(|e| e.print(py));
-            locals
-                .set_item("args", args_arc.clone_ref(py))
-                .err()
-                .map(|e| e.print(py));
-            locals
-                .set_item("kwargs", kwargs_arc.clone_ref(py))
-                .err()
-                .map(|e| e.print(py));
-            let py_result = py.run(
-                r#"
+                // Instantiate and run the operator in Python
+                let gil = Python::acquire_gil();
+                let py = gil.python();
+                let locals = PyDict::new(py);
+                let py_read_streams: Vec<PyRef<PyReadStream>> = py_read_streams
+                    .into_iter()
+                    .map(|rs| PyRef::new(py, rs).unwrap())
+                    .collect();
+                let py_write_streams: Vec<PyRef<PyWriteStream>> = py_write_streams
+                    .into_iter()
+                    .map(|ws| PyRef::new(py, ws).unwrap())
+                    .collect();
+                locals
+                    .set_item("Operator", py_type_arc.clone_ref(py))
+                    .err()
+                    .map(|e| e.print(py));
+                locals
+                    .set_item("py_read_streams", py_read_streams)
+                    .err()
+                    .map(|e| e.print(py));
+                locals
+                    .set_item("py_write_streams", py_write_streams)
+                    .err()
+                    .map(|e| e.print(py));
+                locals
+                    .set_item("flow_watermarks", flow_watermarks)
+                    .err()
+                    .map(|e| e.print(py));
+                locals
+                    .set_item("args", args_arc.clone_ref(py))
+                    .err()
+                    .map(|e| e.print(py));
+                locals
+                    .set_item("kwargs", kwargs_arc.clone_ref(py))
+                    .err()
+                    .map(|e| e.print(py));
+                // Initialize operator
+                let py_result = py.run(
+                    r#"
 import erdos
 
 read_streams = [erdos.ReadStream(_py_read_stream=s) for s in py_read_streams]
@@ -149,19 +157,36 @@ operator = Operator(*read_streams, *write_streams, *args, **kwargs)
 
 if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
    erdos.add_watermark_callback(read_streams, write_streams, erdos._flow_watermark_callback)
-
-operator.run()
 "#,
-                None,
-                Some(&locals),
-            );
-            match py_result {
-                Ok(_) => (),
-                Err(e) => e.print(py),
-            };
+                    None,
+                    Some(&locals),
+                );
+                if let Err(e) = py_result {
+                    e.print(py)
+                }
+                // Notify node that operator is done setting up
+                let logger = crate::get_terminal_logger();
+                if let Err(e) = control_sender.send(ControlMessage::OperatorInitialized(op_id)) {
+                    error!(
+                        logger,
+                        "Error sending OperatorInitialized message to control handler: {:?}", e
+                    );
+                }
+                // Wait for control message to run
+                loop {
+                    if let Ok(ControlMessage::RunOperator(id)) = control_receiver.recv() {
+                        if id == op_id {
+                            break;
+                        }
+                    }
+                }
+                let py_result = py.run("operator.run()", None, Some(&locals));
+                if let Err(e) = py_result {
+                    e.print(py)
+                }
 
-            OperatorExecutor::new(op_ex_streams, crate::get_terminal_logger())
-        };
+                OperatorExecutor::new(op_ex_streams, logger)
+            };
 
         default_graph::add_operator(
             op_id,
@@ -184,13 +209,22 @@ operator.run()
     }
 
     #[pyfn(m, "run")]
-    fn run_py(py: Python, node_id: NodeId, addresses: Vec<String>) -> PyResult<()> {
+    fn run_py(
+        py: Python,
+        node_id: NodeId,
+        data_addresses: Vec<String>,
+        control_addresses: Vec<String>,
+    ) -> PyResult<()> {
         py.allow_threads(move || {
-            let addresses = addresses
+            let data_addresses = data_addresses
                 .into_iter()
                 .map(|s| s.parse().expect("Unable to parse socket address"))
                 .collect();
-            let config = Configuration::new(node_id, addresses, 7);
+            let control_addresses = control_addresses
+                .into_iter()
+                .map(|s| s.parse().expect("Unable to parse socket address"))
+                .collect();
+            let config = Configuration::new(node_id, data_addresses, control_addresses, 7);
             let mut node = Node::new(config);
             node.run();
         });
@@ -198,12 +232,21 @@ operator.run()
     }
 
     #[pyfn(m, "run_async")]
-    fn run_async_py(_py: Python, node_id: NodeId, addresses: Vec<String>) -> PyResult<()> {
-        let addresses = addresses
+    fn run_async_py(
+        _py: Python,
+        node_id: NodeId,
+        data_addresses: Vec<String>,
+        control_addresses: Vec<String>,
+    ) -> PyResult<()> {
+        let data_addresses = data_addresses
             .into_iter()
             .map(|s| s.parse().expect("Unable to parse socket address"))
             .collect();
-        let config = Configuration::new(node_id, addresses, 7);
+        let control_addresses = control_addresses
+            .into_iter()
+            .map(|s| s.parse().expect("Unable to parse socket address"))
+            .collect();
+        let config = Configuration::new(node_id, data_addresses, control_addresses, 7);
         let node = Node::new(config);
         node.run_async();
         Ok(())

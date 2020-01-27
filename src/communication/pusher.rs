@@ -59,7 +59,7 @@ where
     }
 
     fn send(&mut self, mut buf: BytesMut) -> Result<(), CommunicationError> {
-        if self.endpoints.len() > 0 {
+        if !self.endpoints.is_empty() {
             match Serializable::decode(&mut buf)? {
                 DeserializedMessage::<D>::Owned(msg) => {
                     for i in 1..self.endpoints.len() {

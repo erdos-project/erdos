@@ -326,7 +326,7 @@ fn main() {
         .get_matches();
 
     let node_config = Configuration::from_args(&matches);
-    let recv_node = node_config.addr_nodes.len() - 1;
+    let recv_node = node_config.data_addresses.len() - 1;
     let mut node = Node::new(node_config);
 
     let num_messages: usize = matches

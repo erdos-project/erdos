@@ -9,6 +9,8 @@ use erdos::{
     *,
 };
 
+mod utils;
+
 /// Sends 5 watermark messages.
 pub struct SendOperator {
     write_stream: WriteStream<usize>,
@@ -67,10 +69,7 @@ impl RecvOperator {
 
 #[test]
 fn test_flow_watermarks() {
-    let addresses = vec!["127.0.0.1:9000"
-        .parse()
-        .expect("Unable to parse socket address")];
-    let config = Configuration::new(0, addresses, 4);
+    let config = utils::make_default_config();
     let node = Node::new(config);
 
     let s1 = connect_1_write!(SendOperator, ());
@@ -84,10 +83,7 @@ fn test_flow_watermarks() {
 
 #[test]
 fn test_no_flow_watermarks() {
-    let addresses = vec!["127.0.0.1:9000"
-        .parse()
-        .expect("Unable to parse socket address")];
-    let config = Configuration::new(0, addresses, 4);
+    let config = utils::make_default_config();
     let node = Node::new(config);
 
     let s1 = connect_1_write!(SendOperator, ());

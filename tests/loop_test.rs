@@ -9,6 +9,8 @@ use erdos::{
     *,
 };
 
+mod utils;
+
 pub struct LoopOperator {
     send_first_msg: bool,
     num_iterations: usize,
@@ -60,10 +62,7 @@ impl LoopOperator {
 
 #[test]
 fn test_loop() {
-    let addresses = vec!["127.0.0.1:9000"
-        .parse()
-        .expect("Unable to parse socket address")];
-    let config = Configuration::new(0, addresses, 4);
+    let config = utils::make_default_config();
     let node = Node::new(config);
 
     let loop_stream = LoopStream::new();

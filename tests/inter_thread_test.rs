@@ -14,6 +14,8 @@ use erdos::{
     *,
 };
 
+mod utils;
+
 pub struct SendOperator {
     write_stream: WriteStream<usize>,
 }
@@ -86,10 +88,7 @@ impl SquareOperator {
 
 #[test]
 fn test_inter_thread() {
-    let addresses = vec!["127.0.0.1:9000"
-        .parse()
-        .expect("Unable to parse socket address")];
-    let config = Configuration::new(0, addresses, 4);
+    let config = utils::make_default_config();
     let node = Node::new(config);
 
     let config = OperatorConfig::new("SendOperator", (), true, 0);
@@ -102,10 +101,7 @@ fn test_inter_thread() {
 
 #[test]
 fn test_ingest() {
-    let addresses = vec!["127.0.0.1:9000"
-        .parse()
-        .expect("Unable to parse socket address")];
-    let config = Configuration::new(0, addresses, 4);
+    let config = utils::make_default_config();
     let node = Node::new(config);
 
     let mut ingest_stream = IngestStream::new(0);
@@ -129,11 +125,7 @@ fn test_ingest() {
 
 #[test]
 fn test_extract() {
-    let addresses = vec!["127.0.0.1:9000"
-        .parse()
-        .expect("Unable to parse socket address")];
-
-    let config = Configuration::new(0, addresses, 4);
+    let config = utils::make_default_config();
     let node = Node::new(config);
 
     let config = OperatorConfig::new("SendOperator", (), true, 0);
@@ -151,10 +143,7 @@ fn test_extract() {
 
 #[test]
 fn test_ingest_extract() {
-    let addresses = vec!["127.0.0.1:9000"
-        .parse()
-        .expect("Unable to parse socket address")];
-    let config = Configuration::new(0, addresses, 4);
+    let config = utils::make_default_config();
     let node = Node::new(config);
 
     let mut ingest_stream = IngestStream::new(0);

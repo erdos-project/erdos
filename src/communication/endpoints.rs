@@ -37,7 +37,7 @@ impl<D: Clone + Send + Debug> SendEndpoint<D> {
                 let msg = SerializedMessage::new(data, *stream_id);
                 sender
                     .try_send(msg)
-                    .map_err(|e| CommunicationError::from(e))
+                    .map_err(CommunicationError::from)
             }
         }
     }
@@ -61,7 +61,7 @@ impl<D: Clone + Send + Debug> RecvEndpoint<D> {
     /// Non-blocking read of a new message. Returns `TryRecvError::Empty` if no message is available.
     pub fn try_read(&mut self) -> Result<D, TryRecvError> {
         match self {
-            Self::InterThread(receiver) => receiver.try_recv().map_err(|e| TryRecvError::from(e)),
+            Self::InterThread(receiver) => receiver.try_recv().map_err(TryRecvError::from),
         }
     }
 }
