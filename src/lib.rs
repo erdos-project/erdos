@@ -148,7 +148,7 @@ macro_rules! make_operator_runner {
                 // Notify node that operator is done setting up
                 control_sender.send(ControlMessage::OperatorInitialized(config.id));
                 // Wait for control message to run
-                while true {
+                loop {
                     if let Ok(ControlMessage::RunOperator(id)) = control_receiver.recv() {
                         if id == config.id {
                             break;
