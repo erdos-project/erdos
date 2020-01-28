@@ -118,23 +118,26 @@ def run_async(driver, start_port=9000):
     """
     results = driver()  # run driver to set _num_py_operators
 
-    addresses = [
+    data_addresses = [
         "127.0.0.1:{port}".format(port=start_port + i)
-        for i in range(_num_py_operators + 1)  # Add 1 for the driver
+        for i in range(_num_py_operators)
     ]
-
-    def runner(driver, node_id, addresses):
-        driver()
-        _internal.run(node_id, addresses)
-
-    processes = [
-        mp.Process(target=runner,
-                   args=(driver, i + 1,
-                         addresses))  # Add 1 b/c driver is node 0
+    control_addresses = [
+        "127.0.0.1:{port}".format(port=start_port + len(data_addresses) + i)
         for i in range(_num_py_operators)
     ]
 
-    _internal.run_async(0, addresses)
+    def runner(driver, node_id, data_addresses, control_addresses):
+        driver()
+        _internal.run(node_id, data_addresses, control_addresses)
+
+    processes = [
+        mp.Process(target=runner,
+                   args=(driver, i, data_addresses, control_addresses))
+        for i in range(_num_py_operators)
+    ]
+
+    _internal.run_async(0, data_addresses, control_addresses)
 
     for p in processes:
         p.start()
