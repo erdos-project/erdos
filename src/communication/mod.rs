@@ -96,7 +96,10 @@ pub async fn create_tcp_streams(
                 node_id,
                 e
             );
-            Vec::new()
+            panic!(
+                "Node {}: creating TCP streams errored with {:?}",
+                node_id, e
+            )
         }
     }
 }

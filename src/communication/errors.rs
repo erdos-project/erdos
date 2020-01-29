@@ -62,12 +62,6 @@ impl From<CodecError> for CommunicationError {
     }
 }
 
-// impl<T> From<mpsc::error::TrySendError<T>> for CommunicationError {
-//     fn from(_e: mpsc::error::TrySendError<T>) -> Self {
-//         CommunicationError::Disconnected
-//     }
-// }
-
 /// Error that is raised by the `MessageCodec` when messages cannot be encoded or decoded.
 #[derive(Debug)]
 pub enum CodecError {

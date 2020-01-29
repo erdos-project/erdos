@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use slog::Logger;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 use crate::node::NodeId;
@@ -8,6 +9,8 @@ use super::{CommunicationError, ControlMessage};
 
 // TODO: update `channels_to_nodes` for fault tolerance in case nodes to go down.
 pub struct ControlMessageHandler {
+    /// Logger for error messages.
+    logger: Logger,
     /// Sender to clone so other tasks can send messages to `self.rx`.
     tx: UnboundedSender<ControlMessage>,
     /// Receiver for all `ControlMessage`s
@@ -20,9 +23,10 @@ pub struct ControlMessageHandler {
 }
 
 impl ControlMessageHandler {
-    pub fn new() -> Self {
+    pub fn new(logger: Logger) -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
         Self {
+            logger,
             tx,
             rx,
             channels_to_control_senders: HashMap::new(),
@@ -38,7 +42,12 @@ impl ControlMessageHandler {
         node_id: NodeId,
         tx: UnboundedSender<ControlMessage>,
     ) {
-        self.channels_to_control_senders.insert(node_id, tx);
+        if let Some(_) = self.channels_to_control_senders.insert(node_id, tx) {
+            error!(
+                self.logger,
+                "ControlMessageHandler: overwrote channel to control sender for node {}", node_id
+            );
+        }
     }
 
     pub fn send_to_control_sender(
@@ -67,7 +76,12 @@ impl ControlMessageHandler {
         node_id: NodeId,
         tx: UnboundedSender<ControlMessage>,
     ) {
-        self.channels_to_control_receivers.insert(node_id, tx);
+        if let Some(_) = self.channels_to_control_receivers.insert(node_id, tx) {
+            error!(
+                self.logger,
+                "ControlMessageHandler: overwrote channel to control receiver for node {}", node_id
+            );
+        }
     }
 
     pub fn send_to_control_receiver(
@@ -96,7 +110,12 @@ impl ControlMessageHandler {
         node_id: NodeId,
         tx: UnboundedSender<ControlMessage>,
     ) {
-        self.channels_to_data_senders.insert(node_id, tx);
+        if let Some(_) = self.channels_to_data_senders.insert(node_id, tx) {
+            error!(
+                self.logger,
+                "ControlMessageHandler: overwrote channel to data sender for node {}", node_id
+            );
+        }
     }
 
     pub fn send_to_data_sender(
@@ -125,7 +144,12 @@ impl ControlMessageHandler {
         node_id: NodeId,
         tx: UnboundedSender<ControlMessage>,
     ) {
-        self.channels_to_data_receivers.insert(node_id, tx);
+        if let Some(_) = self.channels_to_data_receivers.insert(node_id, tx) {
+            error!(
+                self.logger,
+                "ControlMessageHandler: overwrote channel to data receiver for node {}", node_id
+            );
+        }
     }
 
     pub fn send_to_data_receiver(
@@ -173,19 +197,6 @@ impl ControlMessageHandler {
 
     pub fn get_channel_to_handler(&self) -> UnboundedSender<ControlMessage> {
         self.tx.clone()
-    }
-
-    pub fn broadcast(&mut self, msg: ControlMessage) -> Result<(), CommunicationError> {
-        let iter = self
-            .channels_to_control_senders
-            .values_mut()
-            .chain(self.channels_to_control_receivers.values_mut())
-            .chain(self.channels_to_data_senders.values_mut())
-            .chain(self.channels_to_data_receivers.values_mut());
-        for tx in iter {
-            tx.send(msg.clone()).map_err(CommunicationError::from)?;
-        }
-        Ok(())
     }
 
     pub async fn read(&mut self) -> Result<ControlMessage, CommunicationError> {

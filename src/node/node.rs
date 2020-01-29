@@ -45,12 +45,13 @@ impl Node {
     /// Creates a new node.
     pub fn new(config: Configuration) -> Self {
         let id = config.index;
+        let logger = config.logger.clone();
         Self {
             config,
             id,
             channels_to_receivers: Arc::new(Mutex::new(ChannelsToReceivers::new())),
             channels_to_senders: Arc::new(Mutex::new(ChannelsToSenders::new())),
-            control_handler: ControlMessageHandler::new(),
+            control_handler: ControlMessageHandler::new(logger),
             initialized: Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new())),
         }
     }
