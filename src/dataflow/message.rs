@@ -26,6 +26,16 @@ impl<D: Data> Message<D> {
     }
 }
 
+impl<D: Data + PartialEq> PartialEq for Message<D> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::TimestampedData(d1), Self::TimestampedData(d2)) => d1 == d2,
+            (Self::Watermark(w1), Self::Watermark(w2)) => w1 == w2,
+            _ => false,
+        }
+    }
+}
+
 /// Data message which operators send along streams.
 #[derive(Debug, Clone, Serialize, Deserialize, Abomonation)]
 pub struct TimestampedData<D: Data> {
@@ -38,6 +48,12 @@ pub struct TimestampedData<D: Data> {
 impl<D: Data> TimestampedData<D> {
     pub fn new(timestamp: Timestamp, data: D) -> Self {
         Self { timestamp, data }
+    }
+}
+
+impl<D: Data + PartialEq> PartialEq for TimestampedData<D> {
+    fn eq(&self, other: &Self) -> bool {
+        self.timestamp == other.timestamp && self.data == other.data
     }
 }
 

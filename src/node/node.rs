@@ -1,17 +1,13 @@
-use futures::future;
+use futures::{self, future};
+use futures_util::stream::StreamExt;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
     thread,
     time::Duration,
 };
-use tokio::{
-    codec::Framed,
-    net::TcpStream,
-    prelude::*,
-    runtime::Builder,
-    sync::{mpsc, Mutex},
-};
+use tokio::{net::TcpStream, runtime::Builder, sync::Mutex};
+use tokio_util::codec::Framed;
 
 use crate::communication::{
     self,
@@ -39,17 +35,24 @@ pub struct Node {
     channels_to_receivers: Arc<Mutex<ChannelsToReceivers>>,
     /// Structure to be used to send messages to sender threads.
     channels_to_senders: Arc<Mutex<ChannelsToSenders>>,
+    /// Structure used to send and receive control messages.
+    control_handler: ControlMessageHandler,
+    /// Used to block `run_async` until setup is complete for the driver to continue running safely.
+    initialized: Arc<(std::sync::Mutex<bool>, std::sync::Condvar)>,
 }
 
 impl Node {
     /// Creates a new node.
     pub fn new(config: Configuration) -> Self {
         let id = config.index;
+        let logger = config.logger.clone();
         Self {
             config,
             id,
             channels_to_receivers: Arc::new(Mutex::new(ChannelsToReceivers::new())),
             channels_to_senders: Arc::new(Mutex::new(ChannelsToSenders::new())),
+            control_handler: ControlMessageHandler::new(logger),
+            initialized: Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new())),
         }
     }
 
@@ -59,13 +62,14 @@ impl Node {
     pub fn run(&mut self) {
         debug!(self.config.logger, "Starting node {}", self.id);
         // Build a runtime with n threads.
-        let runtime = Builder::new()
+        let mut runtime = Builder::new()
+            .threaded_scheduler()
             .core_threads(self.config.num_worker_threads)
-            .name_prefix(format!("node-{}", self.id))
+            .thread_name(format!("node-{}", self.id))
+            .enable_all()
             .build()
             .unwrap();
         runtime.block_on(self.async_run());
-        runtime.shutdown_on_idle();
     }
 
     /// Runs an ERDOS node in a seperate OS thread.
@@ -74,10 +78,26 @@ impl Node {
     pub fn run_async(mut self) {
         // Copy dataflow graph to the other thread
         let graph = default_graph::clone();
+        let initialized = self.initialized.clone();
         thread::spawn(move || {
             default_graph::set(graph);
             self.run();
         });
+        // Wait for ERDOS to start up.
+        let (lock, cvar) = &*initialized;
+        let mut started = lock.lock().unwrap();
+        while !*started {
+            started = cvar.wait(started).unwrap();
+        }
+    }
+
+    fn set_node_initialized(&mut self) {
+        let (lock, cvar) = &*self.initialized;
+        let mut started = lock.lock().unwrap();
+        *started = true;
+        cvar.notify_all();
+
+        debug!(self.config.logger, "Notfiying node initialized");
     }
 
     /// Splits a vector of TCPStreams into `DataSender`s and `DataReceiver`s.
@@ -93,12 +113,24 @@ impl Node {
             let (split_sink, split_stream) = framed.split();
             // Create an ERDOS receiver for the stream half.
             stream_halves.push(
-                DataReceiver::new(node_id, split_stream, self.channels_to_receivers.clone()).await,
+                DataReceiver::new(
+                    node_id,
+                    split_stream,
+                    self.channels_to_receivers.clone(),
+                    &mut self.control_handler,
+                )
+                .await,
             );
 
             // Create an ERDOS sender for the sink half.
             sink_halves.push(
-                DataSender::new(node_id, split_sink, self.channels_to_senders.clone()).await,
+                DataSender::new(
+                    node_id,
+                    split_sink,
+                    self.channels_to_senders.clone(),
+                    &mut self.control_handler,
+                )
+                .await,
             );
         }
         (sink_halves, stream_halves)
@@ -106,18 +138,11 @@ impl Node {
 
     /// Splits a vector of TCPStreams into `ControlMessageHandler`, `ControlSender`s and `ControlReceiver`s.
     async fn split_control_streams(
-        &self,
+        &mut self,
         streams: Vec<(NodeId, TcpStream)>,
-    ) -> (
-        ControlMessageHandler,
-        Vec<ControlSender>,
-        Vec<ControlReceiver>,
-    ) {
+    ) -> (Vec<ControlSender>, Vec<ControlReceiver>) {
         let mut control_receivers = Vec::new();
         let mut control_senders = Vec::new();
-        let (handler_tx, handler_rx) = mpsc::unbounded_channel();
-
-        let mut channels_to_senders = HashMap::new();
 
         for (node_id, stream) in streams {
             // Use the message codec to divide the TCP stream data into messages.
@@ -127,21 +152,62 @@ impl Node {
             control_receivers.push(ControlReceiver::new(
                 node_id,
                 split_stream,
-                handler_tx.clone(),
+                &mut self.control_handler,
             ));
             // Create an control sender for the sink half.
-            let (tx, rx) = mpsc::unbounded_channel();
-            control_senders.push(ControlSender::new(node_id, split_sink, rx));
-            channels_to_senders.insert(node_id, tx);
+            control_senders.push(ControlSender::new(
+                node_id,
+                split_sink,
+                &mut self.control_handler,
+            ));
         }
 
-        let control_handler = ControlMessageHandler::new(channels_to_senders, handler_rx);
+        (control_senders, control_receivers)
+    }
 
-        (control_handler, control_senders, control_receivers)
+    async fn wait_for_communication_layer_initialized(&mut self) -> Result<(), String> {
+        let num_nodes = self.config.data_addresses.len();
+
+        let mut control_senders_initialized = HashSet::new();
+        control_senders_initialized.insert(self.id);
+        let mut control_receivers_initialized = HashSet::new();
+        control_receivers_initialized.insert(self.id);
+        let mut data_senders_initialized = HashSet::new();
+        data_senders_initialized.insert(self.id);
+        let mut data_receivers_initialized = HashSet::new();
+        data_receivers_initialized.insert(self.id);
+
+        while control_senders_initialized.len() < num_nodes
+            || control_receivers_initialized.len() < num_nodes
+            || data_senders_initialized.len() < num_nodes
+            || data_receivers_initialized.len() < num_nodes
+        {
+            let msg = self
+                .control_handler
+                .read()
+                .await
+                .map_err(|e| format!("Error receiving control message: {:?}", e))?;
+            match msg {
+                ControlMessage::ControlSenderInitialized(node_id) => {
+                    control_senders_initialized.insert(node_id);
+                }
+                ControlMessage::ControlReceiverInitialized(node_id) => {
+                    control_receivers_initialized.insert(node_id);
+                }
+                ControlMessage::DataSenderInitialized(node_id) => {
+                    data_senders_initialized.insert(node_id);
+                }
+                ControlMessage::DataReceiverInitialized(node_id) => {
+                    data_receivers_initialized.insert(node_id);
+                }
+                _ => (),
+            };
+        }
+        Ok(())
     }
 
     async fn wait_for_local_operators_initialized(
-        &self,
+        &mut self,
         rx_from_operators: std::sync::mpsc::Receiver<ControlMessage>,
         num_local_operators: usize,
     ) {
@@ -153,21 +219,18 @@ impl Node {
         }
     }
 
-    async fn broadcast_local_operators_initialized(&self, control_handler: &mut ControlMessageHandler) -> Result<(), String> {
-        control_handler
-            .broadcast(ControlMessage::AllOperatorsInitializedOnNode(self.id))
+    async fn broadcast_local_operators_initialized(&mut self) -> Result<(), String> {
+        self.control_handler
+            .broadcast_to_nodes(ControlMessage::AllOperatorsInitializedOnNode(self.id))
             .map_err(|e| format!("Error broadcasting control message: {:?}", e))
     }
 
-    async fn wait_for_all_operators_initialized(
-        &self,
-        control_handler: &mut ControlMessageHandler,
-    ) -> Result<(), String> {
+    async fn wait_for_all_operators_initialized(&mut self) -> Result<(), String> {
         let num_nodes = self.config.data_addresses.len();
         let mut initialized_nodes = HashSet::new();
         initialized_nodes.insert(self.id);
         while initialized_nodes.len() < num_nodes {
-            match control_handler.read().await {
+            match self.control_handler.read().await {
                 Ok(ControlMessage::AllOperatorsInitializedOnNode(node_id)) => {
                     initialized_nodes.insert(node_id);
                 }
@@ -180,10 +243,9 @@ impl Node {
         Ok(())
     }
 
-    async fn run_operators(
-        &mut self,
-        mut control_handler: ControlMessageHandler,
-    ) -> Result<(), String> {
+    async fn run_operators(&mut self) -> Result<(), String> {
+        self.wait_for_communication_layer_initialized().await?;
+
         let graph = scheduler::schedule(&default_graph::clone());
 
         let channel_manager = ChannelManager::new(
@@ -221,24 +283,25 @@ impl Node {
             });
         }
 
-        // Wait for all operators to finish setting up
+        // Wait for all operators to finish setting up.
         self.wait_for_local_operators_initialized(rx_from_operators, num_local_operators)
             .await;
-        // Broadcast all operators initialized on current node
-        self.broadcast_local_operators_initialized(&mut control_handler).await?;
-        // Wait for all other nodes to finish setting up
-        self.wait_for_all_operators_initialized(&mut control_handler)
-            .await?;
-        // Tell all operators to run
-        for (op_id, tx) in channels_to_operators {
-            tx.send(ControlMessage::RunOperator(op_id))
-                .map_err(|e| format!("Error telling operator to run: {}", e))?;
-        }
+        // Broadcast all operators initialized on current node.
+        self.broadcast_local_operators_initialized().await?;
+        // Wait for all other nodes to finish setting up.
+        self.wait_for_all_operators_initialized().await?;
         // Setup driver on the current node.
         if let Some(driver) = graph.get_driver(self.id) {
             for setup_hook in driver.setup_hooks {
                 (setup_hook)(Arc::clone(&channel_manager));
             }
+        }
+        // Tell driver to run.
+        self.set_node_initialized();
+        // Tell all operators to run.
+        for (op_id, tx) in channels_to_operators {
+            tx.send(ControlMessage::RunOperator(op_id))
+                .map_err(|e| format!("Error telling operator to run: {}", e))?;
         }
 
         Ok(())
@@ -258,7 +321,7 @@ impl Node {
             &self.config.logger,
         )
         .await;
-        let (control_handler, control_senders, control_receivers) =
+        let (control_senders, control_receivers) =
             self.split_control_streams(control_streams).await;
         let (senders, receivers) = self.split_data_streams(data_streams).await;
         // Execute threads that send data to other nodes.
@@ -268,7 +331,7 @@ impl Node {
         let control_recvs_fut = receivers::run_control_receivers(control_receivers);
         let recvs_fut = receivers::run_receivers(receivers);
         // Execute operators.
-        let ops_fut = self.run_operators(control_handler);
+        let ops_fut = self.run_operators();
         // These threads only complete when a failure happens.
         let (senders_res, receivers_res, control_senders_res, control_receiver_res, ops_res) =
             future::join5(

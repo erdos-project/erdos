@@ -1,11 +1,19 @@
-use futures::future;
-use futures::stream::SplitSink;
+use futures::{future, stream::SplitSink};
+use futures_util::sink::SinkExt;
 use std::sync::Arc;
-use tokio::sync::{mpsc, mpsc::UnboundedReceiver, Mutex};
-use tokio::{codec::Framed, net::TcpStream, prelude::*, self};
+use tokio::{
+    self,
+    net::TcpStream,
+    sync::{
+        mpsc::{self, UnboundedReceiver, UnboundedSender},
+        Mutex,
+    },
+};
+use tokio_util::codec::Framed;
 
 use crate::communication::{
-    CommunicationError, ControlMessage, ControlMessageCodec, MessageCodec, SerializedMessage,
+    CommunicationError, ControlMessage, ControlMessageCodec, ControlMessageHandler, MessageCodec,
+    SerializedMessage,
 };
 use crate::node::node::NodeId;
 use crate::scheduler::endpoints_manager::ChannelsToSenders;
@@ -19,6 +27,10 @@ pub struct DataSender {
     sink: SplitSink<Framed<TcpStream, MessageCodec>, SerializedMessage>,
     /// Tokio channel receiver on which to receive data from worker threads.
     rx: UnboundedReceiver<SerializedMessage>,
+    /// Tokio channel sender to `ControlMessageHandler`.
+    control_tx: UnboundedSender<ControlMessage>,
+    /// Tokio channel receiver from `ControlMessageHandler`.
+    control_rx: UnboundedReceiver<ControlMessage>,
 }
 
 impl DataSender {
@@ -26,15 +38,30 @@ impl DataSender {
         node_id: NodeId,
         sink: SplitSink<Framed<TcpStream, MessageCodec>, SerializedMessage>,
         channels_to_senders: Arc<Mutex<ChannelsToSenders>>,
+        control_handler: &mut ControlMessageHandler,
     ) -> Self {
         // Create a channel for this stream.
         let (tx, rx) = mpsc::unbounded_channel();
         // Add entry in the shared state map.
         channels_to_senders.lock().await.add_sender(node_id, tx);
-        Self { node_id, sink, rx }
+        // Set up control channel.
+        let (control_tx, control_rx) = mpsc::unbounded_channel();
+        control_handler.add_channel_to_data_sender(node_id, control_tx);
+        Self {
+            node_id,
+            sink,
+            rx,
+            control_tx: control_handler.get_channel_to_handler(),
+            control_rx,
+        }
     }
 
     pub async fn run(&mut self) -> Result<(), CommunicationError> {
+        // Notify `ControlMessageHandler` that sender is initialized.
+        self.control_tx
+            .send(ControlMessage::DataSenderInitialized(self.node_id))
+            .map_err(CommunicationError::from)?;
+        // TODO: listen on control_rx
         loop {
             match self.rx.recv().await {
                 Some(msg) => {
@@ -68,18 +95,39 @@ pub struct ControlSender {
     sink: SplitSink<Framed<TcpStream, ControlMessageCodec>, ControlMessage>,
     /// Tokio channel receiver on which to receive data from worker threads.
     rx: UnboundedReceiver<ControlMessage>,
+    /// Tokio channel sender to `ControlMessageHandler`.
+    control_tx: UnboundedSender<ControlMessage>,
+    /// Channel receiver for control messages intended for this `ControlSender`.
+    control_rx: UnboundedReceiver<ControlMessage>,
 }
 
 impl ControlSender {
     pub fn new(
         node_id: NodeId,
         sink: SplitSink<Framed<TcpStream, ControlMessageCodec>, ControlMessage>,
-        rx: UnboundedReceiver<ControlMessage>,
+        control_handler: &mut ControlMessageHandler,
     ) -> Self {
-        Self { node_id, sink, rx }
+        // Set up channel to other node.
+        let (tx, rx) = mpsc::unbounded_channel();
+        control_handler.add_channel_to_node(node_id, tx);
+        // Set up control channel.
+        let (control_tx, control_rx) = mpsc::unbounded_channel();
+        control_handler.add_channel_to_control_sender(node_id, control_tx);
+        Self {
+            node_id,
+            sink,
+            rx,
+            control_tx: control_handler.get_channel_to_handler(),
+            control_rx,
+        }
     }
 
     pub async fn run(&mut self) -> Result<(), CommunicationError> {
+        // Notify `ControlMessageHandler` that sender is initialized.
+        self.control_tx
+            .send(ControlMessage::ControlSenderInitialized(self.node_id))
+            .map_err(CommunicationError::from)?;
+        // TODO: listen on control_rx
         loop {
             match self.rx.recv().await {
                 Some(msg) => {
@@ -87,7 +135,9 @@ impl ControlSender {
                         return Err(e);
                     }
                 }
-                None => { return Err(CommunicationError::Disconnected); },
+                None => {
+                    return Err(CommunicationError::Disconnected);
+                }
             }
         }
     }
@@ -97,7 +147,9 @@ impl ControlSender {
 /// The function launches a task for each TCP sink. Each task listens
 /// on a mpsc channel for new `ControlMessage`s, which it
 /// forwards on the TCP stream.
-pub async fn run_control_senders(mut senders: Vec<ControlSender>) -> Result<(), CommunicationError> {
+pub async fn run_control_senders(
+    mut senders: Vec<ControlSender>,
+) -> Result<(), CommunicationError> {
     // Waits until all futures complete. This code will only be reached
     // when all the mpsc channels are closed.
     future::join_all(senders.iter_mut().map(|sender| sender.run())).await;
