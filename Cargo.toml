@@ -22,8 +22,6 @@ bincode = "1.2.1"
 bytes = "0.5.4"
 byteorder = "1.0.0"
 clap = "2.33.0"
-# futures-preview = "=0.3.0-alpha.19"
-# futures-util-preview = "=0.3.0-alpha.19"
 futures = "0.3.1"
 futures-util = "0.3.1"
 pyo3 = { version = "0.8.2", features=["unsound-subclass"] }
