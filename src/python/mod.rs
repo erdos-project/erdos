@@ -233,22 +233,24 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
 
     #[pyfn(m, "run_async")]
     fn run_async_py(
-        _py: Python,
+        py: Python,
         node_id: NodeId,
         data_addresses: Vec<String>,
         control_addresses: Vec<String>,
     ) -> PyResult<()> {
-        let data_addresses = data_addresses
-            .into_iter()
-            .map(|s| s.parse().expect("Unable to parse socket address"))
-            .collect();
-        let control_addresses = control_addresses
-            .into_iter()
-            .map(|s| s.parse().expect("Unable to parse socket address"))
-            .collect();
-        let config = Configuration::new(node_id, data_addresses, control_addresses, 7);
-        let node = Node::new(config);
-        node.run_async();
+        py.allow_threads(move || {
+            let data_addresses = data_addresses
+                .into_iter()
+                .map(|s| s.parse().expect("Unable to parse socket address"))
+                .collect();
+            let control_addresses = control_addresses
+                .into_iter()
+                .map(|s| s.parse().expect("Unable to parse socket address"))
+                .collect();
+            let config = Configuration::new(node_id, data_addresses, control_addresses, 7);
+            let node = Node::new(config);
+            node.run_async();
+        });
         Ok(())
     }
 

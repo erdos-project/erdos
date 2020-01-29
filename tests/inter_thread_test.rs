@@ -134,11 +134,16 @@ fn test_extract() {
 
     node.run_async();
 
-    for _ in 0..5 {
-        let result = extract_stream.read();
+    for count in 0..5 {
+        let msg = extract_stream.read();
+        assert_eq!(
+            msg,
+            Some(Message::new_message(
+                Timestamp::new(vec![count as u64]),
+                count as usize
+            ))
+        );
     }
-
-    thread::sleep(std::time::Duration::from_millis(1000));
 }
 
 #[test]

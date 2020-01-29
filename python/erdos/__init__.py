@@ -120,11 +120,11 @@ def run_async(driver, start_port=9000):
 
     data_addresses = [
         "127.0.0.1:{port}".format(port=start_port + i)
-        for i in range(_num_py_operators)
+        for i in range(_num_py_operators + 1)
     ]
     control_addresses = [
         "127.0.0.1:{port}".format(port=start_port + len(data_addresses) + i)
-        for i in range(_num_py_operators)
+        for i in range(_num_py_operators + 1)
     ]
 
     def runner(driver, node_id, data_addresses, control_addresses):
@@ -134,13 +134,8 @@ def run_async(driver, start_port=9000):
     processes = [
         mp.Process(target=runner,
                    args=(driver, i, data_addresses, control_addresses))
-        for i in range(_num_py_operators)
+        for i in range(1, _num_py_operators + 1)
     ]
-
-    _internal.run_async(0, data_addresses, control_addresses)
-
-    for p in processes:
-        p.start()
 
     # Needed to shut down child processes
     def sigint_handler(sig, frame):
@@ -149,6 +144,13 @@ def run_async(driver, start_port=9000):
         sys.exit(0)
 
     signal.signal(signal.SIGINT, sigint_handler)
+
+    for p in processes:
+        p.start()
+
+    # The driver must always be on node 0 otherwise ingest and extract streams
+    # will break
+    _internal.run_async(0, data_addresses, control_addresses)
 
     return results
 

@@ -184,10 +184,13 @@ impl ChannelManager {
                                     graph.get_operator(op_id).unwrap().node_id
                                 }
                             };
-                            stream_endpoint_t.add_inter_node_send_endpoint(
-                                other_node_id,
-                                Arc::clone(&channels_to_senders),
-                            ).await.unwrap();
+                            stream_endpoint_t
+                                .add_inter_node_send_endpoint(
+                                    other_node_id,
+                                    Arc::clone(&channels_to_senders),
+                                )
+                                .await
+                                .unwrap();
                         }
                         Channel::InterThread(_) => {
                             stream_endpoint_t.add_inter_thread_channel();

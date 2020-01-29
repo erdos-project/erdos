@@ -1,4 +1,5 @@
 mod control_message_codec;
+mod control_message_handler;
 mod endpoints;
 mod errors;
 mod message_codec;
@@ -8,6 +9,7 @@ pub mod senders;
 mod serializable;
 
 // Re-export structs as if they were defined here.
+pub use self::control_message_handler::ControlMessageHandler;
 pub use crate::communication::control_message_codec::ControlMessageCodec;
 pub use crate::communication::endpoints::{RecvEndpoint, SendEndpoint};
 pub use crate::communication::errors::{CodecError, CommunicationError, TryRecvError};
@@ -19,7 +21,6 @@ use byteorder::{ByteOrder, NetworkEndian, WriteBytesExt};
 use bytes::BytesMut;
 use futures::future;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::thread::sleep;
@@ -28,7 +29,6 @@ use tokio::{
     io::AsyncWriteExt,
     net::{TcpListener, TcpStream},
     prelude::*,
-    sync::mpsc::{UnboundedReceiver, UnboundedSender},
 };
 
 use crate::{dataflow::stream::StreamId, node::node::NodeId, OperatorId};
@@ -38,6 +38,10 @@ pub enum ControlMessage {
     AllOperatorsInitializedOnNode(NodeId),
     OperatorInitialized(OperatorId),
     RunOperator(OperatorId),
+    DataSenderInitialized(NodeId),
+    DataReceiverInitialized(NodeId),
+    ControlSenderInitialized(NodeId),
+    ControlReceiverInitialized(NodeId),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,42 +65,6 @@ impl SerializedMessage {
             },
             data,
         }
-    }
-}
-
-// TODO: update `channels_to_senders` for fault tolerance in case nodes to go down.
-pub struct ControlMessageHandler {
-    channels_to_senders: HashMap<NodeId, UnboundedSender<ControlMessage>>,
-    rx: UnboundedReceiver<ControlMessage>,
-}
-
-impl ControlMessageHandler {
-    pub fn new(
-        channels_to_senders: HashMap<NodeId, UnboundedSender<ControlMessage>>,
-        handler_rx: UnboundedReceiver<ControlMessage>,
-    ) -> Self {
-        Self {
-            channels_to_senders,
-            rx: handler_rx,
-        }
-    }
-
-    pub fn send(&mut self, node_id: NodeId, msg: ControlMessage) -> Result<(), CommunicationError> {
-        match self.channels_to_senders.get_mut(&node_id) {
-            Some(tx) => tx.send(msg).map_err(CommunicationError::from),
-            None => Err(CommunicationError::Disconnected),
-        }
-    }
-
-    pub fn broadcast(&mut self, msg: ControlMessage) -> Result<(), CommunicationError> {
-        for tx in self.channels_to_senders.values_mut() {
-            tx.send(msg.clone()).map_err(CommunicationError::from)?;
-        }
-        Ok(())
-    }
-
-    pub async fn read(&mut self) -> Result<ControlMessage, CommunicationError> {
-        self.rx.recv().await.ok_or(CommunicationError::Disconnected)
     }
 }
 
