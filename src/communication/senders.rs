@@ -1,8 +1,12 @@
-use futures::future;
-use futures::stream::SplitSink;
+use futures::{future, stream::SplitSink};
+use futures_util::sink::SinkExt;
 use std::sync::Arc;
-use tokio::sync::{mpsc, mpsc::UnboundedReceiver, Mutex};
-use tokio::{codec::Framed, net::TcpStream, prelude::*, self};
+use tokio::{
+    self,
+    net::TcpStream,
+    sync::{mpsc, mpsc::UnboundedReceiver, Mutex},
+};
+use tokio_util::codec::Framed;
 
 use crate::communication::{
     CommunicationError, ControlMessage, ControlMessageCodec, MessageCodec, SerializedMessage,
@@ -87,7 +91,9 @@ impl ControlSender {
                         return Err(e);
                     }
                 }
-                None => { return Err(CommunicationError::Disconnected); },
+                None => {
+                    return Err(CommunicationError::Disconnected);
+                }
             }
         }
     }
@@ -97,7 +103,9 @@ impl ControlSender {
 /// The function launches a task for each TCP sink. Each task listens
 /// on a mpsc channel for new `ControlMessage`s, which it
 /// forwards on the TCP stream.
-pub async fn run_control_senders(mut senders: Vec<ControlSender>) -> Result<(), CommunicationError> {
+pub async fn run_control_senders(
+    mut senders: Vec<ControlSender>,
+) -> Result<(), CommunicationError> {
     // Waits until all futures complete. This code will only be reached
     // when all the mpsc channels are closed.
     future::join_all(senders.iter_mut().map(|sender| sender.run())).await;

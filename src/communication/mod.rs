@@ -25,6 +25,7 @@ use std::net::SocketAddr;
 use std::thread::sleep;
 use std::time::Duration;
 use tokio::{
+    io::AsyncWriteExt,
     net::{TcpListener, TcpStream},
     prelude::*,
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
@@ -82,14 +83,14 @@ impl ControlMessageHandler {
 
     pub fn send(&mut self, node_id: NodeId, msg: ControlMessage) -> Result<(), CommunicationError> {
         match self.channels_to_senders.get_mut(&node_id) {
-            Some(tx) => tx.try_send(msg).map_err(CommunicationError::from),
+            Some(tx) => tx.send(msg).map_err(CommunicationError::from),
             None => Err(CommunicationError::Disconnected),
         }
     }
 
     pub fn broadcast(&mut self, msg: ControlMessage) -> Result<(), CommunicationError> {
         for tx in self.channels_to_senders.values_mut() {
-            tx.try_send(msg.clone()).map_err(CommunicationError::from)?;
+            tx.send(msg.clone()).map_err(CommunicationError::from)?;
         }
         Ok(())
     }
@@ -114,12 +115,22 @@ pub async fn create_tcp_streams(
     // Wait for connections from the nodes that have a higher id than the node.
     let stream_fut = await_node_connections(node_addr, node_addrs.len() - node_id - 1, logger);
     // Wait until all connections are established.
-    let (mut streams, await_streams) = future::try_join(connect_streams_fut, stream_fut)
-        .await
-        .unwrap();
-    // Streams contains a TCP stream for each other node.
-    streams.extend(await_streams);
-    streams
+    match future::try_join(connect_streams_fut, stream_fut).await {
+        Ok((mut streams, await_streams)) => {
+            // Streams contains a TCP stream for each other node.
+            streams.extend(await_streams);
+            streams
+        }
+        Err(e) => {
+            slog::error!(
+                logger,
+                "Node {}: creating TCP streams errored with {:?}",
+                node_id,
+                e
+            );
+            Vec::new()
+        }
+    }
 }
 
 /// Connects to all addresses and sends node id.
@@ -157,7 +168,7 @@ async fn connect_to_node(
                 // Send the node id so that the TCP server knows with which
                 // node the connection was established.
                 let mut buffer: Vec<u8> = Vec::new();
-                buffer.write_u32::<NetworkEndian>(node_id as u32)?;
+                WriteBytesExt::write_u32::<NetworkEndian>(&mut buffer, node_id as u32)?;
                 loop {
                     match stream.write(&buffer[..]).await {
                         Ok(_) => return Ok(stream),

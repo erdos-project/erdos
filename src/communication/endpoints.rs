@@ -35,9 +35,7 @@ impl<D: Clone + Send + Debug> SendEndpoint<D> {
             Self::InterThread(_) => Err(CommunicationError::DeserializeNotImplemented),
             Self::InterProcess(stream_id, sender) => {
                 let msg = SerializedMessage::new(data, *stream_id);
-                sender
-                    .try_send(msg)
-                    .map_err(CommunicationError::from)
+                sender.send(msg).map_err(CommunicationError::from)
             }
         }
     }

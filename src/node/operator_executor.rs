@@ -43,6 +43,7 @@ impl<D: Data> OperatorExecutorStream<D> {
     }
 }
 
+#[allow(dead_code)]
 pub struct OperatorExecutor {
     operator_streams: Vec<Box<dyn OperatorExecutorStreamT>>,
     // Priority queue that sorts events by priority and timestamp.

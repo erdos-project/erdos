@@ -27,7 +27,9 @@ where
 {
     default fn encode(&self) -> Result<BytesMut, CommunicationError> {
         let serialized_msg = bincode::serialize(self).map_err(|e| CommunicationError::from(e))?;
-        let serialized_msg: BytesMut = BytesMut::from(serialized_msg);
+        // TODO: check whether this introduces extra copies
+        // On v0.5.4, BytesMut does not implement From<Vec<u8>>
+        let serialized_msg: BytesMut = BytesMut::from(&serialized_msg[..]);
         Ok(serialized_msg)
     }
 
@@ -50,7 +52,9 @@ where
             encode(self, &mut serialized_msg)
                 .map_err(|e| CommunicationError::AbomonationError(e))?;
         }
-        let serialized_msg: BytesMut = BytesMut::from(serialized_msg);
+        // TODO: check whether this introduces extra copies
+        // On v0.5.4, BytesMut does not implement From<Vec<u8>>
+        let serialized_msg: BytesMut = BytesMut::from(&serialized_msg[..]);
         Ok(serialized_msg)
     }
 

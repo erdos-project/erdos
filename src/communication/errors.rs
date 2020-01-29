@@ -38,12 +38,17 @@ impl<T> From<std::sync::mpsc::SendError<T>> for CommunicationError {
     }
 }
 
+impl<T> From<mpsc::error::SendError<T>> for CommunicationError {
+    fn from(_e: mpsc::error::SendError<T>) -> Self {
+        CommunicationError::Disconnected
+    }
+}
+
 impl<T> From<mpsc::error::TrySendError<T>> for CommunicationError {
     fn from(e: mpsc::error::TrySendError<T>) -> Self {
-        if e.is_closed() {
-            CommunicationError::Disconnected
-        } else {
-            CommunicationError::NoCapacity
+        match e {
+            mpsc::error::TrySendError::Closed(_) => CommunicationError::Disconnected,
+            mpsc::error::TrySendError::Full(_) => CommunicationError::NoCapacity,
         }
     }
 }
@@ -57,11 +62,11 @@ impl From<CodecError> for CommunicationError {
     }
 }
 
-impl<T> From<mpsc::error::UnboundedTrySendError<T>> for CommunicationError {
-    fn from(_e: mpsc::error::UnboundedTrySendError<T>) -> Self {
-        CommunicationError::Disconnected
-    }
-}
+// impl<T> From<mpsc::error::TrySendError<T>> for CommunicationError {
+//     fn from(_e: mpsc::error::TrySendError<T>) -> Self {
+//         CommunicationError::Disconnected
+//     }
+// }
 
 /// Error that is raised by the `MessageCodec` when messages cannot be encoded or decoded.
 #[derive(Debug)]

@@ -1,14 +1,14 @@
 use futures::{future, stream::SplitStream};
+use futures_util::stream::StreamExt;
 use std::{
     collections::HashMap,
     sync::{mpsc, Arc},
 };
 use tokio::{
-    codec::Framed,
     net::TcpStream,
-    prelude::*,
     sync::{mpsc::UnboundedSender, Mutex},
 };
+use tokio_util::codec::Framed;
 
 use crate::{
     communication::{
@@ -125,7 +125,7 @@ impl ControlReceiver {
             match res {
                 Ok(msg) => {
                     self.channel_to_handler
-                        .try_send(msg)
+                        .send(msg)
                         .map_err(CommunicationError::from)?;
                 }
                 Err(e) => return Err(CommunicationError::from(e)),

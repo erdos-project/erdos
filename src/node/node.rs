@@ -1,4 +1,5 @@
-use futures::future;
+use futures::{self, future};
+use futures_util::stream::StreamExt;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -6,12 +7,11 @@ use std::{
     time::Duration,
 };
 use tokio::{
-    codec::Framed,
     net::TcpStream,
-    prelude::*,
     runtime::Builder,
     sync::{mpsc, Mutex},
 };
+use tokio_util::codec::Framed;
 
 use crate::communication::{
     self,
@@ -59,13 +59,14 @@ impl Node {
     pub fn run(&mut self) {
         debug!(self.config.logger, "Starting node {}", self.id);
         // Build a runtime with n threads.
-        let runtime = Builder::new()
+        let mut runtime = Builder::new()
+            .threaded_scheduler()
             .core_threads(self.config.num_worker_threads)
-            .name_prefix(format!("node-{}", self.id))
+            .thread_name(format!("node-{}", self.id))
+            .enable_all()
             .build()
             .unwrap();
         runtime.block_on(self.async_run());
-        runtime.shutdown_on_idle();
     }
 
     /// Runs an ERDOS node in a seperate OS thread.
@@ -97,9 +98,8 @@ impl Node {
             );
 
             // Create an ERDOS sender for the sink half.
-            sink_halves.push(
-                DataSender::new(node_id, split_sink, self.channels_to_senders.clone()).await,
-            );
+            sink_halves
+                .push(DataSender::new(node_id, split_sink, self.channels_to_senders.clone()).await);
         }
         (sink_halves, stream_halves)
     }
@@ -153,7 +153,10 @@ impl Node {
         }
     }
 
-    async fn broadcast_local_operators_initialized(&self, control_handler: &mut ControlMessageHandler) -> Result<(), String> {
+    async fn broadcast_local_operators_initialized(
+        &self,
+        control_handler: &mut ControlMessageHandler,
+    ) -> Result<(), String> {
         control_handler
             .broadcast(ControlMessage::AllOperatorsInitializedOnNode(self.id))
             .map_err(|e| format!("Error broadcasting control message: {:?}", e))
@@ -225,7 +228,8 @@ impl Node {
         self.wait_for_local_operators_initialized(rx_from_operators, num_local_operators)
             .await;
         // Broadcast all operators initialized on current node
-        self.broadcast_local_operators_initialized(&mut control_handler).await?;
+        self.broadcast_local_operators_initialized(&mut control_handler)
+            .await?;
         // Wait for all other nodes to finish setting up
         self.wait_for_all_operators_initialized(&mut control_handler)
             .await?;
