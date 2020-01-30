@@ -21,10 +21,25 @@ class SquareOp(erdos.Operator):
         return [erdos.WriteStream()]
 
 
+class NoOperationOp(erdos.Operator):
+    def __init__(self, read_stream, write_stream):
+        read_stream.add_callback(self.callback, [write_stream])
+
+    @staticmethod
+    def connect(read_streams):
+        return [erdos.WriteStream()]
+
+    def callback(self, msg, write_stream):
+        write_stream.send(msg)
+
+
 def driver():
     ingest_stream = erdos.IngestStream()
     (square_stream, ) = erdos.connect(SquareOp, [ingest_stream])
-    extract_stream = erdos.ExtractStream(square_stream)
+    # Introduced an operator that proceesses the output of a stream
+    # created by the operator defined in the driver.
+    (new_square_stream, ) = erdos.connect(NoOperationOp, [square_stream])
+    extract_stream = erdos.ExtractStream(new_square_stream)
 
     return ingest_stream, extract_stream
 
