@@ -1,7 +1,7 @@
 use byteorder::{ByteOrder, NetworkEndian, WriteBytesExt};
 use bytes::{BufMut, BytesMut};
 use std::fmt::Debug;
-use tokio_util::codec::{Encoder, Decoder};
+use tokio_util::codec::{Decoder, Encoder};
 
 use crate::communication::{CodecError, MessageHeader, SerializedMessage};
 

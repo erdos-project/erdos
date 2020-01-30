@@ -145,13 +145,20 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
                     .set_item("kwargs", kwargs_arc.clone_ref(py))
                     .err()
                     .map(|e| e.print(py));
+                // NOTE: Do not use list comprehension in py.run because it causes a crashes the
+                // Python processes. We do not currently know why this is the case.
                 // Initialize operator
                 let py_result = py.run(
                     r#"
 import erdos
 
-read_streams = [erdos.ReadStream(_py_read_stream=s) for s in py_read_streams]
-write_streams = [erdos.WriteStream(_py_write_stream=s) for s in py_write_streams]
+read_streams = []
+for i in range(len(py_read_streams)):
+    read_streams.append(erdos.ReadStream(_py_read_stream=py_read_streams[i]))
+
+write_streams = []
+for i in range(len(py_write_streams)):
+    write_streams.append(erdos.WriteStream(_py_write_stream=py_write_streams[i]))
 
 operator = Operator(*read_streams, *write_streams, *args, **kwargs)
 
