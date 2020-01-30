@@ -3,6 +3,7 @@ Sends a watermark every 3 messages which releases the batch.
 """
 
 import erdos
+import sys
 import time
 
 
@@ -30,6 +31,19 @@ class SendOp(erdos.Operator):
             time.sleep(1)
 
 
+class TopOp(erdos.Operator):
+    def __init__(self, write_stream):
+        self.write_stream = write_stream
+
+    @staticmethod
+    def connect():
+        return [erdos.WriteStream()]
+
+    def run(self):
+        top_timestamp = erdos.Timestamp(coordinates=[sys.maxsize])
+        self.write_stream.send(erdos.WatermarkMessage(top_timestamp))
+
+
 class BatchOp(erdos.Operator):
     def __init__(self, read_stream, write_stream):
         read_stream.add_callback(self.add_to_batch)
@@ -54,14 +68,16 @@ class BatchOp(erdos.Operator):
 
 
 class CallbackWatermarkListener(erdos.Operator):
-    def __init__(self, read_stream):
-        read_stream.add_watermark_callback(lambda t: print(
-            "CallbackWatermarkListener: received watermark {t}".format(t=t)))
+    def __init__(self, read_stream, top_stream):
         read_stream.add_callback(lambda m: print(
             "CallbackWatermarkListener: received message {m}".format(m=m)))
+        erdos.add_watermark_callback(
+            [read_stream, top_stream], [],
+            lambda t: print("CallbackWatermarkListener: received watermark {t}"
+                            .format(t=t)))
 
     @staticmethod
-    def connect(*read_streams):
+    def connect(read_stream, top_stream):
         return []
 
 
@@ -88,9 +104,10 @@ class PullWatermarkListener(erdos.Operator):
 def driver():
     """Creates the dataflow graph."""
     (count_stream, ) = erdos.connect(SendOp, [])
+    (top_stream, ) = erdos.connect(TopOp, [])
     (batch_stream, ) = erdos.connect(BatchOp, [count_stream],
                                      flow_watermarks=True)
-    erdos.connect(CallbackWatermarkListener, [batch_stream])
+    erdos.connect(CallbackWatermarkListener, [batch_stream, top_stream])
     erdos.connect(PullWatermarkListener, [batch_stream])
 
 
