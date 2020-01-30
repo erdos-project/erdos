@@ -2,8 +2,10 @@ use std::thread;
 
 use erdos::{
     dataflow::{
-        message::*, operators::MapOperator, stream::WriteStreamT, OperatorConfig, ReadStream,
-        WriteStream,
+        message::*,
+        operators::MapOperator,
+        stream::{ExtractStream, WriteStreamT},
+        OperatorConfig, ReadStream, WriteStream,
     },
     node::Node,
     *,
@@ -33,6 +35,34 @@ impl SendOperator {
                 .unwrap();
         }
     }
+}
+
+pub struct MultiStreamCallbackOperator {}
+
+impl MultiStreamCallbackOperator {
+    pub fn new(
+        config: OperatorConfig<()>,
+        rs1: ReadStream<usize>,
+        rs2: ReadStream<usize>,
+        ws: WriteStream<usize>,
+    ) -> Self {
+        erdos::add_watermark_callback!(
+            (rs1.add_state(()), rs2.add_state(())),
+            (ws),
+            (Self::watermark_callback)
+        );
+        Self {}
+    }
+
+    pub fn connect(_rs1: &ReadStream<usize>, _rs2: &ReadStream<usize>) -> WriteStream<usize> {
+        WriteStream::new()
+    }
+
+    pub fn watermark_callback(t: &Timestamp, _s1: &(), _s2: &(), ws: &mut WriteStream<usize>) {
+        ws.send(Message::new_watermark(t.clone())).unwrap();
+    }
+
+    pub fn run(&self) {}
 }
 
 /// Prints a message after receiving a watermark.
@@ -94,4 +124,27 @@ fn test_no_flow_watermarks() {
     node.run_async();
 
     thread::sleep(std::time::Duration::from_millis(2000));
+}
+
+#[test]
+fn test_multi_stream_watermark_callbacks() {
+    let config = utils::make_default_config();
+    let node = Node::new(config);
+
+    let s1 = connect_1_write!(SendOperator, ());
+    let s2 = connect_1_write!(SendOperator, ());
+    let op_config = OperatorConfig::new("MultiStreamCallbackOperator", (), false, 0);
+    let s3 = connect_1_write!(MultiStreamCallbackOperator, op_config, s1, s2);
+    let mut extract_stream = ExtractStream::new(0, &s3);
+
+    node.run_async();
+
+    for count in 0..5 {
+        let msg = extract_stream.read();
+        eprintln!("{:?}", msg);
+        assert_eq!(
+            msg,
+            Some(Message::new_watermark(Timestamp::new(vec![count as u64])))
+        );
+    }
 }
