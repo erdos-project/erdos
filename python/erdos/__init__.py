@@ -120,11 +120,11 @@ def run_async(driver, start_port=9000):
 
     data_addresses = [
         "127.0.0.1:{port}".format(port=start_port + i)
-        for i in range(_num_py_operators + 1)
+        for i in range(_num_py_operators)
     ]
     control_addresses = [
         "127.0.0.1:{port}".format(port=start_port + len(data_addresses) + i)
-        for i in range(_num_py_operators + 1)
+        for i in range(_num_py_operators)
     ]
 
     def runner(driver, node_id, data_addresses, control_addresses):
@@ -134,7 +134,7 @@ def run_async(driver, start_port=9000):
     processes = [
         mp.Process(target=runner,
                    args=(driver, i, data_addresses, control_addresses))
-        for i in range(1, _num_py_operators + 1)
+        for i in range(1, len(data_addresses))
     ]
 
     # Needed to shut down child processes
