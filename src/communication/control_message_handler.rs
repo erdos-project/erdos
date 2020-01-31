@@ -202,4 +202,53 @@ impl ControlMessageHandler {
     pub async fn read(&mut self) -> Result<ControlMessage, CommunicationError> {
         self.rx.recv().await.ok_or(CommunicationError::Disconnected)
     }
+
+    // TODO: try to implement this via a generic
+    /// Reads messages until a `ControlMessage::AllOperatorsInitializedOnNode` is received
+    /// without consuming any other messages types.
+    /// Note: this may affect message order.
+    pub async fn read_all_operators_initialized_on_node_msg(
+        &mut self,
+    ) -> Result<NodeId, CommunicationError> {
+        let mut read_msgs = Vec::new();
+        let mut result = None;
+        while result.is_none() {
+            match self.read().await {
+                Ok(ControlMessage::AllOperatorsInitializedOnNode(node_id)) => {
+                    result = Some(Ok(node_id))
+                }
+                Ok(msg) => read_msgs.push(msg),
+                Err(e) => result = Some(Err(e)),
+            };
+        }
+        // Re-enqueue read messages.
+        for msg in read_msgs {
+            self.tx.send(msg).map_err(CommunicationError::from)?;
+        }
+        result.unwrap()
+    }
+
+    pub async fn read_sender_or_receiver_initialized(
+        &mut self,
+    ) -> Result<ControlMessage, CommunicationError> {
+        let mut read_msgs = Vec::new();
+        let mut result = None;
+        while result.is_none() {
+            match self.read().await {
+                Ok(control_msg) => match control_msg.clone() {
+                    ControlMessage::ControlSenderInitialized(_)
+                    | ControlMessage::ControlReceiverInitialized(_)
+                    | ControlMessage::DataSenderInitialized(_)
+                    | ControlMessage::DataReceiverInitialized(_) => result = Some(Ok(control_msg)),
+                    _ => read_msgs.push(control_msg),
+                },
+                Err(e) => result = Some(Err(e)),
+            };
+        }
+        // Re-enqueue read messages.
+        for msg in read_msgs {
+            self.tx.send(msg).map_err(CommunicationError::from)?;
+        }
+        result.unwrap()
+    }
 }

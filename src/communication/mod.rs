@@ -23,12 +23,12 @@ use futures::future;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::net::SocketAddr;
-use std::thread::sleep;
 use std::time::Duration;
 use tokio::{
     io::AsyncWriteExt,
     net::{TcpListener, TcpStream},
     prelude::*,
+    time::delay_for,
 };
 
 use crate::{dataflow::stream::StreamId, node::node::NodeId, OperatorId};
@@ -160,7 +160,7 @@ async fn connect_to_node(
                     "could not connect to {}; error {}; retrying in 100 ms", dst_addr, e
                 );
                 // Wait a bit until it tries to connect again.
-                sleep(Duration::from_millis(100));
+                delay_for(Duration::from_millis(100)).await;
             }
         }
     }
