@@ -132,9 +132,6 @@ def run_async(driver, start_port=9000):
     ]
 
     def runner(driver, node_id, data_addresses, control_addresses):
-        if node_id == 3:
-            import time
-            time.sleep(0.3)
         driver()
         _internal.run(node_id, data_addresses, control_addresses)
 
