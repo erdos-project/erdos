@@ -184,7 +184,7 @@ impl Node {
         {
             let msg = self
                 .control_handler
-                .read()
+                .read_sender_or_receiver_initialized()
                 .await
                 .map_err(|e| format!("Error receiving control message: {:?}", e))?;
             match msg {
@@ -200,7 +200,7 @@ impl Node {
                 ControlMessage::DataReceiverInitialized(node_id) => {
                     data_receivers_initialized.insert(node_id);
                 }
-                _ => (),
+                _ => unreachable!(),
             };
         }
         Ok(())
@@ -230,14 +230,17 @@ impl Node {
         let mut initialized_nodes = HashSet::new();
         initialized_nodes.insert(self.id);
         while initialized_nodes.len() < num_nodes {
-            match self.control_handler.read().await {
-                Ok(ControlMessage::AllOperatorsInitializedOnNode(node_id)) => {
+            match self
+                .control_handler
+                .read_all_operators_initialized_on_node_msg()
+                .await
+            {
+                Ok(node_id) => {
                     initialized_nodes.insert(node_id);
                 }
                 Err(e) => {
                     return Err(format!("Error waiting for other nodes to set up: {:?}", e));
                 }
-                _ => (),
             }
         }
         Ok(())
