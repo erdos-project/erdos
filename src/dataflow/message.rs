@@ -72,4 +72,10 @@ impl IntTimestamp {
     pub fn new(time: Vec<u64>) -> Self {
         Self { time }
     }
+
+    pub fn top(&self) -> Self {
+        Self {
+            time: vec![std::u64::MAX; self.time.len()],
+        }
+    }
 }

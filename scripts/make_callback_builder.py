@@ -250,30 +250,56 @@ def make_add_write_stream(num_rs, num_ws):
 make_receive_watermark_template = """
     fn receive_watermark(&mut self, stream_id: StreamId, t: Timestamp) -> Vec<OperatorEvent> {{
         let some_t = Some(t.clone());
+        let mut previous_low_watermark_opt = Some(t.top());
+        let mut current_low_watermark_opt = Some(t.top());
 
+        {previous_low_watermark}
         {set_watermark}
-        
+        {current_low_watermark}
+
         let child_events: Vec<OperatorEvent> = self.children.iter()
             .map(|child| child.borrow_mut().receive_watermark(stream_id, t.clone()))
             .flatten()
             .collect();
-
         let mut events = Vec::new();
-        if {is_low_watermark} && !(child_events.is_empty() && self.watermark_callbacks.is_empty()) {{
-            let watermark_callbacks = self.watermark_callbacks.clone();
-            {clone_state}
-            {get_states}
-            {clone_write_streams}
-            if !watermark_callbacks.is_empty() || !child_events.is_empty() {{
-                events.push(OperatorEvent::new(t.clone(), true, move || {{
-                    for callback in watermark_callbacks {{
-                        (callback)({args});
-                    }}
-                    for event in child_events {{
-                        (event.callback)();
-                    }}
-                }}));
-            }}
+        match (previous_low_watermark_opt, current_low_watermark_opt) {{
+            (Some(previous_low_watermark), Some(current_low_watermark)) => {{
+                if previous_low_watermark < current_low_watermark && !(child_events.is_empty() && self.watermark_callbacks.is_empty()) {{
+                    let watermark_callbacks = self.watermark_callbacks.clone();
+                    {clone_state}
+                    {get_states}
+                    {clone_write_streams}
+                    if !watermark_callbacks.is_empty() || !child_events.is_empty() {{
+                        events.push(OperatorEvent::new(current_low_watermark.clone(), true, move || {{
+                            for callback in watermark_callbacks {{
+                                (callback)({args});
+                            }}
+                            for event in child_events {{
+                            (event.callback)();
+                            }}
+                        }}));
+                   }}
+               }}
+            }},
+            (None, Some(current_low_watermark)) => {{
+                if !(child_events.is_empty() && self.watermark_callbacks.is_empty()) {{
+                    let watermark_callbacks = self.watermark_callbacks.clone();
+                    {clone_state}
+                    {get_states}
+                    {clone_write_streams}
+                    if !watermark_callbacks.is_empty() || !child_events.is_empty() {{
+                        events.push(OperatorEvent::new(current_low_watermark.clone(), true, move || {{
+                            for callback in watermark_callbacks {{
+                                (callback)({args});
+                            }}
+                            for event in child_events {{
+                            (event.callback)();
+                            }}
+                        }}));
+                   }}
+               }}
+            }},
+            _ => (),
         }}
 
         events
@@ -282,9 +308,16 @@ make_receive_watermark_template = """
 
 
 def make_receive_watermark(num_rs, num_ws, has_state):
-    is_low_watermark = " && ".join(
-        map(lambda x: "some_t <= self.rs{}_watermark".format(x),
-            range(num_rs)))
+    previous_low_watermark = "\n".join(
+        map(
+            lambda x: """if previous_low_watermark_opt > self.rs{}_watermark {{
+                             previous_low_watermark_opt = self.rs{}_watermark.clone()
+                         }}""".format(x, x), range(num_rs)))
+    current_low_watermark = "\n".join(
+        map(
+            lambda x: """if current_low_watermark_opt > self.rs{}_watermark {{
+                             current_low_watermark_opt = self.rs{}_watermark.clone()
+                         }}""".format(x, x), range(num_rs)))
     reset_watermarks = "\n".join(
         map(lambda x: "self.rs{}_watermark = false;".format(x), range(num_rs)))
     get_states = "\n".join(
@@ -296,7 +329,7 @@ def make_receive_watermark(num_rs, num_ws, has_state):
             range(num_ws)))
     clone_state = "let mut state = Arc::clone(&self.state);" if has_state else ""
     args = ", ".join(
-        itertools.chain(["&t"],
+        itertools.chain(["&current_low_watermark"],
                         ["unsafe { Arc::get_mut_unchecked(&mut state) }"]
                         if has_state else [],
                         map(lambda x: "&rs{}_state.borrow()".format(x),
@@ -311,9 +344,10 @@ def make_receive_watermark(num_rs, num_ws, has_state):
                 // The watermark is outdated
                 return Vec::new();
             }}
-        }}""".format(x, x, x), range(num_rs)))
+        }}""".format(x, x, x, x), range(num_rs)))
     return make_receive_watermark_template.format(
-        is_low_watermark=is_low_watermark,
+        previous_low_watermark=previous_low_watermark,
+        current_low_watermark=current_low_watermark,
         reset_watermarks=reset_watermarks,
         clone_state=clone_state,
         get_states=get_states,
