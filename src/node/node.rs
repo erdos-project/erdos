@@ -1,10 +1,8 @@
-use futures::{self, future};
 use futures_util::stream::StreamExt;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
     thread,
-    time::Duration,
 };
 use tokio::{net::TcpStream, runtime::Builder, sync::Mutex};
 use tokio_util::codec::Framed;
