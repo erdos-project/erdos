@@ -345,7 +345,10 @@ impl Node {
                 control_senders_fut,
                 control_recvs_fut
             ) {
-                error!(logger, "Non-fatal network communication error: {:?}", e);
+                error!(
+                    logger,
+                    "Non-fatal network communication error; this should not happen! {:?}", e
+                );
             }
             if let Err(e) = ops_fut.await {
                 error!(
