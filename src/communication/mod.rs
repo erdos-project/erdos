@@ -10,15 +10,13 @@ pub mod receivers;
 pub mod senders;
 
 // Re-export structs as if they were defined here.
-pub use self::{
-    control_message_codec::ControlMessageCodec,
-    control_message_handler::ControlMessageHandler,
-    endpoints::{RecvEndpoint, SendEndpoint},
-    errors::{CodecError, CommunicationError, TryRecvError},
-    message_codec::MessageCodec,
-    pusher::{Pusher, PusherT},
-    serializable::Serializable,
-};
+pub use control_message_codec::ControlMessageCodec;
+pub use control_message_handler::ControlMessageHandler;
+pub use endpoints::{RecvEndpoint, SendEndpoint};
+pub use errors::{CodecError, CommunicationError, TryRecvError};
+pub use message_codec::MessageCodec;
+pub use pusher::{Pusher, PusherT};
+pub use serializable::Serializable;
 
 use byteorder::{ByteOrder, NetworkEndian, WriteBytesExt};
 use bytes::BytesMut;
