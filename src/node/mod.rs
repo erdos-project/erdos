@@ -4,4 +4,4 @@ pub mod operator_event;
 pub mod operator_executor;
 
 // Re-export structs as if they were defined here.
-pub use crate::node::node::{Node, NodeId};
+pub use self::node::{Node, NodeId};
