@@ -3,19 +3,20 @@ mod control_message_handler;
 mod endpoints;
 mod errors;
 mod message_codec;
+mod serializable;
+
 pub mod pusher;
 pub mod receivers;
 pub mod senders;
-mod serializable;
 
 // Re-export structs as if they were defined here.
-pub use self::control_message_handler::ControlMessageHandler;
-pub use crate::communication::control_message_codec::ControlMessageCodec;
-pub use crate::communication::endpoints::{RecvEndpoint, SendEndpoint};
-pub use crate::communication::errors::{CodecError, CommunicationError, TryRecvError};
-pub use crate::communication::message_codec::MessageCodec;
-pub use crate::communication::pusher::{Pusher, PusherT};
-pub use crate::communication::serializable::Serializable;
+pub use control_message_codec::ControlMessageCodec;
+pub use control_message_handler::ControlMessageHandler;
+pub use endpoints::{RecvEndpoint, SendEndpoint};
+pub use errors::{CodecError, CommunicationError, TryRecvError};
+pub use message_codec::MessageCodec;
+pub use pusher::{Pusher, PusherT};
+pub use serializable::Serializable;
 
 use byteorder::{ByteOrder, NetworkEndian, WriteBytesExt};
 use bytes::BytesMut;
@@ -23,7 +24,7 @@ use futures::future;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::net::SocketAddr;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::{
     io::AsyncWriteExt,
     net::{TcpListener, TcpStream},
@@ -132,6 +133,7 @@ async fn connect_to_node(
     logger: &slog::Logger,
 ) -> Result<TcpStream, std::io::Error> {
     // Keeps on reatying to connect to `dst_addr` until it succeeds.
+    let mut last_err_msg_time = Instant::now();
     loop {
         match TcpStream::connect(dst_addr).await {
             Ok(mut stream) => {
@@ -146,7 +148,8 @@ async fn connect_to_node(
                         Err(e) => {
                             error!(
                                 logger,
-                                "could not send node id to {}; error {}; retrying in 100 ms",
+                                "Node {}: could not send node id to {}; error {}; retrying in 100 ms",
+                                node_id,
                                 dst_addr,
                                 e
                             );
@@ -155,10 +158,18 @@ async fn connect_to_node(
                 }
             }
             Err(e) => {
-                error!(
-                    logger,
-                    "could not connect to {}; error {}; retrying in 100 ms", dst_addr, e
-                );
+                // Only print connection errors every 1s.
+                let now = Instant::now();
+                if now.duration_since(last_err_msg_time) >= Duration::from_secs(1) {
+                    error!(
+                        logger,
+                        "Node {}: could not connect to {}; error {}; retrying",
+                        node_id,
+                        dst_addr,
+                        e
+                    );
+                    last_err_msg_time = now;
+                }
                 // Wait a bit until it tries to connect again.
                 delay_for(Duration::from_millis(100)).await;
             }

@@ -7,9 +7,9 @@ pub mod operators;
 pub mod stream;
 
 // Re-export structs as if they were defined here.
-pub use crate::dataflow::message::{Data, Message, Timestamp, TimestampedData};
-pub use crate::dataflow::operator::{OperatorConfig, OperatorT};
-pub use crate::dataflow::stream::{
+pub use message::{Data, Message, Timestamp, TimestampedData};
+pub use operator::{OperatorConfig, OperatorT};
+pub use stream::{
     EventMakerT, LoopStream, ReadStream, ReadStreamT, StatefulReadStream, WriteStream,
     WriteStreamError,
 };

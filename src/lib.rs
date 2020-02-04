@@ -56,7 +56,7 @@ pub mod node;
 pub mod python;
 pub mod scheduler;
 
-pub use crate::configuration::Configuration;
+pub use configuration::Configuration;
 
 /// Makes a callback which automatically flows watermarks to downstream operators.
 ///

@@ -1,10 +1,8 @@
-use futures::{self, future};
 use futures_util::stream::StreamExt;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
     thread,
-    time::Duration,
 };
 use tokio::{net::TcpStream, runtime::Builder, sync::Mutex};
 use tokio_util::codec::Framed;
@@ -311,6 +309,9 @@ impl Node {
     }
 
     async fn async_run(&mut self) {
+        // Assign values used later to avoid lifetime errors.
+        let num_nodes = self.config.data_addresses.len();
+        let logger = self.config.logger.clone();
         // Create TCPStreams between all node pairs.
         let control_streams = communication::create_tcp_streams(
             self.config.control_addresses.clone(),
@@ -336,42 +337,39 @@ impl Node {
         // Execute operators.
         let ops_fut = self.run_operators();
         // These threads only complete when a failure happens.
-        let (senders_res, receivers_res, control_senders_res, control_receiver_res, ops_res) =
-            future::join5(
+        if num_nodes <= 1 {
+            // Senders and Receivers should return if there's only 1 node.
+            if let Err(e) = tokio::try_join!(
                 senders_fut,
                 recvs_fut,
                 control_senders_fut,
-                control_recvs_fut,
-                ops_fut,
-            )
-            .await;
-        // TODO(ionel): Remove code after operators execute on tokio.
-        if let (&Ok(_), &Ok(_)) = (&senders_res, &receivers_res) {
-            // Single node, so block indefinitely
-            loop {
-                thread::sleep(Duration::from_secs(std::u64::MAX));
+                control_recvs_fut
+            ) {
+                error!(
+                    logger,
+                    "Non-fatal network communication error; this should not happen! {:?}", e
+                );
             }
-        }
-        if let Err(err) = senders_res {
-            error!(self.config.logger, "Error with data senders: {:?}", err);
-        }
-        if let Err(err) = receivers_res {
-            error!(self.config.logger, "Error with data receivers: {:?}", err);
-        }
-        if let Err(err) = control_senders_res {
-            error!(self.config.logger, "Error with control senders: {:?}", err);
-        }
-        if let Err(err) = control_receiver_res {
-            error!(
-                self.config.logger,
-                "Error with control receivers: {:?}", err
-            );
-        }
-        if let Err(err) = ops_res {
-            error!(
-                self.config.logger,
-                "Error running operators on node {:?}: {:?}", self.id, err
-            );
+            if let Err(e) = ops_fut.await {
+                error!(
+                    logger,
+                    "Error running operators on node {:?}: {:?}", self.id, e
+                );
+            }
+        } else {
+            tokio::select! {
+                Err(e) = senders_fut => error!(logger, "Error with data senders: {:?}", e),
+                Err(e) = recvs_fut => error!(logger, "Error with data receivers: {:?}", e),
+                Err(e) = control_senders_fut => error!(logger, "Error with control senders: {:?}", e),
+                Err(e) = control_recvs_fut => error!(
+                    self.config.logger,
+                    "Error with control receivers: {:?}", e
+                ),
+                Err(e) = ops_fut => error!(
+                    logger,
+                    "Error running operators on node {:?}: {:?}", self.id, e
+                ),
+            }
         }
     }
 }
