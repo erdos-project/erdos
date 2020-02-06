@@ -217,6 +217,11 @@ macro_rules! register {
             config.id = OperatorId::new_deterministic();
             let config_copy = config.clone();
 
+            // No-op that throws compile-time error if types in `new` and `connect` don't match.
+            if false {
+                $crate::make_operator!($t, config.clone(), ($($rs),*), ($($ws),*));
+            }
+
             // Add operator to dataflow graph.
             let read_stream_ids = vec![$($rs.get_id()),*];
             let write_stream_ids = vec![$($ws.get_id()),*];
