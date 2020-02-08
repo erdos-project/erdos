@@ -1,5 +1,3 @@
-use std::thread;
-
 use erdos::{
     dataflow::{
         message::*,
@@ -10,6 +8,7 @@ use erdos::{
     node::Node,
     *,
 };
+use std::thread;
 
 mod utils;
 

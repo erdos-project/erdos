@@ -1,7 +1,10 @@
 #[macro_use]
 extern crate erdos;
 
-use erdos::dataflow::operators::{JoinOperator, SourceOperator};
+use erdos::dataflow::{
+    operators::{JoinOperator, SourceOperator},
+    OperatorConfig,
+};
 use erdos::node::Node;
 use erdos::{Configuration, OperatorConfig};
 
