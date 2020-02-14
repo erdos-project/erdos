@@ -1,7 +1,10 @@
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
+use futures::task::Poll;
+use std::future::Future;
+
 use crate::{
-    communication::RecvEndpoint,
+    communication::{RecvEndpoint, TryRecvError},
     dataflow::{Data, Message, State, Timestamp},
     node::operator_event::OperatorEvent,
 };
@@ -109,7 +112,7 @@ impl<D: Data> ReadStreamT for InternalReadStream<D> {
     /// Returns an immutable reference, or `None` if no messages are
     /// available at the moment (i.e., non-blocking read).
     fn try_read(&mut self) -> Option<Message<D>> {
-        let result = match self.recv_endpoint.take() {
+        match self.recv_endpoint.take() {
             Some(mut recv) => {
                 let output = match recv.try_read() {
                     Ok(msg) => Some(msg),
@@ -120,25 +123,45 @@ impl<D: Data> ReadStreamT for InternalReadStream<D> {
                 output
             }
             None => None,
-        };
-        result
+        }
     }
 
-    /// Blocking read. Returns `None` if the stream doesn't have a receive endpoint.
+    /// Blocking read which polls the tokio channel.
+    /// Returns `None` if the stream doesn't have a receive endpoint.
+    // TODO: make async or find a way to run on tokio.
     fn read(&mut self) -> Option<Message<D>> {
-        let result = match self.recv_endpoint.take() {
-            Some(mut recv) => {
-                let output = match recv.read() {
-                    Ok(msg) => Some(msg),
-                    // TODO: handle watermark?
-                    Err(_) => None,
-                };
-                self.recv_endpoint = Some(recv);
-                output
+        match self.recv_endpoint.take() {
+            // Some(mut rx) => loop {
+            //     match rx.try_read() {
+            //         Ok(msg) => return Some(msg),
+            //         Err(TryRecvError::Empty) => (),
+            //         Err(e) => {
+            //             eprintln!("{:?}", e);
+            //             return None;
+            //         }
+            //     }
+            // },
+            // None => None,
+            Some(mut rx) => {
+                let handle = tokio::runtime::Handle::current();
+                let fut = handle.spawn(async { rx.read().await });
+                match futures::executor::block_on(fut) {
+                    Ok(Ok(msg)) => Some(msg),
+                    _ => None,
+                }
+                // match futures::executor::block_on(fut) {
+                //     Ok(mg) => {
+                //         eprintln!("got a message");
+                //         Some(mg)
+                //     }
+                //     Err(e) => {
+                //         eprintln!("error: {:?}", e);
+                //         None
+                //     }
+                // }
             }
             None => None,
-        };
-        result
+        }
     }
 }
 

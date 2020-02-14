@@ -62,7 +62,6 @@ impl Node {
         // Build a runtime with n threads.
         let mut runtime = Builder::new()
             .threaded_scheduler()
-            .core_threads(self.config.num_worker_threads)
             .thread_name(format!("node-{}", self.id))
             .enable_all()
             .build()

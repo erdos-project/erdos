@@ -234,11 +234,7 @@ pub struct PullRecvOp {
 }
 
 impl PullRecvOp {
-    pub fn new(
-        _name: &str,
-        config: OperatorConfig<(usize, usize)>,
-        read_stream: ReadStream<Vec<u8>>,
-    ) -> Self {
+    pub fn new(config: OperatorConfig<(usize, usize)>, read_stream: ReadStream<Vec<u8>>) -> Self {
         let (num_total_messages, message_size) = config.arg;
         Self {
             num_total_messages,
@@ -348,8 +344,8 @@ fn main() {
         true,
         recv_node,
     );
-    connect_0_write!(RecvOperator, recv_config, s);
-    // connect_0_write!(PullRecvOp, recv_node, (num_messages, message_size), s);
+    // connect_0_write!(RecvOperator, recv_config, s);
+    connect_0_write!(PullRecvOp, recv_config, s);
 
     node.run();
 }
