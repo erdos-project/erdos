@@ -131,34 +131,25 @@ impl<D: Data> ReadStreamT for InternalReadStream<D> {
     // TODO: make async or find a way to run on tokio.
     fn read(&mut self) -> Option<Message<D>> {
         match self.recv_endpoint.take() {
-            // Some(mut rx) => loop {
-            //     match rx.try_read() {
-            //         Ok(msg) => return Some(msg),
-            //         Err(TryRecvError::Empty) => (),
-            //         Err(e) => {
-            //             eprintln!("{:?}", e);
-            //             return None;
-            //         }
-            //     }
-            // },
-            // None => None,
             Some(mut rx) => {
-                let handle = tokio::runtime::Handle::current();
-                let fut = handle.spawn(async { rx.read().await });
-                match futures::executor::block_on(fut) {
-                    Ok(Ok(msg)) => Some(msg),
-                    _ => None,
+                let mut result = None;
+                // Poll for the next message
+                loop {
+                    match rx.try_read() {
+                        Ok(msg) => {
+                            result = Some(msg);
+                            break;
+                        }
+                        Err(TryRecvError::Empty) => (),
+                        Err(_) => {
+                            break;
+                        }
+                    }
                 }
-                // match futures::executor::block_on(fut) {
-                //     Ok(mg) => {
-                //         eprintln!("got a message");
-                //         Some(mg)
-                //     }
-                //     Err(e) => {
-                //         eprintln!("error: {:?}", e);
-                //         None
-                //     }
-                // }
+                // Replace the endpoint
+                self.recv_endpoint = Some(rx);
+                // Return
+                result
             }
             None => None,
         }
