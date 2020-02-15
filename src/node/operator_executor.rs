@@ -1,10 +1,13 @@
 use std::cell::RefCell;
 use std::collections::BinaryHeap;
 use std::rc::Rc;
+use std::sync::Arc;
 
-use tokio;
-use tokio::stream::Stream;
-use tokio::stream::StreamExt;
+use tokio::{
+    self,
+    stream::{Stream, StreamExt},
+    sync::{watch, Mutex},
+};
 
 use crate::communication::RecvEndpoint;
 use crate::dataflow::{stream::InternalReadStream, Data, EventMakerT, Message, ReadStream};
@@ -72,9 +75,8 @@ impl<D: Data> OperatorExecutorStream<D> {
 #[allow(dead_code)]
 pub struct OperatorExecutor {
     event_stream: Option<Pin<Box<dyn Send + Stream<Item = Vec<OperatorEvent>>>>>,
-    // operator_streams: Vec<Box<dyn OperatorExecutorStreamT>>,
     // Priority queue that sorts events by priority and timestamp.
-    event_queue: BinaryHeap<OperatorEvent>,
+    event_queue: Arc<Mutex<BinaryHeap<OperatorEvent>>>,
     logger: slog::Logger,
 }
 
@@ -90,20 +92,48 @@ impl OperatorExecutor {
                     Box::new(StreamExt::merge(Box::into_pin(x), Box::into_pin(y)))
                 })
             })
-            .map(|x| Box::into_pin(x));
+            .map(Box::into_pin);
         Self {
             event_stream,
-            event_queue: BinaryHeap::new(),
+            event_queue: Arc::new(Mutex::new(BinaryHeap::new())),
             logger,
         }
     }
 
     pub async fn execute(&mut self) {
         if let Some(mut event_stream) = self.event_stream.take() {
+            // Launch consumers
+            // TODO: use better sync PQ and CondVar instead of watch
+            // TODO: launch more consumers and adjust amount based on size of event queue
+            let (notifier_tx, notifier_rx) = watch::channel(());
+            let event_consumer_fut = Self::event_runner(Arc::clone(&self.event_queue), notifier_rx);
+            tokio::spawn(event_consumer_fut);
+            let mut local_events = Vec::new();
             while let Some(events) = event_stream.next().await {
-                for event in events {
-                    (event.callback)()
+                {
+                    // Use try_lock to reduce contention on the mutex.
+                    if let Ok(mut event_queue) = self.event_queue.try_lock() {
+                        event_queue.extend(events);
+                        event_queue.extend(local_events.drain(..));
+                        // Notify receivers that new events were added.
+                        notifier_tx.broadcast(()).unwrap();
+                    } else {
+                        local_events.extend(events);
+                    }
                 }
+            }
+        }
+    }
+
+    // TODO: run multiple of these in parallel?
+    async fn event_runner(
+        event_queue: Arc<Mutex<BinaryHeap<OperatorEvent>>>,
+        mut notifier_rx: watch::Receiver<()>,
+    ) {
+        // Wait for notification for events added.
+        while let Some(_) = notifier_rx.recv().await {
+            while let Some(event) = { event_queue.lock().await.pop() } {
+                (event.callback)();
             }
         }
     }
