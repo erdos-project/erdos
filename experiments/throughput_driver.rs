@@ -344,8 +344,8 @@ fn main() {
         true,
         recv_node,
     );
-    // connect_0_write!(RecvOperator, recv_config, s);
-    connect_0_write!(PullRecvOp, recv_config, s);
+    connect_0_write!(RecvOperator, recv_config, s);
+    // connect_0_write!(PullRecvOp, recv_config, s);
 
     node.run();
 }

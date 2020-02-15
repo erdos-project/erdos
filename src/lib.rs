@@ -30,6 +30,7 @@
 
 #![feature(get_mut_unchecked)]
 #![feature(specialization)]
+#![feature(box_into_pin)]
 
 extern crate abomonation;
 #[macro_use]
@@ -116,7 +117,7 @@ macro_rules! make_operator_runner {
             // After: $rs is an identifier pointing to a read stream's StreamId
             // $ws is an identifier pointing to a write stream's StreamId
             move |channel_manager: Arc<Mutex<ChannelManager>>, control_sender: Sender<ControlMessage>, control_receiver: Receiver<ControlMessage>| {
-                let mut op_ex_streams: Vec<Box<dyn OperatorExecutorStreamT>> = Vec::new();
+                let mut op_ex_streams: Vec<Box<dyn Send + Stream<Item = Vec<OperatorEvent>>>> = Vec::new();
                 // Before: $rs is an identifier pointing to a read stream's StreamId
                 // $ws is an identifier pointing to a write stream's StreamId
                 $(
@@ -188,15 +189,16 @@ macro_rules! imports {
             time::Duration,
         };
         extern crate slog;
+        extern crate tokio;
+        use tokio::stream::Stream;
         use $crate::{
             self,
             communication::ControlMessage,
             dataflow::graph::default_graph,
             dataflow::stream::{InternalReadStream, WriteStreamT},
             dataflow::{Message, OperatorConfig, ReadStream, ReadStreamT, WriteStream},
-            node::operator_executor::{
-                OperatorExecutor, OperatorExecutorStream, OperatorExecutorStreamT,
-            },
+            node::operator_event::OperatorEvent,
+            node::operator_executor::{OperatorExecutor, OperatorExecutorStream},
             scheduler::channel_manager::ChannelManager,
             OperatorId,
         };

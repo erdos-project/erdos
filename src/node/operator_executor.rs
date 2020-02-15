@@ -2,24 +2,43 @@ use std::cell::RefCell;
 use std::collections::BinaryHeap;
 use std::rc::Rc;
 
-use crate::dataflow::{stream::InternalReadStream, Data, EventMakerT, ReadStream, ReadStreamT};
+use async_trait::async_trait;
+use tokio;
+use tokio::stream::Stream;
+use tokio::stream::StreamExt;
+
+use crate::communication::RecvEndpoint;
+use crate::dataflow::{stream::InternalReadStream, Data, EventMakerT, Message, ReadStream};
 use crate::node::operator_event::OperatorEvent;
 
-/// The internal OperatorExecutor's view of a stream
-pub trait OperatorExecutorStreamT: Send {
-    fn try_read_events(&mut self) -> Option<Vec<OperatorEvent>>;
-}
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 pub struct OperatorExecutorStream<D: Data> {
     stream: Rc<RefCell<InternalReadStream<D>>>,
+    recv_endpoint: Option<RecvEndpoint<Message<D>>>,
 }
 
-impl<D: Data> OperatorExecutorStreamT for OperatorExecutorStream<D> {
-    fn try_read_events(&mut self) -> Option<Vec<OperatorEvent>> {
-        let mut stream = self.stream.borrow_mut();
-        match stream.try_read() {
-            Some(msg) => Some(stream.make_events(msg)),
-            None => None,
+impl<D: Data> Stream for OperatorExecutorStream<D> {
+    // Item = OperatorEvent might be better?
+    type Item = Vec<OperatorEvent>;
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Vec<OperatorEvent>>> {
+        let mut mut_self = self.as_mut();
+        if mut_self.recv_endpoint.is_none() {
+            let endpoint = mut_self.stream.borrow_mut().take_endpoint();
+            mut_self.recv_endpoint = endpoint;
+        }
+        match mut_self.recv_endpoint.as_mut() {
+            Some(RecvEndpoint::InterThread(rx)) => match rx.poll_recv(cx) {
+                Poll::Ready(Some(msg)) => Poll::Ready(Some(self.stream.borrow().make_events(msg))),
+                Poll::Ready(None) => Poll::Ready(None),
+                Poll::Pending => Poll::Pending,
+            },
+            None => Poll::Ready(None),
         }
     }
 }
@@ -28,7 +47,10 @@ unsafe impl<D: Data> Send for OperatorExecutorStream<D> {}
 
 impl<D: Data> From<Rc<RefCell<InternalReadStream<D>>>> for OperatorExecutorStream<D> {
     fn from(stream: Rc<RefCell<InternalReadStream<D>>>) -> Self {
-        Self { stream }
+        Self {
+            stream,
+            recv_endpoint: None,
+        }
     }
 }
 
@@ -41,13 +63,17 @@ impl<D: Data> From<&ReadStream<D>> for OperatorExecutorStream<D> {
 
 impl<D: Data> OperatorExecutorStream<D> {
     pub fn new(stream: Rc<RefCell<InternalReadStream<D>>>) -> Self {
-        Self { stream }
+        Self {
+            stream,
+            recv_endpoint: None,
+        }
     }
 }
 
 #[allow(dead_code)]
 pub struct OperatorExecutor {
-    operator_streams: Vec<Box<dyn OperatorExecutorStreamT>>,
+    event_stream: Option<Pin<Box<dyn Send + Stream<Item = Vec<OperatorEvent>>>>>,
+    // operator_streams: Vec<Box<dyn OperatorExecutorStreamT>>,
     // Priority queue that sorts events by priority and timestamp.
     event_queue: BinaryHeap<OperatorEvent>,
     logger: slog::Logger,
@@ -55,30 +81,36 @@ pub struct OperatorExecutor {
 
 impl OperatorExecutor {
     pub fn new(
-        operator_streams: Vec<Box<dyn OperatorExecutorStreamT>>,
+        mut operator_streams: Vec<Box<dyn Send + Stream<Item = Vec<OperatorEvent>>>>,
         logger: slog::Logger,
     ) -> Self {
+        let event_stream = operator_streams
+            .pop()
+            .map(|first| {
+                operator_streams.into_iter().fold(first, |x, y| {
+                    Box::new(StreamExt::merge(Box::into_pin(x), Box::into_pin(y)))
+                })
+            })
+            .map(|x| Box::into_pin(x));
         Self {
-            operator_streams,
+            event_stream,
             event_queue: BinaryHeap::new(),
             logger,
         }
     }
 
     pub async fn execute(&mut self) {
-        loop {
-            // Get new events
-            for op_stream in self.operator_streams.iter_mut() {
-                match op_stream.try_read_events() {
-                    Some(events) => self.event_queue.extend(events),
-                    None => {}
-                };
+        match self.event_stream.take() {
+            Some(mut event_stream) => {
+                while let Some(events) = event_stream.next().await {
+                    for event in events {
+                        (event.callback)()
+                    }
+                }
             }
-            // Process next event
-            match self.event_queue.pop() {
-                Some(event) => (event.callback)(),
-                None => {}
-            };
+            None => (),
         }
     }
 }
+
+unsafe impl Send for OperatorExecutor {}

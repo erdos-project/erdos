@@ -89,6 +89,10 @@ impl<D: Data> InternalReadStream<D> {
             .push(Rc::clone(&child) as Rc<RefCell<dyn EventMakerT<EventDataType = D>>>);
         child
     }
+
+    pub fn take_endpoint(&mut self) -> Option<RecvEndpoint<Message<D>>> {
+        self.recv_endpoint.take()
+    }
 }
 
 impl<D: Data> Default for InternalReadStream<D> {
