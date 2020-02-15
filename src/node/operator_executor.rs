@@ -2,7 +2,6 @@ use std::cell::RefCell;
 use std::collections::BinaryHeap;
 use std::rc::Rc;
 
-use async_trait::async_trait;
 use tokio;
 use tokio::stream::Stream;
 use tokio::stream::StreamExt;
@@ -100,15 +99,12 @@ impl OperatorExecutor {
     }
 
     pub async fn execute(&mut self) {
-        match self.event_stream.take() {
-            Some(mut event_stream) => {
-                while let Some(events) = event_stream.next().await {
-                    for event in events {
-                        (event.callback)()
-                    }
+        if let Some(mut event_stream) = self.event_stream.take() {
+            while let Some(events) = event_stream.next().await {
+                for event in events {
+                    (event.callback)()
                 }
             }
-            None => (),
         }
     }
 }
