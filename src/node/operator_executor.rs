@@ -6,7 +6,7 @@ use crate::dataflow::{stream::InternalReadStream, Data, EventMakerT, ReadStream,
 use crate::node::operator_event::OperatorEvent;
 
 /// The internal OperatorExecutor's view of a stream
-pub trait OperatorExecutorStreamT {
+pub trait OperatorExecutorStreamT: Send {
     fn try_read_events(&mut self) -> Option<Vec<OperatorEvent>>;
 }
 
@@ -23,6 +23,8 @@ impl<D: Data> OperatorExecutorStreamT for OperatorExecutorStream<D> {
         }
     }
 }
+
+unsafe impl<D: Data> Send for OperatorExecutorStream<D> {}
 
 impl<D: Data> From<Rc<RefCell<InternalReadStream<D>>>> for OperatorExecutorStream<D> {
     fn from(stream: Rc<RefCell<InternalReadStream<D>>>) -> Self {
@@ -63,7 +65,7 @@ impl OperatorExecutor {
         }
     }
 
-    pub fn execute(&mut self) {
+    pub async fn execute(&mut self) {
         loop {
             // Get new events
             for op_stream in self.operator_streams.iter_mut() {

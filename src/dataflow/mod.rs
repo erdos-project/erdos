@@ -21,7 +21,8 @@ impl<T: 'static + Clone> State for T {}
 #[cfg(test)]
 mod tests {
     // Imports used in tests
-    use std::{cell::RefCell, rc::Rc, sync::mpsc};
+    use std::{cell::RefCell, rc::Rc};
+    use tokio::sync::mpsc;
 
     use crate::communication::SendEndpoint;
     use crate::dataflow::{
@@ -36,7 +37,7 @@ mod tests {
     #[test]
     fn test_callback() {
         let rs: ReadStream<String> = ReadStream::new();
-        let (tx, rx) = mpsc::channel();
+        let (tx, mut rx) = mpsc::unbounded_channel();
         rs.add_callback(move |_t: Timestamp, msg: String| {
             tx.send(msg).unwrap();
         });
@@ -63,7 +64,7 @@ mod tests {
         // Setup: generate ReadStream with 1 callback
         let rs: ReadStream<String> = ReadStream::new();
         let irs: Rc<RefCell<InternalReadStream<String>>> = (&rs).into();
-        let (tx, rx) = mpsc::channel();
+        let (tx, mut rx) = mpsc::unbounded_channel();
         rs.add_watermark_callback(move |_timestamp: &Timestamp| {
             tx.send("received watermark").unwrap();
         });
@@ -160,7 +161,7 @@ mod tests {
         let rs2: ReadStream<usize> = ReadStream::new();
         let srs2 = rs2.add_state(CounterState { count: 2 });
         let irs2: Rc<RefCell<InternalReadStream<usize>>> = (&rs2).into();
-        let (tx, rx) = mpsc::channel();
+        let (tx, mut rx) = mpsc::unbounded_channel();
         let cb = move |_t: &Timestamp, s1: &CounterState, s2: &CounterState| {
             tx.send(s1.count + s2.count).unwrap();
         };
@@ -206,7 +207,7 @@ mod tests {
         let srs3 = rs3.add_state(CounterState { count: 3 });
         let irs3: Rc<RefCell<InternalReadStream<usize>>> = (&rs3).into();
 
-        let (tx, rx) = mpsc::channel();
+        let (tx, mut rx) = mpsc::unbounded_channel();
         let cb = move |_t: &Timestamp,
                        state: &mut CounterState,
                        s1: &CounterState,
@@ -265,7 +266,7 @@ mod tests {
         let rs: ReadStream<usize> = ReadStream::new();
         let state = CounterState { count: 5 };
         let srs = rs.add_state(state);
-        let (tx, rx) = std::sync::mpsc::channel();
+        let (tx, mut rx) = mpsc::unbounded_channel();
         let endpoints = vec![SendEndpoint::InterThread(tx)];
         let ws: WriteStream<usize> =
             WriteStream::from_endpoints(endpoints, StreamId::new_deterministic());
@@ -314,11 +315,11 @@ mod tests {
     fn test_callback_and_watermark_callback() {
         let rs: ReadStream<String> = ReadStream::new();
         let irs: Rc<RefCell<InternalReadStream<String>>> = (&rs).into();
-        let (tx1, rx1) = mpsc::channel();
+        let (tx1, mut rx1) = mpsc::unbounded_channel();
         rs.add_callback(move |_t: Timestamp, _msg: String| {
             tx1.send("callback invoked").unwrap();
         });
-        let (tx2, rx2) = mpsc::channel();
+        let (tx2, mut rx2) = mpsc::unbounded_channel();
         rs.add_watermark_callback(move |_timestamp: &Timestamp| {
             tx2.send("watermark callback invoked").unwrap();
         });

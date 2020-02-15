@@ -62,6 +62,7 @@ impl Node {
         // Build a runtime with n threads.
         let mut runtime = Builder::new()
             .threaded_scheduler()
+            .core_threads(self.config.num_worker_threads)
             .thread_name(format!("node-{}", self.id))
             .enable_all()
             .build()
@@ -279,7 +280,9 @@ impl Node {
             channels_to_operators.insert(operator_info.id, tx);
             // Launch the operator as a separate async task.
             tokio::spawn(async move {
-                (operator_info.runner)(channel_manager_copy, operator_tx_copy, rx).execute();
+                let mut operator_executor =
+                    (operator_info.runner)(channel_manager_copy, operator_tx_copy, rx);
+                operator_executor.execute().await;
             });
         }
 

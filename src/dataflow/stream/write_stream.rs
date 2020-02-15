@@ -1,3 +1,5 @@
+use std::fmt;
+
 use abomonation::Abomonation;
 use serde::Deserialize;
 
@@ -91,6 +93,16 @@ impl<D: Data> WriteStream<D> {
 impl<D: Data> Default for WriteStream<D> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<D: Data> fmt::Debug for WriteStream<D> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "WriteStream {{ id: {}, low_watermark: {:?} }}",
+            self.id, self.low_watermark
+        )
     }
 }
 

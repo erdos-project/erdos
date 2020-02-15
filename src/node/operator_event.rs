@@ -32,6 +32,8 @@ impl OperatorEvent {
     }
 }
 
+unsafe impl Send for OperatorEvent {}
+
 // Explicitly implement trait so that the Binary heap in which OperatorEvents are
 // stored becomes a min-heap instead of a max-heap.
 impl Eq for OperatorEvent {}

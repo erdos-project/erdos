@@ -1,8 +1,5 @@
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
-use futures::task::Poll;
-use std::future::Future;
-
 use crate::{
     communication::{RecvEndpoint, TryRecvError},
     dataflow::{Data, Message, State, Timestamp},
