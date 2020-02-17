@@ -21,6 +21,7 @@ where
     id: StreamId,
     name: String,
     node_id: NodeId,
+    // Use a std mutex because the driver doesn't run on the tokio runtime.
     write_stream_option: Arc<Mutex<Option<WriteStream<D>>>>,
 }
 

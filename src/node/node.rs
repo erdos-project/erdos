@@ -1,3 +1,4 @@
+use futures::future;
 use futures_util::stream::StreamExt;
 use std::{
     collections::{HashMap, HashSet},
@@ -269,6 +270,7 @@ impl Node {
 
         let num_local_operators = local_operators.len();
 
+        let mut join_handles = Vec::with_capacity(num_local_operators);
         for operator_info in local_operators {
             debug!(
                 self.config.logger,
@@ -279,26 +281,27 @@ impl Node {
             let (tx, rx) = std::sync::mpsc::channel();
             channels_to_operators.insert(operator_info.id, tx);
             // Launch the operator as a separate async task.
-            tokio::spawn(async move {
+            let join_handle = tokio::spawn(async move {
                 let mut operator_executor =
                     (operator_info.runner)(channel_manager_copy, operator_tx_copy, rx);
                 operator_executor.execute().await;
             });
+            join_handles.push(join_handle);
         }
 
         // Wait for all operators to finish setting up.
         self.wait_for_local_operators_initialized(rx_from_operators, num_local_operators)
             .await;
-        // Broadcast all operators initialized on current node.
-        self.broadcast_local_operators_initialized().await?;
-        // Wait for all other nodes to finish setting up.
-        self.wait_for_all_operators_initialized().await?;
         // Setup driver on the current node.
         if let Some(driver) = graph.get_driver(self.id) {
             for setup_hook in driver.setup_hooks {
                 (setup_hook)(Arc::clone(&channel_manager));
             }
         }
+        // Broadcast all operators initialized on current node.
+        self.broadcast_local_operators_initialized().await?;
+        // Wait for all other nodes to finish setting up.
+        self.wait_for_all_operators_initialized().await?;
         // Tell driver to run.
         self.set_node_initialized();
         // Tell all operators to run.
@@ -306,7 +309,8 @@ impl Node {
             tx.send(ControlMessage::RunOperator(op_id))
                 .map_err(|e| format!("Error telling operator to run: {}", e))?;
         }
-
+        // Wait for all operators to finish running.
+        future::join_all(join_handles).await;
         Ok(())
     }
 
@@ -373,5 +377,11 @@ impl Node {
                 ),
             }
         }
+    }
+}
+
+impl Drop for Node {
+    fn drop(&mut self) {
+        eprintln!("dropping Node");
     }
 }
