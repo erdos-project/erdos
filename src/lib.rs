@@ -178,6 +178,8 @@ macro_rules! make_operator_runner {
 #[macro_export]
 macro_rules! imports {
     () => {
+        extern crate slog;
+        extern crate tokio;
         use std::{
             cell::RefCell,
             rc::Rc,
@@ -185,10 +187,10 @@ macro_rules! imports {
             thread,
             time::Duration,
         };
-        extern crate slog;
-        extern crate tokio;
-        use tokio::stream::Stream;
-        use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+        use tokio::{
+            stream::Stream,
+            sync::mpsc::{UnboundedReceiver, UnboundedSender},
+        };
         use $crate::{
             self,
             communication::ControlMessage,

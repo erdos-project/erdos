@@ -1,7 +1,11 @@
-use std::cell::RefCell;
-use std::collections::BinaryHeap;
-use std::rc::Rc;
-use std::sync::Arc;
+use std::{
+    cell::RefCell,
+    collections::BinaryHeap,
+    pin::Pin,
+    rc::Rc,
+    sync::Arc,
+    task::{Context, Poll},
+};
 
 use tokio::{
     self,
@@ -9,12 +13,11 @@ use tokio::{
     sync::{watch, Mutex},
 };
 
-use crate::communication::RecvEndpoint;
-use crate::dataflow::{stream::InternalReadStream, Data, EventMakerT, Message, ReadStream};
-use crate::node::operator_event::OperatorEvent;
-
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use crate::{
+    communication::RecvEndpoint,
+    dataflow::{stream::InternalReadStream, Data, EventMakerT, Message, ReadStream},
+    node::operator_event::OperatorEvent,
+};
 
 pub struct OperatorExecutorStream<D: Data> {
     stream: Rc<RefCell<InternalReadStream<D>>>,
