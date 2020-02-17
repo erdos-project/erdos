@@ -379,9 +379,3 @@ impl Node {
         }
     }
 }
-
-impl Drop for Node {
-    fn drop(&mut self) {
-        eprintln!("dropping Node");
-    }
-}
