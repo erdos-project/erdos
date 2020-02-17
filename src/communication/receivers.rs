@@ -1,13 +1,10 @@
 use futures::{future, stream::SplitStream};
 use futures_util::stream::StreamExt;
-use std::{
-    collections::HashMap,
-    sync::{mpsc, Arc},
-};
+use std::{collections::HashMap, sync::Arc};
 use tokio::{
     net::TcpStream,
     sync::{
-        mpsc::{UnboundedReceiver, UnboundedSender},
+        mpsc::{self, UnboundedReceiver, UnboundedSender},
         Mutex,
     },
 };
@@ -31,7 +28,7 @@ pub struct DataReceiver {
     /// Framed TCP read stream.
     stream: SplitStream<Framed<TcpStream, MessageCodec>>,
     /// Channel receiver on which new pusher updates are received.
-    rx: mpsc::Receiver<(StreamId, Box<dyn PusherT>)>,
+    rx: UnboundedReceiver<(StreamId, Box<dyn PusherT>)>,
     /// Mapping between stream id to pushers.
     stream_id_to_pusher: HashMap<StreamId, Box<dyn PusherT>>,
     /// Tokio channel sender to `ControlMessageHandler`.
@@ -48,11 +45,11 @@ impl DataReceiver {
         control_handler: &mut ControlMessageHandler,
     ) -> Self {
         // Create a channel for this stream.
-        let (tx, rx) = mpsc::channel();
+        let (tx, rx) = mpsc::unbounded_channel();
         // Add entry in the shared state vector.
         channels_to_receivers.lock().await.add_sender(tx);
         // Set up control channel.
-        let (control_tx, control_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (control_tx, control_rx) = mpsc::unbounded_channel();
         control_handler.add_channel_to_data_receiver(node_id, control_tx);
         Self {
             node_id,

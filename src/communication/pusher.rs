@@ -1,5 +1,6 @@
 use bytes::BytesMut;
 use serde::Deserialize;
+use std::fmt;
 use std::{any::Any, fmt::Debug};
 
 use crate::{
@@ -75,5 +76,11 @@ where
             }
         }
         Ok(())
+    }
+}
+
+impl fmt::Debug for Box<dyn PusherT> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Box<dyn PusheT> {{ }}")
     }
 }

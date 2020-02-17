@@ -1,4 +1,5 @@
-use std::{collections::HashMap, sync::mpsc};
+use std::collections::HashMap;
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     communication::{PusherT, SerializedMessage},
@@ -14,7 +15,7 @@ pub struct ChannelsToReceivers {
     // We do not use a tokio::mpsc::UnboundedSender because that only provides a blocking API.
     // It does not allow us to just check if the channel has a new message. We need this API in
     // the receivers, which regularly check if there are new pushers available.
-    senders: Vec<mpsc::Sender<(StreamId, Box<dyn PusherT>)>>,
+    senders: Vec<UnboundedSender<(StreamId, Box<dyn PusherT>)>>,
 }
 
 impl ChannelsToReceivers {
@@ -25,7 +26,7 @@ impl ChannelsToReceivers {
     }
 
     /// Adds a `mpsc::Sender` to a new receiver thread.
-    pub fn add_sender(&mut self, sender: mpsc::Sender<(StreamId, Box<dyn PusherT>)>) {
+    pub fn add_sender(&mut self, sender: UnboundedSender<(StreamId, Box<dyn PusherT>)>) {
         self.senders.push(sender);
     }
 
@@ -43,7 +44,7 @@ impl ChannelsToReceivers {
 /// Wrapper used to store mappings between node ids and `mpsc::UnboundedSender` to sender threads.
 pub struct ChannelsToSenders {
     /// The ith sender corresponds to a TCP connection to the ith node.
-    senders: HashMap<NodeId, tokio::sync::mpsc::UnboundedSender<SerializedMessage>>,
+    senders: HashMap<NodeId, UnboundedSender<SerializedMessage>>,
 }
 
 impl ChannelsToSenders {

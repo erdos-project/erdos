@@ -207,12 +207,13 @@ impl Node {
 
     async fn wait_for_local_operators_initialized(
         &mut self,
-        rx_from_operators: std::sync::mpsc::Receiver<ControlMessage>,
+        mut rx_from_operators: tokio::sync::mpsc::UnboundedReceiver<ControlMessage>,
         num_local_operators: usize,
     ) {
         let mut initialized_operators = HashSet::new();
         while initialized_operators.len() < num_local_operators {
-            if let Ok(ControlMessage::OperatorInitialized(op_id)) = rx_from_operators.recv() {
+            if let Some(ControlMessage::OperatorInitialized(op_id)) = rx_from_operators.recv().await
+            {
                 initialized_operators.insert(op_id);
             }
         }
@@ -265,7 +266,7 @@ impl Node {
             .filter(|op| op.node_id == self.id)
             .collect();
 
-        let (operator_tx, rx_from_operators) = std::sync::mpsc::channel();
+        let (operator_tx, rx_from_operators) = tokio::sync::mpsc::unbounded_channel();
         let mut channels_to_operators = HashMap::new();
 
         let num_local_operators = local_operators.len();
@@ -278,7 +279,7 @@ impl Node {
             );
             let channel_manager_copy = Arc::clone(&channel_manager);
             let operator_tx_copy = operator_tx.clone();
-            let (tx, rx) = std::sync::mpsc::channel();
+            let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
             channels_to_operators.insert(operator_info.id, tx);
             // Launch the operator as a separate async task.
             let join_handle = tokio::spawn(async move {

@@ -1,7 +1,6 @@
-use std::sync::{
-    mpsc::{Receiver, Sender},
-    Arc, Mutex,
-};
+use std::sync::{Arc, Mutex};
+
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::{
     communication::ControlMessage, node::operator_executor::OperatorExecutor,
@@ -21,8 +20,8 @@ pub trait OperatorRunner:
     'static
     + (Fn(
         Arc<Mutex<ChannelManager>>,
-        Sender<ControlMessage>,
-        Receiver<ControlMessage>,
+        UnboundedSender<ControlMessage>,
+        UnboundedReceiver<ControlMessage>,
     ) -> OperatorExecutor)
     + Sync
     + Send
@@ -34,8 +33,8 @@ impl<
         T: 'static
             + (Fn(
                 Arc<Mutex<ChannelManager>>,
-                Sender<ControlMessage>,
-                Receiver<ControlMessage>,
+                UnboundedSender<ControlMessage>,
+                UnboundedReceiver<ControlMessage>,
             ) -> OperatorExecutor)
             + Sync
             + Send

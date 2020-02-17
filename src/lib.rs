@@ -116,7 +116,7 @@ macro_rules! make_operator_runner {
             )*
             // After: $rs is an identifier pointing to a read stream's StreamId
             // $ws is an identifier pointing to a write stream's StreamId
-            move |channel_manager: Arc<Mutex<ChannelManager>>, control_sender: Sender<ControlMessage>, control_receiver: Receiver<ControlMessage>| {
+            move |channel_manager: Arc<Mutex<ChannelManager>>, control_sender: UnboundedSender<ControlMessage>, mut control_receiver: UnboundedReceiver<ControlMessage>| {
                 let mut op_ex_streams: Vec<Box<dyn Send + Stream<Item = Vec<OperatorEvent>>>> = Vec::new();
                 // Before: $rs is an identifier pointing to a read stream's StreamId
                 // $ws is an identifier pointing to a write stream's StreamId
@@ -156,7 +156,7 @@ macro_rules! make_operator_runner {
                 }
                 // Wait for control message to run
                 loop {
-                    if let Ok(ControlMessage::RunOperator(id)) = control_receiver.recv() {
+                    if let Ok(ControlMessage::RunOperator(id)) = control_receiver.try_recv() {
                         if id == config.id {
                             break;
                         }
@@ -181,16 +181,14 @@ macro_rules! imports {
         use std::{
             cell::RefCell,
             rc::Rc,
-            sync::{
-                mpsc::{self, Receiver, Sender},
-                Arc, Mutex,
-            },
+            sync::{Arc, Mutex},
             thread,
             time::Duration,
         };
         extern crate slog;
         extern crate tokio;
         use tokio::stream::Stream;
+        use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
         use $crate::{
             self,
             communication::ControlMessage,
