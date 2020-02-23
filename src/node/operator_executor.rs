@@ -111,18 +111,13 @@ impl OperatorExecutor {
             let (notifier_tx, notifier_rx) = watch::channel(());
             let event_consumer_fut = Self::event_runner(Arc::clone(&self.event_queue), notifier_rx);
             tokio::spawn(event_consumer_fut);
-            let mut local_events = Vec::new();
             while let Some(events) = event_stream.next().await {
                 {
-                    // Use try_lock to reduce contention on the mutex.
-                    if let Ok(mut event_queue) = self.event_queue.try_lock() {
-                        event_queue.extend(events);
-                        event_queue.extend(local_events.drain(..));
-                        // Notify receivers that new events were added.
-                        notifier_tx.broadcast(()).unwrap();
-                    } else {
-                        local_events.extend(events);
+                    {
+                        self.event_queue.lock().await.extend(events);
                     }
+                    // Notify receivers that new events were added.
+                    notifier_tx.broadcast(()).unwrap();
                 }
             }
         }
