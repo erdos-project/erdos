@@ -35,12 +35,14 @@ class LoopOp(erdos.Operator):
         self.write_stream.send(msg)
 
 
-def driver():
-    """Creates the dataflow graph."""
+def main():
+    """Creates and runs the dataflow graph."""
     loop_stream = erdos.LoopStream()
     (stream, ) = erdos.connect(LoopOp, [loop_stream])
     loop_stream.set(stream)
 
+    erdos.run()
+
 
 if __name__ == "__main__":
-    erdos.run(driver)
+    main()

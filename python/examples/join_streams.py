@@ -64,8 +64,8 @@ class JoinOp(erdos.Operator):
         write_stream.send(joined_msg)
 
 
-def driver():
-    """Creates the dataflow graph."""
+def main():
+    """Creates and runs the dataflow graph."""
     (left_stream, ) = erdos.connect(SendOp, [],
                                     True,
                                     "FastSendOp",
@@ -76,6 +76,8 @@ def driver():
                                      frequency=1)
     erdos.connect(JoinOp, [left_stream, right_stream])
 
+    erdos.run()
+
 
 if __name__ == "__main__":
-    erdos.run(driver)
+    main()
