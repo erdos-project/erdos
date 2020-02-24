@@ -225,6 +225,7 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
         node_id: NodeId,
         data_addresses: Vec<String>,
         control_addresses: Vec<String>,
+        graph_filename: Option<String>,
     ) -> PyResult<()> {
         py.allow_threads(move || {
             let data_addresses = data_addresses
@@ -235,7 +236,13 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
                 .into_iter()
                 .map(|s| s.parse().expect("Unable to parse socket address"))
                 .collect();
-            let config = Configuration::new(node_id, data_addresses, control_addresses, 7);
+            let config = Configuration::new(
+                node_id,
+                data_addresses,
+                control_addresses,
+                7,
+                graph_filename,
+            );
             let mut node = Node::new(config);
             node.run();
         });
@@ -248,6 +255,7 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
         node_id: NodeId,
         data_addresses: Vec<String>,
         control_addresses: Vec<String>,
+        graph_filename: Option<String>,
     ) -> PyResult<()> {
         py.allow_threads(move || {
             let data_addresses = data_addresses
@@ -258,7 +266,13 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
                 .into_iter()
                 .map(|s| s.parse().expect("Unable to parse socket address"))
                 .collect();
-            let config = Configuration::new(node_id, data_addresses, control_addresses, 7);
+            let config = Configuration::new(
+                node_id,
+                data_addresses,
+                control_addresses,
+                7,
+                graph_filename,
+            );
             let node = Node::new(config);
             node.run_async();
         });

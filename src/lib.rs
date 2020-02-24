@@ -499,4 +499,11 @@ pub fn new_app(name: &str) -> clap::App {
                 .default_value("0")
                 .help("Current node index"),
         )
+        .arg(
+            Arg::with_name("graph-filename")
+                .short("g")
+                .long("graph-filename")
+                .default_value("")
+                .help("Exports the dataflow graph as a DOT file to the provided filename"),
+        )
 }

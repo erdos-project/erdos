@@ -261,7 +261,7 @@ impl Graph {
         result
     }
 
-    /// Export the dataflow graph as a DOT file.
+    /// Exports the dataflow graph as a DOT file.
     pub fn to_dot(&self, filename: &str) -> std::io::Result<()> {
         let mut file = File::create(filename)?;
         writeln!(file, "digraph erdos_dataflow {{")?;

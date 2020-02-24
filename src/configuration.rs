@@ -15,6 +15,8 @@ pub struct Configuration {
     pub control_addresses: Vec<SocketAddr>,
     /// System-level logger.
     pub logger: slog::Logger,
+    /// DOT file to export dataflow graph.
+    pub graph_filename: Option<String>,
 }
 
 impl Configuration {
@@ -24,6 +26,7 @@ impl Configuration {
         data_addresses: Vec<SocketAddr>,
         control_addresses: Vec<SocketAddr>,
         num_worker_threads: usize,
+        graph_filename: Option<String>,
     ) -> Self {
         Self {
             index: node_index,
@@ -31,6 +34,7 @@ impl Configuration {
             data_addresses,
             control_addresses,
             logger: crate::get_terminal_logger(),
+            graph_filename,
         }
     }
 
@@ -66,12 +70,19 @@ impl Configuration {
             node_index < data_addresses.len(),
             "Node index is larger than number of available nodes"
         );
+        let graph_filename_arg = args.value_of("graph-filename").unwrap();
+        let graph_filename = if graph_filename_arg == "" {
+            None
+        } else {
+            Some(graph_filename_arg.to_string())
+        };
         Self {
             index: node_index,
             num_worker_threads: num_threads,
             data_addresses,
             control_addresses,
             logger: crate::get_terminal_logger(),
+            graph_filename,
         }
     }
 }
