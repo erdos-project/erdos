@@ -70,7 +70,7 @@ pub struct RecvOperator {}
 
 impl RecvOperator {
     pub fn new(config: OperatorConfig<bool>, read_stream: ReadStream<usize>) -> Self {
-        let should_flow_watermarks = config.arg;
+        let should_flow_watermarks = config.arg.unwrap();
         erdos::add_watermark_callback!(
             (read_stream),
             (),
@@ -102,9 +102,14 @@ fn test_flow_watermarks() {
     let config = utils::make_default_config();
     let node = Node::new(config);
 
-    let s1 = connect_1_write!(SendOperator, ());
-    let s2 = connect_1_write!(MapOperator<usize, usize>, (), s1);
-    connect_0_write!(RecvOperator, true, s2);
+    let s1 = connect_1_write!(SendOperator, OperatorConfig::new().name("SendOperator"));
+    let s2 =
+        connect_1_write!(MapOperator<usize, usize>, OperatorConfig::new().name("MapOperator"), s1);
+    connect_0_write!(
+        RecvOperator,
+        OperatorConfig::new().name("RecvOperator").arg(true),
+        s2
+    );
 
     node.run_async();
 
@@ -116,10 +121,16 @@ fn test_no_flow_watermarks() {
     let config = utils::make_default_config();
     let node = Node::new(config);
 
-    let s1 = connect_1_write!(SendOperator, ());
-    let map_config = OperatorConfig::new("MapOperator", (), false, 0);
-    let s2 = connect_1_write!(MapOperator<usize, usize>, map_config, s1);
-    connect_0_write!(RecvOperator, false, s2);
+    let s1 = connect_1_write!(SendOperator, OperatorConfig::new().name("SendOperator"));
+    let s2 = connect_1_write!(MapOperator<usize, usize>, OperatorConfig::new().name("MapOperator").flow_watermarks(false), s1);
+    connect_0_write!(
+        RecvOperator,
+        OperatorConfig::new()
+            .name("RecvOperator")
+            .arg(false)
+            .flow_watermarks(false),
+        s2
+    );
 
     node.run_async();
 
@@ -131,10 +142,16 @@ fn test_multi_stream_watermark_callbacks() {
     let config = utils::make_default_config();
     let node = Node::new(config);
 
-    let s1 = connect_1_write!(SendOperator, ());
-    let s2 = connect_1_write!(SendOperator, ());
-    let op_config = OperatorConfig::new("MultiStreamCallbackOperator", (), false, 0);
-    let s3 = connect_1_write!(MultiStreamCallbackOperator, op_config, s1, s2);
+    let s1 = connect_1_write!(SendOperator, OperatorConfig::new().name("SendOp1"));
+    let s2 = connect_1_write!(SendOperator, OperatorConfig::new().name("SendOp2"));
+    let s3 = connect_1_write!(
+        MultiStreamCallbackOperator,
+        OperatorConfig::new()
+            .name("MultiStreamCallbackOperator")
+            .flow_watermarks(false),
+        s1,
+        s2
+    );
     let mut extract_stream = ExtractStream::new(0, &s3);
 
     node.run_async();

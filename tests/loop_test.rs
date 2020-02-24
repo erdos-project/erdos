@@ -24,8 +24,8 @@ impl LoopOperator {
         write_stream: WriteStream<usize>,
     ) -> Self {
         Self {
-            send_first_msg: config.arg.0,
-            num_iterations: config.arg.1,
+            send_first_msg: config.arg.unwrap().0,
+            num_iterations: config.arg.unwrap().1,
             read_stream,
             write_stream,
         }
@@ -65,7 +65,11 @@ fn test_loop() {
     let node = Node::new(config);
 
     let loop_stream = LoopStream::new();
-    let s1 = connect_1_write!(LoopOperator, (true, 5), loop_stream);
+    let s1 = connect_1_write!(
+        LoopOperator,
+        OperatorConfig::new().name("LoopOperator").arg((true, 5)),
+        loop_stream
+    );
     loop_stream.set(&s1);
 
     node.run_async();

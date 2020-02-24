@@ -23,31 +23,42 @@ pub struct OperatorConfig<T: Clone> {
     pub name: Option<String>,
     /// A unique identifier for every operator.
     pub id: OperatorId,
-    pub arg: T,
+    pub arg: Option<T>,
     pub flow_watermarks: bool,
     pub node_id: NodeId,
 }
 
 impl<T: Clone> OperatorConfig<T> {
-    pub fn new(name: &str, arg: T, flow_watermarks: bool, node_id: NodeId) -> Self {
+    pub fn new() -> Self {
         Self {
-            name: Some(name.to_string()),
             id: OperatorId::nil(),
-            arg,
-            flow_watermarks,
-            node_id,
-        }
-    }
-}
-
-impl<T: Clone> From<T> for OperatorConfig<T> {
-    fn from(arg: T) -> Self {
-        Self {
             name: None,
-            id: OperatorId::nil(),
-            arg,
+            arg: None,
             flow_watermarks: true,
             node_id: 0,
         }
+    }
+
+    pub fn name(&mut self, name: &str) -> &mut Self {
+        self.name = Some(name.to_string());
+        self
+    }
+
+    pub fn arg(&mut self, arg: T) -> &mut Self {
+        self.arg = Some(arg);
+        self
+    }
+
+    /// `flow_watermarks` is true by default.
+    pub fn flow_watermarks(&mut self, flow_watermarks: bool) -> &mut Self {
+        self.flow_watermarks = flow_watermarks;
+        self
+    }
+
+    /// `node_id` is 0 by default.
+    // TODO: replace this with scheduling constraints.
+    pub fn node(&mut self, node_id: NodeId) -> &mut Self {
+        self.node_id = node_id;
+        self
     }
 }

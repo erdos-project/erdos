@@ -58,6 +58,7 @@ pub mod python;
 pub mod scheduler;
 
 pub use configuration::Configuration;
+pub use dataflow::OperatorConfig;
 
 /// Makes a callback which automatically flows watermarks to downstream operators.
 ///
@@ -212,7 +213,7 @@ macro_rules! register {
         // Import necesary structs, modules, and functions.
         $crate::imports!();
 
-        let mut config = OperatorConfig::from($config);
+        let mut config = $config.clone();
         config.id = OperatorId::new_deterministic();
         let config_copy = config.clone();
 
