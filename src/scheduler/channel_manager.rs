@@ -1,11 +1,7 @@
 use async_trait::async_trait;
 use serde::Deserialize;
-use std::{
-    any::Any,
-    collections::HashMap,
-    sync::{mpsc, Arc},
-};
-use tokio::sync::Mutex;
+use std::{any::Any, collections::HashMap, sync::Arc};
+use tokio::sync::{mpsc, Mutex};
 
 use crate::{
     communication::{Pusher, PusherT, RecvEndpoint, SendEndpoint},
@@ -101,7 +97,7 @@ where
     }
 
     fn add_inter_thread_channel(&mut self) {
-        let (tx, rx) = mpsc::channel();
+        let (tx, rx) = mpsc::unbounded_channel();
         self.add_send_endpoint(SendEndpoint::InterThread(tx));
         self.add_recv_endpoint(RecvEndpoint::InterThread(rx));
     }
@@ -128,7 +124,7 @@ where
             .entry(self.stream_id)
             .or_insert_with(|| Box::new(Pusher::<Message<D>>::new()));
         if let Some(pusher) = pusher.as_any().downcast_mut::<Pusher<Message<D>>>() {
-            let (tx, rx) = mpsc::channel();
+            let (tx, rx) = mpsc::unbounded_channel();
             pusher.add_endpoint(SendEndpoint::InterThread(tx));
             self.add_recv_endpoint(RecvEndpoint::InterThread(rx));
             Ok(())

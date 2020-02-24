@@ -11,7 +11,7 @@ use crate::{
 #[derive(Clone)]
 pub enum SendEndpoint<D: Clone + Send + Debug> {
     /// Send messages between operators running in the same process.
-    InterThread(std::sync::mpsc::Sender<D>),
+    InterThread(mpsc::UnboundedSender<D>),
     /// Send messages between operator executors and network threads.
     InterProcess(StreamId, mpsc::UnboundedSender<SerializedMessage>),
 }
@@ -43,16 +43,17 @@ impl<D: Clone + Send + Debug> SendEndpoint<D> {
 
 /// Endpoint to be used to receive messages.
 pub enum RecvEndpoint<D: Clone + Send + Debug> {
-    InterThread(std::sync::mpsc::Receiver<D>),
+    InterThread(mpsc::UnboundedReceiver<D>),
 }
 
 impl<D: Clone + Send + Debug> RecvEndpoint<D> {
-    /// Blocking read of a new message.
-    pub fn read(&mut self) -> Result<D, CommunicationError> {
+    /// Aync read of a new message.
+    pub async fn read(&mut self) -> Result<D, CommunicationError> {
         match self {
             Self::InterThread(receiver) => receiver
                 .recv()
-                .map_err(|_| CommunicationError::Disconnected),
+                .await
+                .ok_or(CommunicationError::Disconnected),
         }
     }
 

@@ -93,11 +93,11 @@ pub enum TryRecvError {
     BincodeError(bincode::Error),
 }
 
-impl From<std::sync::mpsc::TryRecvError> for TryRecvError {
-    fn from(e: std::sync::mpsc::TryRecvError) -> Self {
+impl From<mpsc::error::TryRecvError> for TryRecvError {
+    fn from(e: mpsc::error::TryRecvError) -> Self {
         match e {
-            std::sync::mpsc::TryRecvError::Disconnected => TryRecvError::Disconnected,
-            std::sync::mpsc::TryRecvError::Empty => TryRecvError::Empty,
+            mpsc::error::TryRecvError::Closed => TryRecvError::Disconnected,
+            mpsc::error::TryRecvError::Empty => TryRecvError::Empty,
         }
     }
 }

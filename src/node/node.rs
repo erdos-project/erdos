@@ -1,3 +1,4 @@
+use futures::future;
 use futures_util::stream::StreamExt;
 use std::{
     collections::{HashMap, HashSet},
@@ -206,12 +207,13 @@ impl Node {
 
     async fn wait_for_local_operators_initialized(
         &mut self,
-        rx_from_operators: std::sync::mpsc::Receiver<ControlMessage>,
+        mut rx_from_operators: tokio::sync::mpsc::UnboundedReceiver<ControlMessage>,
         num_local_operators: usize,
     ) {
         let mut initialized_operators = HashSet::new();
         while initialized_operators.len() < num_local_operators {
-            if let Ok(ControlMessage::OperatorInitialized(op_id)) = rx_from_operators.recv() {
+            if let Some(ControlMessage::OperatorInitialized(op_id)) = rx_from_operators.recv().await
+            {
                 initialized_operators.insert(op_id);
             }
         }
@@ -264,11 +266,12 @@ impl Node {
             .filter(|op| op.node_id == self.id)
             .collect();
 
-        let (operator_tx, rx_from_operators) = std::sync::mpsc::channel();
+        let (operator_tx, rx_from_operators) = tokio::sync::mpsc::unbounded_channel();
         let mut channels_to_operators = HashMap::new();
 
         let num_local_operators = local_operators.len();
 
+        let mut join_handles = Vec::with_capacity(num_local_operators);
         for operator_info in local_operators {
             debug!(
                 self.config.logger,
@@ -276,27 +279,30 @@ impl Node {
             );
             let channel_manager_copy = Arc::clone(&channel_manager);
             let operator_tx_copy = operator_tx.clone();
-            let (tx, rx) = std::sync::mpsc::channel();
+            let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
             channels_to_operators.insert(operator_info.id, tx);
             // Launch the operator as a separate async task.
-            tokio::spawn(async move {
-                (operator_info.runner)(channel_manager_copy, operator_tx_copy, rx).execute();
+            let join_handle = tokio::spawn(async move {
+                let mut operator_executor =
+                    (operator_info.runner)(channel_manager_copy, operator_tx_copy, rx);
+                operator_executor.execute().await;
             });
+            join_handles.push(join_handle);
         }
 
         // Wait for all operators to finish setting up.
         self.wait_for_local_operators_initialized(rx_from_operators, num_local_operators)
             .await;
-        // Broadcast all operators initialized on current node.
-        self.broadcast_local_operators_initialized().await?;
-        // Wait for all other nodes to finish setting up.
-        self.wait_for_all_operators_initialized().await?;
         // Setup driver on the current node.
         if let Some(driver) = graph.get_driver(self.id) {
             for setup_hook in driver.setup_hooks {
                 (setup_hook)(Arc::clone(&channel_manager));
             }
         }
+        // Broadcast all operators initialized on current node.
+        self.broadcast_local_operators_initialized().await?;
+        // Wait for all other nodes to finish setting up.
+        self.wait_for_all_operators_initialized().await?;
         // Tell driver to run.
         self.set_node_initialized();
         // Tell all operators to run.
@@ -304,7 +310,8 @@ impl Node {
             tx.send(ControlMessage::RunOperator(op_id))
                 .map_err(|e| format!("Error telling operator to run: {}", e))?;
         }
-
+        // Wait for all operators to finish running.
+        future::join_all(join_handles).await;
         Ok(())
     }
 

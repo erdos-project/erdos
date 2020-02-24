@@ -82,7 +82,9 @@ impl SquareOperator {
 
     pub fn msg_callback(t: Timestamp, data: usize, write_stream: &mut WriteStream<usize>) {
         println!("SquareOperator: received {}", data);
-        write_stream.send(Message::new_message(t, data * data));
+        write_stream
+            .send(Message::new_message(t, data * data))
+            .unwrap();
     }
 }
 

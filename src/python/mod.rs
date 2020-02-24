@@ -1,16 +1,19 @@
 use pyo3::prelude::*;
 use pyo3::types::*;
 
-use std::sync::{
-    mpsc::{Receiver, Sender},
-    Arc, Mutex,
+use std::sync::{Arc, Mutex};
+
+use tokio::{
+    stream::Stream,
+    sync::mpsc::{UnboundedReceiver, UnboundedSender},
 };
 
 use crate::{
     communication::ControlMessage,
     dataflow::{graph::default_graph, stream::InternalReadStream, ReadStream, WriteStream},
     node::{
-        operator_executor::{OperatorExecutor, OperatorExecutorStream, OperatorExecutorStreamT},
+        operator_event::OperatorEvent,
+        operator_executor::{OperatorExecutor, OperatorExecutorStream},
         Node, NodeId,
     },
     scheduler::channel_manager::ChannelManager,
@@ -71,8 +74,8 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
 
         let operator_runner =
             move |channel_manager: Arc<Mutex<ChannelManager>>,
-                  control_sender: Sender<ControlMessage>,
-                  control_receiver: Receiver<ControlMessage>| {
+                  control_sender: UnboundedSender<ControlMessage>,
+                  mut control_receiver: UnboundedReceiver<ControlMessage>| {
                 // Create python streams from endpoints
                 let py_read_streams: Vec<PyReadStream> = read_stream_ids_clone
                     .clone()
@@ -102,7 +105,8 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
                     .collect();
 
                 // Create operator executor streams from read streams
-                let mut op_ex_streams: Vec<Box<dyn OperatorExecutorStreamT>> = Vec::new();
+                let mut op_ex_streams: Vec<Box<dyn Send + Stream<Item = Vec<OperatorEvent>>>> =
+                    Vec::new();
                 for py_read_stream in py_read_streams.iter() {
                     op_ex_streams.push(Box::new(OperatorExecutorStream::from(
                         &py_read_stream.read_stream,
@@ -181,7 +185,7 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
                 }
                 // Wait for control message to run
                 loop {
-                    if let Ok(ControlMessage::RunOperator(id)) = control_receiver.recv() {
+                    if let Ok(ControlMessage::RunOperator(id)) = control_receiver.try_recv() {
                         if id == op_id {
                             break;
                         }

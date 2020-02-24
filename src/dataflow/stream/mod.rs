@@ -62,8 +62,18 @@ mod tests {
     use super::{WriteStream, WriteStreamT};
     use crate::communication::SendEndpoint;
     use crate::dataflow::{message::TimestampedData, stream::StreamId, Message, Timestamp};
-    use std::sync::mpsc;
     use std::thread;
+    use tokio::runtime::{Builder, Runtime};
+    use tokio::sync::mpsc;
+
+    pub fn make_default_runtime() -> Runtime {
+        Builder::new()
+            .basic_scheduler()
+            .thread_name(format!("erdos-test"))
+            .enable_all()
+            .build()
+            .unwrap()
+    }
 
     /* Fails
     #[test]
@@ -79,18 +89,20 @@ mod tests {
 
     #[test]
     fn test_write_stream_sendable() {
+        let mut rt = make_default_runtime();
+
         let ws: WriteStream<usize> = WriteStream::new();
-        let (tx, rx) = mpsc::channel();
-        thread::spawn(move || {
-            let _ws = rx.recv().unwrap();
-        });
+        let (tx, mut rx) = mpsc::unbounded_channel();
         tx.send(ws).unwrap();
+
+        rt.block_on(rx.recv()).unwrap();
     }
 
     // Test that sends two messages on a write stream. It checks if both messages are received.
     #[test]
     fn test_write_stream_send() {
-        let (tx, rx) = mpsc::channel();
+        let mut rt = make_default_runtime();
+        let (tx, mut rx) = mpsc::unbounded_channel();
         let endpoints = vec![SendEndpoint::InterThread(tx)];
         let mut ws: WriteStream<usize> =
             WriteStream::from_endpoints(endpoints, StreamId::new_deterministic());
@@ -100,7 +112,7 @@ mod tests {
             ws.send(msg1).unwrap();
             ws.send(msg2).unwrap();
         });
-        let first_msg = rx.recv().unwrap();
+        let first_msg = rt.block_on(rx.recv()).unwrap();
         match first_msg {
             Message::TimestampedData(td) => {
                 assert_eq!(td.data, 1);
@@ -109,7 +121,7 @@ mod tests {
                 panic!("Unexpected first message");
             }
         }
-        let second_msg = rx.recv().unwrap();
+        let second_msg = rt.block_on(rx.recv()).unwrap();
         match second_msg {
             Message::TimestampedData(td) => {
                 assert_eq!(td.data, 2);
@@ -124,7 +136,8 @@ mod tests {
     // order.
     #[test]
     fn test_write_stream_watermark() {
-        let (tx, rx) = mpsc::channel();
+        let mut rt = make_default_runtime();
+        let (tx, mut rx) = mpsc::unbounded_channel();
         let endpoints = vec![SendEndpoint::InterThread(tx)];
         let mut ws: WriteStream<usize> =
             WriteStream::from_endpoints(endpoints, StreamId::new_deterministic());
@@ -134,7 +147,7 @@ mod tests {
             ws.send(w1).unwrap();
             ws.send(w2).unwrap();
         });
-        let w1 = rx.recv().unwrap();
+        let w1 = rt.block_on(rx.recv()).unwrap();
         match w1 {
             Message::Watermark(t) => {
                 assert_eq!(t.time[0], 1);
@@ -143,7 +156,7 @@ mod tests {
                 panic!("Unexpected first watermark");
             }
         }
-        let w2 = rx.recv().unwrap();
+        let w2 = rt.block_on(rx.recv()).unwrap();
         match w2 {
             Message::Watermark(t) => {
                 assert_eq!(t.time[0], 2);
@@ -157,7 +170,7 @@ mod tests {
     // Test that sends watermarks out of order. It expects that an error is raised.
     #[test]
     fn test_write_stream_out_of_order_watermark() -> Result<(), String> {
-        let (tx, _rx) = mpsc::channel();
+        let (tx, _rx) = mpsc::unbounded_channel();
         let endpoints = vec![SendEndpoint::InterThread(tx)];
         let mut ws: WriteStream<usize> =
             WriteStream::from_endpoints(endpoints, StreamId::new_deterministic());
@@ -176,7 +189,7 @@ mod tests {
     // an error is raised.
     #[test]
     fn test_write_stream_invalid_send() -> Result<(), String> {
-        let (tx, _rx) = mpsc::channel();
+        let (tx, _rx) = mpsc::unbounded_channel();
         let endpoints = vec![SendEndpoint::InterThread(tx)];
         let mut ws: WriteStream<usize> =
             WriteStream::from_endpoints(endpoints, StreamId::new_deterministic());

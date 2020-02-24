@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use crate::{
-    communication::RecvEndpoint,
+    communication::{RecvEndpoint, TryRecvError},
     dataflow::{Data, Message, State, Timestamp},
     node::operator_event::OperatorEvent,
 };
@@ -89,6 +89,10 @@ impl<D: Data> InternalReadStream<D> {
             .push(Rc::clone(&child) as Rc<RefCell<dyn EventMakerT<EventDataType = D>>>);
         child
     }
+
+    pub fn take_endpoint(&mut self) -> Option<RecvEndpoint<Message<D>>> {
+        self.recv_endpoint.take()
+    }
 }
 
 impl<D: Data> Default for InternalReadStream<D> {
@@ -109,7 +113,7 @@ impl<D: Data> ReadStreamT for InternalReadStream<D> {
     /// Returns an immutable reference, or `None` if no messages are
     /// available at the moment (i.e., non-blocking read).
     fn try_read(&mut self) -> Option<Message<D>> {
-        let result = match self.recv_endpoint.take() {
+        match self.recv_endpoint.take() {
             Some(mut recv) => {
                 let output = match recv.try_read() {
                     Ok(msg) => Some(msg),
@@ -120,25 +124,36 @@ impl<D: Data> ReadStreamT for InternalReadStream<D> {
                 output
             }
             None => None,
-        };
-        result
+        }
     }
 
-    /// Blocking read. Returns `None` if the stream doesn't have a receive endpoint.
+    /// Blocking read which polls the tokio channel.
+    /// Returns `None` if the stream doesn't have a receive endpoint.
+    // TODO: make async or find a way to run on tokio.
     fn read(&mut self) -> Option<Message<D>> {
-        let result = match self.recv_endpoint.take() {
-            Some(mut recv) => {
-                let output = match recv.read() {
-                    Ok(msg) => Some(msg),
-                    // TODO: handle watermark?
-                    Err(_) => None,
-                };
-                self.recv_endpoint = Some(recv);
-                output
+        match self.recv_endpoint.take() {
+            Some(mut rx) => {
+                let mut result = None;
+                // Poll for the next message
+                loop {
+                    match rx.try_read() {
+                        Ok(msg) => {
+                            result = Some(msg);
+                            break;
+                        }
+                        Err(TryRecvError::Empty) => (),
+                        Err(_) => {
+                            break;
+                        }
+                    }
+                }
+                // Replace the endpoint
+                self.recv_endpoint = Some(rx);
+                // Return
+                result
             }
             None => None,
-        };
-        result
+        }
     }
 }
 
