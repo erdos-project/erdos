@@ -48,7 +48,7 @@ impl Graph {
     pub fn add_operator<F: OperatorRunner>(
         &mut self,
         id: OperatorId,
-        name: String,
+        name: Option<String>,
         node_id: NodeId,
         read_stream_ids: Vec<StreamId>,
         write_stream_ids: Vec<StreamId>,
@@ -280,10 +280,14 @@ impl Graph {
         // Operators
         writeln!(file, "   // Declare operators")?;
         for operator in self.operators.values() {
+            let op_name = match &operator.name {
+                Some(name) => name.clone(),
+                None => format!("{}", operator.id),
+            };
             writeln!(
                 file,
                 "   \"{op_id}\" [label=\"{op_name}\\n(Node {node_id})\"];",
-                op_name = operator.name,
+                op_name = op_name,
                 op_id = operator.id,
                 node_id = operator.node_id
             )?;

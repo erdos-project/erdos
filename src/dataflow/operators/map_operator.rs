@@ -29,7 +29,7 @@ impl<D1: Data, D2: Data> MapOperator<D1, D2> {
     ) -> Self {
         input_stream.add_callback(MapOperator::<D1, D2>::on_data);
         Self {
-            name: config.name,
+            name: config.name.unwrap(),
             id: config.id,
             _input_stream: input_stream,
             _output_stream: output_stream,

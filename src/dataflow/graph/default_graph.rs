@@ -20,7 +20,7 @@ thread_local!(static DEFAULT_GRAPH: RefCell<Graph> = RefCell::new(Graph::new()))
 /// The operator is pinned on a given node.
 pub fn add_operator<F: OperatorRunner>(
     id: OperatorId,
-    name: String,
+    name: Option<String>,
     node_id: NodeId,
     read_stream_ids: Vec<StreamId>,
     write_stream_ids: Vec<StreamId>,

@@ -52,7 +52,7 @@ impl<D1: Data, D2: Data, D3: Data> JoinOperator<D1, D2, D3> {
         );
 
         Self {
-            name: config.name,
+            name: config.name.unwrap(),
             id: config.id,
             phantom: PhantomData,
         }

@@ -24,7 +24,7 @@ impl SourceOperator {
     #[allow(dead_code)]
     pub fn new(config: OperatorConfig<()>, write_stream: WriteStream<usize>) -> Self {
         Self {
-            name: config.name,
+            name: config.name.unwrap(),
             id: config.id,
             write_stream: write_stream,
         }

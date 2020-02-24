@@ -41,7 +41,7 @@ pub struct MultiStreamCallbackOperator {}
 
 impl MultiStreamCallbackOperator {
     pub fn new(
-        config: OperatorConfig<()>,
+        _config: OperatorConfig<()>,
         rs1: ReadStream<usize>,
         rs2: ReadStream<usize>,
         ws: WriteStream<usize>,
