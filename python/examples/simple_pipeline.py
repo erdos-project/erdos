@@ -70,13 +70,15 @@ class TryPullOp:
             time.sleep(0.5)
 
 
-def driver():
-    """Creates the dataflow graph."""
+def main():
+    """Creates and runs the dataflow graph."""
     (count_stream, ) = erdos.connect(SendOp, [])
     erdos.connect(CallbackOp, [count_stream])
     erdos.connect(PullOp, [count_stream])
     erdos.connect(TryPullOp, [count_stream])
 
+    erdos.run()
+
 
 if __name__ == "__main__":
-    erdos.run(driver)
+    main()

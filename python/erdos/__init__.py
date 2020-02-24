@@ -56,21 +56,17 @@ def connect(op_type, read_streams, flow_watermarks=True, *args, **kwargs):
     return [ReadStream(_py_read_stream=s) for s in internal_streams]
 
 
-def run(driver, start_port=9000):
+def run(start_port=9000):
     """Instantiates and runs the dataflow graph.
 
     ERDOS will spawn 1 process for each python operator, and connect them via
     TCP.
 
     Args:
-        driver (function): function that builds the dataflow graph. This must
-            be passed as a function so it can run on all ERDOS processes.
         start_port (int): the port on which to start. The start port is the
             lowest port ERDOS will use to establish TCP connections between
             operators.
     """
-    driver()  # run driver to set _num_py_operators
-
     data_addresses = [
         "127.0.0.1:{port}".format(port=start_port + i)
         for i in range(_num_py_operators + 1)
@@ -80,13 +76,11 @@ def run(driver, start_port=9000):
         for i in range(_num_py_operators + 1)
     ]
 
-    def runner(driver, node_id, data_addresses, control_addresses):
-        driver()
+    def runner(node_id, data_addresses, control_addresses):
         _internal.run(node_id, data_addresses, control_addresses)
 
     processes = [
-        mp.Process(target=runner,
-                   args=(driver, i, data_addresses, control_addresses))
+        mp.Process(target=runner, args=(i, data_addresses, control_addresses))
         for i in range(1, _num_py_operators + 1)
     ]
 
@@ -101,27 +95,25 @@ def run(driver, start_port=9000):
 
     signal.signal(signal.SIGINT, sigint_handler)
 
+    # The driver must always be on node 0 otherwise ingest and extract streams
+    # will break
     _internal.run_async(0, data_addresses, control_addresses)
 
     for p in processes:
         p.join()
 
 
-def run_async(driver, start_port=9000):
+def run_async(start_port=9000):
     """Instantiates and runs the dataflow graph asynchronously.
 
     ERDOS will spawn 1 process for each python operator, and connect them via
     TCP.
 
     Args:
-        driver (function): function that builds the dataflow graph. This must
-            be passed as a function so it can run on all ERDOS processes.
         start_port (int): the port on which to start. The start port is the
             lowest port ERDOS will use to establish TCP connections between
             operators.
     """
-    results = driver()  # run driver to set _num_py_operators
-
     data_addresses = [
         "127.0.0.1:{port}".format(port=start_port + i)
         for i in range(_num_py_operators + 1)
@@ -131,13 +123,11 @@ def run_async(driver, start_port=9000):
         for i in range(_num_py_operators + 1)
     ]
 
-    def runner(driver, node_id, data_addresses, control_addresses):
-        driver()
+    def runner(node_id, data_addresses, control_addresses):
         _internal.run(node_id, data_addresses, control_addresses)
 
     processes = [
-        mp.Process(target=runner,
-                   args=(driver, i, data_addresses, control_addresses))
+        mp.Process(target=runner, args=(i, data_addresses, control_addresses))
         for i in range(1, _num_py_operators + 1)
     ]
 
@@ -155,8 +145,6 @@ def run_async(driver, start_port=9000):
     # The driver must always be on node 0 otherwise ingest and extract streams
     # will break
     _internal.run_async(0, data_addresses, control_addresses)
-
-    return results
 
 
 def add_watermark_callback(read_streams, write_streams, callback):

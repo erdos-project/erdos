@@ -21,16 +21,12 @@ class SquareOp(erdos.Operator):
         return [erdos.WriteStream()]
 
 
-def driver():
+def main():
     ingest_stream = erdos.IngestStream()
     (square_stream, ) = erdos.connect(SquareOp, [ingest_stream])
     extract_stream = erdos.ExtractStream(square_stream)
 
-    return ingest_stream, extract_stream
-
-
-if __name__ == "__main__":
-    ingest_stream, extract_stream = erdos.run_async(driver)
+    erdos.run_async()
 
     count = 0
     while True:
@@ -44,3 +40,7 @@ if __name__ == "__main__":
 
         count += 1
         time.sleep(1)
+
+
+if __name__ == "__main__":
+    main()
