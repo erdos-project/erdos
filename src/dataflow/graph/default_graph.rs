@@ -20,6 +20,7 @@ thread_local!(static DEFAULT_GRAPH: RefCell<Graph> = RefCell::new(Graph::new()))
 /// The operator is pinned on a given node.
 pub fn add_operator<F: OperatorRunner>(
     id: OperatorId,
+    name: String,
     node_id: NodeId,
     read_stream_ids: Vec<StreamId>,
     write_stream_ids: Vec<StreamId>,
@@ -27,7 +28,7 @@ pub fn add_operator<F: OperatorRunner>(
 ) {
     DEFAULT_GRAPH.with(|g| {
         g.borrow_mut()
-            .add_operator(id, node_id, read_stream_ids, write_stream_ids, runner);
+            .add_operator(id, name, node_id, read_stream_ids, write_stream_ids, runner);
     });
 }
 

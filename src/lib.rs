@@ -228,7 +228,7 @@ macro_rules! register {
             let read_stream_ids = vec![$($rs.get_id()),*];
             let write_stream_ids = vec![$($ws.get_id()),*];
             let op_runner = $crate::make_operator_runner!($t, config_copy, ($($rs),*), ($($ws),*));
-            default_graph::add_operator(config.id, config.node_id, read_stream_ids, write_stream_ids, op_runner);
+            default_graph::add_operator(config.id, config.name.clone(), config.node_id, read_stream_ids, write_stream_ids, op_runner);
             $(
                 default_graph::add_operator_stream(config.id, &$ws);
             )*

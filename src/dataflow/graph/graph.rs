@@ -48,6 +48,7 @@ impl Graph {
     pub fn add_operator<F: OperatorRunner>(
         &mut self,
         id: OperatorId,
+        name: String,
         node_id: NodeId,
         read_stream_ids: Vec<StreamId>,
         write_stream_ids: Vec<StreamId>,
@@ -75,7 +76,7 @@ impl Graph {
 
         self.operators.insert(
             id,
-            OperatorMetadata::new(id, node_id, read_stream_ids, write_stream_ids, runner),
+            OperatorMetadata::new(id, name, node_id, read_stream_ids, write_stream_ids, runner),
         );
     }
 
@@ -281,7 +282,8 @@ impl Graph {
         for operator in self.operators.values() {
             writeln!(
                 file,
-                "   \"{op_id}\" [label=\"{op_id} ({node_id})\"];",
+                "   \"{op_id}\" [label=\"{op_name}\\n(Node {node_id})\"];",
+                op_name = operator.name,
                 op_id = operator.id,
                 node_id = operator.node_id
             )?;

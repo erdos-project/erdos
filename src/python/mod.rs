@@ -55,6 +55,9 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
         let connect_write_streams: Vec<&PyWriteStream> = streams_result.extract()?;
 
         // Register the operator
+        let op_name = py
+            .eval("Operator.__name__", None, Some(&locals))?
+            .extract()?;
         let op_id = crate::OperatorId::new_deterministic();
         let read_stream_ids: Vec<Uuid> = connect_read_streams
             .iter()
@@ -201,6 +204,7 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
 
         default_graph::add_operator(
             op_id,
+            op_name,
             node_id,
             read_stream_ids,
             write_stream_ids,
