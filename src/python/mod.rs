@@ -55,6 +55,9 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
         let connect_write_streams: Vec<&PyWriteStream> = streams_result.extract()?;
 
         // Register the operator
+        let op_name = py
+            .eval("Operator.__name__", None, Some(&locals))?
+            .extract()?;
         let op_id = crate::OperatorId::new_deterministic();
         let read_stream_ids: Vec<Uuid> = connect_read_streams
             .iter()
@@ -201,6 +204,7 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
 
         default_graph::add_operator(
             op_id,
+            op_name,
             node_id,
             read_stream_ids,
             write_stream_ids,
@@ -225,6 +229,7 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
         node_id: NodeId,
         data_addresses: Vec<String>,
         control_addresses: Vec<String>,
+        graph_filename: Option<String>,
     ) -> PyResult<()> {
         py.allow_threads(move || {
             let data_addresses = data_addresses
@@ -235,7 +240,13 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
                 .into_iter()
                 .map(|s| s.parse().expect("Unable to parse socket address"))
                 .collect();
-            let config = Configuration::new(node_id, data_addresses, control_addresses, 7);
+            let config = Configuration::new(
+                node_id,
+                data_addresses,
+                control_addresses,
+                7,
+                graph_filename,
+            );
             let mut node = Node::new(config);
             node.run();
         });
@@ -248,6 +259,7 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
         node_id: NodeId,
         data_addresses: Vec<String>,
         control_addresses: Vec<String>,
+        graph_filename: Option<String>,
     ) -> PyResult<()> {
         py.allow_threads(move || {
             let data_addresses = data_addresses
@@ -258,7 +270,13 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
                 .into_iter()
                 .map(|s| s.parse().expect("Unable to parse socket address"))
                 .collect();
-            let config = Configuration::new(node_id, data_addresses, control_addresses, 7);
+            let config = Configuration::new(
+                node_id,
+                data_addresses,
+                control_addresses,
+                7,
+                graph_filename,
+            );
             let node = Node::new(config);
             node.run_async();
         });

@@ -20,7 +20,7 @@ pub trait OperatorT {
 
 #[derive(Clone)]
 pub struct OperatorConfig<T: Clone> {
-    pub name: String,
+    pub name: Option<String>,
     /// A unique identifier for every operator.
     pub id: OperatorId,
     pub arg: T,
@@ -31,7 +31,7 @@ pub struct OperatorConfig<T: Clone> {
 impl<T: Clone> OperatorConfig<T> {
     pub fn new(name: &str, arg: T, flow_watermarks: bool, node_id: NodeId) -> Self {
         Self {
-            name: name.to_string(),
+            name: Some(name.to_string()),
             id: OperatorId::nil(),
             arg,
             flow_watermarks,
@@ -42,6 +42,12 @@ impl<T: Clone> OperatorConfig<T> {
 
 impl<T: Clone> From<T> for OperatorConfig<T> {
     fn from(arg: T) -> Self {
-        Self::new("", arg, true, 0)
+        Self {
+            name: None,
+            id: OperatorId::nil(),
+            arg,
+            flow_watermarks: true,
+            node_id: 0,
+        }
     }
 }

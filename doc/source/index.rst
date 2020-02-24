@@ -36,6 +36,11 @@ Example Use
   erdos.run()
 
 
+You can export the dataflow graph as a `DOT file`_ by setting the
+`graph_filename` argument in `erdos.run()`.
+
+.. _`DOT file`: https://en.wikipedia.org/wiki/DOT_(graph_description_language)
+
 .. toctree::
     :maxdepth: 1
     :caption: Getting Started

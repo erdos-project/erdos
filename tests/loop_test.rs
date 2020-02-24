@@ -2,8 +2,7 @@ use std::thread;
 
 use erdos::{
     dataflow::{
-        message::*, operators::MapOperator, stream::WriteStreamT, LoopStream, OperatorConfig,
-        ReadStream, WriteStream,
+        message::*, stream::WriteStreamT, LoopStream, OperatorConfig, ReadStream, WriteStream,
     },
     node::Node,
     *,

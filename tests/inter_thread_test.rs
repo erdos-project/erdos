@@ -5,7 +5,6 @@ use slog;
 use erdos::{
     self,
     dataflow::{
-        graph::default_graph,
         message::*,
         stream::{ExtractStream, IngestStream, WriteStreamT},
         OperatorConfig, ReadStream, WriteStream,

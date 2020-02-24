@@ -56,6 +56,8 @@ impl Clone for DriverMetadata {
 pub struct OperatorMetadata {
     /// The id of the operator.
     pub id: OperatorId,
+    /// The name of the operator.
+    pub name: Option<String>,
     /// The id of the node on which the operator executes.
     /// TODO: change this to a scheduling restriction which is an
     /// enum that may point to a node id.
@@ -71,6 +73,7 @@ pub struct OperatorMetadata {
 impl OperatorMetadata {
     pub fn new<F: OperatorRunner>(
         id: OperatorId,
+        name: Option<String>,
         node_id: NodeId,
         read_stream_ids: Vec<StreamId>,
         write_stream_ids: Vec<StreamId>,
@@ -78,6 +81,7 @@ impl OperatorMetadata {
     ) -> Self {
         Self {
             id,
+            name,
             node_id,
             read_stream_ids,
             write_stream_ids,
@@ -90,6 +94,7 @@ impl Clone for OperatorMetadata {
     fn clone(&self) -> Self {
         Self {
             id: self.id,
+            name: self.name.clone(),
             node_id: self.node_id,
             read_stream_ids: self.read_stream_ids.clone(),
             write_stream_ids: self.write_stream_ids.clone(),
