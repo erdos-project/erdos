@@ -103,73 +103,71 @@ macro_rules! make_operator {
 /// Note: this is intended as an internal macro called by connect_x_write!
 #[macro_export]
 macro_rules! make_operator_runner {
-    ($t:ty, $config:expr, ($($rs:ident),*), ($($ws:ident),*)) => {
-        {
-            // Copy IDs to avoid moving streams into closure
-            // Before: $rs is an identifier pointing to a read stream
-            // $ws is an identifier pointing to a write stream
-            $(
-                let $rs = ($rs.get_id());
-            )*
-            $(
-                let $ws = ($ws.get_id());
-            )*
-            // After: $rs is an identifier pointing to a read stream's StreamId
+    ($t:ty, $config:expr, ($($rs:ident),*), ($($ws:ident),*)) => {{
+        // Copy IDs to avoid moving streams into closure
+        // Before: $rs is an identifier pointing to a read stream
+        // $ws is an identifier pointing to a write stream
+        $(
+            let $rs = ($rs.get_id());
+        )*
+        $(
+            let $ws = ($ws.get_id());
+        )*
+        // After: $rs is an identifier pointing to a read stream's StreamId
+        // $ws is an identifier pointing to a write stream's StreamId
+        move |channel_manager: Arc<Mutex<ChannelManager>>, control_sender: UnboundedSender<ControlMessage>, mut control_receiver: UnboundedReceiver<ControlMessage>| {
+            let mut op_ex_streams: Vec<Box<dyn Send + Stream<Item = Vec<OperatorEvent>>>> = Vec::new();
+            // Before: $rs is an identifier pointing to a read stream's StreamId
             // $ws is an identifier pointing to a write stream's StreamId
-            move |channel_manager: Arc<Mutex<ChannelManager>>, control_sender: UnboundedSender<ControlMessage>, mut control_receiver: UnboundedReceiver<ControlMessage>| {
-                let mut op_ex_streams: Vec<Box<dyn Send + Stream<Item = Vec<OperatorEvent>>>> = Vec::new();
-                // Before: $rs is an identifier pointing to a read stream's StreamId
-                // $ws is an identifier pointing to a write stream's StreamId
-                $(
-                    let $rs = {
-                        let recv_endpoint = channel_manager.lock().unwrap().take_recv_endpoint($rs).unwrap();
-                        let read_stream = ReadStream::from(InternalReadStream::from_endpoint(recv_endpoint, $rs));
-                        op_ex_streams.push(
-                            Box::new(OperatorExecutorStream::from(&read_stream))
-                        );
-                        read_stream
-                    };
-                )*
-                $(
-                    let $ws = {
-                        let send_endpoints = channel_manager.lock().unwrap().get_send_endpoints($ws).unwrap();
-                        WriteStream::from_endpoints(send_endpoints, $ws)
-                    };
-                )*
-                // After: $rs is an identifier pointing to ReadStream
-                // $ws is an identifier pointing to WriteStream
-                let config = $config.clone();
-                let flow_watermarks = config.flow_watermarks;
-                let logger = $crate::get_terminal_logger();
-                // TODO: set operator name?
-                let mut op = $crate::make_operator!($t, $config, ($($rs),*), ($($ws),*));
-                // Pass on watermarks
-                if flow_watermarks {
-                    $crate::flow_watermarks!(($($rs),*), ($($ws),*));
-                }
-                // Notify node that operator is done setting up
-                if let Err(e) = control_sender.send(ControlMessage::OperatorInitialized(config.id)) {
-                    slog::error!(
-                        logger,
-                        "Error sending OperatorInitialized message to control handler: {:?}", e
+            $(
+                let $rs = {
+                    let recv_endpoint = channel_manager.lock().unwrap().take_recv_endpoint($rs).unwrap();
+                    let read_stream = ReadStream::from(InternalReadStream::from_endpoint(recv_endpoint, $rs));
+                    op_ex_streams.push(
+                        Box::new(OperatorExecutorStream::from(&read_stream))
                     );
-                }
-                // Wait for control message to run
-                loop {
-                    if let Ok(ControlMessage::RunOperator(id)) = control_receiver.try_recv() {
-                        if id == config.id {
-                            break;
-                        }
+                    read_stream
+                };
+            )*
+            $(
+                let $ws = {
+                    let send_endpoints = channel_manager.lock().unwrap().get_send_endpoints($ws).unwrap();
+                    WriteStream::from_endpoints(send_endpoints, $ws)
+                };
+            )*
+            // After: $rs is an identifier pointing to ReadStream
+            // $ws is an identifier pointing to WriteStream
+            let config = $config.clone();
+            let flow_watermarks = config.flow_watermarks;
+            let logger = $crate::get_terminal_logger();
+            // TODO: set operator name?
+            let mut op = $crate::make_operator!($t, $config, ($($rs),*), ($($ws),*));
+            // Pass on watermarks
+            if flow_watermarks {
+                $crate::flow_watermarks!(($($rs),*), ($($ws),*));
+            }
+            // Notify node that operator is done setting up
+            if let Err(e) = control_sender.send(ControlMessage::OperatorInitialized(config.id)) {
+                slog::error!(
+                    logger,
+                    "Error sending OperatorInitialized message to control handler: {:?}", e
+                );
+            }
+            // Wait for control message to run
+            loop {
+                if let Ok(ControlMessage::RunOperator(id)) = control_receiver.try_recv() {
+                    if id == config.id {
+                        break;
                     }
                 }
-                // TODO: execute the operator in parallel?
-                // Currently, callbacks are NOT invoked while operator.execute() runs.
-                op.run();
-                let mut op_executor = OperatorExecutor::new(op_ex_streams, logger);
-                op_executor
             }
+            // TODO: execute the operator in parallel?
+            // Currently, callbacks are NOT invoked while operator.execute() runs.
+            op.run();
+            let mut op_executor = OperatorExecutor::new(op_ex_streams, logger);
+            op_executor
         }
-    };
+    }};
 }
 
 /// Imports crates needed to run register!
@@ -210,32 +208,30 @@ macro_rules! imports {
 /// Note: this is intended as an internal macro called by connect_x_write!
 #[macro_export]
 macro_rules! register {
-    ($t:ty, $config:expr, ($($rs:ident),*), ($($ws:ident),*)) => {
-        {
-            // Import necesary structs, modules, and functions.
-            $crate::imports!();
+    ($t:ty, $config:expr, ($($rs:ident),*), ($($ws:ident),*)) => {{
+        // Import necesary structs, modules, and functions.
+        $crate::imports!();
 
-            let mut config = OperatorConfig::from($config);
-            config.id = OperatorId::new_deterministic();
-            let config_copy = config.clone();
+        let mut config = OperatorConfig::from($config);
+        config.id = OperatorId::new_deterministic();
+        let config_copy = config.clone();
 
-            // No-op that throws compile-time error if types in `new` and `connect` don't match.
-            if false {
-                $crate::make_operator!($t, config.clone(), ($($rs),*), ($($ws),*));
-            }
-
-            // Add operator to dataflow graph.
-            let read_stream_ids = vec![$($rs.get_id()),*];
-            let write_stream_ids = vec![$($ws.get_id()),*];
-            let op_runner = $crate::make_operator_runner!($t, config_copy, ($($rs),*), ($($ws),*));
-            default_graph::add_operator(config.id, config.name.clone(), config.node_id, read_stream_ids, write_stream_ids, op_runner);
-            $(
-                default_graph::add_operator_stream(config.id, &$ws);
-            )*
-            // Register streams with stream manager.
-            ($(ReadStream::from(&$ws)),*)
+        // No-op that throws compile-time error if types in `new` and `connect` don't match.
+        if false {
+            $crate::make_operator!($t, config.clone(), ($($rs),*), ($($ws),*));
         }
-    };
+
+        // Add operator to dataflow graph.
+        let read_stream_ids = vec![$($rs.get_id()),*];
+        let write_stream_ids = vec![$($ws.get_id()),*];
+        let op_runner = $crate::make_operator_runner!($t, config_copy, ($($rs),*), ($($ws),*));
+        default_graph::add_operator(config.id, config.name.clone(), config.node_id, read_stream_ids, write_stream_ids, op_runner);
+        $(
+            default_graph::add_operator_stream(config.id, &$ws);
+        )*
+        // Register streams with stream manager.
+        ($(ReadStream::from(&$ws)),*)
+    }};
 }
 
 /// Connects read streams to an operator that writes on 0 streams.
@@ -244,22 +240,18 @@ macro_rules! register {
 /// connect_3_write!(MyOp, arg, read_stream_1, read_stream_2, ...);
 #[macro_export]
 macro_rules! connect_0_write {
-    ($t:ty, $config:expr) => {
-        {
+    ($t:ty, $config:expr) => {{
             <$t>::connect();
             $crate::register!($t, $config, (), ())
-        }
-    };
-    ($t:ty, $config:expr, $($s:ident),+) => {
-        {
-            // Cast streams to read streams to avoid type errors.
-            $(
-                let $s = (&$s).into();
-            )+
-            <$t>::connect($(&$s),+);
-            $crate::register!($t, $config, ($($s),+), ())
-        }
-    };
+    }};
+    ($t:ty, $config:expr, $($s:ident),+) => {{
+        // Cast streams to read streams to avoid type errors.
+        $(
+            let $s = (&$s).into();
+        )+
+        <$t>::connect($(&$s),+);
+        $crate::register!($t, $config, ($($s),+), ())
+    }};
 }
 
 /// Connects read streams to an operator that writes on 1 stream.
@@ -268,22 +260,18 @@ macro_rules! connect_0_write {
 /// let read_stream_3 = connect_3_write!(MyOp, arg, read_stream_1, read_stream_2, ...);
 #[macro_export]
 macro_rules! connect_1_write {
-    ($t:ty, $config:expr) => {
-        {
-            let ws = <$t>::connect();
-            $crate::register!($t, $config, (), (ws))
-        }
-    };
-    ($t:ty, $config:expr, $($s:ident),+) => {
-        {
-            // Cast streams to read streams to avoid type errors.
-            $(
-                let $s = (&$s).into();
-            )+
-            let ws = <$t>::connect($(&$s),+);
-            $crate::register!($t, $config, ($($s),+), (ws))
-        }
-    };
+    ($t:ty, $config:expr) => {{
+        let ws = <$t>::connect();
+        $crate::register!($t, $config, (), (ws))
+    }};
+    ($t:ty, $config:expr, $($s:ident),+) => {{
+        // Cast streams to read streams to avoid type errors.
+        $(
+            let $s = (&$s).into();
+        )+
+        let ws = <$t>::connect($(&$s),+);
+        $crate::register!($t, $config, ($($s),+), (ws))
+    }};
 }
 
 /// Connects read streams to an operator that writes on 2 streams.
@@ -292,22 +280,18 @@ macro_rules! connect_1_write {
 /// let (read_stream_3, read_stream_4) = connect_3_write!(MyOp, arg, read_stream_1, read_stream_2, ...);
 #[macro_export]
 macro_rules! connect_2_write {
-    ($t:ty, $config:expr) => {
-        {
-            let ws1, ws2 = <$t>::connect();
-            $crate::register!($t, $config, (), (ws1, ws2))
-        }
-    };
-    ($t:ty, $config:expr, $($s:ident),+) => {
-        {
-            // Cast streams to read streams to avoid type errors.
-            $(
-                let $s = (&$s).into();
-            )+
-            let ws1, ws2 = <$t>::connect();
-            $crate::register!($t, $config, ($($s),+), (ws1, ws2))
-        }
-    };
+    ($t:ty, $config:expr) => {{
+        let ws1, ws2 = <$t>::connect();
+        $crate::register!($t, $config, (), (ws1, ws2))
+    }};
+    ($t:ty, $config:expr, $($s:ident),+) => {{
+        // Cast streams to read streams to avoid type errors.
+        $(
+            let $s = (&$s).into();
+        )+
+        let ws1, ws2 = <$t>::connect();
+        $crate::register!($t, $config, ($($s),+), (ws1, ws2))
+    }};
 }
 
 /// Connects read streams to an operator that writes on 3 streams.
@@ -316,22 +300,18 @@ macro_rules! connect_2_write {
 /// let (read_stream_3, read_stream_4, read_stream_5) = connect_3_write!(MyOp, arg, read_stream_1, read_stream_2, ...);
 #[macro_export]
 macro_rules! connect_3_write {
-    ($t:ty, $config:expr) => {
-        {
-            let ws1, ws2, ws3 = <$t>::connect();
-            $crate::register!($t, (), (ws1, ws2, ws3))
-        }
-    };
-    ($t:ty, $config:expr, $($s:ident),*) => {
-        {
-            // Cast streams to read streams to avoid type errors.
-            $(
-                let $s = (&$s).into();
-            )+
-            let ws1, ws2, ws3 = <$t>::connect($(&$s),*);
-            $crate::register!($t, $config, ($($s),*), (ws1, ws2, ws3))
-        }
-    };
+    ($t:ty, $config:expr) => {{
+        let ws1, ws2, ws3 = <$t>::connect();
+        $crate::register!($t, (), (ws1, ws2, ws3))
+    }};
+    ($t:ty, $config:expr, $($s:ident),*) => {{
+        // Cast streams to read streams to avoid type errors.
+        $(
+            let $s = (&$s).into();
+        )+
+        let ws1, ws2, ws3 = <$t>::connect($(&$s),*);
+        $crate::register!($t, $config, ($($s),*), (ws1, ws2, ws3))
+    }};
 }
 
 /// Makes a callback builder that can register watermark callbacks across multiple streams.
@@ -340,52 +320,44 @@ macro_rules! connect_3_write {
 #[macro_export]
 macro_rules! make_callback_builder {
     // Base case: 1 read stream, 0 write streams, state
-    (($rs_head:expr), (), $state:expr) => {
-        {
-            use std::{cell::RefCell, rc::Rc};
-            Rc::new(RefCell::new($rs_head.add_state($state)))
-        }
-    };
+    (($rs_head:expr), (), $state:expr) => {{
+        use std::{cell::RefCell, rc::Rc};
+        Rc::new(RefCell::new($rs_head.add_state($state)))
+    }};
 
     // Base case: 1 read stream
-    (($rs_head:expr), ($($ws:expr),*)) => {
-        {
-            use std::{cell::RefCell, rc::Rc};
-            use $crate::dataflow::callback_builder::MultiStreamEventMaker;
+    (($rs_head:expr), ($($ws:expr),*)) => {{
+        use std::{cell::RefCell, rc::Rc};
+        use $crate::dataflow::callback_builder::MultiStreamEventMaker;
 
 
-            let cb_builder = Rc::new(RefCell::new($rs_head));
-            $(
-                let cb_builder = cb_builder.borrow_mut().add_write_stream(&$ws);
-            )*
-            cb_builder
-        }
-    };
+        let cb_builder = Rc::new(RefCell::new($rs_head));
+        $(
+            let cb_builder = cb_builder.borrow_mut().add_write_stream(&$ws);
+        )*
+        cb_builder
+    }};
 
     // Entry point: multiple read streams, state
-    (($($rs:expr),+), ($($ws:expr),*), $state:expr) => {
-        {
-            use $crate::dataflow::callback_builder::MultiStreamEventMaker;
+    (($($rs:expr),+), ($($ws:expr),*), $state:expr) => {{
+        use $crate::dataflow::callback_builder::MultiStreamEventMaker;
 
-            make_callback_builder!(($($rs),+), ($($ws),*)).borrow_mut().add_state($state)
-        }
-    };
+        make_callback_builder!(($($rs),+), ($($ws),*)).borrow_mut().add_state($state)
+    }};
 
     // Recursive call: multiple read streams
-    (($rs_head:expr, $($rs:expr),*), ($($ws:expr),*)) => {
-        {
-            use std::{cell::RefCell, rc::Rc};
+    (($rs_head:expr, $($rs:expr),*), ($($ws:expr),*)) => {{
+        use std::{cell::RefCell, rc::Rc};
 
-            let cb_builder = Rc::new(RefCell::new($rs_head));
-            $(
-                let cb_builder = cb_builder.borrow_mut().add_read_stream(&$rs);
-            )*
-            $(
-                let cb_builder = cb_builder.borrow_mut().add_write_stream(&$ws);
-            )*
-            cb_builder
-        }
-    };
+        let cb_builder = Rc::new(RefCell::new($rs_head));
+        $(
+            let cb_builder = cb_builder.borrow_mut().add_read_stream(&$rs);
+        )*
+        $(
+            let cb_builder = cb_builder.borrow_mut().add_write_stream(&$ws);
+        )*
+        cb_builder
+    }};
 }
 
 /// Adds a watermark callback across several read streams.
