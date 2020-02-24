@@ -6,7 +6,7 @@ use std::{
 };
 
 use erdos::dataflow::message::*;
-use erdos::dataflow::{stream::WriteStreamT, OperatorConfig, ReadStream, WriteStream};
+use erdos::dataflow::{stream::WriteStreamT, ReadStream, WriteStream};
 use erdos::node::Node;
 use erdos::*;
 
@@ -62,8 +62,8 @@ impl SendOperator {
     pub fn new(config: OperatorConfig<(usize, usize)>, write_stream: WriteStream<Vec<u8>>) -> Self {
         Self {
             write_stream,
-            num_messages: config.arg.0,
-            message_size: config.arg.1,
+            num_messages: config.arg.unwrap().0,
+            message_size: config.arg.unwrap().1,
         }
     }
 
@@ -142,7 +142,7 @@ pub struct RecvOperator {}
 
 impl RecvOperator {
     pub fn new(config: OperatorConfig<(usize, usize)>, read_stream: ReadStream<Vec<u8>>) -> Self {
-        let (num_total_messages, _message_size) = config.arg;
+        let (num_total_messages, _message_size) = config.arg.unwrap();
 
         // Profile serialization time
         /*
@@ -235,7 +235,7 @@ pub struct PullRecvOp {
 
 impl PullRecvOp {
     pub fn new(config: OperatorConfig<(usize, usize)>, read_stream: ReadStream<Vec<u8>>) -> Self {
-        let (num_total_messages, message_size) = config.arg;
+        let (num_total_messages, message_size) = config.arg.unwrap();
         Self {
             num_total_messages,
             message_size,
@@ -336,14 +336,16 @@ fn main() {
         .parse()
         .expect("Unable to parse message size");
 
-    let send_config = OperatorConfig::new("SendOperator", (num_messages, message_size), true, 0);
+    let mut send_config = OperatorConfig::new();
+    send_config
+        .name("SendOperator")
+        .arg((num_messages, message_size));
     let s = connect_1_write!(SendOperator, send_config);
-    let recv_config = OperatorConfig::new(
-        "RecvOperator",
-        (num_messages, message_size),
-        true,
-        recv_node,
-    );
+    let mut recv_config = OperatorConfig::new();
+    recv_config
+        .name("RecvOperator")
+        .arg((num_messages, message_size))
+        .node(recv_node);
     connect_0_write!(RecvOperator, recv_config, s);
     // connect_0_write!(PullRecvOp, recv_config, s);
 

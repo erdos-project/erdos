@@ -92,9 +92,8 @@ fn test_inter_thread() {
     let config = utils::make_default_config();
     let node = Node::new(config);
 
-    let config = OperatorConfig::new("SendOperator", (), true, 0);
-    let s = connect_1_write!(SendOperator, config.clone());
-    connect_0_write!(RecvOperator, config, s);
+    let s = connect_1_write!(SendOperator, OperatorConfig::new().name("SendOperator"));
+    connect_0_write!(RecvOperator, OperatorConfig::new().name("RecvOperator"), s);
 
     node.run_async();
     thread::sleep(std::time::Duration::from_millis(1000));
@@ -106,8 +105,11 @@ fn test_ingest() {
     let node = Node::new(config);
 
     let mut ingest_stream = IngestStream::new(0);
-    let config = OperatorConfig::new("RecvOperator", (), true, 0);
-    connect_0_write!(RecvOperator, config, ingest_stream);
+    connect_0_write!(
+        RecvOperator,
+        OperatorConfig::new().name("RecvOperator"),
+        ingest_stream
+    );
 
     node.run_async();
 
@@ -129,8 +131,7 @@ fn test_extract() {
     let config = utils::make_default_config();
     let node = Node::new(config);
 
-    let config = OperatorConfig::new("SendOperator", (), true, 0);
-    let s = connect_1_write!(SendOperator, config);
+    let s = connect_1_write!(SendOperator, OperatorConfig::new().name("SendOperator"));
     let mut extract_stream = ExtractStream::new(0, &s);
 
     node.run_async();
@@ -153,8 +154,11 @@ fn test_ingest_extract() {
     let node = Node::new(config);
 
     let mut ingest_stream = IngestStream::new(0);
-    let config = OperatorConfig::new("SquareOperator", (), true, 0);
-    let square_stream = connect_1_write!(SquareOperator, config, ingest_stream);
+    let square_stream = connect_1_write!(
+        SquareOperator,
+        OperatorConfig::new().name("SquareOperator"),
+        ingest_stream
+    );
     let mut extract_stream = ExtractStream::new(0, &square_stream);
 
     node.run_async();
