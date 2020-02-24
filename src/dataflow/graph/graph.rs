@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::prelude::*;
 
 use serde::Deserialize;
 
@@ -257,5 +259,61 @@ impl Graph {
                 .map(|d| Vertex::Driver(d.id)),
         );
         result
+    }
+
+    /// Export the dataflow graph as a DOT file.
+    pub fn to_dot(&self, filename: &str) -> std::io::Result<()> {
+        let mut file = File::create(filename)?;
+        writeln!(file, "digraph erdos_dataflow {{")?;
+
+        // Drivers
+        writeln!(file, "   // Declare driver")?;
+        for driver_metadata in self.drivers.values() {
+            writeln!(
+                file,
+                "   \"{node_id}\" [label=\"Driver ({node_id})\"];",
+                node_id = driver_metadata.id
+            )?;
+        }
+
+        // Operators
+        writeln!(file, "   // Declare operators")?;
+        for operator in self.operators.values() {
+            writeln!(
+                file,
+                "   \"{op_id}\" [label=\"{op_id} ({node_id})\"];",
+                op_id = operator.id,
+                node_id = operator.node_id
+            )?;
+        }
+
+        // Channels
+        writeln!(file, "   // Declare channels")?;
+        for stream in self.streams.values() {
+            let from = match stream.get_source() {
+                Vertex::Driver(node_id) => format!("{}", node_id),
+                Vertex::Operator(op_id) => format!("{}", op_id),
+            };
+            for channel in stream.get_channels() {
+                let channel_metadata = match channel {
+                    Channel::InterNode(x) | Channel::InterThread(x) | Channel::Unscheduled(x) => x,
+                };
+                let to = match channel_metadata.sink {
+                    Vertex::Driver(node_id) => format!("{}", node_id),
+                    Vertex::Operator(op_id) => format!("{}", op_id),
+                };
+                writeln!(
+                    file,
+                    "   \"{from}\" -> \"{to}\" [label=\"{stream_id}\"];",
+                    from = from,
+                    to = to,
+                    stream_id = stream.get_id()
+                )?;
+            }
+        }
+
+        writeln!(file, "}}")?;
+        file.flush()?;
+        Ok(())
     }
 }

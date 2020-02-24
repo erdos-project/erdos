@@ -250,6 +250,9 @@ impl Node {
         self.wait_for_communication_layer_initialized().await?;
 
         let graph = scheduler::schedule(&default_graph::clone());
+        graph
+            .to_dot(format!("graph-node-{}.dot", self.id).as_str())
+            .unwrap();
 
         let channel_manager = ChannelManager::new(
             &graph,
