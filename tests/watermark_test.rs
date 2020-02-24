@@ -125,7 +125,10 @@ fn test_no_flow_watermarks() {
     let s2 = connect_1_write!(MapOperator<usize, usize>, OperatorConfig::new().name("MapOperator").flow_watermarks(false), s1);
     connect_0_write!(
         RecvOperator,
-        OperatorConfig::new().name("RecvOperator").arg(false),
+        OperatorConfig::new()
+            .name("RecvOperator")
+            .arg(false)
+            .flow_watermarks(false),
         s2
     );
 
@@ -140,7 +143,7 @@ fn test_multi_stream_watermark_callbacks() {
     let node = Node::new(config);
 
     let s1 = connect_1_write!(SendOperator, OperatorConfig::new().name("SendOp1"));
-    let s2 = connect_1_write!(SendOperator, OperatorConfig::new().name("SendOp1"));
+    let s2 = connect_1_write!(SendOperator, OperatorConfig::new().name("SendOp2"));
     let s3 = connect_1_write!(
         MultiStreamCallbackOperator,
         OperatorConfig::new()

@@ -51,7 +51,7 @@ impl<T: Clone> OperatorConfig<T> {
 
     /// `flow_watermarks` is true by default.
     pub fn flow_watermarks(&mut self, flow_watermarks: bool) -> &mut Self {
-        self.flow_watermarks = true;
+        self.flow_watermarks = flow_watermarks;
         self
     }
 
