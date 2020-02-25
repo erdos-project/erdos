@@ -53,7 +53,7 @@ mod tests {
     pub fn make_default_runtime() -> Runtime {
         Builder::new()
             .basic_scheduler()
-            .thread_name(format!("erdos-test"))
+            .thread_name("erdos-test")
             .enable_all()
             .build()
             .unwrap()
