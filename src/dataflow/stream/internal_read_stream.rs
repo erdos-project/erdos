@@ -6,7 +6,7 @@ use crate::{
     node::operator_event::OperatorEvent,
 };
 
-use super::{EventMakerT, InternalStatefulReadStream, ReadStreamT, StreamId};
+use super::{EventMakerT, InternalStatefulReadStream, StreamId};
 
 // TODO: split between system read streams and user accessible read streams to avoid Rc<RefCell<...>> in operator
 pub struct InternalReadStream<D: Data> {
@@ -93,26 +93,12 @@ impl<D: Data> InternalReadStream<D> {
     pub fn take_endpoint(&mut self) -> Option<RecvEndpoint<Message<D>>> {
         self.recv_endpoint.take()
     }
-}
-
-impl<D: Data> Default for InternalReadStream<D> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<D: Data> ReadStreamT for InternalReadStream<D> {
-    type DataType = D;
-
-    fn get_id(&self) -> StreamId {
-        self.id
-    }
 
     /// Tries to read a message from a channel.
     ///
     /// Returns an immutable reference, or `None` if no messages are
     /// available at the moment (i.e., non-blocking read).
-    fn try_read(&mut self) -> Option<Message<D>> {
+    pub fn try_read(&mut self) -> Option<Message<D>> {
         match self.recv_endpoint.take() {
             Some(mut recv) => {
                 let output = match recv.try_read() {
@@ -130,7 +116,7 @@ impl<D: Data> ReadStreamT for InternalReadStream<D> {
     /// Blocking read which polls the tokio channel.
     /// Returns `None` if the stream doesn't have a receive endpoint.
     // TODO: make async or find a way to run on tokio.
-    fn read(&mut self) -> Option<Message<D>> {
+    pub fn read(&mut self) -> Option<Message<D>> {
         match self.recv_endpoint.take() {
             Some(mut rx) => {
                 let mut result = None;
@@ -154,6 +140,12 @@ impl<D: Data> ReadStreamT for InternalReadStream<D> {
             }
             None => None,
         }
+    }
+}
+
+impl<D: Data> Default for InternalReadStream<D> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

@@ -10,8 +10,7 @@ pub mod stream;
 pub use message::{Data, Message, Timestamp, TimestampedData};
 pub use operator::{OperatorConfig, OperatorT};
 pub use stream::{
-    EventMakerT, LoopStream, ReadStream, ReadStreamT, StatefulReadStream, WriteStream,
-    WriteStreamError,
+    EventMakerT, LoopStream, ReadStream, StatefulReadStream, WriteStream, WriteStreamError,
 };
 
 /// Trait that must be implemented by stream state structs.

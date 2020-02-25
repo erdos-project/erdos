@@ -5,8 +5,7 @@ use serde::Deserialize;
 use crate::dataflow::{Data, Message, State, Timestamp};
 
 use super::{
-    IngestStream, InternalReadStream, LoopStream, ReadStreamT, StatefulReadStream, StreamId,
-    WriteStream,
+    IngestStream, InternalReadStream, LoopStream, StatefulReadStream, StreamId, WriteStream,
 };
 
 #[derive(Clone, Default)]
