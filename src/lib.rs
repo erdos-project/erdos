@@ -195,7 +195,7 @@ macro_rules! imports {
             communication::ControlMessage,
             dataflow::graph::default_graph,
             dataflow::stream::{InternalReadStream, WriteStreamT},
-            dataflow::{Message, OperatorConfig, ReadStream, ReadStreamT, WriteStream},
+            dataflow::{Message, ReadStream, WriteStream},
             node::operator_event::OperatorEvent,
             node::operator_executor::{OperatorExecutor, OperatorExecutorStream},
             scheduler::channel_manager::ChannelManager,

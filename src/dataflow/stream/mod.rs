@@ -36,22 +36,6 @@ pub trait EventMakerT {
     fn make_events(&self, msg: Message<Self::EventDataType>) -> Vec<OperatorEvent>;
 }
 
-pub trait ReadStreamT: EventMakerT {
-    type DataType: Data;
-
-    /// Returns the id of the stream.
-    fn get_id(&self) -> StreamId;
-
-    /// Tries to read a message from a channel.
-    ///
-    /// Returns an immutable reference, or `None` if no messages are
-    /// available at the moment (i.e., non-blocking read).
-    fn try_read(&mut self) -> Option<Message<Self::DataType>>;
-
-    /// Blocking read. Returns `None` if the stream doesn't have a receive endpoint.
-    fn read(&mut self) -> Option<Message<Self::DataType>>;
-}
-
 pub trait WriteStreamT<D: Data> {
     /// Sends a messsage to a channel.
     fn send(&mut self, msg: Message<D>) -> Result<(), WriteStreamError>;
@@ -69,7 +53,7 @@ mod tests {
     pub fn make_default_runtime() -> Runtime {
         Builder::new()
             .basic_scheduler()
-            .thread_name(format!("erdos-test"))
+            .thread_name("erdos-test")
             .enable_all()
             .build()
             .unwrap()
