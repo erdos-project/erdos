@@ -5,7 +5,14 @@ use std::{
     sync::Arc,
     thread,
 };
-use tokio::{net::TcpStream, runtime::Builder, sync::Mutex};
+use tokio::{
+    net::TcpStream,
+    runtime::Builder,
+    sync::{
+        mpsc::{self, Receiver, Sender, UnboundedReceiver},
+        Mutex,
+    },
+};
 use tokio_util::codec::Framed;
 
 use crate::communication::{
@@ -38,6 +45,9 @@ pub struct Node {
     control_handler: ControlMessageHandler,
     /// Used to block `run_async` until setup is complete for the driver to continue running safely.
     initialized: Arc<(std::sync::Mutex<bool>, std::sync::Condvar)>,
+    /// Channel used to shut down the node.
+    shutdown_tx: Sender<()>,
+    shutdown_rx: Option<Receiver<()>>,
 }
 
 impl Node {
@@ -45,6 +55,7 @@ impl Node {
     pub fn new(config: Configuration) -> Self {
         let id = config.index;
         let logger = config.logger.clone();
+        let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
         Self {
             config,
             id,
@@ -52,6 +63,8 @@ impl Node {
             channels_to_senders: Arc::new(Mutex::new(ChannelsToSenders::new())),
             control_handler: ControlMessageHandler::new(logger),
             initialized: Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new())),
+            shutdown_tx,
+            shutdown_rx: Some(shutdown_rx),
         }
     }
 
@@ -74,11 +87,13 @@ impl Node {
     /// Runs an ERDOS node in a seperate OS thread.
     ///
     /// The method immediately returns.
-    pub fn run_async(mut self) {
+    pub fn run_async(mut self) -> NodeHandle {
+        // Clone to avoid move to other thread.
+        let shutdown_tx = self.shutdown_tx.clone();
         // Copy dataflow graph to the other thread
         let graph = default_graph::clone();
         let initialized = self.initialized.clone();
-        thread::spawn(move || {
+        let thread_handle = thread::spawn(move || {
             default_graph::set(graph);
             self.run();
         });
@@ -87,6 +102,11 @@ impl Node {
         let mut started = lock.lock().unwrap();
         while !*started {
             started = cvar.wait(started).unwrap();
+        }
+
+        NodeHandle {
+            thread_handle,
+            shutdown_tx,
         }
     }
 
@@ -207,7 +227,7 @@ impl Node {
 
     async fn wait_for_local_operators_initialized(
         &mut self,
-        mut rx_from_operators: tokio::sync::mpsc::UnboundedReceiver<ControlMessage>,
+        mut rx_from_operators: UnboundedReceiver<ControlMessage>,
         num_local_operators: usize,
     ) {
         let mut initialized_operators = HashSet::new();
@@ -269,7 +289,7 @@ impl Node {
             .filter(|op| op.node_id == self.id)
             .collect();
 
-        let (operator_tx, rx_from_operators) = tokio::sync::mpsc::unbounded_channel();
+        let (operator_tx, rx_from_operators) = mpsc::unbounded_channel();
         let mut channels_to_operators = HashMap::new();
 
         let num_local_operators = local_operators.len();
@@ -282,7 +302,7 @@ impl Node {
             );
             let channel_manager_copy = Arc::clone(&channel_manager);
             let operator_tx_copy = operator_tx.clone();
-            let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+            let (tx, rx) = mpsc::unbounded_channel();
             channels_to_operators.insert(operator_info.id, tx);
             // Launch the operator as a separate async task.
             let join_handle = tokio::spawn(async move {
@@ -338,6 +358,9 @@ impl Node {
         let (control_senders, control_receivers) =
             self.split_control_streams(control_streams).await;
         let (senders, receivers) = self.split_data_streams(data_streams).await;
+        // Listen for shutdown message.
+        let mut shutdown_rx = self.shutdown_rx.take().unwrap();
+        let shutdown_fut = shutdown_rx.recv();
         // Execute threads that send data to other nodes.
         let control_senders_fut = senders::run_control_senders(control_senders);
         let senders_fut = senders::run_senders(senders);
@@ -360,11 +383,12 @@ impl Node {
                     "Non-fatal network communication error; this should not happen! {:?}", e
                 );
             }
-            if let Err(e) = ops_fut.await {
-                error!(
+            tokio::select! {
+                Err(e) = ops_fut => error!(
                     logger,
                     "Error running operators on node {:?}: {:?}", self.id, e
-                );
+                ),
+                _ = shutdown_fut => debug!(logger, "Shutting down node {}", self.id),
             }
         } else {
             tokio::select! {
@@ -379,7 +403,26 @@ impl Node {
                     logger,
                     "Error running operators on node {:?}: {:?}", self.id, e
                 ),
+                _ = shutdown_fut => debug!(logger, "Shutting down node {}", self.id),
             }
         }
+    }
+}
+
+pub struct NodeHandle {
+    thread_handle: thread::JoinHandle<()>,
+    shutdown_tx: Sender<()>,
+}
+
+impl NodeHandle {
+    /// Waits for the associated ERDO S node to finish.
+    pub fn join(self) -> Result<(), String> {
+        self.thread_handle.join().map_err(|e| format!("{:?}", e))
+    }
+    /// Blocks until the node shuts down.
+    pub fn shutdown(mut self) -> Result<(), String> {
+        // Error indicates node is already shutting down.
+        self.shutdown_tx.try_send(()).ok();
+        self.thread_handle.join().map_err(|e| format!("{:?}", e))
     }
 }

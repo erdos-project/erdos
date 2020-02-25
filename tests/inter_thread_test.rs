@@ -100,6 +100,18 @@ fn test_inter_thread() {
 }
 
 #[test]
+fn test_shutdown() {
+    let config = utils::make_default_config();
+    let node = Node::new(config);
+
+    let s = connect_1_write!(SendOperator, OperatorConfig::new().name("SendOperator"));
+    connect_0_write!(RecvOperator, OperatorConfig::new().name("RecvOperator"), s);
+
+    let node_handle = node.run_async();
+    node_handle.shutdown().unwrap();
+}
+
+#[test]
 fn test_ingest() {
     let config = utils::make_default_config();
     let node = Node::new(config);
