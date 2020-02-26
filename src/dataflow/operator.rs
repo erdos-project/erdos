@@ -1,17 +1,11 @@
 use crate::{node::NodeId, OperatorId};
 
 /// Trait that must be implemented by any operator.
-pub trait OperatorT {
-    /// Gets the id of the operator.
-    fn get_id(&self) -> OperatorId;
-
-    /// Gets the string name of the operator.
-    fn get_name(&self) -> String;
-
+pub trait Operator {
     /// Implement this method if you want to take control of the execution loop of an
     /// operator (e.g., pull messages from streams).
     /// Note: No callbacks are invoked before the completion of this method.
-    fn run(&self) {}
+    fn run(&mut self) {}
 
     /// Implement this method if you need to do clean-up before the operator completes.
     /// An operator completes after it has received the top watermark on all its read streams.

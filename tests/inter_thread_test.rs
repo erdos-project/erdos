@@ -7,7 +7,7 @@ use erdos::{
     dataflow::{
         message::*,
         stream::{ExtractStream, IngestStream, WriteStreamT},
-        OperatorConfig, ReadStream, WriteStream,
+        Operator, OperatorConfig, ReadStream, WriteStream,
     },
     node::Node,
     *,
@@ -41,6 +41,8 @@ impl SendOperator {
     }
 }
 
+impl Operator for SendOperator {}
+
 pub struct RecvOperator {}
 
 impl RecvOperator {
@@ -57,6 +59,8 @@ impl RecvOperator {
         println!("RecvOperator: received {}", msg);
     }
 }
+
+impl Operator for RecvOperator {}
 
 pub struct SquareOperator {}
 
@@ -86,6 +90,8 @@ impl SquareOperator {
             .unwrap();
     }
 }
+
+impl Operator for SquareOperator {}
 
 #[test]
 fn test_inter_thread() {

@@ -1,8 +1,9 @@
 use crate::{
-    dataflow::{Data, OperatorConfig, OperatorT, ReadStream, Timestamp, WriteStream},
+    dataflow::{Data, Operator, OperatorConfig, ReadStream, Timestamp, WriteStream},
     OperatorId,
 };
 
+#[allow(dead_code)]
 pub struct MapOperator<D1: Data, D2: Data> {
     name: String,
     id: OperatorId,
@@ -10,15 +11,7 @@ pub struct MapOperator<D1: Data, D2: Data> {
     _output_stream: WriteStream<D2>,
 }
 
-impl<D1: Data, D2: Data> OperatorT for MapOperator<D1, D2> {
-    fn get_id(&self) -> OperatorId {
-        self.id
-    }
-
-    fn get_name(&self) -> String {
-        self.name.clone()
-    }
-}
+impl<D1: Data, D2: Data> Operator for MapOperator<D1, D2> {}
 
 impl<D1: Data, D2: Data> MapOperator<D1, D2> {
     #[allow(dead_code)]

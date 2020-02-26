@@ -195,7 +195,7 @@ macro_rules! imports {
             communication::ControlMessage,
             dataflow::graph::default_graph,
             dataflow::stream::{InternalReadStream, WriteStreamT},
-            dataflow::{Message, ReadStream, WriteStream},
+            dataflow::{Message, Operator, ReadStream, WriteStream},
             node::operator_event::OperatorEvent,
             node::operator_executor::{OperatorExecutor, OperatorExecutorStream},
             scheduler::channel_manager::ChannelManager,
@@ -219,7 +219,8 @@ macro_rules! register {
 
         // No-op that throws compile-time error if types in `new` and `connect` don't match.
         if false {
-            $crate::make_operator!($t, config.clone(), ($($rs),*), ($($ws),*));
+            let mut op = $crate::make_operator!($t, config.clone(), ($($rs),*), ($($ws),*));
+            Operator::run(&mut op)
         }
 
         // Add operator to dataflow graph.

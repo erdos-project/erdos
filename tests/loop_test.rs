@@ -2,7 +2,8 @@ use std::thread;
 
 use erdos::{
     dataflow::{
-        message::*, stream::WriteStreamT, LoopStream, OperatorConfig, ReadStream, WriteStream,
+        message::*, stream::WriteStreamT, LoopStream, Operator, OperatorConfig, ReadStream,
+        WriteStream,
     },
     node::Node,
     *,
@@ -58,6 +59,8 @@ impl LoopOperator {
         }
     }
 }
+
+impl Operator for LoopOperator {}
 
 #[test]
 fn test_loop() {

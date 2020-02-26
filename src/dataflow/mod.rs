@@ -8,7 +8,7 @@ pub mod stream;
 
 // Re-export structs as if they were defined here.
 pub use message::{Data, Message, Timestamp, TimestampedData};
-pub use operator::{OperatorConfig, OperatorT};
+pub use operator::{Operator, OperatorConfig};
 pub use stream::{
     EventMakerT, LoopStream, ReadStream, StatefulReadStream, WriteStream, WriteStreamError,
 };

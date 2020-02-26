@@ -1,5 +1,5 @@
 use crate::{
-    dataflow::{OperatorConfig, OperatorT, WriteStream},
+    dataflow::{Operator, OperatorConfig, WriteStream},
     OperatorId,
 };
 
@@ -10,15 +10,7 @@ pub struct SourceOperator {
     write_stream: WriteStream<usize>,
 }
 
-impl OperatorT for SourceOperator {
-    fn get_id(&self) -> OperatorId {
-        self.id
-    }
-
-    fn get_name(&self) -> String {
-        self.name.clone()
-    }
-}
+impl Operator for SourceOperator {}
 
 impl SourceOperator {
     #[allow(dead_code)]

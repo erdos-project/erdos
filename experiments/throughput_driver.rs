@@ -6,7 +6,7 @@ use std::{
 };
 
 use erdos::dataflow::message::*;
-use erdos::dataflow::{stream::WriteStreamT, ReadStream, WriteStream};
+use erdos::dataflow::{stream::WriteStreamT, Operator, ReadStream, WriteStream};
 use erdos::node::Node;
 use erdos::*;
 
@@ -114,6 +114,8 @@ impl SendOperator {
         print!("\n\n");
     }
 }
+
+impl Operator for SendOperator {}
 
 #[derive(Clone)]
 pub struct RecvState {
@@ -227,6 +229,8 @@ impl RecvOperator {
     }
 }
 
+impl Operator for RecvOperator {}
+
 pub struct PullRecvOp {
     num_total_messages: usize,
     message_size: usize,
@@ -301,6 +305,8 @@ impl PullRecvOp {
         println!("\tmax: {} ms", max(&mut latencies));
     }
 }
+
+impl Operator for PullRecvOp {}
 
 fn main() {
     let args = erdos::new_app("ERDOS");
