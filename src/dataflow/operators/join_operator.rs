@@ -23,15 +23,7 @@ pub struct JoinOperator<D1: Data, D2: Data, D3: Data> {
     phantom: PhantomData<(D1, D2, D3)>,
 }
 
-impl<D1: Data, D2: Data, D3: Data> Operator for JoinOperator<D1, D2, D3> {
-    fn get_id(&self) -> OperatorId {
-        self.id
-    }
-
-    fn get_name(&self) -> String {
-        self.name.clone()
-    }
-}
+impl<D1: Data, D2: Data, D3: Data> Operator for JoinOperator<D1, D2, D3> {}
 
 impl<D1: Data, D2: Data, D3: Data> JoinOperator<D1, D2, D3> {
     #[allow(dead_code)]
@@ -76,6 +68,7 @@ impl<D1: Data, D2: Data, D3: Data> JoinOperator<D1, D2, D3> {
         state.msgs.push(msg);
     }
 
+    #[allow(dead_code)]
     fn join(
         _t: &Timestamp,
         left_state: &WindowState<D1>,

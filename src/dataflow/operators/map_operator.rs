@@ -10,15 +10,7 @@ pub struct MapOperator<D1: Data, D2: Data> {
     _output_stream: WriteStream<D2>,
 }
 
-impl<D1: Data, D2: Data> Operator for MapOperator<D1, D2> {
-    fn get_id(&self) -> OperatorId {
-        self.id
-    }
-
-    fn get_name(&self) -> String {
-        self.name.clone()
-    }
-}
+impl<D1: Data, D2: Data> Operator for MapOperator<D1, D2> {}
 
 impl<D1: Data, D2: Data> MapOperator<D1, D2> {
     #[allow(dead_code)]

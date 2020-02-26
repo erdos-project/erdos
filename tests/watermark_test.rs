@@ -5,7 +5,7 @@ use erdos::{
         message::*,
         operators::MapOperator,
         stream::{ExtractStream, WriteStreamT},
-        OperatorConfig, ReadStream, WriteStream,
+        Operator, OperatorConfig, ReadStream, WriteStream,
     },
     node::Node,
     *,
@@ -37,6 +37,8 @@ impl SendOperator {
     }
 }
 
+impl Operator for SendOperator {}
+
 pub struct MultiStreamCallbackOperator {}
 
 impl MultiStreamCallbackOperator {
@@ -64,6 +66,8 @@ impl MultiStreamCallbackOperator {
 
     pub fn run(&self) {}
 }
+
+impl Operator for MultiStreamCallbackOperator {}
 
 /// Prints a message after receiving a watermark.
 pub struct RecvOperator {}
@@ -96,6 +100,8 @@ impl RecvOperator {
         }
     }
 }
+
+impl Operator for RecvOperator {}
 
 #[test]
 fn test_flow_watermarks() {
