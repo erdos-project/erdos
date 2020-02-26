@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::{
     add_watermark_callback,
-    dataflow::{Data, OperatorConfig, OperatorT, ReadStream, Timestamp, WriteStream},
+    dataflow::{Data, Operator, OperatorConfig, ReadStream, Timestamp, WriteStream},
     OperatorId,
 };
 
@@ -23,7 +23,7 @@ pub struct JoinOperator<D1: Data, D2: Data, D3: Data> {
     phantom: PhantomData<(D1, D2, D3)>,
 }
 
-impl<D1: Data, D2: Data, D3: Data> OperatorT for JoinOperator<D1, D2, D3> {
+impl<D1: Data, D2: Data, D3: Data> Operator for JoinOperator<D1, D2, D3> {
     fn get_id(&self) -> OperatorId {
         self.id
     }

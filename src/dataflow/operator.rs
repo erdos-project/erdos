@@ -1,7 +1,7 @@
 use crate::{node::NodeId, OperatorId};
 
 /// Trait that must be implemented by any operator.
-pub trait OperatorT {
+pub trait Operator {
     /// Gets the id of the operator.
     fn get_id(&self) -> OperatorId;
 

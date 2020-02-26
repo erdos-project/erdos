@@ -1,5 +1,5 @@
 use crate::{
-    dataflow::{Data, OperatorConfig, OperatorT, ReadStream, Timestamp, WriteStream},
+    dataflow::{Data, Operator, OperatorConfig, ReadStream, Timestamp, WriteStream},
     OperatorId,
 };
 
@@ -10,7 +10,7 @@ pub struct MapOperator<D1: Data, D2: Data> {
     _output_stream: WriteStream<D2>,
 }
 
-impl<D1: Data, D2: Data> OperatorT for MapOperator<D1, D2> {
+impl<D1: Data, D2: Data> Operator for MapOperator<D1, D2> {
     fn get_id(&self) -> OperatorId {
         self.id
     }
