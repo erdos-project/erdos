@@ -17,6 +17,7 @@ impl<D> WindowState<D> {
     }
 }
 
+#[allow(dead_code)]
 pub struct JoinOperator<D1: Data, D2: Data, D3: Data> {
     name: String,
     id: OperatorId,
@@ -71,9 +72,9 @@ impl<D1: Data, D2: Data, D3: Data> JoinOperator<D1, D2, D3> {
     #[allow(dead_code)]
     fn join(
         _t: &Timestamp,
-        left_state: &WindowState<D1>,
-        right_state: &WindowState<D2>,
-        write_stream: &mut WriteStream<D3>,
+        _left_state: &WindowState<D1>,
+        _right_state: &WindowState<D2>,
+        _write_stream: &mut WriteStream<D3>,
     ) {
         // TODO(ionel): Access the selector functions.
     }

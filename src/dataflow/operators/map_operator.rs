@@ -3,6 +3,7 @@ use crate::{
     OperatorId,
 };
 
+#[allow(dead_code)]
 pub struct MapOperator<D1: Data, D2: Data> {
     name: String,
     id: OperatorId,
