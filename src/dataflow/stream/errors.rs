@@ -9,6 +9,8 @@ pub enum WriteStreamError {
     IOError,
     /// Timestamp or watermark is smaller or equal to the low watermark.
     TimestampError,
+    /// Stream is closed and can no longer send messages.
+    StreamClosedError,
 }
 
 impl From<CommunicationError> for WriteStreamError {

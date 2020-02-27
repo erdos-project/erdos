@@ -199,6 +199,7 @@ impl<D: Data> EventMakerT for InternalReadStream<D> {
                     }))
                 }
             }
+            _ => (),
         }
         events
     }

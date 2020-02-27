@@ -12,6 +12,7 @@ impl<T> Data for T where for<'a> T: 'static + Clone + Send + Debug + Serialize +
 pub enum Message<D: Data> {
     TimestampedData(TimestampedData<D>),
     Watermark(Timestamp),
+    StreamClosed,
 }
 
 impl<D: Data> Message<D> {
@@ -24,6 +25,11 @@ impl<D: Data> Message<D> {
     pub fn new_watermark(timestamp: Timestamp) -> Message<D> {
         Self::Watermark(timestamp)
     }
+
+    /// Creates a new `StreamClosed` message.
+    pub fn new_stream_closed() -> Message<D> {
+        Self::StreamClosed
+    }
 }
 
 impl<D: Data + PartialEq> PartialEq for Message<D> {
@@ -31,6 +37,7 @@ impl<D: Data + PartialEq> PartialEq for Message<D> {
         match (self, other) {
             (Self::TimestampedData(d1), Self::TimestampedData(d2)) => d1 == d2,
             (Self::Watermark(w1), Self::Watermark(w2)) => w1 == w2,
+            (Self::StreamClosed, Self::StreamClosed) => true,
             _ => false,
         }
     }
