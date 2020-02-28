@@ -17,6 +17,8 @@ pub struct InternalReadStream<D: Data> {
     id: StreamId,
     /// User-defined stream name.
     name: String,
+    /// Whether the stream is closed.
+    closed: bool,
     /// The endpoint on which the stream receives data.
     recv_endpoint: Option<RecvEndpoint<Message<D>>>,
     /// Vector of stream bundles that must be invoked when this stream receives a message.
@@ -34,6 +36,7 @@ impl<D: Data> InternalReadStream<D> {
         Self {
             id,
             name: id.to_string(),
+            closed: false,
             recv_endpoint: None,
             children: Vec::new(),
             callbacks: Vec::new(),
@@ -45,6 +48,7 @@ impl<D: Data> InternalReadStream<D> {
         Self {
             id,
             name: name.to_string(),
+            closed: false,
             recv_endpoint: None,
             children: Vec::new(),
             callbacks: Vec::new(),
@@ -64,6 +68,7 @@ impl<D: Data> InternalReadStream<D> {
         Self {
             id: id,
             name: id.to_string(),
+            closed: false,
             recv_endpoint: Some(recv_endpoint),
             children: Vec::new(),
             callbacks: Vec::new(),
@@ -102,35 +107,49 @@ impl<D: Data> InternalReadStream<D> {
     /// Returns an immutable reference, or `None` if no messages are
     /// available at the moment (i.e., non-blocking read).
     pub fn try_read(&mut self) -> Result<Message<D>, TryReadError> {
-        self.recv_endpoint
+        if self.closed {
+            return Err(TryReadError::Closed);
+        }
+        let result = self
+            .recv_endpoint
             .as_mut()
             .map_or(Err(TryReadError::Disconnected), |rx| {
                 rx.try_read().map_err(TryReadError::from)
-            })
+            });
+        if let Ok(Message::StreamClosed) = result {
+            self.closed = true;
+        }
+        result
     }
 
     /// Blocking read which polls the tokio channel.
     // TODO: make async or find a way to run on tokio.
     pub fn read(&mut self) -> Result<Message<D>, ReadError> {
-        self.recv_endpoint
+        if self.closed {
+            return Err(ReadError::Closed);
+        }
+        // Poll for the next message
+        let result = self
+            .recv_endpoint
             .as_mut()
-            .map_or(Err(ReadError::Disconnected), |rx| {
-                // Poll for the next message
-                loop {
-                    match rx.try_read() {
-                        Ok(msg) => {
-                            break Ok(msg);
-                        }
-                        Err(TryRecvError::Empty) => (),
-                        Err(TryRecvError::Disconnected) => {
-                            break Err(ReadError::Disconnected);
-                        }
-                        Err(TryRecvError::BincodeError(_)) => {
-                            break Err(ReadError::SerializationError);
-                        }
+            .map_or(Err(ReadError::Disconnected), |rx| loop {
+                match rx.try_read() {
+                    Ok(msg) => {
+                        break Ok(msg);
+                    }
+                    Err(TryRecvError::Empty) => (),
+                    Err(TryRecvError::Disconnected) => {
+                        break Err(ReadError::Disconnected);
+                    }
+                    Err(TryRecvError::BincodeError(_)) => {
+                        break Err(ReadError::SerializationError);
                     }
                 }
-            })
+            });
+        if let Ok(Message::StreamClosed) = result {
+            self.closed = true;
+        }
+        result
     }
 }
 
