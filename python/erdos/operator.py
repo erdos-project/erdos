@@ -11,7 +11,7 @@ class Operator(object):
 
         Invoked automatically during `erdos.run()`.
         """
-        pass
+        self._trace_events = []
 
     @staticmethod
     def connect(*read_streams):
@@ -29,3 +29,11 @@ class Operator(object):
         Invoked automaticaly during `erdos.run()`.
         """
         pass
+
+    def save_trace_events(self, file_name):
+        import json
+        with open(file_name, "w") as write_file:
+            json.dump(self._trace_events, write_file)
+
+    def _add_trace_event(self, event):
+        self._trace_events.append(event)
