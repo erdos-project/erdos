@@ -7,8 +7,12 @@ use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::marker::PhantomData;
 
+/// A structure that stores the state associated with a stream for the JoinOperator, and provides
+/// the associated functions for mutation of the data.
+/// Uses a ConcurrentHashMap to store the messages and a min-heap to ensure easy retrieval of the
+/// timestamps for cleaning.
 #[derive(Clone)]
-pub struct StreamState<D: Data> {
+struct StreamState<D: Data> {
     // We use a CHashMap because multiple callbacks can be simultaneously invoked.
     msgs: CHashMap<Timestamp, Vec<D>>,
     // A min-heap tracking the keys of the hashmap.
@@ -16,14 +20,15 @@ pub struct StreamState<D: Data> {
 }
 
 impl<D: Data> StreamState<D> {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             msgs: CHashMap::new(),
             _timestamps: BinaryHeap::new(),
         }
     }
 
-    pub fn add_msg(&mut self, timestamp: &Timestamp, msg: D) {
+    /// Adds a message to the ConcurrentHashMap.
+    fn add_msg(&mut self, timestamp: &Timestamp, msg: D) {
         // TODO:: Replace with upsert.
         // Insert a new Vector if the key does not exist, and add the key to the timestamps.
         if !self.msgs.contains_key(timestamp) {
@@ -38,24 +43,53 @@ impl<D: Data> StreamState<D> {
         // scope.
     }
 
-    pub fn clean_state(&mut self, timestamp: &Timestamp) {
+    /// Cleans the state corresponding to a given Timestamp (upto but not including).
+    fn clean_state(&mut self, timestamp: &Timestamp) {
         while self._timestamps.peek().unwrap().0 < *timestamp {
             let _t = self._timestamps.pop().unwrap().0;
             self.msgs.remove(&_t).unwrap();
         }
     }
 
-    pub fn get_state(&self, timestamp: &Timestamp) -> Vec<D> {
+    /// Retrieve the state.
+    fn get_state(&self, timestamp: &Timestamp) -> Vec<D> {
         (*(self.msgs.get(timestamp).unwrap())).clone()
     }
 }
 
+/// An operator that joins two incoming streams of type D1 and D2 into a stream of type D3 using
+/// the closure provided.
+///
+/// # Example
+/// The below example shows how to use a JoinOperator to sum two streams of incoming u32 messages,
+/// and return them as u64 messages.
+///
+/// ```
+/// let join_config = OperatorConfig::new(
+///     "JoinOperator",
+///     |left_data: Vec<u32>, right_data: Vec<u32>| -> u64 {
+///         (left_data.iter().sum::<u32>() + right_data.iter().sum::<u32>()) as u64
+///     },
+///     true,
+///     0,
+/// );
+/// let output_stream = connect_1_write!(JoinOperator<u32, u32, u64>, join_config, s1, s2);
+/// ```
 pub struct JoinOperator<D1: Data, D2: Data, D3: Data> {
+    /// The name given to the specific instance of the JoinOperator.
     name: String,
     phantom_data: PhantomData<(D1, D2, D3)>,
 }
 
 impl<'a, D1: Data, D2: Data, D3: Data + Deserialize<'a>> JoinOperator<D1, D2, D3> {
+    /// Returns a new instance of the JoinOperator.
+    ///
+    /// # Arguments
+    /// * `config` - An instance of OperatorConfig that provides the closure used to join items of
+    /// type Vec<D1> and Vec<D2> to a value of type D3.
+    /// * `input_stream_left` - Represents the incoming stream of messages of type D1.
+    /// * `input_stream_right` - Represents the incoming stream of messages of type D2.
+    /// * `output_stream` - Represents an outgoing stream of messages of type D3.
     pub fn new<F: 'static + Clone + Fn(Vec<D1>, Vec<D2>) -> D3>(
         config: OperatorConfig<F>,
         input_stream_left: ReadStream<D1>,
@@ -93,22 +127,38 @@ impl<'a, D1: Data, D2: Data, D3: Data + Deserialize<'a>> JoinOperator<D1, D2, D3
         }
     }
 
+    /// The function to be called when a message is received on the left input stream.
+    /// This callback adds the data received in the message to the state associated with the
+    /// stream.
     fn on_left_data_callback(t: Timestamp, msg: D1, state: &mut StreamState<D1>) {
         state.add_msg(&t, msg);
     }
 
+    /// The function to be called when a watermark is received on the left input stream.
+    /// This callback cleans state from the HashMap corresponding to the timestamps before the
+    /// current watermark.
     fn on_left_watermark_data_callback<'r, 's>(t: &'r Timestamp, state: &'s mut StreamState<D1>) {
         state.clean_state(t);
     }
 
+    /// The function to be called when a message is received on the right input stream.
+    /// This callback adds the data received in the message to the state associated with the
+    /// stream.
     fn on_right_data_callback(t: Timestamp, msg: D2, state: &mut StreamState<D2>) {
         state.add_msg(&t, msg);
     }
 
+    /// The function to be called when a watermark is received on the right input stream.
+    /// This callback cleans state from the HashMap corresponding to the timestamps before the
+    /// current watermark.
     fn on_right_watermark_data_callback<'r, 's>(t: &'r Timestamp, state: &'s mut StreamState<D2>) {
         state.clean_state(&t);
     }
 
+    /// The function to be called when a watermark is received on both the left and the right
+    /// streams.
+    /// This callback uses the saved state from the two streams and joins them using the provided
+    /// closure.
     fn on_watermark_callback<F: 'static + Clone + Fn(Vec<D1>, Vec<D2>) -> D3>(
         t: &Timestamp,
         left_state: &StreamState<D1>,
