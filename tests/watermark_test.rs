@@ -174,7 +174,7 @@ fn test_multi_stream_watermark_callbacks() {
         eprintln!("{:?}", msg);
         assert_eq!(
             msg,
-            Some(Message::new_watermark(Timestamp::new(vec![count as u64])))
+            Ok(Message::new_watermark(Timestamp::new(vec![count as u64])))
         );
     }
 }

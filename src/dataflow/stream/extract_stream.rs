@@ -12,7 +12,10 @@ use crate::{
     scheduler::channel_manager::ChannelManager,
 };
 
-use super::{InternalReadStream, ReadStream, StreamId};
+use super::{
+    errors::{ReadError, TryReadError},
+    InternalReadStream, ReadStream, StreamId,
+};
 
 pub struct ExtractStream<D>
 where
@@ -64,7 +67,7 @@ where
     ///
     /// Returns an immutable reference, or `None` if no messages are
     /// available at the moment (i.e., non-blocking read).
-    pub fn try_read(&mut self) -> Option<Message<D>> {
+    pub fn try_read(&mut self) -> Result<Message<D>, TryReadError> {
         if let Some(read_stream) = &self.read_stream_option {
             read_stream.try_read()
         } else {
@@ -86,23 +89,25 @@ where
                     ),
                 }
             }
-            None
+            Err(TryReadError::Disconnected)
         }
     }
 
     /// Blocking read. Returns `None` if the stream doesn't have a receive endpoint.
-    pub fn read(&mut self) -> Option<Message<D>> {
-        let mut result = None;
-        while self.read_stream_option.is_none() {
-            result = self.try_read();
-            if result.is_none() {
+    pub fn read(&mut self) -> Result<Message<D>, ReadError> {
+        loop {
+            let result = self.try_read();
+            if self.read_stream_option.is_some() {
+                break match result {
+                    Ok(msg) => Ok(msg),
+                    Err(TryReadError::Disconnected) => Err(ReadError::Disconnected),
+                    Err(TryReadError::Empty) => self.read_stream_option.as_ref().unwrap().read(),
+                    Err(TryReadError::SerializationError) => Err(ReadError::SerializationError),
+                    Err(TryReadError::Closed) => Err(ReadError::Closed),
+                };
+            } else {
                 thread::sleep(Duration::from_millis(100));
             }
-        }
-        if result.is_some() {
-            result
-        } else {
-            self.read_stream_option.as_ref().unwrap().read()
         }
     }
 }

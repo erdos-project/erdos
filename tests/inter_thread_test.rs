@@ -158,7 +158,7 @@ fn test_extract() {
         let msg = extract_stream.read();
         assert_eq!(
             msg,
-            Some(Message::new_message(
+            Ok(Message::new_message(
                 Timestamp::new(vec![count as u64]),
                 count as usize
             ))

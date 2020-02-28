@@ -114,12 +114,11 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
     /// Specialized implementation for when the Data does not implement `Abomonation`.
     default fn send(&mut self, msg: Message<D>) -> Result<(), WriteStreamError> {
         if self.stream_closed {
-            return Err(WriteStreamError::StreamClosedError);
+            return Err(WriteStreamError::Closed);
         }
-        match msg {
-            Message::StreamClosed => self.stream_closed = true,
-            _ => (),
-        };
+        if let Message::StreamClosed = msg {
+            self.stream_closed = true;
+        }
         self.update_watermark(&msg)?;
         if !self.inter_process_endpoints.is_empty() {
             // Serialize the message because we have endpoints in different processes.
@@ -153,12 +152,11 @@ impl<'a, D: Data + Deserialize<'a> + Abomonation> WriteStreamT<D> for WriteStrea
     /// Specialized implementation for when the Data implements `Abomonation`.
     fn send(&mut self, msg: Message<D>) -> Result<(), WriteStreamError> {
         if self.stream_closed {
-            return Err(WriteStreamError::StreamClosedError);
+            return Err(WriteStreamError::Closed);
         }
-        match msg {
-            Message::StreamClosed => self.stream_closed = true,
-            _ => (),
-        };
+        if let Message::StreamClosed = msg {
+            self.stream_closed = true;
+        }
         self.update_watermark(&msg)?;
         if !self.inter_process_endpoints.is_empty() {
             let serialized_msg = msg.encode().map_err(WriteStreamError::from)?;

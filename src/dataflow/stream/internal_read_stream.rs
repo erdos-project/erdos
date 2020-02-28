@@ -6,7 +6,10 @@ use crate::{
     node::operator_event::OperatorEvent,
 };
 
-use super::{EventMakerT, InternalStatefulReadStream, StreamId};
+use super::{
+    errors::{ReadError, TryReadError},
+    EventMakerT, InternalStatefulReadStream, StreamId,
+};
 
 // TODO: split between system read streams and user accessible read streams to avoid Rc<RefCell<...>> in operator
 pub struct InternalReadStream<D: Data> {
@@ -98,48 +101,36 @@ impl<D: Data> InternalReadStream<D> {
     ///
     /// Returns an immutable reference, or `None` if no messages are
     /// available at the moment (i.e., non-blocking read).
-    pub fn try_read(&mut self) -> Option<Message<D>> {
-        match self.recv_endpoint.take() {
-            Some(mut recv) => {
-                let output = match recv.try_read() {
-                    Ok(msg) => Some(msg),
-                    // TODO: error handling
-                    Err(_) => None,
-                };
-                self.recv_endpoint = Some(recv);
-                output
-            }
-            None => None,
-        }
+    pub fn try_read(&mut self) -> Result<Message<D>, TryReadError> {
+        self.recv_endpoint
+            .as_mut()
+            .map_or(Err(TryReadError::Disconnected), |rx| {
+                rx.try_read().map_err(TryReadError::from)
+            })
     }
 
     /// Blocking read which polls the tokio channel.
-    /// Returns `None` if the stream doesn't have a receive endpoint.
     // TODO: make async or find a way to run on tokio.
-    pub fn read(&mut self) -> Option<Message<D>> {
-        match self.recv_endpoint.take() {
-            Some(mut rx) => {
-                let mut result = None;
+    pub fn read(&mut self) -> Result<Message<D>, ReadError> {
+        self.recv_endpoint
+            .as_mut()
+            .map_or(Err(ReadError::Disconnected), |rx| {
                 // Poll for the next message
                 loop {
                     match rx.try_read() {
                         Ok(msg) => {
-                            result = Some(msg);
-                            break;
+                            break Ok(msg);
                         }
                         Err(TryRecvError::Empty) => (),
-                        Err(_) => {
-                            break;
+                        Err(TryRecvError::Disconnected) => {
+                            break Err(ReadError::Disconnected);
+                        }
+                        Err(TryRecvError::BincodeError(_)) => {
+                            break Err(ReadError::SerializationError);
                         }
                     }
                 }
-                // Replace the endpoint
-                self.recv_endpoint = Some(rx);
-                // Return
-                result
-            }
-            None => None,
-        }
+            })
     }
 }
 
