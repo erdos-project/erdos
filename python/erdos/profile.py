@@ -28,12 +28,11 @@ class Profile(object):
         # Log the event in the Google Chrome trace event format.
         event = {
             "name": self.event_name,
-            # TODO: Set pid to operator name.
-            "pid": 1,
+            "pid": self.operator.name,
             "tid": 1,
             "ts": ts,
             "dur": dur,
             "ph": "X",
             "args": self.event_data
         }
-        self.operator._add_trace_event(event)
+        self.operator.add_trace_event(event)

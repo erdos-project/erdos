@@ -189,3 +189,29 @@ def _flow_watermark_callback(timestamp, *write_streams):
 
 def profile(event_name, operator, event_data=None):
     return Profile(event_name, operator, event_data)
+
+
+def profile_method(func):
+    def wrapper(*args, **kwargs):
+        if isinstance(args[0], Operator):
+            # The func is an operator method.
+            op_name = args[0].name
+            cb_name = func.__name__
+            if isinstance(args[1], Timestamp):
+                # The func is a watermark callback.
+                timestamp = args[1]
+            elif isinstance(args[1], Message):
+                # The func is a callback.
+                timestamp = args[1].timestamp
+            else:
+                # The func is a regular method.
+                timestamp = None
+            event_name = op_name + "." + cb_name + "@" + str(timestamp)
+        else:
+            raise TypeError('profile can also be used on operator methods')
+
+        # timestamp = args[1]
+        with erdos.profile(event_name, args[0]):
+            func(*args, **kwargs)
+
+    return wrapper

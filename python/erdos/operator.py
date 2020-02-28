@@ -57,5 +57,6 @@ class Operator(object):
         with open(file_name, "w") as write_file:
             json.dump(self._trace_events, write_file)
 
-    def _add_trace_event(self, event):
+    def add_trace_event(self, event):
+        """Records a profile trace event."""
         self._trace_events.append(event)
