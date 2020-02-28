@@ -14,7 +14,12 @@ import erdos.utils
 _num_py_operators = 0
 
 
-def connect(op_type, read_streams, flow_watermarks=True, *args, **kwargs):
+def connect(op_type,
+            read_streams,
+            name=None,
+            flow_watermarks=True,
+            *args,
+            **kwargs):
     """Registers the operator and its connected streams on the dataflow graph.
 
     The operator is created as follows:
@@ -24,6 +29,7 @@ def connect(op_type, read_streams, flow_watermarks=True, *args, **kwargs):
         op_type (type): The operator class. Should inherit from
             `erdos.Operator`.
         read_streams: the streams from which the operator processes data.
+        name (str): The name of the operator.
         flow_watermarks (bool): whether to automatically pass on the low
             watermark.
         args: arguments passed to the operator.
@@ -33,6 +39,8 @@ def connect(op_type, read_streams, flow_watermarks=True, *args, **kwargs):
         write_streams (list of WriteStream): the streams on which the operator
             sends data.
     """
+    if not issubclass(op_type, Operator):
+        raise TypeError("{} must subclass erdos.Operator".format(op_type))
     # 1-index operators because node 0 is preserved for the current process,
     # and each node can only run 1 python operator.
     global _num_py_operators
@@ -53,7 +61,8 @@ def connect(op_type, read_streams, flow_watermarks=True, *args, **kwargs):
                 stream=stream))
 
     internal_streams = _internal.connect(op_type, py_read_streams, args,
-                                         kwargs, node_id, flow_watermarks)
+                                         kwargs, node_id, name,
+                                         flow_watermarks)
     return [ReadStream(_py_read_stream=s) for s in internal_streams]
 
 

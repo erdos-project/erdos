@@ -10,8 +10,20 @@ class Operator(object):
         matching the read streams and write streams in `connect()`.
 
         Invoked automatically during `erdos.run()`.
+
+        ERDOS operators never need to call super().__init__(*streams) because
+        setup is handled by the ERDOS backend code.
         """
-        self._trace_events = []
+        pass
+
+    def __new__(cls, *args, **kwargs):
+        """Set up variables before call to `__init__` on the python end.
+
+        More setup is done in the Rust backend at `src/python/mod.rs`.
+        """
+        instance = super(Operator, cls).__new__(cls, *args, **kwargs)
+        instance._trace_events = []
+        return instance
 
     @staticmethod
     def connect(*read_streams):
@@ -29,6 +41,16 @@ class Operator(object):
         Invoked automaticaly during `erdos.run()`.
         """
         pass
+
+    @property
+    def name(self):
+        """Returns the operator's name."""
+        return self._name
+
+    @property
+    def id(self):
+        """Returns the operator's ID."""
+        return self._id
 
     def save_trace_events(self, file_name):
         import json
