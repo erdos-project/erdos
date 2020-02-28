@@ -1,7 +1,7 @@
 extern crate erdos;
 use erdos::dataflow::{
-    operators::MapOperator, stream::WriteStreamT, Message, OperatorConfig, ReadStream, State,
-    Timestamp, WriteStream,
+    operators::JoinOperator, operators::MapOperator, stream::WriteStreamT, Message, OperatorConfig,
+    ReadStream, State, Timestamp, WriteStream,
 };
 use erdos::node::Node;
 use erdos::*;
@@ -30,6 +30,8 @@ impl InputGenOp {
         for i in 0..10 {
             self.output_stream
                 .send(Message::new_message(Timestamp::new(vec![i as u64]), i));
+            self.output_stream
+                .send(Message::new_watermark(Timestamp::new(vec![i as u64])));
         }
     }
 }
@@ -71,7 +73,7 @@ impl ReceiverOp {
 }
 
 #[test]
-fn test_input_receiver() {
+fn test_input_receiver_map() {
     let config = utils::make_default_config();
     let node = Node::new(config);
 
@@ -86,6 +88,34 @@ fn test_input_receiver() {
     let s2 = connect_1_write!(MapOperator<u32, u64>, map_config, s1);
     let receive_config = OperatorConfig::new("ReceiverOp", (), true, 0);
     connect_0_write!(ReceiverOp, receive_config, s2);
+
+    node.run_async();
+
+    thread::sleep(std::time::Duration::from_millis(2000));
+}
+
+// Join Operator Tests.
+#[test]
+fn test_input_receiver_join() {
+    let config = utils::make_default_config();
+    let node = Node::new(config);
+
+    let input_config_left = OperatorConfig::new("InputOperator_Left", (), true, 0);
+    let s1 = connect_1_write!(InputGenOp, input_config_left);
+
+    let input_config_right = OperatorConfig::new("InputOperator_Right", (), true, 0);
+    let s2 = connect_1_write!(InputGenOp, input_config_right);
+    let join_config = OperatorConfig::new(
+        "JoinOperator",
+        |left_data: Vec<u32>, right_data: Vec<u32>| -> u64 {
+            (left_data.iter().sum::<u32>() + right_data.iter().sum::<u32>()) as u64
+        },
+        true,
+        0,
+    );
+    let s3 = connect_1_write!(JoinOperator<u32, u32, u64>, join_config, s1, s2);
+    let receive_config = OperatorConfig::new("ReceiverOp", (), true, 0);
+    connect_0_write!(ReceiverOp, receive_config, s3);
 
     node.run_async();
 

@@ -33,6 +33,7 @@ tokio = { version = "0.2.11", features = ["sync", "tcp", "io-util", "rt-core", "
 tokio-util = { version = "0.2.0", features = ["codec"] }
 tokio-serde-bincode = "0.2"
 uuid = { version = "0.7", features = ["v4", "v5", "serde"] }
+chashmap = "2.2.2"
 
 [dev-dependencies]
 criterion = "0.1.2"

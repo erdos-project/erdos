@@ -19,7 +19,7 @@ fn main() {
         SourceOperator,
         OperatorConfig::new().name("SourceOperator2")
     );
-    let _s3 = connect_1_write!(JoinOperator<usize, usize, usize>, OperatorConfig::new().name("JoinOperator"), s1, s2);
+    let _s3 = connect_1_write!(JoinOperator<usize, usize, usize>, OperatorConfig::new().name("JoinOperator").arg(|left: Vec<usize>, right: Vec<usize>| -> usize { left.iter().sum() }), s1, s2);
 
     node.run();
 }
