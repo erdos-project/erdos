@@ -6,6 +6,7 @@ import erdos.internal as _internal
 from erdos.streams import (ReadStream, WriteStream, LoopStream, IngestStream,
                            ExtractStream)
 from erdos.operator import Operator
+from erdos.profile import Profile
 from erdos.message import Message, WatermarkMessage
 from erdos.timestamp import Timestamp
 import erdos.utils
@@ -175,3 +176,7 @@ def _flow_watermark_callback(timestamp, *write_streams):
     """Flows a watermark to all write streams."""
     for write_stream in write_streams:
         write_stream.send(WatermarkMessage(timestamp))
+
+
+def profile(event_name, operator, event_data=None):
+    return Profile(event_name, operator, event_data)
