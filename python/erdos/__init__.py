@@ -208,7 +208,7 @@ def profile_method(func):
                 timestamp = None
             event_name = op_name + "." + cb_name + "@" + str(timestamp)
         else:
-            raise TypeError('profile can also be used on operator methods')
+            raise TypeError("profile can also be used on operator methods")
 
         # timestamp = args[1]
         with erdos.profile(event_name, args[0]):
