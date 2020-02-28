@@ -27,13 +27,13 @@ class Profile(object):
         dur = int((time.time() - self.start_time) * 1000 * 1000)
         # Log the event in the Google Chrome trace event format.
         event = {
-            'name': self.event_name,
+            "name": self.event_name,
             # TODO: Set pid to operator name.
-            'pid': 1,
-            'tid': 1,
-            'ts': ts,
-            'dur': dur,
-            'ph': 'X',
-            'args': self.event_data
+            "pid": 1,
+            "tid": 1,
+            "ts": ts,
+            "dur": dur,
+            "ph": "X",
+            "args": self.event_data
         }
         self.operator._add_trace_event(event)
