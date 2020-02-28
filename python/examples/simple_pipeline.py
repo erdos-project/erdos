@@ -41,7 +41,7 @@ class CallbackOp(erdos.Operator):
         return []
 
 
-class PullOp:
+class PullOp(erdos.Operator):
     def __init__(self, read_stream):
         self.read_stream = read_stream
 
@@ -55,7 +55,7 @@ class PullOp:
             print("PullOp: received {data}".format(data=data))
 
 
-class TryPullOp:
+class TryPullOp(erdos.Operator):
     def __init__(self, read_stream):
         self.read_stream = read_stream
 

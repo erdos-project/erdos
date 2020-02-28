@@ -40,6 +40,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
         args: PyObject,
         kwargs: PyObject,
         node_id: NodeId,
+        name: Option<String>,
         flow_watermarks: bool,
     ) -> PyResult<Vec<PyReadStream>> {
         // Call Operator.connect(*read_streams) to get write streams
@@ -55,9 +56,6 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
         let connect_write_streams: Vec<&PyWriteStream> = streams_result.extract()?;
 
         // Register the operator
-        let op_name = py
-            .eval("Operator.__name__", None, Some(&locals))?
-            .extract()?;
         let op_id = crate::OperatorId::new_deterministic();
         let read_stream_ids: Vec<Uuid> = connect_read_streams
             .iter()
@@ -75,6 +73,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
         let args_arc = Arc::new(args);
         let kwargs_arc = Arc::new(kwargs);
 
+        let name_copy = name.clone();
         let operator_runner =
             move |channel_manager: Arc<Mutex<ChannelManager>>,
                   control_sender: UnboundedSender<ControlMessage>,
@@ -141,6 +140,14 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
                     .err()
                     .map(|e| e.print(py));
                 locals
+                    .set_item("op_id", format!("{}", op_id))
+                    .err()
+                    .map(|e| e.print(py));
+                locals
+                    .set_item("name", name_copy.clone())
+                    .err()
+                    .map(|e| e.print(py));
+                locals
                     .set_item("flow_watermarks", flow_watermarks)
                     .err()
                     .map(|e| e.print(py));
@@ -157,6 +164,8 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
                 // Initialize operator
                 let py_result = py.run(
                     r#"
+import uuid
+
 import erdos
 
 read_streams = []
@@ -167,7 +176,10 @@ write_streams = []
 for i in range(len(py_write_streams)):
     write_streams.append(erdos.WriteStream(_py_write_stream=py_write_streams[i]))
 
-operator = Operator(*read_streams, *write_streams, *args, **kwargs)
+operator = Operator.__new__(Operator)
+operator._name = name
+operator._id = uuid.UUID(op_id)
+operator.__init__(*read_streams, *write_streams, *args, **kwargs)
 
 if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
    erdos.add_watermark_callback(read_streams, write_streams, erdos._flow_watermark_callback)
@@ -204,7 +216,7 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
 
         default_graph::add_operator(
             op_id,
-            op_name,
+            name,
             node_id,
             read_stream_ids,
             write_stream_ids,
