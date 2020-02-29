@@ -6,6 +6,7 @@ use serde::Deserialize;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::marker::PhantomData;
+use std::sync::{Arc, RwLock};
 
 /// A structure that stores the state associated with a stream for the JoinOperator, and provides
 /// the associated functions for mutation of the data.
@@ -14,16 +15,16 @@ use std::marker::PhantomData;
 #[derive(Clone)]
 struct StreamState<D: Data> {
     // We use a CHashMap because multiple callbacks can be simultaneously invoked.
-    msgs: CHashMap<Timestamp, Vec<D>>,
+    msgs: Arc<RwLock<CHashMap<Timestamp, Vec<D>>>>,
     // A min-heap tracking the keys of the hashmap.
-    _timestamps: BinaryHeap<Reverse<Timestamp>>,
+    _timestamps: Arc<RwLock<BinaryHeap<Reverse<Timestamp>>>>,
 }
 
 impl<D: Data> StreamState<D> {
     fn new() -> Self {
         Self {
-            msgs: CHashMap::new(),
-            _timestamps: BinaryHeap::new(),
+            msgs: Arc::new(RwLock::new(CHashMap::new())),
+            _timestamps: Arc::new(RwLock::new(BinaryHeap::new())),
         }
     }
 
@@ -31,29 +32,35 @@ impl<D: Data> StreamState<D> {
     fn add_msg(&mut self, timestamp: &Timestamp, msg: D) {
         // TODO:: Replace with upsert.
         // Insert a new Vector if the key does not exist, and add the key to the timestamps.
-        if !self.msgs.contains_key(timestamp) {
-            self.msgs.insert_new(timestamp.clone(), Vec::new());
-            self._timestamps.push(Reverse(timestamp.clone()));
+        let _msgs = &(*(*self.msgs).write().unwrap());
+        if !_msgs.contains_key(timestamp) {
+            _msgs.insert_new(timestamp.clone(), Vec::new());
+            self._timestamps
+                .write()
+                .unwrap()
+                .push(Reverse(timestamp.clone()));
         }
 
         // Get the vector corresponding to the given key and acquire a write lock on it.
-        let mut messages = self.msgs.get_mut(timestamp).unwrap();
+        let mut messages = _msgs.get_mut(timestamp).unwrap();
         messages.push(msg);
         // The data structure automatically releases the write lock once the guard goes out of
         // scope.
     }
 
-    /// Cleans the state corresponding to a given Timestamp (upto but not including).
-    fn clean_state(&mut self, timestamp: &Timestamp) {
-        while self._timestamps.peek().unwrap().0 < *timestamp {
-            let _t = self._timestamps.pop().unwrap().0;
-            self.msgs.remove(&_t).unwrap();
+    /// Cleans the state corresponding to a given Timestamp (upto and including).
+    fn clean_state(&self, timestamp: &Timestamp) {
+        let _timestamps = &mut (*(*self._timestamps).write().unwrap());
+        while _timestamps.len() > 0 && _timestamps.peek().unwrap().0 <= *timestamp {
+            let _t = _timestamps.pop().unwrap().0;
+            (*(self.msgs.write().unwrap())).remove(&_t).unwrap();
         }
     }
 
     /// Retrieve the state.
     fn get_state(&self, timestamp: &Timestamp) -> Vec<D> {
-        (*(self.msgs.get(timestamp).unwrap())).clone()
+        println!("The state of the timestamps is {:?}", self._timestamps);
+        (*((*(self.msgs.read().unwrap())).get(timestamp).unwrap())).clone()
     }
 }
 
@@ -99,12 +106,10 @@ impl<'a, D1: Data, D2: Data, D3: Data + Deserialize<'a>> JoinOperator<D1, D2, D3
         // Package the state with the left stream and add a callback to the new stream.
         let stateful_stream_left = input_stream_left.add_state(StreamState::<D1>::new());
         stateful_stream_left.add_callback(Self::on_left_data_callback);
-        stateful_stream_left.add_watermark_callback(Self::on_left_watermark_data_callback);
 
         // Package the state with the right stream and add a callback to the new stream.
         let stateful_stream_right = input_stream_right.add_state(StreamState::<D2>::new());
         stateful_stream_right.add_callback(Self::on_right_data_callback);
-        stateful_stream_right.add_watermark_callback(Self::on_right_watermark_data_callback);
 
         let cb = config.arg;
         stateful_stream_left
@@ -134,25 +139,11 @@ impl<'a, D1: Data, D2: Data, D3: Data + Deserialize<'a>> JoinOperator<D1, D2, D3
         state.add_msg(&t, msg);
     }
 
-    /// The function to be called when a watermark is received on the left input stream.
-    /// This callback cleans state from the HashMap corresponding to the timestamps before the
-    /// current watermark.
-    fn on_left_watermark_data_callback<'r, 's>(t: &'r Timestamp, state: &'s mut StreamState<D1>) {
-        state.clean_state(t);
-    }
-
     /// The function to be called when a message is received on the right input stream.
     /// This callback adds the data received in the message to the state associated with the
     /// stream.
     fn on_right_data_callback(t: Timestamp, msg: D2, state: &mut StreamState<D2>) {
         state.add_msg(&t, msg);
-    }
-
-    /// The function to be called when a watermark is received on the right input stream.
-    /// This callback cleans state from the HashMap corresponding to the timestamps before the
-    /// current watermark.
-    fn on_right_watermark_data_callback<'r, 's>(t: &'r Timestamp, state: &'s mut StreamState<D2>) {
-        state.clean_state(&t);
     }
 
     /// The function to be called when a watermark is received on both the left and the right
@@ -173,6 +164,10 @@ impl<'a, D1: Data, D2: Data, D3: Data + Deserialize<'a>> JoinOperator<D1, D2, D3
 
         // Send the result on the write stream.
         write_stream.send(Message::new_message(t.clone(), result_t));
+
+        // Garbage collect all the data upto and including this timestamp.
+        left_state.clean_state(t);
+        right_state.clean_state(t);
     }
 
     pub fn connect(
