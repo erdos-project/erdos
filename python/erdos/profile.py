@@ -28,7 +28,7 @@ class Profile(object):
         # Log the event in the Google Chrome trace event format.
         event = {
             "name": self.event_name,
-            "pid": self.operator.name,
+            "pid": self.operator.config.name,
             "tid": 1,
             "ts": ts,
             "dur": dur,

@@ -188,7 +188,7 @@ def profile_method(func):
     def wrapper(*args, **kwargs):
         if isinstance(args[0], Operator):
             # The func is an operator method.
-            op_name = args[0].name
+            op_name = args[0].config.name
             cb_name = func.__name__
             if isinstance(args[1], Timestamp):
                 # The func is a watermark callback.
