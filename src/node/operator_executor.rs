@@ -154,7 +154,7 @@ impl OperatorExecutor {
 
             slog::debug!(
                 self.logger,
-                "All streams closed. Destroying operator with name {:?} and ID {}.",
+                "Destroying operator with name {:?} and ID {}.",
                 self.config.name(),
                 self.config.id(),
             );
