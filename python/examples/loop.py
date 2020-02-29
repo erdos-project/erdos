@@ -38,7 +38,7 @@ class LoopOp(erdos.Operator):
 def main():
     """Creates and runs the dataflow graph."""
     loop_stream = erdos.LoopStream()
-    (stream, ) = erdos.connect(LoopOp, [loop_stream])
+    (stream, ) = erdos.connect(LoopOp, erdos.OperatorConfig(), [loop_stream])
     loop_stream.set(stream)
 
     erdos.run()

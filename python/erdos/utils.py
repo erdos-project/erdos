@@ -25,9 +25,7 @@ def setup_csv_logging(name, log_file=None):
         handler = logging.FileHandler(log_file)
     handler.setLevel(logging.DEBUG)
 
-    formatter = logging.Formatter(
-        fmt='%(message)s',
-        datefmt=None)
+    formatter = logging.Formatter(fmt='%(message)s', datefmt=None)
     handler.setFormatter(formatter)
     logger = logging.getLogger(name)
     logger.addHandler(handler)

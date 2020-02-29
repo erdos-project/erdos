@@ -7,8 +7,7 @@ import time
 
 class SendOp(erdos.Operator):
     """Sends `frequency` messages per second."""
-    def __init__(self, write_stream, name, frequency):
-        self.name = name
+    def __init__(self, write_stream, frequency):
         self.frequency = frequency
         self.write_stream = write_stream
 
@@ -21,12 +20,13 @@ class SendOp(erdos.Operator):
         while True:
             timestamp = erdos.Timestamp(coordinates=[count])
             msg = erdos.Message(timestamp, count)
-            print("{name}: sending {msg}".format(name=self.name, msg=msg))
+            print("{name}: sending {msg}".format(name=self.config.name,
+                                                 msg=msg))
             self.write_stream.send(msg)
 
             watermark = erdos.WatermarkMessage(timestamp)
             print("{name}: sending watermark {watermark}".format(
-                name=self.name, watermark=watermark))
+                name=self.config.name, watermark=watermark))
             self.write_stream.send(watermark)
 
             count += 1
@@ -66,15 +66,15 @@ class JoinOp(erdos.Operator):
 
 def main():
     """Creates and runs the dataflow graph."""
-    (left_stream, ) = erdos.connect(SendOp, [],
-                                    True,
-                                    "FastSendOp",
+    (left_stream, ) = erdos.connect(SendOp,
+                                    erdos.OperatorConfig(name="FastSendOp"),
+                                    [],
                                     frequency=2)
-    (right_stream, ) = erdos.connect(SendOp, [],
-                                     True,
-                                     "SlowSendOp",
+    (right_stream, ) = erdos.connect(SendOp,
+                                     erdos.OperatorConfig(name="SlowSendOp"),
+                                     [],
                                      frequency=1)
-    erdos.connect(JoinOp, [left_stream, right_stream])
+    erdos.connect(JoinOp, erdos.OperatorConfig(), [left_stream, right_stream])
 
     erdos.run()
 

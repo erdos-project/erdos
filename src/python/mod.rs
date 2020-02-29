@@ -36,16 +36,16 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
     fn connect_py(
         py: Python,
         py_type: PyObject,
+        py_config: PyObject,
         read_streams_obj: PyObject,
         args: PyObject,
         kwargs: PyObject,
         node_id: NodeId,
-        name: Option<String>,
-        flow_watermarks: bool,
     ) -> PyResult<Vec<PyReadStream>> {
         // Call Operator.connect(*read_streams) to get write streams
         let locals = PyDict::new(py);
         locals.set_item("Operator", py_type.clone_ref(py))?;
+        locals.set_item("config", py_config.clone_ref(py))?;
         locals.set_item("read_streams", read_streams_obj.clone_ref(py))?;
         let streams_result = py.eval(
             "[s._py_write_stream for s in Operator.connect(*read_streams)]",
@@ -57,6 +57,8 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
 
         // Register the operator
         let op_id = crate::OperatorId::new_deterministic();
+        let name: Option<String> = py_config.getattr(py, "name")?.extract(py)?;
+        let flow_watermarks: bool = py_config.getattr(py, "flow_watermarks")?.extract(py)?;
         let read_stream_ids: Vec<Uuid> = connect_read_streams
             .iter()
             .map(|rs| rs.read_stream.get_id())
@@ -70,10 +72,10 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
 
         // Arc objects to allow cloning the closure
         let py_type_arc = Arc::new(py_type);
+        let py_config_arc = Arc::new(py_config);
         let args_arc = Arc::new(args);
         let kwargs_arc = Arc::new(kwargs);
 
-        let name_copy = name.clone();
         let operator_runner =
             move |channel_manager: Arc<Mutex<ChannelManager>>,
                   control_sender: UnboundedSender<ControlMessage>,
@@ -144,7 +146,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
                     .err()
                     .map(|e| e.print(py));
                 locals
-                    .set_item("name", name_copy.clone())
+                    .set_item("config", py_config_arc.clone_ref(py))
                     .err()
                     .map(|e| e.print(py));
                 locals
@@ -177,8 +179,8 @@ for i in range(len(py_write_streams)):
     write_streams.append(erdos.WriteStream(_py_write_stream=py_write_streams[i]))
 
 operator = Operator.__new__(Operator)
-operator._name = name
 operator._id = uuid.UUID(op_id)
+operator._config = config
 operator.__init__(*read_streams, *write_streams, *args, **kwargs)
 
 if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:

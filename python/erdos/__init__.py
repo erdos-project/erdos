@@ -5,7 +5,7 @@ import sys
 import erdos.internal as _internal
 from erdos.streams import (ReadStream, WriteStream, LoopStream, IngestStream,
                            ExtractStream)
-from erdos.operator import Operator
+from erdos.operator import Operator, OperatorConfig
 from erdos.profile import Profile
 from erdos.message import Message, WatermarkMessage
 from erdos.timestamp import Timestamp
@@ -14,12 +14,7 @@ import erdos.utils
 _num_py_operators = 0
 
 
-def connect(op_type,
-            read_streams,
-            name=None,
-            flow_watermarks=True,
-            *args,
-            **kwargs):
+def connect(op_type, config, read_streams, *args, **kwargs):
     """Registers the operator and its connected streams on the dataflow graph.
 
     The operator is created as follows:
@@ -28,10 +23,9 @@ def connect(op_type,
     Args:
         op_type (type): The operator class. Should inherit from
             `erdos.Operator`.
+        config (OperatorConfig): Configuration details required by the
+            operator.
         read_streams: the streams from which the operator processes data.
-        name (str): The name of the operator.
-        flow_watermarks (bool): whether to automatically pass on the low
-            watermark.
         args: arguments passed to the operator.
         kwargs: keyword arguments passed to the operator.
 
@@ -60,9 +54,8 @@ def connect(op_type,
             raise TypeError("Unable to convert {stream} to ReadStream".format(
                 stream=stream))
 
-    internal_streams = _internal.connect(op_type, py_read_streams, args,
-                                         kwargs, node_id, name,
-                                         flow_watermarks)
+    internal_streams = _internal.connect(op_type, config, py_read_streams,
+                                         args, kwargs, node_id)
     return [ReadStream(_py_read_stream=s) for s in internal_streams]
 
 

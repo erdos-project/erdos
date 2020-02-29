@@ -103,12 +103,14 @@ class PullWatermarkListener(erdos.Operator):
 
 def main():
     """Creates and runs the dataflow graph."""
-    (count_stream, ) = erdos.connect(SendOp, [])
-    (top_stream, ) = erdos.connect(TopOp, [])
-    (batch_stream, ) = erdos.connect(BatchOp, [count_stream],
-                                     flow_watermarks=True)
-    erdos.connect(CallbackWatermarkListener, [batch_stream, top_stream])
-    erdos.connect(PullWatermarkListener, [batch_stream])
+    (count_stream, ) = erdos.connect(SendOp, erdos.OperatorConfig(), [])
+    (top_stream, ) = erdos.connect(TopOp, erdos.OperatorConfig(), [])
+    (batch_stream, ) = erdos.connect(BatchOp, erdos.OperatorConfig(),
+                                     [count_stream])
+    erdos.connect(CallbackWatermarkListener, erdos.OperatorConfig(),
+                  [batch_stream, top_stream])
+    erdos.connect(PullWatermarkListener, erdos.OperatorConfig(),
+                  [batch_stream])
 
     erdos.run()
 

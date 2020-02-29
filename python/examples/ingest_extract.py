@@ -23,7 +23,8 @@ class SquareOp(erdos.Operator):
 
 def main():
     ingest_stream = erdos.IngestStream()
-    (square_stream, ) = erdos.connect(SquareOp, [ingest_stream])
+    (square_stream, ) = erdos.connect(SquareOp, erdos.OperatorConfig(),
+                                      [ingest_stream])
     extract_stream = erdos.ExtractStream(square_stream)
 
     erdos.run_async()

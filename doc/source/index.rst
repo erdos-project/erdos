@@ -23,15 +23,16 @@ Example Use
   camera_stream = erdos.connect(CameraOp)
   # Create an object detection operator with the provided model.
   # The object detection operator reads RGB images and sends bounding boxes.
-  bounding_box_stream = erdos.connect(ObjectDetectorOp, [camera_stream],
+  bounding_box_stream = erdos.connect(ObjectDetectorOp, erdos.OperatorConfig(), [camera_stream],
                                       model="models/ssd_mobilenet_v1_coco")
   # Create semantic segmentation operator with the provided model
-  segmentation_stream = erdos.connect(SegmentationOp, [camera_stream],
+  segmentation_stream = erdos.connect(SegmentationOp, [camera_stream], erdos.OperatorConfig(),
                                       model="models/drn_d_22_cityscapes")
   # Create an action operator to propose actions from provided features
-  action_op = erdos.connect(ActionOp, [bounding_box_stream, segmentation_stream])
+  action_stream = erdos.connect(ActionOp, erdos.OperatorConfig(),
+                            [bounding_box_stream, segmentation_stream])
   # Create a robot operator to interface with the robot
-  erdos.connect(RobotOp)
+  erdos.connect(RobotOp, erdos.OperatorConfig(), [action_stream])
   # Execute the application
   erdos.run()
 
