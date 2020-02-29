@@ -23,7 +23,7 @@ use crate::{
     node::operator_event::OperatorEvent,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 enum EventRunnerMessage {
     AddedEvents,
     DestroyOperator,
@@ -169,9 +169,12 @@ impl OperatorExecutor {
         mut notifier_rx: watch::Receiver<EventRunnerMessage>,
     ) {
         // Wait for notification for events added.
-        while let Some(EventRunnerMessage::AddedEvents) = notifier_rx.recv().await {
+        while let Some(control_msg) = notifier_rx.recv().await {
             while let Some(event) = { event_queue.lock().await.pop() } {
                 (event.callback)();
+            }
+            if EventRunnerMessage::DestroyOperator == control_msg {
+                break;
             }
         }
     }
