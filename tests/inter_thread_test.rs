@@ -6,7 +6,10 @@ use erdos::{
     self,
     dataflow::{
         message::*,
-        stream::{ExtractStream, IngestStream, WriteStreamT},
+        stream::{
+            errors::{ReadError, TryReadError, WriteStreamError},
+            ExtractStream, IngestStream, WriteStreamT,
+        },
         Operator, OperatorConfig, ReadStream, WriteStream,
     },
     node::Node,
@@ -92,6 +95,29 @@ impl SquareOperator {
 }
 
 impl Operator for SquareOperator {}
+
+pub struct DestroyOperator {}
+
+impl DestroyOperator {
+    pub fn new(config: OperatorConfig<()>, read_stream: ReadStream<usize>) -> Self {
+        read_stream.add_callback(Self::msg_callback);
+        Self {}
+    }
+
+    pub fn connect(_read_stream: &ReadStream<usize>) {}
+
+    pub fn msg_callback(t: Timestamp, data: usize) {
+        let logger = erdos::get_terminal_logger();
+        slog::debug!(logger, "DestroyOperator: received {}", data);
+    }
+}
+
+impl Operator for DestroyOperator {
+    fn destroy(&mut self) {
+        let logger = erdos::get_terminal_logger();
+        slog::debug!(logger, "DestroyOperator: called destroy()");
+    }
+}
 
 #[test]
 fn test_inter_thread() {
@@ -190,6 +216,42 @@ fn test_ingest_extract() {
         let result = extract_stream.read();
         slog::debug!(logger, "Received {:?}", result);
     }
+
+    thread::sleep(std::time::Duration::from_millis(1000));
+}
+
+#[test]
+fn test_destroy() {
+    let config = utils::make_default_config();
+    let node = Node::new(config);
+
+    let mut ingest_stream = IngestStream::new(0);
+    connect_0_write!(DestroyOperator, OperatorConfig::new(), ingest_stream);
+    let mut extract_stream = ExtractStream::new(0, &ReadStream::from(&ingest_stream));
+
+    node.run_async();
+
+    let logger = erdos::get_terminal_logger();
+
+    let msg = Message::new_message(Timestamp::new(vec![0]), 0);
+    slog::debug!(logger, "IngestStream: sending {:?}", msg);
+    ingest_stream.send(msg).unwrap();
+
+    let received_msg = extract_stream.read().unwrap();
+    slog::debug!(logger, "ExtractStream: received {:?}", received_msg);
+
+    let msg = Message::StreamClosed;
+    slog::debug!(logger, "IngestStream: sending {:?}", msg);
+    ingest_stream.send(msg).unwrap();
+
+    let received_msg = extract_stream.read().unwrap();
+    slog::debug!(logger, "ExtractStream: received {:?}", received_msg);
+
+    // Check that the stream is closed.
+    let msg = Message::new_message(Timestamp::new(vec![0]), 0);
+    assert_eq!(ingest_stream.send(msg), Err(WriteStreamError::Closed));
+    assert_eq!(extract_stream.read(), Err(ReadError::Closed));
+    assert_eq!(extract_stream.try_read(), Err(TryReadError::Closed));
 
     thread::sleep(std::time::Duration::from_millis(1000));
 }

@@ -3,8 +3,7 @@ use crate::{
     node::operator_event::OperatorEvent,
 };
 
-mod errors;
-
+pub mod errors;
 pub mod extract_stream;
 pub mod ingest_stream;
 pub mod internal_read_stream;

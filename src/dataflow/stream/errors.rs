@@ -36,7 +36,7 @@ impl From<TryRecvError> for TryReadError {
 
 /// Error raised by the WriteStream layer.
 // TODO: rename this to SendError
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum WriteStreamError {
     /// Message serialization failed.
     SerializationError,

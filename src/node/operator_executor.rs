@@ -150,7 +150,7 @@ impl OperatorExecutor {
             notifier_tx
                 .broadcast(EventRunnerMessage::DestroyOperator)
                 .unwrap();
-            event_runner_handle.await;
+            event_runner_handle.await.unwrap();
 
             slog::debug!(
                 self.logger,
@@ -169,7 +169,7 @@ impl OperatorExecutor {
         mut notifier_rx: watch::Receiver<EventRunnerMessage>,
     ) {
         // Wait for notification for events added.
-        while let Some(_) = notifier_rx.recv().await {
+        while let Some(EventRunnerMessage::AddedEvents) = notifier_rx.recv().await {
             while let Some(event) = { event_queue.lock().await.pop() } {
                 (event.callback)();
             }

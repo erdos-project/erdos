@@ -118,9 +118,6 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
         }
         if let Message::StreamClosed = msg {
             self.stream_closed = true;
-            // Drop SendEndpoints.
-            self.inter_thread_endpoints = Vec::with_capacity(0);
-            self.inter_process_endpoints = Vec::with_capacity(0);
         }
         self.update_watermark(&msg)?;
         if !self.inter_process_endpoints.is_empty() {
@@ -147,6 +144,12 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
                 .send(msg)
                 .map_err(WriteStreamError::from)?;
         }
+
+        // Drop SendEndpoints.
+        if self.stream_closed {
+            self.inter_thread_endpoints = Vec::with_capacity(0);
+            self.inter_process_endpoints = Vec::with_capacity(0);
+        }
         Ok(())
     }
 }
@@ -159,9 +162,6 @@ impl<'a, D: Data + Deserialize<'a> + Abomonation> WriteStreamT<D> for WriteStrea
         }
         if let Message::StreamClosed = msg {
             self.stream_closed = true;
-            // Drop SendEndpoints.
-            self.inter_thread_endpoints = Vec::with_capacity(0);
-            self.inter_process_endpoints = Vec::with_capacity(0);
         }
         self.update_watermark(&msg)?;
         if !self.inter_process_endpoints.is_empty() {
@@ -187,6 +187,11 @@ impl<'a, D: Data + Deserialize<'a> + Abomonation> WriteStreamT<D> for WriteStrea
                 .map_err(WriteStreamError::from)?;
         }
 
+        // Drop SendEndpoints.
+        if self.stream_closed {
+            self.inter_thread_endpoints = Vec::with_capacity(0);
+            self.inter_process_endpoints = Vec::with_capacity(0);
+        }
         Ok(())
     }
 }
