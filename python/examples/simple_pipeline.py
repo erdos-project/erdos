@@ -72,10 +72,10 @@ class TryPullOp(erdos.Operator):
 
 def main():
     """Creates and runs the dataflow graph."""
-    (count_stream, ) = erdos.connect(SendOp, [])
-    erdos.connect(CallbackOp, [count_stream])
-    erdos.connect(PullOp, [count_stream])
-    erdos.connect(TryPullOp, [count_stream])
+    (count_stream, ) = erdos.connect(SendOp, erdos.OperatorConfig(), [])
+    erdos.connect(CallbackOp, erdos.OperatorConfig(), [count_stream])
+    erdos.connect(PullOp, erdos.OperatorConfig(), [count_stream])
+    erdos.connect(TryPullOp, erdos.OperatorConfig(), [count_stream])
 
     erdos.run()
 
