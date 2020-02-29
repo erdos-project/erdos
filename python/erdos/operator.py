@@ -62,7 +62,8 @@ class Operator(object):
 
 
 class OperatorConfig(object):
-    """Configuration details required by ERDOS Operators."""
+    """Configuration details required by ERDOS Operators.
+    """
     def __init__(self,
                  name=None,
                  flow_watermarks=True,
@@ -77,20 +78,25 @@ class OperatorConfig(object):
 
     @property
     def name(self):
+        """Name of the operator."""
         return self._name
 
     @property
     def flow_watermarks(self):
+        """Whether to automatically pass on the low watermark."""
         return self._flow_watermarks
 
     @property
     def log_file_name(self):
+        """File name used for logging."""
         return self._log_file_name
 
     @property
     def csv_log_file_name(self):
+        """File name used for logging to CSV."""
         return self._csv_log_file_name
 
     @property
     def profile_file_name(self):
+        """File named used for profiling an operator's performance."""
         return self._profile_file_name

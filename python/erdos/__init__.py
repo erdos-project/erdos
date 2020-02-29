@@ -23,10 +23,9 @@ def connect(op_type, config, read_streams, *args, **kwargs):
     Args:
         op_type (type): The operator class. Should inherit from
             `erdos.Operator`.
+        config (OperatorConfig): Configuration details required by the
+            operator.
         read_streams: the streams from which the operator processes data.
-        name (str): The name of the operator.
-        flow_watermarks (bool): whether to automatically pass on the low
-            watermark.
         args: arguments passed to the operator.
         kwargs: keyword arguments passed to the operator.
 

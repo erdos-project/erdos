@@ -23,7 +23,10 @@ contain a control loop or call methods that run regularly.
 API
 ---
 .. autoclass:: erdos.Operator
-    :members: __init__, connect, run
+    :members: __init__, connect, run, id, config,
+
+.. autoclass:: erdos.OperatorConfig
+    :members: name, flow_watermarks, log_file_name, csv_log_file_name, profile_file_name
 
 Examples
 --------
