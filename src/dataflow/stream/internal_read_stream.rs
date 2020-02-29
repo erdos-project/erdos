@@ -118,6 +118,7 @@ impl<D: Data> InternalReadStream<D> {
             });
         if let Ok(Message::StreamClosed) = result {
             self.closed = true;
+            self.recv_endpoint = None;
         }
         result
     }
@@ -148,6 +149,7 @@ impl<D: Data> InternalReadStream<D> {
             });
         if let Ok(Message::StreamClosed) = result {
             self.closed = true;
+            self.recv_endpoint = None;
         }
         result
     }
