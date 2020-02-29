@@ -30,7 +30,6 @@ impl<D: Data> StreamState<D> {
 
     /// Adds a message to the ConcurrentHashMap.
     fn add_msg(&mut self, timestamp: &Timestamp, msg: D) {
-        // TODO:: Replace with upsert.
         // Insert a new Vector if the key does not exist, and add the key to the timestamps.
         let _msgs = &(*(*self.msgs).write().unwrap());
         if !_msgs.contains_key(timestamp) {
