@@ -64,6 +64,10 @@ impl<D: Data> InternalReadStream<D> {
         &self.name[..]
     }
 
+    pub fn is_closed(&self) -> bool {
+        self.closed
+    }
+
     pub fn from_endpoint(recv_endpoint: RecvEndpoint<Message<D>>, id: StreamId) -> Self {
         Self {
             id: id,

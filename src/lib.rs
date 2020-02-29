@@ -165,7 +165,7 @@ macro_rules! make_operator_runner {
             // TODO: execute the operator in parallel?
             // Currently, callbacks are NOT invoked while operator.execute() runs.
             op.run();
-            let mut op_executor = OperatorExecutor::new(op_ex_streams, logger);
+            let mut op_executor = OperatorExecutor::new(op, config, op_ex_streams, logger);
             op_executor
         }
     }};
