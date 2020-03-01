@@ -1,7 +1,9 @@
 extern crate erdos;
 use erdos::dataflow::{
-    operators::JoinOperator, operators::MapOperator, stream::WriteStreamT, Message, OperatorConfig,
-    ReadStream, State, Timestamp, WriteStream,
+    operators::JoinOperator,
+    operators::MapOperator,
+    stream::{ExtractStream, WriteStreamT},
+    Message, OperatorConfig, ReadStream, Timestamp, WriteStream,
 };
 use erdos::node::Node;
 use erdos::*;
@@ -35,43 +37,6 @@ impl InputGenOp {
         }
     }
 }
-
-#[derive(Clone)]
-pub struct ReceiverState {
-    counter: u64,
-}
-
-pub struct ReceiverOp {
-    name: String,
-    input_stream: ReadStream<u64>,
-}
-
-impl ReceiverOp {
-    pub fn new(config: OperatorConfig<()>, input_stream: ReadStream<u64>) -> Self {
-        let receiver_state = ReceiverState { counter: 0 };
-        let stateful_input_stream = input_stream.add_state(receiver_state);
-        stateful_input_stream.add_callback(ReceiverOp::on_data_callback);
-        Self {
-            name: config.name,
-            input_stream,
-        }
-    }
-
-    pub fn connect(input_stream: &ReadStream<u64>) {}
-
-    pub fn on_data_callback(t: Timestamp, msg: u64, state: &mut ReceiverState) {
-        let expected: u64 = state.counter * 2;
-        assert_eq!(
-            expected, msg,
-            "The returned value ({}) was different than the expected ({}).",
-            msg, expected
-        );
-        state.counter += 1;
-    }
-
-    pub fn run(&self) {}
-}
-
 #[test]
 fn test_input_receiver_map() {
     let config = utils::make_default_config();
@@ -86,12 +51,24 @@ fn test_input_receiver_map() {
         0,
     );
     let s2 = connect_1_write!(MapOperator<u32, u64>, map_config, s1);
-    let receive_config = OperatorConfig::new("ReceiverOp", (), true, 0);
-    connect_0_write!(ReceiverOp, receive_config, s2);
+    let mut extract_stream = ExtractStream::new(0, &s2);
 
     node.run_async();
 
-    thread::sleep(std::time::Duration::from_millis(2000));
+    let mut i = 0;
+    while i < 10 {
+        let msg = extract_stream.read();
+        if let Message::TimestampedData(data) = msg.unwrap() {
+            assert_eq!(
+                data.data,
+                i * 2,
+                "The returned value ({}) was different than expected ({}).",
+                data.data,
+                i * 2
+            );
+            i += 1;
+        }
+    }
 }
 
 // Join Operator Tests.
@@ -114,10 +91,22 @@ fn test_input_receiver_join() {
         0,
     );
     let s3 = connect_1_write!(JoinOperator<u32, u32, u64>, join_config, s1, s2);
-    let receive_config = OperatorConfig::new("ReceiverOp", (), true, 0);
-    connect_0_write!(ReceiverOp, receive_config, s3);
+    let mut extract_stream = ExtractStream::new(0, &s3);
 
     node.run_async();
 
-    thread::sleep(std::time::Duration::from_millis(2000));
+    let mut i = 0;
+    while i < 10 {
+        let msg = extract_stream.read();
+        if let Message::TimestampedData(data) = msg.unwrap() {
+            assert_eq!(
+                data.data,
+                i * 2,
+                "The returned value ({}) was different than expected ({}).",
+                data.data,
+                i * 2
+            );
+            i += 1;
+        }
+    }
 }

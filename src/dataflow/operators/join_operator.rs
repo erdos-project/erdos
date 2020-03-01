@@ -58,7 +58,6 @@ impl<D: Data> StreamState<D> {
 
     /// Retrieve the state.
     fn get_state(&self, timestamp: &Timestamp) -> Vec<D> {
-        println!("The state of the timestamps is {:?}", self._timestamps);
         (*((*(self.msgs.read().unwrap())).get(timestamp).unwrap())).clone()
     }
 }
