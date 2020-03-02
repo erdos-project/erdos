@@ -4,4 +4,5 @@ rust:
   - nightly
 
 install:
-  - python3 -m pip install fire
+  - sudo apt-get -y install python3-pip
+  - pip3 install fire --user
