@@ -1,3 +1,10 @@
+from collections import defaultdict, deque
+
+import numpy as np
+
+MAX_NUM_RUNTIME_SAMPLES = 1000
+
+
 class Operator(object):
     """Operator abstract base class.
 
@@ -23,6 +30,7 @@ class Operator(object):
         """
         instance = super(Operator, cls).__new__(cls, *args, **kwargs)
         instance._trace_events = []
+        instance._runtime_stats = defaultdict(deque)
         return instance
 
     @staticmethod
@@ -52,14 +60,35 @@ class Operator(object):
         """Returns the operator's config."""
         return self._config
 
+    def add_trace_event(self, event):
+        """Records a profile trace event."""
+        self._trace_events.append(event)
+        event_name = event["name"]
+        self._runtime_stats[event_name].append(event["dur"])
+        if len(self._runtime_stats[event_name]) > MAX_NUM_RUNTIME_SAMPLES:
+            self._runtime_stats[event_name].popleft()
+
+    def get_runtime(self, event_name, percentile):
+        """Gets the runtime percentile for a given type of event.
+
+        Args:
+            event_name (str): The name of the event to get runtime for.
+            percentile (int): The percentile runtime to get.
+
+        Returns:
+            (float): Runtime in microseconds, or None if the operator doesn't
+            have any runtime stats for the given event name.
+        """
+        if event_name not in self._runtime_stats:
+            # We don't have any runtime statistics.
+            return None
+        else:
+            return np.percentile(self._runtime_stats[event_name], percentile)
+
     def save_trace_events(self, file_name):
         import json
         with open(file_name, "w") as write_file:
             json.dump(self._trace_events, write_file)
-
-    def add_trace_event(self, event):
-        """Records a profile trace event."""
-        self._trace_events.append(event)
 
 
 class OperatorConfig(object):
