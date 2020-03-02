@@ -2,6 +2,8 @@ import multiprocessing as mp
 import signal
 import sys
 
+from functools import wraps
+
 import erdos.internal as _internal
 from erdos.streams import (ReadStream, WriteStream, LoopStream, IngestStream,
                            ExtractStream)
@@ -184,28 +186,38 @@ def profile(event_name, operator, event_data=None):
     return Profile(event_name, operator, event_data)
 
 
-def profile_method(func):
-    def wrapper(*args, **kwargs):
-        if isinstance(args[0], Operator):
-            # The func is an operator method.
-            op_name = args[0].config.name
-            cb_name = func.__name__
-            if isinstance(args[1], Timestamp):
-                # The func is a watermark callback.
-                timestamp = args[1]
-            elif isinstance(args[1], Message):
-                # The func is a callback.
-                timestamp = args[1].timestamp
+def profile_method(**decorator_kwargs):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            if isinstance(args[0], Operator):
+                # The func is an operator method.
+                op_name = args[0].config.name
+                cb_name = func.__name__
+                if "event_name" in decorator_kwargs:
+                    event_name = decorator_kwargs["event_name"]
+                else:
+                    # Set the event name to the operator name and the callback
+                    # name if it's not passed by the user.
+                    event_name = op_name + "." + cb_name
+                if isinstance(args[1], Timestamp):
+                    # The func is a watermark callback.
+                    timestamp = args[1]
+                elif isinstance(args[1], Message):
+                    # The func is a callback.
+                    timestamp = args[1].timestamp
+                else:
+                    # The func is a regular method.
+                    timestamp = None
             else:
-                # The func is a regular method.
-                timestamp = None
-            event_name = op_name + "." + cb_name + "@" + str(timestamp)
-        else:
-            raise TypeError(
-                "@erdos.profile can only be used on operator methods")
+                raise TypeError(
+                    "@erdos.profile can only be used on operator methods")
 
-        # timestamp = args[1]
-        with erdos.profile(event_name, args[0]):
-            func(*args, **kwargs)
+            with erdos.profile(event_name,
+                               args[0],
+                               event_data={"timestamp": str(timestamp)}):
+                func(*args, **kwargs)
 
-    return wrapper
+        return wrapper
+
+    return decorator
