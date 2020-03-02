@@ -108,8 +108,11 @@ fn test_flow_watermarks() {
     let node = Node::new(config);
 
     let s1 = connect_1_write!(SendOperator, OperatorConfig::new().name("SendOperator"));
-    let s2 =
-        connect_1_write!(MapOperator<usize, usize>, OperatorConfig::new().name("MapOperator"), s1);
+    let mut map_config = OperatorConfig::new();
+    map_config
+        .name("MapOperator")
+        .arg(|a: usize| -> usize { a });
+    let s2 = connect_1_write!(MapOperator<usize, usize>, map_config, s1);
     connect_0_write!(
         RecvOperator,
         OperatorConfig::new().name("RecvOperator").arg(true),
@@ -127,7 +130,12 @@ fn test_no_flow_watermarks() {
     let node = Node::new(config);
 
     let s1 = connect_1_write!(SendOperator, OperatorConfig::new().name("SendOperator"));
-    let s2 = connect_1_write!(MapOperator<usize, usize>, OperatorConfig::new().name("MapOperator").flow_watermarks(false), s1);
+    let mut map_config = OperatorConfig::new();
+    map_config
+        .name("MapOperator")
+        .arg(|a: usize| -> usize { a })
+        .flow_watermarks(false);
+    let s2 = connect_1_write!(MapOperator<usize, usize>, map_config, s1);
     connect_0_write!(
         RecvOperator,
         OperatorConfig::new()

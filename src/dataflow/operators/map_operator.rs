@@ -1,6 +1,6 @@
 use crate::dataflow::message::Message;
 use crate::dataflow::{
-    stream::WriteStreamT, Data, OperatorConfig, ReadStream, Timestamp, WriteStream,
+    stream::WriteStreamT, Data, Operator, OperatorConfig, ReadStream, Timestamp, WriteStream,
 };
 use serde::Deserialize;
 use std::marker::PhantomData;
@@ -46,8 +46,8 @@ impl<'a, D1: Data, D2: Data + Deserialize<'a>> MapOperator<D1, D2> {
         let stateful_stream = input_stream.add_state(output_stream);
 
         // Clone the name so that we can move the passed function into the callback.
-        let name: String = config.name.clone();
-        let callback = config.arg;
+        let name: String = config.name.unwrap();
+        let callback = config.arg.unwrap();
 
         stateful_stream.add_callback(
             move |t: Timestamp, msg: D1, output_stream: &mut WriteStream<_>| {
@@ -84,6 +84,6 @@ impl<'a, D1: Data, D2: Data + Deserialize<'a>> MapOperator<D1, D2> {
         let result: D2 = map_function(msg);
         output_stream.send(Message::new_message(t, result));
     }
-
-    pub fn run(&self) {}
 }
+
+impl<'a, D1: Data, D2: Data + Deserialize<'a>> Operator for MapOperator<D1, D2> {}

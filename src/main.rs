@@ -6,7 +6,7 @@ use erdos::dataflow::{
     OperatorConfig,
 };
 use erdos::node::Node;
-use erdos::{Configuration, OperatorConfig};
+use erdos::Configuration;
 
 fn main() {
     let args = erdos::new_app("ERDOS").get_matches();

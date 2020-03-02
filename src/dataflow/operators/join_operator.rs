@@ -1,6 +1,6 @@
 use crate::dataflow::message::Message;
 use crate::dataflow::stream::WriteStreamT;
-use crate::dataflow::{Data, OperatorConfig, ReadStream, Timestamp, WriteStream};
+use crate::dataflow::{Data, Operator, OperatorConfig, ReadStream, Timestamp, WriteStream};
 use chashmap::CHashMap;
 use serde::Deserialize;
 use std::cmp::Reverse;
@@ -109,7 +109,7 @@ impl<'a, D1: Data, D2: Data, D3: Data + Deserialize<'a>> JoinOperator<D1, D2, D3
         let stateful_stream_right = input_stream_right.add_state(StreamState::<D2>::new());
         stateful_stream_right.add_callback(Self::on_right_data_callback);
 
-        let cb = config.arg;
+        let cb = config.arg.unwrap();
         stateful_stream_left
             .add_read_stream(&stateful_stream_right)
             .borrow_mut()
@@ -125,7 +125,7 @@ impl<'a, D1: Data, D2: Data, D3: Data + Deserialize<'a>> JoinOperator<D1, D2, D3
             );
 
         Self {
-            name: config.name,
+            name: config.name.unwrap(),
             phantom_data: PhantomData,
         }
     }
@@ -174,6 +174,6 @@ impl<'a, D1: Data, D2: Data, D3: Data + Deserialize<'a>> JoinOperator<D1, D2, D3
     ) -> WriteStream<D3> {
         WriteStream::new()
     }
-
-    pub fn run(&self) {}
 }
+
+impl<'a, D1: Data, D2: Data, D3: Data + Deserialize<'a>> Operator for JoinOperator<D1, D2, D3> {}
