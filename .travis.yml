@@ -5,4 +5,4 @@ rust:
 
 install:
   - sudo apt-get -y install python3-pip
-  - pip3 install fire setuptools setuptools_rust --user
+  - pip3 install setuptools setuptools_rust fire --user
