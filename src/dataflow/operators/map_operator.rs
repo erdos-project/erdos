@@ -13,12 +13,9 @@ use std::marker::PhantomData;
 /// and return them as u64 messages.
 ///
 /// ```
-/// let map_config = OperatorConfig::new(
-///     "MapOperator",
-///     |data: u32| -> u64 { (data * 2) as u64 },
-///     true,
-///     0,
-/// );
+/// let map_config = OperatorConfig::new();
+/// map_config.name("MapOperator").arg(
+///     |data: u32| -> u64 { (data * 2) as u64 });
 /// let output_read_stream = connect_1_write!(MapOperator<u32, u64>, map_config, s1);
 /// ```
 pub struct MapOperator<D1: Data, D2: Data> {

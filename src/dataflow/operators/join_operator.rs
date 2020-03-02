@@ -70,14 +70,11 @@ impl<D: Data> StreamState<D> {
 /// and return them as u64 messages.
 ///
 /// ```
-/// let join_config = OperatorConfig::new(
-///     "JoinOperator",
+/// let join_config = OperatorConfig::new();
+/// join_config.name("JoinOperator").arg(
 ///     |left_data: Vec<u32>, right_data: Vec<u32>| -> u64 {
 ///         (left_data.iter().sum::<u32>() + right_data.iter().sum::<u32>()) as u64
-///     },
-///     true,
-///     0,
-/// );
+///     });,
 /// let output_stream = connect_1_write!(JoinOperator<u32, u32, u64>, join_config, s1, s2);
 /// ```
 pub struct JoinOperator<D1: Data, D2: Data, D3: Data> {
