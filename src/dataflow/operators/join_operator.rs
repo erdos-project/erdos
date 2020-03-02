@@ -17,48 +17,54 @@ struct StreamState<D: Data> {
     // We use a CHashMap because multiple callbacks can be simultaneously invoked.
     msgs: Arc<RwLock<CHashMap<Timestamp, Vec<D>>>>,
     // A min-heap tracking the keys of the hashmap.
-    _timestamps: Arc<RwLock<BinaryHeap<Reverse<Timestamp>>>>,
+    timestamps: Arc<RwLock<BinaryHeap<Reverse<Timestamp>>>>,
 }
 
 impl<D: Data> StreamState<D> {
     fn new() -> Self {
         Self {
             msgs: Arc::new(RwLock::new(CHashMap::new())),
-            _timestamps: Arc::new(RwLock::new(BinaryHeap::new())),
+            timestamps: Arc::new(RwLock::new(BinaryHeap::new())),
         }
     }
 
     /// Adds a message to the ConcurrentHashMap.
     fn add_msg(&mut self, timestamp: &Timestamp, msg: D) {
         // Insert a new Vector if the key does not exist, and add the key to the timestamps.
-        let _msgs = &(*(*self.msgs).write().unwrap());
-        if !_msgs.contains_key(timestamp) {
-            _msgs.insert_new(timestamp.clone(), Vec::new());
-            self._timestamps
-                .write()
-                .unwrap()
-                .push(Reverse(timestamp.clone()));
-        }
-
-        // Get the vector corresponding to the given key and acquire a write lock on it.
-        let mut messages = _msgs.get_mut(timestamp).unwrap();
-        messages.push(msg);
-        // The data structure automatically releases the write lock once the guard goes out of
-        // scope.
+        //let _msgs = &(*(*self.msgs).write().unwrap());
+        let msgs = self.msgs.write().unwrap();
+        match msgs.get_mut(timestamp) {
+            Some(mut msg_vec) => msg_vec.push(msg),
+            None => {
+                msgs.insert_new(timestamp.clone(), vec![msg]);
+                self.timestamps
+                    .write()
+                    .unwrap()
+                    .push(Reverse(timestamp.clone()));
+            }
+        };
     }
 
     /// Cleans the state corresponding to a given Timestamp (upto and including).
     fn clean_state(&self, timestamp: &Timestamp) {
-        let _timestamps = &mut (*(*self._timestamps).write().unwrap());
-        while _timestamps.len() > 0 && _timestamps.peek().unwrap().0 <= *timestamp {
-            let _t = _timestamps.pop().unwrap().0;
-            (*(self.msgs.write().unwrap())).remove(&_t).unwrap();
+        let timestamps = &mut self.timestamps.write().unwrap();
+        while timestamps.peek().map_or(false, |t| t.0 <= *timestamp) {
+            let t = timestamps.pop().unwrap().0;
+            self.msgs
+                .write()
+                .unwrap()
+                .remove(&t)
+                .expect("StreamState: expected Timestamp to be present");
         }
     }
 
     /// Retrieve the state.
-    fn get_state(&self, timestamp: &Timestamp) -> Vec<D> {
-        (*((*(self.msgs.read().unwrap())).get(timestamp).unwrap())).clone()
+    fn get_state(&self, timestamp: &Timestamp) -> Option<Vec<D>> {
+        match self.msgs.read().unwrap().get(timestamp) {
+            Some(value) => Some(value.clone()),
+            None => None,
+        }
+        //(*((*(self.msgs.read().unwrap())).get(timestamp).unwrap())).clone()
     }
 }
 
@@ -153,8 +159,8 @@ impl<'a, D1: Data, D2: Data, D3: Data + Deserialize<'a>> JoinOperator<D1, D2, D3
         join_function: &F,
     ) {
         // Retrieve the state and run the given callback on it.
-        let left_state_t: Vec<D1> = left_state.get_state(t);
-        let right_state_t: Vec<D2> = right_state.get_state(t);
+        let left_state_t: Vec<D1> = left_state.get_state(t).unwrap();
+        let right_state_t: Vec<D2> = right_state.get_state(t).unwrap();
         let result_t: D3 = join_function(left_state_t, right_state_t);
 
         // Send the result on the write stream.
