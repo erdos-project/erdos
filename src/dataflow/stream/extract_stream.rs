@@ -63,6 +63,14 @@ where
         self.node_id
     }
 
+    /// Returns true if a StreamClosed message was sent or the ExtractStream was unable to set up.
+    pub fn is_closed(&self) -> bool {
+        self.read_stream_option
+            .as_ref()
+            .map(ReadStream::is_closed)
+            .unwrap_or(true)
+    }
+
     /// Tries to read a message from a channel.
     ///
     /// Returns an immutable reference, or `None` if no messages are

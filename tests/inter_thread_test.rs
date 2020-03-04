@@ -249,6 +249,8 @@ fn test_destroy() {
 
     // Check that the stream is closed.
     let msg = Message::new_message(Timestamp::new(vec![0]), 0);
+    assert!(ingest_stream.is_closed());
+    assert!(extract_stream.is_closed());
     assert_eq!(ingest_stream.send(msg), Err(WriteStreamError::Closed));
     assert_eq!(extract_stream.read(), Err(ReadError::Closed));
     assert_eq!(extract_stream.try_read(), Err(TryReadError::Closed));

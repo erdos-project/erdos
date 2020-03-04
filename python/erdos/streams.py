@@ -46,6 +46,10 @@ class ReadStream(object):
         self._py_read_stream = PyReadStream(
         ) if _py_read_stream is None else _py_read_stream
 
+    def is_closed(self):
+        """Whether a StreamClosed message has been received."""
+        self._py_read_stream.is_closed()
+
     def read(self):
         """Blocks until a message is read from the stream."""
         return _parse_message(self._py_read_stream.read())
@@ -110,6 +114,10 @@ class WriteStream(object):
         self._py_write_stream = PyWriteStream(
         ) if _py_write_stream is None else _py_write_stream
 
+    def is_closed(self):
+        """Whether a StreamClosed message has been sent."""
+        self._py_write_stream.is_closed()
+
     def send(self, msg):
         """Sends a message on the stream.
 
@@ -141,6 +149,13 @@ class IngestStream(object):
     def __init__(self):
         self._py_ingest_stream = PyIngestStream(0)
 
+    def is_closed(self):
+        """Whether the stream is closed.
+
+        Returns True if the a StreamClosed message was sent or the
+        IngestStream was unable to successfully set up.
+        """
+
     def send(self, msg):
         """Sends a message on the stream.
 
@@ -163,6 +178,14 @@ class ExtractStream(object):
     """
     def __init__(self, read_stream):
         self._py_extract_stream = PyExtractStream(read_stream._py_read_stream)
+
+    def is_closed(self):
+        """Whether the stream is closed.
+
+        Returns True if the a StreamClosed message was sent or the
+        ExtractStream was unable to successfully set up.
+        """
+        self._py_extract_stream.is_closed()
 
     def read(self):
         """Blocks until a message is read from the stream."""

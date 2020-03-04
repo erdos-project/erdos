@@ -21,6 +21,10 @@ impl PyReadStream {
         });
     }
 
+    fn is_closed(&self) -> bool {
+        self.read_stream.is_closed()
+    }
+
     /// Returns (timestamp, data)
     fn read(&mut self) -> PyResult<PyMessage> {
         match self.read_stream.read() {

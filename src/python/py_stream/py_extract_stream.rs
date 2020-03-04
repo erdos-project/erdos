@@ -18,6 +18,10 @@ impl PyExtractStream {
         });
     }
 
+    fn is_closed(&self) -> bool {
+        self.extract_stream.is_closed()
+    }
+
     fn read<'p>(&mut self, py: Python<'p>) -> PyResult<PyMessage> {
         let result = py.allow_threads(|| self.extract_stream.read());
         match result {

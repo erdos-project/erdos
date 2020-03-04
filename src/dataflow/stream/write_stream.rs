@@ -68,6 +68,10 @@ impl<D: Data> WriteStream<D> {
         &self.name[..]
     }
 
+    pub fn is_closed(&self) -> bool {
+        self.stream_closed
+    }
+
     fn add_endpoint(&mut self, endpoint: SendEndpoint<Message<D>>) {
         match endpoint {
             SendEndpoint::InterThread(_) => self.inter_thread_endpoints.push(endpoint),

@@ -49,6 +49,10 @@ impl<D: Data> ReadStream<D> {
         self.internal_stream.borrow().get_name().to_string()
     }
 
+    pub fn is_closed(&self) -> bool {
+        self.internal_stream.borrow().is_closed()
+    }
+
     /// Tries to read a message from a channel.
     ///
     /// Returns an immutable reference, or `None` if no messages are

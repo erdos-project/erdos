@@ -25,6 +25,10 @@ impl PyIngestStream {
         });
     }
 
+    fn is_closed(&self) -> bool {
+        self.ingest_stream.is_closed()
+    }
+
     fn send(&mut self, msg: &PyMessage) -> PyResult<()> {
         self.ingest_stream.send(Message::from(msg)).map_err(|e| {
             exceptions::Exception::py_err(format!(
