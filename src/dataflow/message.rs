@@ -61,7 +61,9 @@ impl<D: Data + PartialEq> PartialEq for TimestampedData<D> {
 pub type Timestamp = IntTimestamp;
 
 /// Information about when an operator released a message.
-#[derive(Debug, Clone, Serialize, Deserialize, Abomonation, PartialOrd, PartialEq, Ord, Eq)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, Abomonation, PartialOrd, PartialEq, Ord, Eq, Hash,
+)]
 pub struct IntTimestamp {
     // TODO: Storing the dimensions in a vector is inefficient. Fix.
     /// Stores the timestamp values for each dimension.
