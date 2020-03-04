@@ -152,13 +152,13 @@ impl OperatorExecutor {
                 .unwrap();
             event_runner_handle.await.unwrap();
 
+            // TODO: only destroy operator if all read streams got StreamClosed.
             slog::debug!(
                 self.logger,
                 "Destroying operator with name {:?} and ID {}.",
                 self.config.name(),
                 self.config.id(),
             );
-
             self.operator.destroy();
         }
     }

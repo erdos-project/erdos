@@ -16,7 +16,7 @@ class Message(object):
         self.data = data
 
     def __str__(self):
-        return '{{timestamp: {}, data: {}}}'.format(self.timestamp, self.data)
+        return "{{timestamp: {}, data: {}}}".format(self.timestamp, self.data)
 
 
 class WatermarkMessage(Message):
@@ -25,9 +25,18 @@ class WatermarkMessage(Message):
        Attributes:
            timestamp (Timestamp): The timestamp for which this is a watermark.
     """
-
     def __init__(self, timestamp):
         super(WatermarkMessage, self).__init__(timestamp, None)
 
     def __str__(self):
-        return '{{timestamp: {}, watermark: True}}'.format(self.timestamp)
+        return "{{timestamp: {}, watermark: True}}".format(self.timestamp)
+
+
+class StreamClosedMessage(Message):
+    """Class used to indicate that a stream is closed.
+    """
+    def __init__(self):
+        super(StreamClosed, self).__init__(None, None)
+
+    def __str__(self):
+        return "StreamClosed".format(self.timestamp)

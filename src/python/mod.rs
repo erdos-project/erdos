@@ -1,5 +1,4 @@
-use pyo3::prelude::*;
-use pyo3::types::*;
+use pyo3::{prelude::*, types::*};
 
 use std::sync::{Arc, Mutex};
 
@@ -10,7 +9,10 @@ use tokio::{
 
 use crate::{
     communication::ControlMessage,
-    dataflow::{graph::default_graph, stream::InternalReadStream, ReadStream, WriteStream},
+    dataflow::{
+        graph::default_graph, stream::InternalReadStream, Operator, OperatorConfig, ReadStream,
+        WriteStream,
+    },
     node::{
         operator_event::OperatorEvent,
         operator_executor::{OperatorExecutor, OperatorExecutorStream},
@@ -20,9 +22,12 @@ use crate::{
     Configuration, Uuid,
 };
 
+mod py_message;
 mod py_stream;
 
 use py_stream::{PyExtractStream, PyIngestStream, PyLoopStream, PyReadStream, PyWriteStream};
+
+pub(crate) use py_message::PyMessage;
 
 #[pymodule]
 fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
@@ -31,6 +36,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyWriteStream>()?;
     m.add_class::<PyIngestStream>()?;
     m.add_class::<PyExtractStream>()?;
+    m.add_class::<PyMessage>()?;
 
     #[pyfn(m, "connect")]
     fn connect_py(
@@ -58,6 +64,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
         // Register the operator
         let op_id = crate::OperatorId::new_deterministic();
         let name: Option<String> = py_config.getattr(py, "name")?.extract(py)?;
+        let name_clone = name.clone();
         let flow_watermarks: bool = py_config.getattr(py, "flow_watermarks")?.extract(py)?;
         let read_stream_ids: Vec<Uuid> = connect_read_streams
             .iter()
@@ -213,7 +220,11 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
                     e.print(py)
                 }
 
-                OperatorExecutor::new(op_ex_streams, logger)
+                let mut config: OperatorConfig<()> = OperatorConfig::new();
+                config.name = name_clone.clone();
+                config.id = op_id;
+                config.flow_watermarks = flow_watermarks;
+                OperatorExecutor::new(PyOperator {}, config, op_ex_streams, logger)
             };
 
         default_graph::add_operator(
@@ -299,12 +310,20 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
 
     #[pyfn(m, "add_watermark_callback")]
     fn add_watermark_callback_py(
-        py: Python,
         read_streams: Vec<&PyReadStream>,
         callback: PyObject,
     ) -> PyResult<()> {
-        py_stream::add_watermark_callback(py, read_streams, callback)
+        py_stream::add_watermark_callback(read_streams, callback)
     }
 
     Ok(())
+}
+
+struct PyOperator {}
+
+impl Operator for PyOperator {
+    fn destroy(&mut self) {
+        let logger = crate::get_terminal_logger();
+        slog::debug!(logger, "Destroying PyOperator");
+    }
 }

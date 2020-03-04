@@ -1,17 +1,35 @@
 import pickle
 
-from erdos.message import Message, WatermarkMessage
+from erdos.message import Message, WatermarkMessage, StreamClosedMessage
 from erdos.internal import (PyReadStream, PyWriteStream, PyLoopStream,
-                            PyIngestStream, PyExtractStream)
+                            PyIngestStream, PyExtractStream, PyMessage)
 from erdos.timestamp import Timestamp
 
 
 def _parse_message(internal_msg):
-    """Creates a Message from an internal stream's response."""
-    time_coordinates, serialized_data = internal_msg
-    if serialized_data is None:
-        return WatermarkMessage(Timestamp(coordinates=time_coordinates))
-    return pickle.loads(serialized_data)
+    """Creates a Message from an internal stream's response.
+    
+    Args:
+        internal_msg (PyMessage): The internal message to parse.
+    """
+    if internal_msg.is_timestamped_data():
+        return pickle.loads(internal_msg.data)
+    if internal_msg.is_watermark():
+        return WatermarkMessage(Timestamp(coordinates=internal_msg.timestamp))
+    if internal_msg.is_stream_closed():
+        return StreamClosedMessage()
+    raise Exception("Unable to parse message")
+
+
+def _to_py_message(msg):
+    """Converts a Message to an internal PyMessage."""
+    if isinstance(msg, StreamClosedMessage):
+        return PyMessage(None, None)
+    elif isinstance(msg, WatermarkMessage):
+        return PyMessage(msg.timestamp.coordinates, None)
+    else:
+        data = pickle.dumps(msg, protocol=pickle.HIGHEST_PROTOCOL)
+        return PyMessage(msg.timestamp.coordinates, data)
 
 
 class ReadStream(object):
@@ -42,7 +60,6 @@ class ReadStream(object):
             return None
         return _parse_message(internal_msg)
 
-    # TODO: match Rust API and pass write streams as arguments?
     def add_callback(self, callback, write_streams=None):
         """Adds a callback to the stream.
 
@@ -103,13 +120,8 @@ class WriteStream(object):
         if not isinstance(msg, Message):
             raise TypeError("msg must inherent from erdos.Message!")
 
-        if isinstance(msg, WatermarkMessage):
-            return self._py_write_stream.send_watermark(
-                msg.timestamp.coordinates)
-        else:
-            serialized = pickle.dumps(msg, protocol=pickle.HIGHEST_PROTOCOL)
-            return self._py_write_stream.send(msg.timestamp.coordinates,
-                                              serialized)
+        internal_msg = _to_py_message(msg)
+        return self._py_write_stream.send(internal_msg)
 
 
 class LoopStream(object):
@@ -139,13 +151,8 @@ class IngestStream(object):
         if not isinstance(msg, Message):
             raise TypeError("msg must inherent from erdos.Message!")
 
-        if isinstance(msg, WatermarkMessage):
-            return self._py_ingest_stream.send_watermark(
-                msg.timestamp.coordinates)
-        else:
-            serialized = pickle.dumps(msg, protocol=pickle.HIGHEST_PROTOCOL)
-            return self._py_ingest_stream.send(msg.timestamp.coordinates,
-                                               serialized)
+        internal_msg = _to_py_message(msg)
+        self._py_ingest_stream.send(internal_msg)
 
 
 class ExtractStream(object):
