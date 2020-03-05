@@ -99,14 +99,14 @@ impl Operator for SquareOperator {}
 pub struct DestroyOperator {}
 
 impl DestroyOperator {
-    pub fn new(config: OperatorConfig<()>, read_stream: ReadStream<usize>) -> Self {
+    pub fn new(_config: OperatorConfig<()>, read_stream: ReadStream<usize>) -> Self {
         read_stream.add_callback(Self::msg_callback);
         Self {}
     }
 
     pub fn connect(_read_stream: &ReadStream<usize>) {}
 
-    pub fn msg_callback(t: Timestamp, data: usize) {
+    pub fn msg_callback(_t: Timestamp, data: usize) {
         let logger = erdos::get_terminal_logger();
         slog::debug!(logger, "DestroyOperator: received {}", data);
     }
@@ -166,8 +166,6 @@ fn test_ingest() {
             ))
             .unwrap();
     }
-
-    thread::sleep(std::time::Duration::from_millis(1000));
 }
 
 #[test]
@@ -216,8 +214,6 @@ fn test_ingest_extract() {
         let result = extract_stream.read();
         slog::debug!(logger, "Received {:?}", result);
     }
-
-    thread::sleep(std::time::Duration::from_millis(1000));
 }
 
 #[test]
@@ -254,6 +250,4 @@ fn test_destroy() {
     assert_eq!(ingest_stream.send(msg), Err(WriteStreamError::Closed));
     assert_eq!(extract_stream.read(), Err(ReadError::Closed));
     assert_eq!(extract_stream.try_read(), Err(TryReadError::Closed));
-
-    thread::sleep(std::time::Duration::from_millis(1000));
 }

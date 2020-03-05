@@ -1,9 +1,12 @@
 use std::{
     cell::RefCell,
-    collections::BinaryHeap,
+    collections::{BinaryHeap, HashMap},
     pin::Pin,
     rc::Rc,
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     task::{Context, Poll},
 };
 
@@ -17,7 +20,7 @@ use crate::{
     communication::RecvEndpoint,
     dataflow::{
         operator::{Operator, OperatorConfigT},
-        stream::InternalReadStream,
+        stream::{InternalReadStream, StreamId},
         Data, EventMakerT, Message, ReadStream,
     },
     node::operator_event::OperatorEvent,
@@ -29,10 +32,30 @@ enum EventRunnerMessage {
     DestroyOperator,
 }
 
+pub trait OperatorExecutorStreamT: Send + Stream<Item = Vec<OperatorEvent>> {
+    fn get_id(&self) -> StreamId;
+    fn get_closed_ref(&self) -> Arc<AtomicBool>;
+    fn to_pinned_stream(self: Box<Self>) -> Pin<Box<dyn Send + Stream<Item = Vec<OperatorEvent>>>>;
+}
+
 pub struct OperatorExecutorStream<D: Data> {
     stream: Rc<RefCell<InternalReadStream<D>>>,
     recv_endpoint: Option<RecvEndpoint<Message<D>>>,
-    closed: bool,
+    closed: Arc<AtomicBool>,
+}
+
+impl<D: Data> OperatorExecutorStreamT for OperatorExecutorStream<D> {
+    fn get_id(&self) -> StreamId {
+        self.stream.borrow().get_id()
+    }
+
+    fn get_closed_ref(&self) -> Arc<AtomicBool> {
+        self.closed.clone()
+    }
+
+    fn to_pinned_stream(self: Box<Self>) -> Pin<Box<dyn Send + Stream<Item = Vec<OperatorEvent>>>> {
+        Box::into_pin(self as Box<dyn Send + Stream<Item = Vec<OperatorEvent>>>)
+    }
 }
 
 impl<D: Data> Stream for OperatorExecutorStream<D> {
@@ -43,7 +66,7 @@ impl<D: Data> Stream for OperatorExecutorStream<D> {
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Vec<OperatorEvent>>> {
-        if self.closed {
+        if self.closed.load(Ordering::SeqCst) {
             return Poll::Ready(None);
         }
         let mut mut_self = self.as_mut();
@@ -55,7 +78,7 @@ impl<D: Data> Stream for OperatorExecutorStream<D> {
             Some(RecvEndpoint::InterThread(rx)) => match rx.poll_recv(cx) {
                 Poll::Ready(Some(msg)) => {
                     if let Message::StreamClosed = msg {
-                        self.closed = true;
+                        self.closed.store(true, Ordering::SeqCst);
                         self.recv_endpoint = None;
                     }
                     Poll::Ready(Some(self.stream.borrow().make_events(msg)))
@@ -85,7 +108,7 @@ impl<D: Data> From<&ReadStream<D>> for OperatorExecutorStream<D> {
 
 impl<D: Data> OperatorExecutorStream<D> {
     pub fn new(stream: Rc<RefCell<InternalReadStream<D>>>) -> Self {
-        let closed = stream.borrow().is_closed();
+        let closed = Arc::new(AtomicBool::new(stream.borrow().is_closed()));
         Self {
             stream,
             recv_endpoint: None,
@@ -98,6 +121,8 @@ pub struct OperatorExecutor {
     operator: Box<dyn Operator>,
     config: Box<dyn OperatorConfigT>,
     event_stream: Option<Pin<Box<dyn Send + Stream<Item = Vec<OperatorEvent>>>>>,
+    // Used to decide whether to run destroy()
+    streams_closed: HashMap<StreamId, Arc<AtomicBool>>,
     // Priority queue that sorts events by priority and timestamp.
     event_queue: Arc<Mutex<BinaryHeap<OperatorEvent>>>,
     logger: slog::Logger,
@@ -107,24 +132,37 @@ impl OperatorExecutor {
     pub fn new<T: 'static + Operator, U: 'static + OperatorConfigT>(
         operator: T,
         config: U,
-        mut operator_streams: Vec<Box<dyn Send + Stream<Item = Vec<OperatorEvent>>>>,
+        mut operator_streams: Vec<Box<dyn OperatorExecutorStreamT>>,
         logger: slog::Logger,
     ) -> Self {
-        let event_stream = operator_streams
-            .pop()
-            .map(|first| {
-                operator_streams.into_iter().fold(first, |x, y| {
-                    Box::new(StreamExt::merge(Box::into_pin(x), Box::into_pin(y)))
+        let streams_closed: HashMap<_, _> = operator_streams
+            .iter()
+            .map(|s| (s.get_id(), s.get_closed_ref()))
+            .collect();
+        let event_stream = operator_streams.pop().map(|first| {
+            operator_streams
+                .into_iter()
+                .fold(first.to_pinned_stream(), |x, y| {
+                    Box::pin(StreamExt::merge(x, y.to_pinned_stream()))
                 })
-            })
-            .map(Box::into_pin);
+        });
         Self {
             operator: Box::new(operator),
             config: Box::new(config),
             event_stream,
+            streams_closed,
             event_queue: Arc::new(Mutex::new(BinaryHeap::new())),
             logger,
         }
+    }
+
+    /// Whether all input streams have been closed.
+    ///
+    /// Returns true if there are no input streams.
+    fn all_streams_closed(&self) -> bool {
+        self.streams_closed
+            .values()
+            .all(|x| x.load(Ordering::SeqCst))
     }
 
     pub async fn execute(&mut self) {
@@ -152,14 +190,15 @@ impl OperatorExecutor {
                 .unwrap();
             event_runner_handle.await.unwrap();
 
-            // TODO: only destroy operator if all read streams got StreamClosed.
-            slog::debug!(
-                self.logger,
-                "Destroying operator with name {:?} and ID {}.",
-                self.config.name(),
-                self.config.id(),
-            );
-            self.operator.destroy();
+            if self.all_streams_closed() {
+                slog::debug!(
+                    self.logger,
+                    "Destroying operator with name {:?} and ID {}.",
+                    self.config.name(),
+                    self.config.id(),
+                );
+                self.operator.destroy();
+            }
         }
     }
 
