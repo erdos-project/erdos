@@ -39,6 +39,20 @@ impl<D: Data> Message<D> {
             false
         }
     }
+
+    pub fn data(&self) -> Option<&D> {
+        match self {
+            Self::TimestampedData(d) => Some(&d.data),
+            _ => None,
+        }
+    }
+
+    pub fn timestamp(&self) -> &Timestamp {
+        match self {
+            Self::TimestampedData(d) => &d.timestamp,
+            Self::Watermark(t) => &t,
+        }
+    }
 }
 
 impl<D: Data + PartialEq> PartialEq for Message<D> {
@@ -82,7 +96,7 @@ pub struct IntTimestamp {
     /// Stores the timestamp values for each dimension.
     pub time: Vec<u64>,
     /// Whether this is a top timestamp used to close streams.
-    pub is_top: bool,
+    is_top: bool,
 }
 
 impl IntTimestamp {
@@ -98,6 +112,10 @@ impl IntTimestamp {
             time: Vec::new(),
             is_top: true,
         }
+    }
+
+    pub fn is_top(&self) -> bool {
+        self.is_top
     }
 }
 
