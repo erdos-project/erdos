@@ -15,14 +15,16 @@ def _parse_message(internal_msg):
     if internal_msg.is_timestamped_data():
         return pickle.loads(internal_msg.data)
     if internal_msg.is_watermark():
-        return WatermarkMessage(Timestamp(coordinates=internal_msg.timestamp))
+        return WatermarkMessage(
+            Timestamp(coordinates=internal_msg.timestamp,
+                      is_top=internal_msg.is_top_watermark()))
     raise Exception("Unable to parse message")
 
 
 def _to_py_message(msg):
     """Converts a Message to an internal PyMessage."""
     if isinstance(msg, WatermarkMessage):
-        return PyMessage(msg.timestamp.coordinates, msg.is_closed, None)
+        return PyMessage(msg.timestamp.coordinates, msg.is_top, None)
     else:
         data = pickle.dumps(msg, protocol=pickle.HIGHEST_PROTOCOL)
         return PyMessage(msg.timestamp.coordinates, False, data)
@@ -44,7 +46,7 @@ class ReadStream(object):
 
     def is_closed(self):
         """Whether a StreamClosed message has been received."""
-        self._py_read_stream.is_closed()
+        return self._py_read_stream.is_closed()
 
     def read(self):
         """Blocks until a message is read from the stream."""
@@ -90,8 +92,8 @@ class ReadStream(object):
         if write_streams is None:
             write_streams = []
 
-        def internal_watermark_callback(coordinates):
-            timestamp = Timestamp(coordinates=coordinates)
+        def internal_watermark_callback(coordinates, is_top):
+            timestamp = Timestamp(coordinates=coordinates, is_top=is_top)
             callback(timestamp, *write_streams)
 
         self._py_read_stream.add_watermark_callback(
@@ -112,7 +114,7 @@ class WriteStream(object):
 
     def is_closed(self):
         """Whether a StreamClosed message has been sent."""
-        self._py_write_stream.is_closed()
+        return self._py_write_stream.is_closed()
 
     def send(self, msg):
         """Sends a message on the stream.
@@ -151,6 +153,7 @@ class IngestStream(object):
         Returns True if the a StreamClosed message was sent or the
         IngestStream was unable to successfully set up.
         """
+        return self._py_ingest_stream.is_closed()
 
     def send(self, msg):
         """Sends a message on the stream.
@@ -181,7 +184,7 @@ class ExtractStream(object):
         Returns True if the a StreamClosed message was sent or the
         ExtractStream was unable to successfully set up.
         """
-        self._py_extract_stream.is_closed()
+        return self._py_extract_stream.is_closed()
 
     def read(self):
         """Blocks until a message is read from the stream."""

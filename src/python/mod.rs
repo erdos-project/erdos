@@ -215,11 +215,24 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
                     e.print(py)
                 }
 
+                let operator_obj = py
+                    .eval("operator", None, Some(&locals))
+                    .unwrap()
+                    .to_object(py);
+                let operator_arc = Arc::new(operator_obj);
+
                 let mut config: OperatorConfig<()> = OperatorConfig::new();
                 config.name = name_clone.clone();
                 config.id = op_id;
                 config.flow_watermarks = flow_watermarks;
-                OperatorExecutor::new(PyOperator {}, config, op_ex_streams, logger)
+                OperatorExecutor::new(
+                    PyOperator {
+                        operator: operator_arc,
+                    },
+                    config,
+                    op_ex_streams,
+                    logger,
+                )
             };
 
         default_graph::add_operator(
@@ -314,11 +327,16 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
     Ok(())
 }
 
-struct PyOperator {}
+struct PyOperator {
+    operator: Arc<PyObject>,
+}
 
 impl Operator for PyOperator {
     fn destroy(&mut self) {
-        let logger = crate::get_terminal_logger();
-        slog::debug!(logger, "Destroying PyOperator");
+        let gil = Python::acquire_gil();
+        let py = gil.python();
+        if let Err(e) = self.operator.call_method0(py, "destroy") {
+            e.print(py);
+        }
     }
 }

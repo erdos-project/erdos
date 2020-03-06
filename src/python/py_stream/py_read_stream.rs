@@ -65,7 +65,7 @@ impl PyReadStream {
         self.read_stream.add_watermark_callback(move |timestamp| {
             let gil = Python::acquire_gil();
             let py = gil.python();
-            match callback.call1(py, (timestamp.time.clone(),)) {
+            match callback.call1(py, (timestamp.time.clone(), timestamp.is_top())) {
                 Ok(_) => (),
                 Err(e) => e.print(py),
             };
