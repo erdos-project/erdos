@@ -2,10 +2,7 @@ use pyo3::{prelude::*, types::*};
 
 use std::sync::{Arc, Mutex};
 
-use tokio::{
-    stream::Stream,
-    sync::mpsc::{UnboundedReceiver, UnboundedSender},
-};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::{
     communication::ControlMessage,
@@ -14,8 +11,7 @@ use crate::{
         WriteStream,
     },
     node::{
-        operator_event::OperatorEvent,
-        operator_executor::{OperatorExecutor, OperatorExecutorStream},
+        operator_executor::{OperatorExecutor, OperatorExecutorStream, OperatorExecutorStreamT},
         Node, NodeId,
     },
     scheduler::channel_manager::ChannelManager,
@@ -116,8 +112,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
                     .collect();
 
                 // Create operator executor streams from read streams
-                let mut op_ex_streams: Vec<Box<dyn Send + Stream<Item = Vec<OperatorEvent>>>> =
-                    Vec::new();
+                let mut op_ex_streams: Vec<Box<dyn OperatorExecutorStreamT>> = Vec::new();
                 for py_read_stream in py_read_streams.iter() {
                     op_ex_streams.push(Box::new(OperatorExecutorStream::from(
                         &py_read_stream.read_stream,

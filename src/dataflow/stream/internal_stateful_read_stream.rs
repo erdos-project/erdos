@@ -121,7 +121,6 @@ impl<D: Data, S: State> EventMakerT for InternalStatefulReadStream<D, S> {
                     }))
                 }
             }
-            Message::StreamClosed => (),
         }
         events
     }

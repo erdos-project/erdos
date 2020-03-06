@@ -1,6 +1,6 @@
 import pickle
 
-from erdos.message import Message, WatermarkMessage, StreamClosedMessage
+from erdos.message import Message, WatermarkMessage
 from erdos.internal import (PyReadStream, PyWriteStream, PyLoopStream,
                             PyIngestStream, PyExtractStream, PyMessage)
 from erdos.timestamp import Timestamp
@@ -16,20 +16,16 @@ def _parse_message(internal_msg):
         return pickle.loads(internal_msg.data)
     if internal_msg.is_watermark():
         return WatermarkMessage(Timestamp(coordinates=internal_msg.timestamp))
-    if internal_msg.is_stream_closed():
-        return StreamClosedMessage()
     raise Exception("Unable to parse message")
 
 
 def _to_py_message(msg):
     """Converts a Message to an internal PyMessage."""
-    if isinstance(msg, StreamClosedMessage):
-        return PyMessage(None, None)
-    elif isinstance(msg, WatermarkMessage):
-        return PyMessage(msg.timestamp.coordinates, None)
+    if isinstance(msg, WatermarkMessage):
+        return PyMessage(msg.timestamp.coordinates, msg.is_closed, None)
     else:
         data = pickle.dumps(msg, protocol=pickle.HIGHEST_PROTOCOL)
-        return PyMessage(msg.timestamp.coordinates, data)
+        return PyMessage(msg.timestamp.coordinates, False, data)
 
 
 class ReadStream(object):

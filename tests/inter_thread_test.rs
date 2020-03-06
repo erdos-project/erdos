@@ -236,7 +236,7 @@ fn test_destroy() {
     let received_msg = extract_stream.read().unwrap();
     slog::debug!(logger, "ExtractStream: received {:?}", received_msg);
 
-    let msg = Message::StreamClosed;
+    let msg = Message::new_top_watermark();
     slog::debug!(logger, "IngestStream: sending {:?}", msg);
     ingest_stream.send(msg).unwrap();
 

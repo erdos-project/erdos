@@ -120,7 +120,11 @@ impl<D: Data> InternalReadStream<D> {
             .map_or(Err(TryReadError::Disconnected), |rx| {
                 rx.try_read().map_err(TryReadError::from)
             });
-        if let Ok(Message::StreamClosed) = result {
+        if result
+            .as_ref()
+            .map(Message::is_top_watermark)
+            .unwrap_or(false)
+        {
             self.closed = true;
             self.recv_endpoint = None;
         }
@@ -151,7 +155,11 @@ impl<D: Data> InternalReadStream<D> {
                     }
                 }
             });
-        if let Ok(Message::StreamClosed) = result {
+        if result
+            .as_ref()
+            .map(Message::is_top_watermark)
+            .unwrap_or(false)
+        {
             self.closed = true;
             self.recv_endpoint = None;
         }
@@ -215,7 +223,6 @@ impl<D: Data> EventMakerT for InternalReadStream<D> {
                     }))
                 }
             }
-            _ => (),
         }
         events
     }

@@ -80,7 +80,7 @@ where
         self.node_id
     }
 
-    /// Returns true if a StreamClosed message was received or the IngestStream failed to set up.
+    /// Returns true if a top watermark message was received or the IngestStream failed to set up.
     pub fn is_closed(&self) -> bool {
         self.write_stream_option
             .lock()

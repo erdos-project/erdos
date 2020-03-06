@@ -8,7 +8,7 @@ pub trait Operator {
     fn run(&mut self) {}
 
     /// Implement this method if you need to do clean-up before the operator completes.
-    /// An operator completes after it has received StreamClosed on all its read streams.
+    /// An operator completes after it has received top watermark on all its read streams.
     fn destroy(&mut self) {}
 }
 

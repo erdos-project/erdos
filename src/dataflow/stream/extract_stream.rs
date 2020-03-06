@@ -63,7 +63,7 @@ where
         self.node_id
     }
 
-    /// Returns true if a StreamClosed message was sent or the ExtractStream was unable to set up.
+    /// Returns true if a top watermark message was sent or the ExtractStream was unable to set up.
     pub fn is_closed(&self) -> bool {
         self.read_stream_option
             .as_ref()

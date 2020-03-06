@@ -92,7 +92,6 @@ impl<D: Data> WriteStream<D> {
                 }
                 self.low_watermark = msg_watermark.clone();
             }
-            Message::StreamClosed => (),
         }
         Ok(())
     }
@@ -120,7 +119,7 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
         if self.stream_closed {
             return Err(WriteStreamError::Closed);
         }
-        if let Message::StreamClosed = msg {
+        if msg.is_top_watermark() {
             self.stream_closed = true;
         }
         self.update_watermark(&msg)?;
@@ -164,7 +163,7 @@ impl<'a, D: Data + Deserialize<'a> + Abomonation> WriteStreamT<D> for WriteStrea
         if self.stream_closed {
             return Err(WriteStreamError::Closed);
         }
-        if let Message::StreamClosed = msg {
+        if msg.is_top_watermark() {
             self.stream_closed = true;
         }
         self.update_watermark(&msg)?;

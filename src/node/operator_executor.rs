@@ -77,7 +77,7 @@ impl<D: Data> Stream for OperatorExecutorStream<D> {
         match mut_self.recv_endpoint.as_mut() {
             Some(RecvEndpoint::InterThread(rx)) => match rx.poll_recv(cx) {
                 Poll::Ready(Some(msg)) => {
-                    if let Message::StreamClosed = msg {
+                    if msg.is_top_watermark() {
                         self.closed.store(true, Ordering::SeqCst);
                         self.recv_endpoint = None;
                     }

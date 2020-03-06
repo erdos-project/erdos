@@ -13,6 +13,7 @@ impl PyMessage {
     fn new<'a>(
         obj: &PyRawObject,
         timestamp_coordinates: Option<Vec<u64>>,
+        is_top_watermark: bool,
         data: Option<&'a PyBytes>,
     ) -> PyResult<()> {
         if timestamp_coordinates.is_none() && data.is_some() {
@@ -20,11 +21,16 @@ impl PyMessage {
                 "Passing a non-None value to data when timestamp_coordinates=None is not allowed",
             ));
         }
-        let msg = match (timestamp_coordinates, data) {
-            (Some(t), Some(d)) => Message::new_message(Timestamp::new(t), Vec::from(d.as_bytes())),
-            (Some(t), None) => Message::new_watermark(Timestamp::new(t)),
-            (None, None) => Message::new_stream_closed(),
-            (None, Some(_)) => unreachable!(),
+        let msg = if is_top_watermark {
+            Message::new_top_watermark()
+        } else {
+            match (timestamp_coordinates, data) {
+                (Some(t), Some(d)) => {
+                    Message::new_message(Timestamp::new(t), Vec::from(d.as_bytes()))
+                }
+                (Some(t), None) => Message::new_watermark(Timestamp::new(t)),
+                (_, _) => unreachable!(),
+            }
         };
         obj.init(Self { msg });
         Ok(())
@@ -43,7 +49,6 @@ impl PyMessage {
         match &self.msg {
             Message::TimestampedData(d) => Some(d.timestamp.time.clone()),
             Message::Watermark(t) => Some(t.time.clone()),
-            _ => None,
         }
     }
 
@@ -61,11 +66,8 @@ impl PyMessage {
         }
     }
 
-    fn is_stream_closed(&self) -> bool {
-        match &self.msg {
-            Message::StreamClosed => true,
-            _ => false,
-        }
+    fn is_top_watermark(&self) -> bool {
+        self.msg.is_top_watermark()
     }
 }
 
