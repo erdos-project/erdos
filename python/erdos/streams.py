@@ -45,7 +45,7 @@ class ReadStream(object):
         ) if _py_read_stream is None else _py_read_stream
 
     def is_closed(self):
-        """Whether a StreamClosed message has been received."""
+        """Whether a top watermark message has been received."""
         return self._py_read_stream.is_closed()
 
     def read(self):
@@ -113,7 +113,7 @@ class WriteStream(object):
         ) if _py_write_stream is None else _py_write_stream
 
     def is_closed(self):
-        """Whether a StreamClosed message has been sent."""
+        """Whether a top watermark message has been sent."""
         return self._py_write_stream.is_closed()
 
     def send(self, msg):
@@ -150,7 +150,7 @@ class IngestStream(object):
     def is_closed(self):
         """Whether the stream is closed.
 
-        Returns True if the a StreamClosed message was sent or the
+        Returns True if the a top watermark message was sent or the
         IngestStream was unable to successfully set up.
         """
         return self._py_ingest_stream.is_closed()
@@ -181,7 +181,7 @@ class ExtractStream(object):
     def is_closed(self):
         """Whether the stream is closed.
 
-        Returns True if the a StreamClosed message was sent or the
+        Returns True if the a top watermark message was sent or the
         ExtractStream was unable to successfully set up.
         """
         return self._py_extract_stream.is_closed()

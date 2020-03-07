@@ -54,7 +54,7 @@ class Operator(object):
         """Destroys the operator.
 
         Invoked automatically once all `ReadStreams` the operator reads from
-        are closed.
+        are closed and `run()` completes.
         """
         pass
 

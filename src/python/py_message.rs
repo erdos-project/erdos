@@ -22,7 +22,7 @@ impl PyMessage {
             ));
         }
         let msg = if is_top_watermark {
-            Message::new_top_watermark()
+            Message::new_watermark(Timestamp::top())
         } else {
             match (timestamp_coordinates, data) {
                 (Some(t), Some(d)) => {

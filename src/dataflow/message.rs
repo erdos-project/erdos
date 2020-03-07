@@ -26,12 +26,6 @@ impl<D: Data> Message<D> {
         Self::Watermark(timestamp)
     }
 
-    /// Creates a new `Watermark` message containing `Timestamp::top()`
-    /// which closes the stream.
-    pub fn new_top_watermark() -> Message<D> {
-        Self::Watermark(Timestamp::top())
-    }
-
     pub fn is_top_watermark(&self) -> bool {
         if let Self::Watermark(t) = self {
             t.is_top
