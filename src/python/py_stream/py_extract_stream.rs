@@ -1,6 +1,6 @@
-use pyo3::{exceptions, prelude::*, types::PyBytes};
+use pyo3::{exceptions, prelude::*};
 
-use crate::dataflow::{stream::ExtractStream, Message};
+use crate::{dataflow::stream::ExtractStream, python::PyMessage};
 
 use super::PyReadStream;
 
@@ -18,16 +18,19 @@ impl PyExtractStream {
         });
     }
 
-    fn read<'p>(&mut self, py: Python<'p>) -> PyResult<(Vec<u64>, Option<&'p PyBytes>)> {
+    fn is_closed(&self) -> bool {
+        self.extract_stream.is_closed()
+    }
+
+    fn read<'p>(&mut self, py: Python<'p>) -> PyResult<PyMessage> {
         let result = py.allow_threads(|| self.extract_stream.read());
         match result {
-            Some(Message::TimestampedData(msg)) => {
-                Ok((msg.timestamp.time, Some(PyBytes::new(py, &msg.data[..]))))
-            }
-            Some(Message::Watermark(timestamp)) => Ok((timestamp.time, None)),
-            None => Err(PyErr::new::<exceptions::Exception, _>(
-                "Unable to to read from stream",
-            )),
+            Ok(msg) => Ok(PyMessage::from(msg)),
+            Err(e) => Err(exceptions::Exception::py_err(format!(
+                "Unable to to read from stream {}: {:?}",
+                self.extract_stream.get_id(),
+                e
+            ))),
         }
     }
 }

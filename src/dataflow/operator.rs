@@ -8,8 +8,13 @@ pub trait Operator {
     fn run(&mut self) {}
 
     /// Implement this method if you need to do clean-up before the operator completes.
-    /// An operator completes after it has received the top watermark on all its read streams.
-    fn destroy(&self) {}
+    /// An operator completes after it has received top watermark on all its read streams.
+    fn destroy(&mut self) {}
+}
+
+pub trait OperatorConfigT {
+    fn name(&self) -> Option<String>;
+    fn id(&self) -> OperatorId;
 }
 
 #[derive(Clone)]
@@ -54,5 +59,15 @@ impl<T: Clone> OperatorConfig<T> {
     pub fn node(&mut self, node_id: NodeId) -> &mut Self {
         self.node_id = node_id;
         self
+    }
+}
+
+impl<T: Clone> OperatorConfigT for OperatorConfig<T> {
+    fn name(&self) -> Option<String> {
+        self.name.clone()
+    }
+
+    fn id(&self) -> OperatorId {
+        self.id
     }
 }

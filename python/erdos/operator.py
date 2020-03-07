@@ -50,6 +50,14 @@ class Operator(object):
         """
         pass
 
+    def destroy(self):
+        """Destroys the operator.
+
+        Invoked automatically once all `ReadStreams` the operator reads from
+        are closed and `run()` completes.
+        """
+        pass
+
     @property
     def id(self):
         """Returns the operator's ID."""

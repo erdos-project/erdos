@@ -252,7 +252,7 @@ impl PullRecvOp {
     pub fn run(&self) {
         println!("RecvOp: receiving warmup messages");
         for _ in 0..NUM_WARMUP_MESSAGES {
-            self.read_stream.read();
+            self.read_stream.read().unwrap();
         }
 
         let mut msg_times: Vec<(u64, SystemTime)> = Vec::with_capacity(self.num_total_messages);

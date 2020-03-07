@@ -250,8 +250,8 @@ def make_add_write_stream(num_rs, num_ws):
 make_receive_watermark_template = """
     fn receive_watermark(&mut self, stream_id: StreamId, t: Timestamp) -> Vec<OperatorEvent> {{
         let some_t = Some(t.clone());
-        let mut previous_low_watermark_opt = Some(t.top());
-        let mut current_low_watermark_opt = Some(t.top());
+        let mut previous_low_watermark_opt = Some(Timestamp::top());
+        let mut current_low_watermark_opt = Some(Timestamp::top());
 
         {previous_low_watermark}
         {set_watermark}

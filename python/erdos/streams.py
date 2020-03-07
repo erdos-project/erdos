@@ -2,16 +2,32 @@ import pickle
 
 from erdos.message import Message, WatermarkMessage
 from erdos.internal import (PyReadStream, PyWriteStream, PyLoopStream,
-                            PyIngestStream, PyExtractStream)
+                            PyIngestStream, PyExtractStream, PyMessage)
 from erdos.timestamp import Timestamp
 
 
 def _parse_message(internal_msg):
-    """Creates a Message from an internal stream's response."""
-    time_coordinates, serialized_data = internal_msg
-    if serialized_data is None:
-        return WatermarkMessage(Timestamp(coordinates=time_coordinates))
-    return pickle.loads(serialized_data)
+    """Creates a Message from an internal stream's response.
+    
+    Args:
+        internal_msg (PyMessage): The internal message to parse.
+    """
+    if internal_msg.is_timestamped_data():
+        return pickle.loads(internal_msg.data)
+    if internal_msg.is_watermark():
+        return WatermarkMessage(
+            Timestamp(coordinates=internal_msg.timestamp,
+                      is_top=internal_msg.is_top_watermark()))
+    raise Exception("Unable to parse message")
+
+
+def _to_py_message(msg):
+    """Converts a Message to an internal PyMessage."""
+    if isinstance(msg, WatermarkMessage):
+        return PyMessage(msg.timestamp.coordinates, msg.is_top, None)
+    else:
+        data = pickle.dumps(msg, protocol=pickle.HIGHEST_PROTOCOL)
+        return PyMessage(msg.timestamp.coordinates, False, data)
 
 
 class ReadStream(object):
@@ -28,6 +44,10 @@ class ReadStream(object):
         self._py_read_stream = PyReadStream(
         ) if _py_read_stream is None else _py_read_stream
 
+    def is_closed(self):
+        """Whether a top watermark message has been received."""
+        return self._py_read_stream.is_closed()
+
     def read(self):
         """Blocks until a message is read from the stream."""
         return _parse_message(self._py_read_stream.read())
@@ -42,7 +62,6 @@ class ReadStream(object):
             return None
         return _parse_message(internal_msg)
 
-    # TODO: match Rust API and pass write streams as arguments?
     def add_callback(self, callback, write_streams=None):
         """Adds a callback to the stream.
 
@@ -73,8 +92,8 @@ class ReadStream(object):
         if write_streams is None:
             write_streams = []
 
-        def internal_watermark_callback(coordinates):
-            timestamp = Timestamp(coordinates=coordinates)
+        def internal_watermark_callback(coordinates, is_top):
+            timestamp = Timestamp(coordinates=coordinates, is_top=is_top)
             callback(timestamp, *write_streams)
 
         self._py_read_stream.add_watermark_callback(
@@ -93,6 +112,10 @@ class WriteStream(object):
         self._py_write_stream = PyWriteStream(
         ) if _py_write_stream is None else _py_write_stream
 
+    def is_closed(self):
+        """Whether a top watermark message has been sent."""
+        return self._py_write_stream.is_closed()
+
     def send(self, msg):
         """Sends a message on the stream.
 
@@ -103,13 +126,8 @@ class WriteStream(object):
         if not isinstance(msg, Message):
             raise TypeError("msg must inherent from erdos.Message!")
 
-        if isinstance(msg, WatermarkMessage):
-            return self._py_write_stream.send_watermark(
-                msg.timestamp.coordinates)
-        else:
-            serialized = pickle.dumps(msg, protocol=pickle.HIGHEST_PROTOCOL)
-            return self._py_write_stream.send(msg.timestamp.coordinates,
-                                              serialized)
+        internal_msg = _to_py_message(msg)
+        return self._py_write_stream.send(internal_msg)
 
 
 class LoopStream(object):
@@ -129,6 +147,14 @@ class IngestStream(object):
     def __init__(self):
         self._py_ingest_stream = PyIngestStream(0)
 
+    def is_closed(self):
+        """Whether the stream is closed.
+
+        Returns True if the a top watermark message was sent or the
+        IngestStream was unable to successfully set up.
+        """
+        return self._py_ingest_stream.is_closed()
+
     def send(self, msg):
         """Sends a message on the stream.
 
@@ -139,13 +165,8 @@ class IngestStream(object):
         if not isinstance(msg, Message):
             raise TypeError("msg must inherent from erdos.Message!")
 
-        if isinstance(msg, WatermarkMessage):
-            return self._py_ingest_stream.send_watermark(
-                msg.timestamp.coordinates)
-        else:
-            serialized = pickle.dumps(msg, protocol=pickle.HIGHEST_PROTOCOL)
-            return self._py_ingest_stream.send(msg.timestamp.coordinates,
-                                               serialized)
+        internal_msg = _to_py_message(msg)
+        self._py_ingest_stream.send(internal_msg)
 
 
 class ExtractStream(object):
@@ -156,6 +177,14 @@ class ExtractStream(object):
     """
     def __init__(self, read_stream):
         self._py_extract_stream = PyExtractStream(read_stream._py_read_stream)
+
+    def is_closed(self):
+        """Whether the stream is closed.
+
+        Returns True if the a top watermark message was sent or the
+        ExtractStream was unable to successfully set up.
+        """
+        return self._py_extract_stream.is_closed()
 
     def read(self):
         """Blocks until a message is read from the stream."""

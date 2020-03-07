@@ -1,7 +1,42 @@
-use crate::communication::CommunicationError;
+use crate::communication::{CommunicationError, TryRecvError};
+
+/// Errors raised by reading from a `ReadStream`.
+#[derive(Debug, PartialEq)]
+pub enum ReadError {
+    /// Message deserialization failed.
+    SerializationError,
+    /// The channel or the TCP stream has been closed.
+    Disconnected,
+    /// Stream is closed and can longer sends messages.
+    Closed,
+}
+
+/// Errors raised by calling `try_read` from a `ReadStream`.
+#[derive(Debug, PartialEq)]
+pub enum TryReadError {
+    /// No message available in the buffer.
+    Empty,
+    /// The channel or the TCP stream has been closed.
+    Disconnected,
+    /// Message deserialization failed.
+    SerializationError,
+    /// Stream is closed and can longer sends messages.
+    Closed,
+}
+
+impl From<TryRecvError> for TryReadError {
+    fn from(e: TryRecvError) -> Self {
+        match e {
+            TryRecvError::Empty => Self::Empty,
+            TryRecvError::Disconnected => Self::Disconnected,
+            TryRecvError::BincodeError(_) => Self::SerializationError,
+        }
+    }
+}
 
 /// Error raised by the WriteStream layer.
-#[derive(Debug)]
+// TODO: rename this to SendError
+#[derive(Debug, PartialEq)]
 pub enum WriteStreamError {
     /// Message serialization failed.
     SerializationError,
@@ -9,6 +44,8 @@ pub enum WriteStreamError {
     IOError,
     /// Timestamp or watermark is smaller or equal to the low watermark.
     TimestampError,
+    /// Stream is closed and can no longer send messages.
+    Closed,
 }
 
 impl From<CommunicationError> for WriteStreamError {

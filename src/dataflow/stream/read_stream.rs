@@ -5,6 +5,7 @@ use serde::Deserialize;
 use crate::dataflow::{Data, Message, State, Timestamp};
 
 use super::{
+    errors::{ReadError, TryReadError},
     IngestStream, InternalReadStream, LoopStream, StatefulReadStream, StreamId, WriteStream,
 };
 
@@ -48,16 +49,20 @@ impl<D: Data> ReadStream<D> {
         self.internal_stream.borrow().get_name().to_string()
     }
 
+    pub fn is_closed(&self) -> bool {
+        self.internal_stream.borrow().is_closed()
+    }
+
     /// Tries to read a message from a channel.
     ///
     /// Returns an immutable reference, or `None` if no messages are
     /// available at the moment (i.e., non-blocking read).
-    pub fn try_read(&self) -> Option<Message<D>> {
+    pub fn try_read(&self) -> Result<Message<D>, TryReadError> {
         self.internal_stream.borrow_mut().try_read()
     }
 
     /// Blocking read. Returns `None` if the stream doesn't have a receive endpoint.
-    pub fn read(&self) -> Option<Message<D>> {
+    pub fn read(&self) -> Result<Message<D>, ReadError> {
         self.internal_stream.borrow_mut().read()
     }
 }

@@ -1,7 +1,9 @@
-use pyo3::prelude::*;
-use pyo3::types::PyBytes;
+use pyo3::{exceptions, prelude::*};
 
-use crate::dataflow::{stream::WriteStreamT, Message, Timestamp, WriteStream};
+use crate::{
+    dataflow::{stream::WriteStreamT, Message, WriteStream},
+    python::PyMessage,
+};
 
 #[pyclass]
 pub struct PyWriteStream {
@@ -17,24 +19,18 @@ impl PyWriteStream {
         });
     }
 
-    fn send(&mut self, _py: Python<'_>, timestamp: Vec<u64>, data: &PyBytes) -> PyResult<bool> {
-        let timestamp = Timestamp::new(timestamp);
-        let data = Vec::from(data.as_bytes());
-        match self
-            .write_stream
-            .send(Message::new_message(timestamp, data))
-        {
-            Ok(_) => Ok(true),
-            _ => Ok(false),
-        }
+    fn is_closed(&self) -> bool {
+        self.write_stream.is_closed()
     }
 
-    fn send_watermark(&mut self, _py: Python<'_>, timestamp: Vec<u64>) -> PyResult<bool> {
-        let timestamp = Timestamp::new(timestamp);
-        match self.write_stream.send(Message::new_watermark(timestamp)) {
-            Ok(_) => Ok(true),
-            _ => Ok(false),
-        }
+    fn send(&mut self, msg: &PyMessage) -> PyResult<()> {
+        self.write_stream.send(Message::from(msg)).map_err(|e| {
+            exceptions::Exception::py_err(format!(
+                "Error sending message on ingest stream {}: {:?}",
+                self.write_stream.get_id(),
+                e
+            ))
+        })
     }
 }
 

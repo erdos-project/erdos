@@ -273,7 +273,7 @@ mod tests {
         rws.borrow_mut().add_watermark_callback(
             |_t: &Timestamp, state: &CounterState, output_stream: &mut WriteStream<usize>| {
                 let msg = TimestampedData {
-                    timestamp: Timestamp { time: vec![1] },
+                    timestamp: Timestamp::new(vec![1]),
                     data: state.count,
                 };
                 output_stream.send(Message::TimestampedData(msg)).unwrap()

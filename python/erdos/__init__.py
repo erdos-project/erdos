@@ -167,8 +167,8 @@ def add_watermark_callback(read_streams, write_streams, callback):
         callback (timestamp, list of WriteStream -> None): a low watermark
             callback.
     """
-    def internal_watermark_callback(coordinates):
-        timestamp = Timestamp(coordinates=coordinates)
+    def internal_watermark_callback(coordinates, is_top):
+        timestamp = Timestamp(coordinates=coordinates, is_top=is_top)
         callback(timestamp, *write_streams)
 
     py_read_streams = [s._py_read_stream for s in read_streams]

@@ -6,7 +6,10 @@ use erdos::{
     self,
     dataflow::{
         message::*,
-        stream::{ExtractStream, IngestStream, WriteStreamT},
+        stream::{
+            errors::{ReadError, TryReadError, WriteStreamError},
+            ExtractStream, IngestStream, WriteStreamT,
+        },
         Operator, OperatorConfig, ReadStream, WriteStream,
     },
     node::Node,
@@ -93,6 +96,57 @@ impl SquareOperator {
 
 impl Operator for SquareOperator {}
 
+pub struct DestroyOperator {}
+
+impl DestroyOperator {
+    pub fn new(_config: OperatorConfig<()>, read_stream: ReadStream<usize>) -> Self {
+        read_stream.add_callback(Self::msg_callback);
+        Self {}
+    }
+
+    pub fn connect(_read_stream: &ReadStream<usize>) {}
+
+    pub fn msg_callback(_t: Timestamp, data: usize) {
+        let logger = erdos::get_terminal_logger();
+        slog::debug!(logger, "DestroyOperator: received {}", data);
+    }
+}
+
+impl Operator for DestroyOperator {
+    fn destroy(&mut self) {
+        let logger = erdos::get_terminal_logger();
+        slog::debug!(logger, "DestroyOperator: called destroy()");
+    }
+}
+
+/// Noop operator which may flow watermarks.
+pub struct TwoStreamDestroyOperator {}
+
+impl TwoStreamDestroyOperator {
+    pub fn new(
+        _config: OperatorConfig<()>,
+        left_stream: ReadStream<usize>,
+        right_stream: ReadStream<usize>,
+        write_stream: WriteStream<bool>,
+    ) -> Self {
+        Self {}
+    }
+
+    pub fn connect(
+        _left_stream: &ReadStream<usize>,
+        _right_stream: &ReadStream<usize>,
+    ) -> WriteStream<bool> {
+        WriteStream::new()
+    }
+}
+
+impl Operator for TwoStreamDestroyOperator {
+    fn destroy(&mut self) {
+        let logger = erdos::get_terminal_logger();
+        slog::debug!(logger, "TwoStreamDestroyOperator: called destroy()");
+    }
+}
+
 #[test]
 fn test_inter_thread() {
     let config = utils::make_default_config();
@@ -140,8 +194,6 @@ fn test_ingest() {
             ))
             .unwrap();
     }
-
-    thread::sleep(std::time::Duration::from_millis(1000));
 }
 
 #[test]
@@ -158,7 +210,7 @@ fn test_extract() {
         let msg = extract_stream.read();
         assert_eq!(
             msg,
-            Some(Message::new_message(
+            Ok(Message::new_message(
                 Timestamp::new(vec![count as u64]),
                 count as usize
             ))
@@ -190,6 +242,121 @@ fn test_ingest_extract() {
         let result = extract_stream.read();
         slog::debug!(logger, "Received {:?}", result);
     }
+}
 
-    thread::sleep(std::time::Duration::from_millis(1000));
+#[test]
+fn test_destroy() {
+    let config = utils::make_default_config();
+    let node = Node::new(config);
+
+    let mut ingest_stream = IngestStream::new(0);
+    connect_0_write!(DestroyOperator, OperatorConfig::new(), ingest_stream);
+    let mut extract_stream = ExtractStream::new(0, &ReadStream::from(&ingest_stream));
+
+    node.run_async();
+
+    let logger = erdos::get_terminal_logger();
+
+    let msg = Message::new_message(Timestamp::new(vec![0]), 0);
+    slog::debug!(logger, "IngestStream: sending {:?}", msg);
+    ingest_stream.send(msg).unwrap();
+
+    let received_msg = extract_stream.read().unwrap();
+    slog::debug!(logger, "ExtractStream: received {:?}", received_msg);
+
+    let msg = Message::new_watermark(Timestamp::top());
+    slog::debug!(logger, "IngestStream: sending {:?}", msg);
+    ingest_stream.send(msg).unwrap();
+
+    let received_msg = extract_stream.read().unwrap();
+    slog::debug!(logger, "ExtractStream: received {:?}", received_msg);
+
+    // Check that the stream is closed.
+    let msg = Message::new_message(Timestamp::new(vec![0]), 0);
+    assert!(ingest_stream.is_closed());
+    assert!(extract_stream.is_closed());
+    assert_eq!(ingest_stream.send(msg), Err(WriteStreamError::Closed));
+    assert_eq!(extract_stream.read(), Err(ReadError::Closed));
+    assert_eq!(extract_stream.try_read(), Err(TryReadError::Closed));
+}
+
+#[test]
+fn test_only_destroy_if_closed() {
+    let config = utils::make_default_config();
+    let node = Node::new(config);
+
+    // Ingest streams go out of scope, but does not close.
+    let mut extract_stream = {
+        let mut ingest_stream_1 = IngestStream::new(0);
+        let mut ingest_stream_2 = IngestStream::new(0);
+        let s = connect_1_write!(
+            TwoStreamDestroyOperator,
+            OperatorConfig::new(),
+            ingest_stream_1,
+            ingest_stream_2
+        );
+        let extract_stream = ExtractStream::new(0, &s);
+
+        node.run_async();
+
+        let watermark_msg = Message::new_watermark(Timestamp::new(vec![1]));
+        ingest_stream_1.send(watermark_msg.clone()).unwrap();
+        ingest_stream_2.send(watermark_msg.clone()).unwrap();
+
+        // Only close 1 of the ingest streams.
+        ingest_stream_1
+            .send(Message::new_watermark(Timestamp::top()))
+            .unwrap();
+
+        extract_stream
+    };
+
+    // Receive 1 flowed watermark message for t=1.
+    let msg = extract_stream.read().unwrap();
+    assert_eq!(msg, Message::new_watermark(Timestamp::new(vec![1])));
+    assert_eq!(extract_stream.try_read(), Err(TryReadError::Empty));
+    assert!(!extract_stream.is_closed());
+}
+
+/// Test that an operator's write streams are also destroyed.
+#[test]
+fn test_close_write_streams_on_destroy() {
+    let config = utils::make_default_config();
+    let node = Node::new(config);
+
+    let mut ingest_stream_1 = IngestStream::new(0);
+    let mut ingest_stream_2 = IngestStream::new(0);
+    let s = connect_1_write!(
+        TwoStreamDestroyOperator,
+        OperatorConfig::new(),
+        ingest_stream_1,
+        ingest_stream_2
+    );
+    let mut extract_stream = ExtractStream::new(0, &s);
+
+    node.run_async();
+
+    let watermark_msg = Message::new_watermark(Timestamp::new(vec![1]));
+    ingest_stream_1.send(watermark_msg.clone()).unwrap();
+    ingest_stream_2.send(watermark_msg).unwrap();
+
+    // Receive flowed watermark message for t=1.
+    let msg = extract_stream.read().unwrap();
+    assert_eq!(Message::new_watermark(Timestamp::new(vec![1])), msg);
+
+    // Close both ingest streams.
+    ingest_stream_1
+        .send(Message::new_watermark(Timestamp::top()))
+        .unwrap();
+    ingest_stream_2
+        .send(Message::new_watermark(Timestamp::top()))
+        .unwrap();
+    assert!(ingest_stream_1.is_closed());
+    assert!(ingest_stream_2.is_closed());
+
+    // Receive top watermark.
+    let msg = extract_stream.read().unwrap();
+    assert_eq!(msg, Message::new_watermark(Timestamp::top()));
+    assert_eq!(extract_stream.try_read(), Err(TryReadError::Closed));
+    assert!(extract_stream.is_closed());
 }

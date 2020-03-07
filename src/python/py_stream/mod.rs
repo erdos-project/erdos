@@ -1,5 +1,4 @@
-use pyo3::exceptions;
-use pyo3::prelude::*;
+use pyo3::{exceptions, prelude::*};
 
 use crate::dataflow::StatefulReadStream;
 
@@ -18,12 +17,11 @@ pub use py_write_stream::PyWriteStream;
 // TODO: find a nicer implementation
 // TODO: find a way to add write streams without introducing n^2 different if statements
 pub fn add_watermark_callback(
-    py: Python,
     read_streams: Vec<&PyReadStream>,
     callback: PyObject,
 ) -> PyResult<()> {
     if read_streams.len() == 1 {
-        read_streams[0].add_watermark_callback(py, callback);
+        read_streams[0].add_watermark_callback(callback);
         return Ok(());
     }
 

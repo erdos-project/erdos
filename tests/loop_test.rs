@@ -44,7 +44,7 @@ impl LoopOperator {
         }
 
         for _ in 0..self.num_iterations {
-            if let Some(Message::TimestampedData(mut timestamped_data)) = self.read_stream.read() {
+            if let Ok(Message::TimestampedData(mut timestamped_data)) = self.read_stream.read() {
                 println!("LoopOp: received {:?}", timestamped_data);
                 timestamped_data.data += 1;
                 timestamped_data.timestamp.time[0] += 1;

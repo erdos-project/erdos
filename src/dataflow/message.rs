@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 use std::fmt::Debug;
 
 /// Trait for valid message data. The data must be clonable, sendable between threads and
@@ -23,6 +24,28 @@ impl<D: Data> Message<D> {
     /// Creates a new `Watermark` message.
     pub fn new_watermark(timestamp: Timestamp) -> Message<D> {
         Self::Watermark(timestamp)
+    }
+
+    pub fn is_top_watermark(&self) -> bool {
+        if let Self::Watermark(t) = self {
+            t.is_top
+        } else {
+            false
+        }
+    }
+
+    pub fn data(&self) -> Option<&D> {
+        match self {
+            Self::TimestampedData(d) => Some(&d.data),
+            _ => None,
+        }
+    }
+
+    pub fn timestamp(&self) -> &Timestamp {
+        match self {
+            Self::TimestampedData(d) => &d.timestamp,
+            Self::Watermark(t) => &t,
+        }
     }
 }
 
@@ -61,23 +84,48 @@ impl<D: Data + PartialEq> PartialEq for TimestampedData<D> {
 pub type Timestamp = IntTimestamp;
 
 /// Information about when an operator released a message.
-#[derive(
-    Debug, Clone, Serialize, Deserialize, Abomonation, PartialOrd, PartialEq, Ord, Eq, Hash,
-)]
+#[derive(Debug, Clone, Serialize, Deserialize, Abomonation, PartialEq, Eq, Hash)]
 pub struct IntTimestamp {
     // TODO: Storing the dimensions in a vector is inefficient. Fix.
     /// Stores the timestamp values for each dimension.
     pub time: Vec<u64>,
+    /// Whether this is a top timestamp used to close streams.
+    is_top: bool,
 }
 
 impl IntTimestamp {
     pub fn new(time: Vec<u64>) -> Self {
-        Self { time }
+        Self {
+            time,
+            is_top: false,
+        }
     }
 
-    pub fn top(&self) -> Self {
+    pub fn top() -> Self {
         Self {
-            time: vec![std::u64::MAX; self.time.len()],
+            time: Vec::new(),
+            is_top: true,
         }
+    }
+
+    pub fn is_top(&self) -> bool {
+        self.is_top
+    }
+}
+
+impl Ord for IntTimestamp {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self.is_top, other.is_top) {
+            (true, true) => Ordering::Equal,
+            (true, false) => Ordering::Greater,
+            (false, true) => Ordering::Less,
+            (false, false) => self.time.cmp(&other.time),
+        }
+    }
+}
+
+impl PartialOrd for IntTimestamp {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }

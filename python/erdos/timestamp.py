@@ -5,9 +5,12 @@ class Timestamp(object):
        Attributes:
            timestamp (Timestamp): For the copy constructor.
            coordinates (list of int): An array of coordinates.
+           is_top (bool): Whether this is the highest possible timestamp.
     """
-
-    def __init__(self, timestamp=None, coordinates=None):
+    def __init__(self, timestamp=None, coordinates=None, is_top=False):
+        self._is_top = is_top
+        if is_top and coordinates is None:
+            coordinates = []
         if timestamp is None:
             assert coordinates is not None, "Timestamp has empty coordinates"
             self.coordinates = coordinates
@@ -21,6 +24,8 @@ class Timestamp(object):
         return self.__repr__()
 
     def __eq__(self, timestamp):
+        if self.is_top and timestamp.is_top:
+            return True
         if len(self.coordinates) != len(timestamp.coordinates):
             return False
         for coord, other_coord in zip(self.coordinates, timestamp.coordinates):
@@ -32,6 +37,10 @@ class Timestamp(object):
         return not self.__eq__(timestamp)
 
     def __lt__(self, timestamp):
+        if self.is_top:
+            return False
+        if not self.is_top and timestamp.is_top:
+            return True
         if len(self.coordinates) != len(timestamp.coordinates):
             raise Exception(
                 "Cannot compare timestamps of different size {} and {}".format(
@@ -44,6 +53,10 @@ class Timestamp(object):
         return False
 
     def __le__(self, timestamp):
+        if self.is_top:
+            return timestamp.is_top
+        if not self.is_top and timestamp.is_top:
+            return True
         if len(self.coordinates) != len(timestamp.coordinates):
             raise Exception(
                 "Cannot compare timestamps of different size {} and {}".format(
@@ -63,3 +76,7 @@ class Timestamp(object):
 
     def __hash__(self):
         return hash(tuple(self.coordinates))
+
+    @property
+    def is_top(self):
+        return self._is_top

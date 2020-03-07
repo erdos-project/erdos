@@ -79,6 +79,16 @@ where
     pub fn get_node_id(&self) -> NodeId {
         self.node_id
     }
+
+    /// Returns true if a top watermark message was received or the IngestStream failed to set up.
+    pub fn is_closed(&self) -> bool {
+        self.write_stream_option
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(WriteStream::is_closed)
+            .unwrap_or(true)
+    }
 }
 
 impl<D> WriteStreamT<D> for IngestStream<D>

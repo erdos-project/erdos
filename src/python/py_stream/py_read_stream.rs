@@ -1,25 +1,11 @@
 use pyo3::{exceptions, prelude::*, types::PyBytes};
 
-use crate::dataflow::{stream::StreamId, Message, ReadStream};
+use crate::{
+    dataflow::{stream::errors::TryReadError, ReadStream},
+    python::PyMessage,
+};
 
 use super::PyWriteStream;
-
-fn process_message<'p>(
-    py: Python<'p>,
-    stream_id: StreamId,
-    msg: Option<Message<Vec<u8>>>,
-) -> PyResult<(Vec<u64>, Option<&'p PyBytes>)> {
-    match msg {
-        Some(Message::TimestampedData(msg)) => {
-            Ok((msg.timestamp.time, Some(PyBytes::new(py, &msg.data[..]))))
-        }
-        Some(Message::Watermark(timestamp)) => Ok((timestamp.time, None)),
-        None => Err(PyErr::new::<exceptions::Exception, _>(format!(
-            "Unable to to read from stream: stream {} has no endpoints",
-            stream_id
-        ))),
-    }
-}
 
 #[pyclass]
 pub struct PyReadStream {
@@ -35,24 +21,35 @@ impl PyReadStream {
         });
     }
 
-    /// Returns (timestamp, data)
-    fn read<'p>(&mut self, py: Python<'p>) -> PyResult<(Vec<u64>, Option<&'p PyBytes>)> {
-        process_message(py, self.read_stream.get_id(), self.read_stream.read())
+    fn is_closed(&self) -> bool {
+        self.read_stream.is_closed()
     }
 
-    fn try_read<'p>(
-        &mut self,
-        py: Python<'p>,
-    ) -> PyResult<Option<(Vec<u64>, Option<&'p PyBytes>)>> {
-        match self.read_stream.try_read() {
-            Some(msg) => {
-                Some(process_message(py, self.read_stream.get_id(), Some(msg))).transpose()
-            }
-            None => Ok(None),
+    /// Returns (timestamp, data)
+    fn read(&mut self) -> PyResult<PyMessage> {
+        match self.read_stream.read() {
+            Ok(msg) => Ok(PyMessage::from(msg)),
+            Err(e) => Err(exceptions::Exception::py_err(format!(
+                "Unable to to read from stream {}: {:?}",
+                self.read_stream.get_id(),
+                e
+            ))),
         }
     }
 
-    pub fn add_callback(&self, _py: Python, callback: PyObject) {
+    fn try_read(&mut self) -> PyResult<Option<PyMessage>> {
+        match self.read_stream.try_read() {
+            Ok(msg) => Ok(Some(PyMessage::from(msg))),
+            Err(TryReadError::Empty) => Ok(None),
+            Err(e) => Err(exceptions::Exception::py_err(format!(
+                "Unable to to read from stream {}: {:?}",
+                self.read_stream.get_id(),
+                e
+            ))),
+        }
+    }
+
+    pub fn add_callback(&self, callback: PyObject) {
         self.read_stream.add_callback(move |_timestamp, data| {
             let gil = Python::acquire_gil();
             let py = gil.python();
@@ -64,11 +61,11 @@ impl PyReadStream {
         })
     }
 
-    pub fn add_watermark_callback(&self, _py: Python, callback: PyObject) {
+    pub fn add_watermark_callback(&self, callback: PyObject) {
         self.read_stream.add_watermark_callback(move |timestamp| {
             let gil = Python::acquire_gil();
             let py = gil.python();
-            match callback.call1(py, (timestamp.time.clone(),)) {
+            match callback.call1(py, (timestamp.time.clone(), timestamp.is_top())) {
                 Ok(_) => (),
                 Err(e) => e.print(py),
             };

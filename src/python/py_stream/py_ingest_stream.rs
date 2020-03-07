@@ -1,12 +1,12 @@
-use pyo3::prelude::*;
-use pyo3::types::PyBytes;
+use pyo3::{exceptions, prelude::*};
 
 use crate::{
     dataflow::{
         stream::{IngestStream, ReadStream, WriteStreamT},
-        Message, Timestamp,
+        Message,
     },
     node::NodeId,
+    python::PyMessage,
 };
 
 use super::PyReadStream;
@@ -25,27 +25,21 @@ impl PyIngestStream {
         });
     }
 
-    fn send(&mut self, _py: Python, timestamp: Vec<u64>, data: &PyBytes) -> PyResult<bool> {
-        let timestamp = Timestamp::new(timestamp);
-        let data = Vec::from(data.as_bytes());
-        match self
-            .ingest_stream
-            .send(Message::new_message(timestamp, data))
-        {
-            Ok(_) => Ok(true),
-            _ => Ok(false),
-        }
+    fn is_closed(&self) -> bool {
+        self.ingest_stream.is_closed()
     }
 
-    fn send_watermark(&mut self, _py: Python<'_>, timestamp: Vec<u64>) -> PyResult<bool> {
-        let timestamp = Timestamp::new(timestamp);
-        match self.ingest_stream.send(Message::new_watermark(timestamp)) {
-            Ok(_) => Ok(true),
-            _ => Ok(false),
-        }
+    fn send(&mut self, msg: &PyMessage) -> PyResult<()> {
+        self.ingest_stream.send(Message::from(msg)).map_err(|e| {
+            exceptions::Exception::py_err(format!(
+                "Error sending message on ingest stream {}: {:?}",
+                self.ingest_stream.get_id(),
+                e
+            ))
+        })
     }
 
-    fn to_py_read_stream(&self, _py: Python) -> PyReadStream {
+    fn to_py_read_stream(&self) -> PyReadStream {
         PyReadStream::from(ReadStream::from(&self.ingest_stream))
     }
 }

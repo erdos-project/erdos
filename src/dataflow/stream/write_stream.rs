@@ -23,6 +23,8 @@ pub struct WriteStream<D: Data> {
     inter_process_endpoints: Vec<SendEndpoint<Message<D>>>,
     /// Current low watermark.
     low_watermark: Timestamp,
+    /// Whether the stream is closed.
+    stream_closed: bool,
 }
 
 impl<D: Data> WriteStream<D> {
@@ -46,6 +48,7 @@ impl<D: Data> WriteStream<D> {
             inter_thread_endpoints: Vec::new(),
             inter_process_endpoints: Vec::new(),
             low_watermark: Timestamp::new(vec![0]),
+            stream_closed: false,
         }
     }
 
@@ -63,6 +66,10 @@ impl<D: Data> WriteStream<D> {
 
     pub fn get_name(&self) -> &str {
         &self.name[..]
+    }
+
+    pub fn is_closed(&self) -> bool {
+        self.stream_closed
     }
 
     fn add_endpoint(&mut self, endpoint: SendEndpoint<Message<D>>) {
@@ -109,6 +116,12 @@ impl<D: Data> fmt::Debug for WriteStream<D> {
 impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
     /// Specialized implementation for when the Data does not implement `Abomonation`.
     default fn send(&mut self, msg: Message<D>) -> Result<(), WriteStreamError> {
+        if self.stream_closed {
+            return Err(WriteStreamError::Closed);
+        }
+        if msg.is_top_watermark() {
+            self.stream_closed = true;
+        }
         self.update_watermark(&msg)?;
         if !self.inter_process_endpoints.is_empty() {
             // Serialize the message because we have endpoints in different processes.
@@ -134,6 +147,12 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
                 .send(msg)
                 .map_err(WriteStreamError::from)?;
         }
+
+        // Drop SendEndpoints.
+        if self.stream_closed {
+            self.inter_thread_endpoints = Vec::with_capacity(0);
+            self.inter_process_endpoints = Vec::with_capacity(0);
+        }
         Ok(())
     }
 }
@@ -141,6 +160,12 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
 impl<'a, D: Data + Deserialize<'a> + Abomonation> WriteStreamT<D> for WriteStream<D> {
     /// Specialized implementation for when the Data implements `Abomonation`.
     fn send(&mut self, msg: Message<D>) -> Result<(), WriteStreamError> {
+        if self.stream_closed {
+            return Err(WriteStreamError::Closed);
+        }
+        if msg.is_top_watermark() {
+            self.stream_closed = true;
+        }
         self.update_watermark(&msg)?;
         if !self.inter_process_endpoints.is_empty() {
             let serialized_msg = msg.encode().map_err(WriteStreamError::from)?;
@@ -165,6 +190,11 @@ impl<'a, D: Data + Deserialize<'a> + Abomonation> WriteStreamT<D> for WriteStrea
                 .map_err(WriteStreamError::from)?;
         }
 
+        // Drop SendEndpoints.
+        if self.stream_closed {
+            self.inter_thread_endpoints = Vec::with_capacity(0);
+            self.inter_process_endpoints = Vec::with_capacity(0);
+        }
         Ok(())
     }
 }

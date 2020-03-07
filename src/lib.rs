@@ -117,7 +117,7 @@ macro_rules! make_operator_runner {
         // After: $rs is an identifier pointing to a read stream's StreamId
         // $ws is an identifier pointing to a write stream's StreamId
         move |channel_manager: Arc<Mutex<ChannelManager>>, control_sender: UnboundedSender<ControlMessage>, mut control_receiver: UnboundedReceiver<ControlMessage>| {
-            let mut op_ex_streams: Vec<Box<dyn Send + Stream<Item = Vec<OperatorEvent>>>> = Vec::new();
+            let mut op_ex_streams: Vec<Box<dyn OperatorExecutorStreamT>> = Vec::new();
             // Before: $rs is an identifier pointing to a read stream's StreamId
             // $ws is an identifier pointing to a write stream's StreamId
             $(
@@ -165,7 +165,7 @@ macro_rules! make_operator_runner {
             // TODO: execute the operator in parallel?
             // Currently, callbacks are NOT invoked while operator.execute() runs.
             op.run();
-            let mut op_executor = OperatorExecutor::new(op_ex_streams, logger);
+            let mut op_executor = OperatorExecutor::new(op, config, op_ex_streams, logger);
             op_executor
         }
     }};
@@ -186,18 +186,16 @@ macro_rules! imports {
             thread,
             time::Duration,
         };
-        use tokio::{
-            stream::Stream,
-            sync::mpsc::{UnboundedReceiver, UnboundedSender},
-        };
+        use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
         use $crate::{
             self,
             communication::ControlMessage,
             dataflow::graph::default_graph,
             dataflow::stream::{InternalReadStream, WriteStreamT},
             dataflow::{Message, Operator, ReadStream, WriteStream},
-            node::operator_event::OperatorEvent,
-            node::operator_executor::{OperatorExecutor, OperatorExecutorStream},
+            node::operator_executor::{
+                OperatorExecutor, OperatorExecutorStream, OperatorExecutorStreamT,
+            },
             scheduler::channel_manager::ChannelManager,
             OperatorId,
         };
