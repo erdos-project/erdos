@@ -264,7 +264,7 @@ fn test_destroy() {
     let received_msg = extract_stream.read().unwrap();
     slog::debug!(logger, "ExtractStream: received {:?}", received_msg);
 
-    let msg = Message::new_top_watermark();
+    let msg = Message::new_watermark(Timestamp::top());
     slog::debug!(logger, "IngestStream: sending {:?}", msg);
     ingest_stream.send(msg).unwrap();
 
@@ -304,7 +304,9 @@ fn test_only_destroy_if_closed() {
         ingest_stream_2.send(watermark_msg.clone()).unwrap();
 
         // Only close 1 of the ingest streams.
-        ingest_stream_1.send(Message::new_top_watermark()).unwrap();
+        ingest_stream_1
+            .send(Message::new_watermark(Timestamp::top()))
+            .unwrap();
 
         extract_stream
     };
@@ -343,14 +345,18 @@ fn test_close_write_streams_on_destroy() {
     assert_eq!(Message::new_watermark(Timestamp::new(vec![1])), msg);
 
     // Close both ingest streams.
-    ingest_stream_1.send(Message::new_top_watermark()).unwrap();
-    ingest_stream_2.send(Message::new_top_watermark()).unwrap();
+    ingest_stream_1
+        .send(Message::new_watermark(Timestamp::top()))
+        .unwrap();
+    ingest_stream_2
+        .send(Message::new_watermark(Timestamp::top()))
+        .unwrap();
     assert!(ingest_stream_1.is_closed());
     assert!(ingest_stream_2.is_closed());
 
     // Receive top watermark.
     let msg = extract_stream.read().unwrap();
-    assert_eq!(msg, Message::new_top_watermark());
+    assert_eq!(msg, Message::new_watermark(Timestamp::top()));
     assert_eq!(extract_stream.try_read(), Err(TryReadError::Closed));
     assert!(extract_stream.is_closed());
 }
