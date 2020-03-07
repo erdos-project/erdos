@@ -240,17 +240,13 @@ macro_rules! register {
 /// connect_3_write!(MyOp, arg, read_stream_1, read_stream_2, ...);
 #[macro_export]
 macro_rules! connect_0_write {
-    ($t:ty, $config:expr) => {{
-            <$t>::connect();
-            $crate::register!($t, $config, (), ())
-    }};
-    ($t:ty, $config:expr, $($s:ident),+) => {{
+    ($t:ty, $config:expr $(,$s:ident)*) => {{
         // Cast streams to read streams to avoid type errors.
         $(
             let $s = (&$s).into();
-        )+
-        <$t>::connect($(&$s),+);
-        $crate::register!($t, $config, ($($s),+), ())
+        )*
+        <$t>::connect($(&$s),*);
+        $crate::register!($t, $config, ($($s),*), ())
     }};
 }
 
@@ -260,17 +256,13 @@ macro_rules! connect_0_write {
 /// let read_stream_3 = connect_3_write!(MyOp, arg, read_stream_1, read_stream_2, ...);
 #[macro_export]
 macro_rules! connect_1_write {
-    ($t:ty, $config:expr) => {{
-        let ws = <$t>::connect();
-        $crate::register!($t, $config, (), (ws))
-    }};
-    ($t:ty, $config:expr, $($s:ident),+) => {{
+    ($t:ty, $config:expr $(,$s:ident)*) => {{
         // Cast streams to read streams to avoid type errors.
         $(
             let $s = (&$s).into();
-        )+
-        let ws = <$t>::connect($(&$s),+);
-        $crate::register!($t, $config, ($($s),+), (ws))
+        )*
+        let ws = <$t>::connect($(&$s),*);
+        $crate::register!($t, $config, ($($s),*), (ws))
     }};
 }
 
@@ -280,17 +272,13 @@ macro_rules! connect_1_write {
 /// let (read_stream_3, read_stream_4) = connect_3_write!(MyOp, arg, read_stream_1, read_stream_2, ...);
 #[macro_export]
 macro_rules! connect_2_write {
-    ($t:ty, $config:expr) => {{
-        let ws1, ws2 = <$t>::connect();
-        $crate::register!($t, $config, (), (ws1, ws2))
-    }};
-    ($t:ty, $config:expr, $($s:ident),+) => {{
+    ($t:ty, $config:expr $(,$s:ident)*) => {{
         // Cast streams to read streams to avoid type errors.
         $(
             let $s = (&$s).into();
-        )+
-        let ws1, ws2 = <$t>::connect();
-        $crate::register!($t, $config, ($($s),+), (ws1, ws2))
+        )*
+        let (ws1, ws2) = <$t>::connect($(&$s),*);
+        $crate::register!($t, $config, ($($s),*), (ws1, ws2))
     }};
 }
 
@@ -300,16 +288,12 @@ macro_rules! connect_2_write {
 /// let (read_stream_3, read_stream_4, read_stream_5) = connect_3_write!(MyOp, arg, read_stream_1, read_stream_2, ...);
 #[macro_export]
 macro_rules! connect_3_write {
-    ($t:ty, $config:expr) => {{
-        let ws1, ws2, ws3 = <$t>::connect();
-        $crate::register!($t, (), (ws1, ws2, ws3))
-    }};
-    ($t:ty, $config:expr, $($s:ident),*) => {{
+    ($t:ty, $config:expr $(,$s:ident)*) => {{
         // Cast streams to read streams to avoid type errors.
         $(
             let $s = (&$s).into();
-        )+
-        let ws1, ws2, ws3 = <$t>::connect($(&$s),*);
+        )*
+        let (ws1, ws2, ws3) = <$t>::connect($(&$s),*);
         $crate::register!($t, $config, ($($s),*), (ws1, ws2, ws3))
     }};
 }
