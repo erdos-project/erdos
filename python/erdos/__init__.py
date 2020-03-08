@@ -32,8 +32,8 @@ def connect(op_type, config, read_streams, *args, **kwargs):
         kwargs: keyword arguments passed to the operator.
 
     Returns:
-        write_streams (list of WriteStream): the streams on which the operator
-            sends data.
+        read_streams (list of ReadStream): ReadStreams corresponding to the
+            WriteStreams returned by the operator's connect.
     """
     if not issubclass(op_type, Operator):
         raise TypeError("{} must subclass erdos.Operator".format(op_type))
