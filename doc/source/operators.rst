@@ -8,7 +8,7 @@ Operators also create streams on which they send messages. These streams must
 created and returned by the `connect` method.
 ERDOS expects developers to specify which streams operators read from and write
 to. For more details, see the
-`data streams documentation <data_streams.html>`__.
+`data streams documentation <streams.html>`__.
 
 All operators must implement `erdos.Operator` abstract class.
 
