@@ -38,7 +38,7 @@ pub fn add_watermark_callback(
             .add_watermark_callback(move |timestamp, _s0, _s1| {
                 let gil = Python::acquire_gil();
                 let py = gil.python();
-                match callback.call1(py, (timestamp.time.clone(),)) {
+                match callback.call1(py, (timestamp.time.clone(), timestamp.is_top())) {
                     Ok(_) => (),
                     Err(e) => e.print(py),
                 };
@@ -56,7 +56,7 @@ pub fn add_watermark_callback(
             .add_watermark_callback(move |timestamp, _s0, _s1, _s2| {
                 let gil = Python::acquire_gil();
                 let py = gil.python();
-                match callback.call1(py, (timestamp.time.clone(),)) {
+                match callback.call1(py, (timestamp.time.clone(), timestamp.is_top())) {
                     Ok(_) => (),
                     Err(e) => e.print(py),
                 };
@@ -74,7 +74,7 @@ pub fn add_watermark_callback(
             .add_watermark_callback(move |timestamp, _s0, _s1, _s2, _s3| {
                 let gil = Python::acquire_gil();
                 let py = gil.python();
-                match callback.call1(py, (timestamp.time.clone(),)) {
+                match callback.call1(py, (timestamp.time.clone(), timestamp.is_top())) {
                     Ok(_) => (),
                     Err(e) => e.print(py),
                 };
@@ -92,7 +92,7 @@ pub fn add_watermark_callback(
             .add_watermark_callback(move |timestamp, _s0, _s1, _s2, _s3, _s4| {
                 let gil = Python::acquire_gil();
                 let py = gil.python();
-                match callback.call1(py, (timestamp.time.clone(),)) {
+                match callback.call1(py, (timestamp.time.clone(), timestamp.is_top())) {
                     Ok(_) => (),
                     Err(e) => e.print(py),
                 };
@@ -109,7 +109,7 @@ pub fn add_watermark_callback(
             move |timestamp, _s0, _s1, _s2, _s3, _s4, _s5| {
                 let gil = Python::acquire_gil();
                 let py = gil.python();
-                match callback.call1(py, (timestamp.time.clone(),)) {
+                match callback.call1(py, (timestamp.time.clone(), timestamp.is_top())) {
                     Ok(_) => (),
                     Err(e) => e.print(py),
                 };
@@ -127,7 +127,7 @@ pub fn add_watermark_callback(
             move |timestamp, _s0, _s1, _s2, _s3, _s4, _s5, _s6| {
                 let gil = Python::acquire_gil();
                 let py = gil.python();
-                match callback.call1(py, (timestamp.time.clone(),)) {
+                match callback.call1(py, (timestamp.time.clone(), timestamp.is_top())) {
                     Ok(_) => (),
                     Err(e) => e.print(py),
                 };
@@ -145,7 +145,7 @@ pub fn add_watermark_callback(
             move |timestamp, _s0, _s1, _s2, _s3, _s4, _s5, _s6, _s7| {
                 let gil = Python::acquire_gil();
                 let py = gil.python();
-                match callback.call1(py, (timestamp.time.clone(),)) {
+                match callback.call1(py, (timestamp.time.clone(), timestamp.is_top())) {
                     Ok(_) => (),
                     Err(e) => e.print(py),
                 };
