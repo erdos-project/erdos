@@ -1,3 +1,4 @@
+import json
 from collections import defaultdict, deque
 
 import numpy as np
@@ -71,6 +72,7 @@ class Operator(object):
     def add_trace_event(self, event):
         """Records a profile trace event."""
         self._trace_events.append(event)
+        self._trace_event_logger.info(json.dumps(event))
         event_name = event["name"]
         self._runtime_stats[event_name].append(event["dur"])
         if len(self._runtime_stats[event_name]) > MAX_NUM_RUNTIME_SAMPLES:

@@ -8,7 +8,7 @@ from erdos.timestamp import Timestamp
 
 def _parse_message(internal_msg):
     """Creates a Message from an internal stream's response.
-    
+
     Args:
         internal_msg (PyMessage): The internal message to parse.
     """
