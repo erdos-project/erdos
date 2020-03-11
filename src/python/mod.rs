@@ -183,7 +183,7 @@ for i in range(len(py_write_streams)):
 operator = Operator.__new__(Operator)
 operator._id = uuid.UUID(op_id)
 operator._config = config
-operator._trace_event_logger = erdos.utils.setup_trace_logging(config.name + '-profile', config.profile_file_name)
+operator._trace_event_logger = erdos.utils.setup_trace_logging(config.name + "-profile", config.profile_file_name)
 operator.__init__(*read_streams, *write_streams, *args, **kwargs)
 
 if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:

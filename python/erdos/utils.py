@@ -3,8 +3,8 @@ import logging
 
 def setup_logging(name, log_file=None):
     return _setup_logging(
-        name, '%(asctime)s.%(msecs)03d %(name)s %(levelname)s: %(message)s',
-        '%Y-%m-%d,%H:%M:%S', log_file)
+        name, "%(asctime)s.%(msecs)03d %(name)s %(levelname)s: %(message)s",
+        "%Y-%m-%d,%H:%M:%S", log_file)
 
 
 def setup_csv_logging(name, log_file=None):
