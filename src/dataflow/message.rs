@@ -108,6 +108,13 @@ impl IntTimestamp {
         }
     }
 
+    pub fn bottom() -> Self {
+        Self {
+            time: Vec::new(),
+            is_top: false,
+        }
+    }
+
     pub fn is_top(&self) -> bool {
         self.is_top
     }
