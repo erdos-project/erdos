@@ -200,15 +200,14 @@ def profile_method(**decorator_kwargs):
                     # Set the event name to the operator name and the callback
                     # name if it's not passed by the user.
                     event_name = op_name + "." + cb_name
-                if isinstance(args[1], Timestamp):
-                    # The func is a watermark callback.
-                    timestamp = args[1]
-                elif isinstance(args[1], Message):
-                    # The func is a callback.
-                    timestamp = args[1].timestamp
-                else:
-                    # The func is a regular method.
-                    timestamp = None
+                timestamp = None
+                if len(args) > 1:
+                    if isinstance(args[1], Timestamp):
+                        # The func is a watermark callback.
+                        timestamp = args[1]
+                    elif isinstance(args[1], Message):
+                        # The func is a callback.
+                        timestamp = args[1].timestamp
             else:
                 raise TypeError(
                     "@erdos.profile can only be used on operator methods")
