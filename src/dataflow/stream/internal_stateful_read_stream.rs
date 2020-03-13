@@ -2,7 +2,11 @@ use std::sync::Arc;
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
-    dataflow::{callback_builder::MultiStreamEventMaker, Data, Message, State, Timestamp},
+    dataflow::{
+        callback_builder::MultiStreamEventMaker,
+        state::{AccessContext, ManagedState},
+        Data, Message, State, Timestamp,
+    },
     node::operator_event::OperatorEvent,
 };
 
@@ -76,7 +80,7 @@ impl<D: Data, S: State> EventMakerT for InternalStatefulReadStream<D, S> {
                 // Stateful callbacks may not run in parallel because they access shared state,
                 // so create 1 callback for all
                 let stateful_cbs = self.callbacks.clone();
-                let mut state_ref = Arc::clone(&self.state);
+                let mut state_arc = Arc::clone(&self.state);
                 if !stateful_cbs.is_empty() {
                     events.push(OperatorEvent::new(
                         msg.timestamp.clone(),
@@ -84,9 +88,11 @@ impl<D: Data, S: State> EventMakerT for InternalStatefulReadStream<D, S> {
                         move || {
                             for callback in stateful_cbs {
                                 let msg_copy = msg.clone();
-                                (callback)(msg_copy.timestamp, msg_copy.data, unsafe {
-                                    Arc::get_mut_unchecked(&mut state_ref)
-                                })
+                                let state_ref_mut =
+                                    unsafe { Arc::get_mut_unchecked(&mut state_arc) };
+                                state_ref_mut.set_access_context(AccessContext::Callback);
+                                state_ref_mut.set_current_time(msg.timestamp.clone());
+                                (callback)(msg_copy.timestamp, msg_copy.data, state_ref_mut)
                             }
                         },
                     ));
@@ -98,12 +104,13 @@ impl<D: Data, S: State> EventMakerT for InternalStatefulReadStream<D, S> {
                 let watermark_cbs = self.watermark_cbs.clone();
                 for watermark_cb in watermark_cbs {
                     let cb = Arc::clone(&watermark_cb);
-                    let mut state_ref = Arc::clone(&self.state);
                     let timestamp_copy = timestamp.clone();
+                    let mut state_arc = Arc::clone(&self.state);
                     cbs.push(Box::new(move || {
-                        (cb)(&timestamp_copy, unsafe {
-                            Arc::get_mut_unchecked(&mut state_ref)
-                        })
+                        let state_ref_mut = unsafe { Arc::get_mut_unchecked(&mut state_arc) };
+                        state_ref_mut.set_access_context(AccessContext::WatermarkCallback);
+                        state_ref_mut.set_current_time(timestamp_copy.clone());
+                        (cb)(&timestamp_copy, state_ref_mut)
                     }))
                 }
                 // Notify children of watermark and get events

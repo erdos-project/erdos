@@ -1,3 +1,5 @@
+// TODO: keep around messages. Add an iterator over messages.
+// Add set_timestamp and set_access_context to State.
 use std::{
     collections::BTreeMap,
     ops::Bound::{Excluded, Unbounded},
@@ -9,11 +11,11 @@ use crate::dataflow::Timestamp;
 pub trait State: 'static + Clone {}
 impl<T: 'static + Clone> State for T {}
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AccessError(&'static str);
 
 /// In what context is the operator accessed.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum AccessContext {
     /// In either `Operator::new` when the `TimeVersionedState` is created.
     /// Gives access to `TimeVersionedState::set_history_size` and
@@ -29,6 +31,33 @@ pub(crate) enum AccessContext {
     WatermarkCallback,
 }
 
+/// Trait which manages the access context and current timestamp of a state.
+/// This trait is only accessible and implementable from ERDOS to enforce proper
+/// access patterns.
+pub(crate) trait ManagedState {
+    fn set_access_context(&mut self, _access_context: AccessContext);
+    fn set_current_time(&mut self, _t: Timestamp);
+}
+
+impl<S: State> ManagedState for S {
+    default fn set_access_context(&mut self, _access_context: AccessContext) {}
+    default fn set_current_time(&mut self, _t: Timestamp) {}
+}
+
+/// Ensures that an operator behaves deterministically while allowing as much
+/// parallelism as possible.
+///
+/// Time-versioned state enforces 3 different access patterns:
+/// 1. When created in Operator::new(). This allows setting the number of past states
+///    accessible via the history size and an initial state associated with `Timestamp::bottom()`.
+/// 2. From a regular, non-watermark callback. This allows appending messages which are later exposed
+///    watermark callbacks. Appended messages may be compressed versions of ERDOS messages.
+/// 3. From a watermark callback. This allows reading appended messages and reading state up until the
+///    current timestamp. In addition, it allows mutating the state associated with the current timestamp.
+///
+/// For each access pattern, access rules are enforced.
+/// ERDOS manages transitions between access patterns.
+#[derive(Clone)]
 pub struct TimeVersionedState<S: State + Default, T: Clone> {
     current_time: Timestamp,
     // The number of past states to keep.
@@ -52,21 +81,6 @@ impl<S: State + Default, T: Clone> TimeVersionedState<S, T> {
             message_history: BTreeMap::new(),
             state_history: BTreeMap::new(),
         }
-    }
-
-    pub(crate) fn set_access_context(&mut self, access_context: AccessContext) {
-        self.access_context = access_context;
-    }
-
-    /// Updates access rules and initializes state and message history for current time.
-    pub(crate) fn set_current_time(&mut self, t: Timestamp) {
-        self.current_time = t;
-        self.message_history
-            .entry(self.current_time.clone())
-            .or_default();
-        self.state_history
-            .entry(self.current_time.clone())
-            .or_default();
     }
 
     /// Garbage collects state and messages no longer needed after the last watermark callback
@@ -266,6 +280,23 @@ impl<S: State + Default, T: Clone> TimeVersionedState<S, T> {
                 .filter(move |x| x.0 < self.history_size)
                 .map(|x| x.1)),
         }
+    }
+}
+
+impl<S: State + Default, T: Clone> ManagedState for TimeVersionedState<S, T> {
+    fn set_access_context(&mut self, access_context: AccessContext) {
+        self.access_context = access_context;
+    }
+
+    /// Updates access rules and initializes state and message history for current time.
+    fn set_current_time(&mut self, t: Timestamp) {
+        self.current_time = t;
+        self.message_history
+            .entry(self.current_time.clone())
+            .or_default();
+        self.state_history
+            .entry(self.current_time.clone())
+            .or_default();
     }
 }
 
