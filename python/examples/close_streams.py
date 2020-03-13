@@ -18,7 +18,10 @@ def main():
     (s, ) = erdos.connect(NoopOp, erdos.OperatorConfig(), [ingest_stream])
     extract_stream = erdos.ExtractStream(s)
 
-    erdos.run_async()
+    handle = erdos.run_async()
+
+    import time
+    time.sleep(1)
 
     timestamp = erdos.Timestamp(is_top=True)
     send_msg = erdos.WatermarkMessage(timestamp)
@@ -30,6 +33,8 @@ def main():
     print("ExtractStream: received {recv_msg}".format(recv_msg=recv_msg))
     assert recv_msg.is_top
     assert extract_stream.is_closed()
+
+    handle.shutdown()
 
 
 if __name__ == "__main__":

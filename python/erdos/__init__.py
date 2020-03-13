@@ -153,7 +153,10 @@ def run_async(graph_filename=None, start_port=9000):
 
     # The driver must always be on node 0 otherwise ingest and extract streams
     # will break
-    _internal.run_async(0, data_addresses, control_addresses, graph_filename)
+    py_node_handle = _internal.run_async(0, data_addresses, control_addresses,
+                                         graph_filename)
+
+    return NodeHandle(py_node_handle, processes)
 
 
 def add_watermark_callback(read_streams, write_streams, callback):
@@ -220,3 +223,19 @@ def profile_method(**decorator_kwargs):
         return wrapper
 
     return decorator
+
+
+class NodeHandle(object):
+    """Used to shutdown a dataflow created by `run_async`."""
+    def __init__(self, py_node_handle, processes):
+        self.py_node_handle = py_node_handle
+        self.processes = processes
+
+    def shutdown(self):
+        """Shuts down the dataflow."""
+        print("shutting down other processes")
+        for p in self.processes:
+            p.terminate()
+        print("shutting down node")
+        self.py_node_handle.shutdown_node()
+        print("done shutting down")
