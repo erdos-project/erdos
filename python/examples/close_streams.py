@@ -20,9 +20,6 @@ def main():
 
     handle = erdos.run_async()
 
-    import time
-    time.sleep(1)
-
     timestamp = erdos.Timestamp(is_top=True)
     send_msg = erdos.WatermarkMessage(timestamp)
     print("IngestStream: sending {send_msg}".format(send_msg=send_msg))
