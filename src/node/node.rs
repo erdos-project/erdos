@@ -414,8 +414,9 @@ pub struct NodeHandle {
     shutdown_tx: Sender<()>,
 }
 
+// TODO: distinguish between shutting down the dataflow and shutting down the node.
 impl NodeHandle {
-    /// Waits for the associated ERDO S node to finish.
+    /// Waits for the associated ERDOS node to finish.
     pub fn join(self) -> Result<(), String> {
         self.thread_handle.join().map_err(|e| format!("{:?}", e))
     }

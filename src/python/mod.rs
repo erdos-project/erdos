@@ -1,4 +1,4 @@
-use pyo3::{prelude::*, types::*};
+use pyo3::{exceptions, prelude::*, types::*};
 
 use std::sync::{Arc, Mutex};
 
@@ -11,6 +11,7 @@ use crate::{
         WriteStream,
     },
     node::{
+        node::NodeHandle,
         operator_executor::{OperatorExecutor, OperatorExecutorStream, OperatorExecutorStreamT},
         Node, NodeId,
     },
@@ -183,7 +184,8 @@ for i in range(len(py_write_streams)):
 operator = Operator.__new__(Operator)
 operator._id = uuid.UUID(op_id)
 operator._config = config
-operator._trace_event_logger = erdos.utils.setup_trace_logging(config.name + "-profile", config.profile_file_name)
+trace_logger_name = "{}-profile".format(type(operator) if config.name is None else config.name)
+operator._trace_event_logger = erdos.utils.setup_trace_logging(trace_logger_name, config.profile_file_name)
 operator.__init__(*read_streams, *write_streams, *args, **kwargs)
 
 if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
@@ -294,8 +296,8 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
         data_addresses: Vec<String>,
         control_addresses: Vec<String>,
         graph_filename: Option<String>,
-    ) -> PyResult<()> {
-        py.allow_threads(move || {
+    ) -> PyResult<PyNodeHandle> {
+        let node_handle = py.allow_threads(move || {
             let data_addresses = data_addresses
                 .into_iter()
                 .map(|s| s.parse().expect("Unable to parse socket address"))
@@ -312,9 +314,9 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
                 graph_filename,
             );
             let node = Node::new(config);
-            node.run_async();
+            node.run_async()
         });
-        Ok(())
+        Ok(PyNodeHandle::from(node_handle))
     }
 
     #[pyfn(m, "add_watermark_callback")]
@@ -338,6 +340,33 @@ impl Operator for PyOperator {
         let py = gil.python();
         if let Err(e) = self.operator.call_method0(py, "destroy") {
             e.print(py);
+        }
+    }
+}
+
+#[pyclass]
+pub(crate) struct PyNodeHandle {
+    node_handle: Option<NodeHandle>,
+}
+
+#[pymethods]
+impl PyNodeHandle {
+    fn shutdown_node(&mut self, py: Python) -> PyResult<()> {
+        py.allow_threads(|| match self.node_handle.take() {
+            Some(node_handle) => node_handle
+                .shutdown()
+                .map_err(exceptions::Exception::py_err),
+            None => Err(exceptions::Exception::py_err(
+                "Unable to shut down; no Rust node handle available",
+            )),
+        })
+    }
+}
+
+impl From<NodeHandle> for PyNodeHandle {
+    fn from(node_handle: NodeHandle) -> Self {
+        Self {
+            node_handle: Some(node_handle),
         }
     }
 }
