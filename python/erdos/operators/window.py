@@ -1,51 +1,50 @@
-"""
-   Windowing Operators will collect incoming inputs into groups.
-   Messages sent from these operators take the form of: 
-   (most recent message's timestamp, list of Messages (msg.timestamp, msg.data) ).
+"""Windowing Operators will collect incoming inputs into groups.
+
+   Messages sent from these operators contain a list of Messages as data 
+   and have a timestamp corresponding to the most recent Message in the list.
 """
 
-class TumblingWindowOp(erdos.Operator):
+
+class TumblingWindow(erdos.Operator):
     """Windows incoming messages into non-overlapping lists of `window_size`."""
     def __init__(self, read_stream, write_stream, window_size):
         read_stream.add_callback(self.callback, [write_stream])
         self.window_size = window_size
-        self.elems = []
+        self.msgs = []
 
     def callback(self, msg, write_stream):
-        print("TumblingWindowOp: received {msg}".format(msg=msg))
-        self.elems.append(msg)
-        if len(self.elems) == self.window_size:
-            msg = erdos.Message(msg.timestamp, self.elems)
+        self.msgs.append(msg)
+        if len(self.msgs) == self.window_size:
+            msg = erdos.Message(msg.timestamp, self.msgs)
             write_stream.send(msg)
 
-            self.elems = []
-            print("TumblingWindowOp: sending {msg}".format(msg=msg))
+            self.msgs = []
 
     @staticmethod
     def connect(read_stream):
         return [erdos.WriteStream()]
 
-class SlidingWindowOp(erdos.Operator):
-    """Windows incoming messages into overlapping lists of `window_size`,
-       with windows being separated by messages that are sent `offset` timestamps apart.
+
+class SlidingWindow(erdos.Operator):
+    """Windows incoming messages into overlapping lists of `window_size`.
+
+       Windows are separated by messages that are sent 'offset' timestamps apart.
     """
     def __init__(self, read_stream, write_stream, window_size, offset):
         read_stream.add_callback(self.callback, [write_stream])
         self.window_size = window_size
         self.offset = offset
-        self.elems = []
+        self.msgs = []
         self.count = 0
 
     def callback(self, msg, write_stream):
-        print("SlidingWindowOp: received {msg}".format(msg=msg))
-        self.elems.append(msg)
-        
-        if len(self.elems) >= self.window_size:
-            msg = erdos.Message(msg.timestamp, self.elems[0:self.window_size])
+        self.msgs.append(msg)
+
+        if len(self.msgs) >= self.window_size:
+            msg = erdos.Message(msg.timestamp, self.msgs[0:self.window_size])
             write_stream.send(msg)
 
-            self.elems = self.elems[self.offset:]
-            print("SlidingWindowOp: sending {msg}".format(msg=msg))
+            self.msgs = self.msgs[self.offset:]
 
         self.count += 1
 
@@ -53,25 +52,25 @@ class SlidingWindowOp(erdos.Operator):
     def connect(read_stream):
         return [erdos.WriteStream()]
 
-class WatermarkWindowOp(erdos.Operator):
+
+class WatermarkWindow(erdos.Operator):
     """Sends a window of messages when a watermark has been received.
+
        Messages are collected since time of first message or since time of last watermark.
     """
     def __init__(self, read_stream, write_stream):
         read_stream.add_callback(self.callback, [write_stream])
-        erdos.add_watermark_callback([read_stream], [write_stream], self.watermark_callback)
-        self.elems = []
+        erdos.add_watermark_callback([read_stream], [write_stream],
+                                     self.watermark_callback)
+        self.msgs = []
 
     def callback(self, msg, write_stream):
-        print("WatermarkWindowOp: received {msg}".format(msg=msg))
-        self.elems.append(msg)
+        self.msgs.append(msg)
 
     def watermark_callback(self, watermark, write_stream):
-        print("WatermarkWindowOp: received watermark {watermark}".format(watermark=watermark))
-        msg = erdos.Message(watermark, self.elems)
+        msg = erdos.Message(watermark, self.msgs)
         write_stream.send(msg)
-        self.elems = []
-        print("WatermarkWindowOp: sending {msg}".format(msg=msg))
+        self.msgs = []
 
     @staticmethod
     def connect(read_stream):
