@@ -1,9 +1,10 @@
 """Windowing Operators will collect incoming inputs into groups.
 
-   Messages sent from these operators contain a list of Messages as data 
-   and have a timestamp corresponding to the most recent Message in the list.
+Messages sent from these operators contain a list of Messages as data 
+and have a timestamp corresponding to the most recent Message in the list.
 """
 
+import erdos.Operator
 
 class TumblingWindow(erdos.Operator):
     """Windows incoming messages into non-overlapping lists of `window_size`."""
@@ -28,7 +29,7 @@ class TumblingWindow(erdos.Operator):
 class SlidingWindow(erdos.Operator):
     """Windows incoming messages into overlapping lists of `window_size`.
 
-       Windows are separated by messages that are sent 'offset' timestamps apart.
+    Windows are separated by messages that are sent 'offset' timestamps apart.
     """
     def __init__(self, read_stream, write_stream, window_size, offset):
         read_stream.add_callback(self.callback, [write_stream])
@@ -56,7 +57,7 @@ class SlidingWindow(erdos.Operator):
 class WatermarkWindow(erdos.Operator):
     """Sends a window of messages when a watermark has been received.
 
-       Messages are collected since time of first message or since time of last watermark.
+    Messages are collected since time of first message or since time of last watermark.
     """
     def __init__(self, read_stream, write_stream):
         read_stream.add_callback(self.callback, [write_stream])

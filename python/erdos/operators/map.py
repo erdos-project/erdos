@@ -5,7 +5,7 @@ class Map(erdos.Operator):
         self.function = function
 
     def callback(self, msg, write_stream):
-        msg = erdos.Message(msg.timestamp, self.function(msg.data))
+        msg = self.function(msg)
         write_stream.send(msg)
 
     @staticmethod
