@@ -56,12 +56,12 @@ impl<S: State> ManagedState for S {
 /// 1. When created in Operator::new(). This allows setting the number of past states
 ///    accessible via the history size and an initial state associated with `Timestamp::bottom()`.
 /// 2. From a regular, non-watermark callback. This allows appending messages which are later exposed
-///    watermark callbacks. Appended messages may be compressed versions of ERDOS messages.
+///    to watermark callbacks. Appended messages may be compressed versions of ERDOS messages.
 /// 3. From a watermark callback. This allows reading appended messages and reading state up until the
 ///    current timestamp. In addition, it allows mutating the state associated with the current timestamp.
 ///
-/// For each access pattern, access rules are enforced.
-/// ERDOS manages transitions between access patterns.
+/// For each access pattern, access rules are enforced via the `AccessContext`.
+/// ERDOS manages transitions between `AccessContext`s.
 #[derive(Clone)]
 pub struct TimeVersionedState<S: State + Default, T: Clone> {
     current_time: Timestamp,
