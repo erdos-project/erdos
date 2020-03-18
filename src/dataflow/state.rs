@@ -69,6 +69,8 @@ pub struct TimeVersionedState<S: State + Default, T: Clone> {
     history_size: usize,
     // Determines access control rules.
     access_context: AccessContext,
+    // TODO: consider replacing the Vec with some unordered data structure as the ordering of messages
+    // leaks information that may break determinism.
     message_history: BTreeMap<Timestamp, Vec<T>>,
     state_history: BTreeMap<Timestamp, S>,
 }
