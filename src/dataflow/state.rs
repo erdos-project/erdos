@@ -38,13 +38,15 @@ pub(crate) trait ManagedState {
     fn set_access_context(&mut self, access_context: AccessContext);
     fn set_current_time(&mut self, t: Timestamp);
     /// Garbage collects any state no longer needed up until time t.
-    fn close_time(&mut self, t: &Timestamp);
+    fn close_time(&mut self, t: &Timestamp) -> Result<(), AccessError>;
 }
 
 impl<S: State> ManagedState for S {
     default fn set_access_context(&mut self, _access_context: AccessContext) {}
     default fn set_current_time(&mut self, _t: Timestamp) {}
-    default fn close_time(&mut self, _t: &Timestamp) {}
+    default fn close_time(&mut self, _t: &Timestamp) -> Result<(), AccessError> {
+        Ok(())
+    }
 }
 
 /// Ensures that an operator behaves deterministically while allowing as much
@@ -373,8 +375,8 @@ impl<S: State + Default, T: Clone> ManagedState for TimeVersionedState<S, T> {
             .or_default();
     }
 
-    fn close_time(&mut self, t: &Timestamp) {
-        self.close_time(t);
+    fn close_time(&mut self, t: &Timestamp) -> Result<(), AccessError> {
+        self.close_time(t)
     }
 }
 
@@ -526,7 +528,7 @@ mod tests {
             // Called internally by ERDOS.
             // Do this every other iteration to ensure this doesn't affect correctness.
             if i % 2 == 0 {
-                versioned_state.close_time(&current_time);
+                versioned_state.close_time(&current_time).unwrap();
                 let expected_min_time =
                     Timestamp::new(vec![(i + 1 - expected_num_states_accessible) as u64]);
                 let gcd_messages: Vec<_> = versioned_state

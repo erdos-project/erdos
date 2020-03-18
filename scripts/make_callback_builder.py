@@ -13,6 +13,7 @@ use std::borrow::Borrow;
 
 use crate::{{
     dataflow::{{
+        state::{{AccessContext, ManagedState}},
         stream::{{InternalStatefulReadStream, StreamId}},
         Data, State, StatefulReadStream, Timestamp, WriteStream,
     }},
@@ -322,19 +323,26 @@ def make_receive_watermark(num_rs, num_ws, has_state):
         map(lambda x: "self.rs{}_watermark = false;".format(x), range(num_rs)))
     get_states = "\n".join(
         map(
-            lambda x: "let rs{}_state = Arc::clone(&self.rs{}_state);".format(
-                x, x), range(num_rs)))
+            lambda x: "let mut rs{}_state = Arc::clone(&self.rs{}_state);".
+            format(x, x), range(num_rs)))
     clone_write_streams = "\n".join(
         map(lambda y: "let mut ws{} = self.ws{}.clone();".format(y, y),
             range(num_ws)))
     clone_state = "let mut state = Arc::clone(&self.state);" if has_state else ""
     args = ", ".join(
-        itertools.chain(["&current_low_watermark"],
-                        ["unsafe { Arc::get_mut_unchecked(&mut state) }"]
-                        if has_state else [],
-                        map(lambda x: "&rs{}_state.borrow()".format(x),
-                            range(num_rs)),
-                        map(lambda y: "&mut ws{}".format(y), range(num_ws))))
+        itertools.chain(
+            ["&current_low_watermark"],
+            [("{{ let state = unsafe { Arc::get_mut_unchecked(&mut state) };"
+              "state.set_access_context(AccessContext::WatermarkCallback); "
+              "state.set_current_time(current_low_watermark.clone()); state }}"
+              )] if has_state else [],
+            map(
+                lambda x:
+                ("{{ let state = unsafe {{ Arc::get_mut_unchecked(&mut rs{x}_state) }}; "
+                 "state.set_access_context(AccessContext::WatermarkCallback); "
+                 "state.set_current_time(current_low_watermark.clone()); "
+                 "&rs{x}_state.borrow() }}").format(x=x), range(num_rs)),
+            map(lambda y: "&mut ws{}".format(y), range(num_ws))))
     set_watermark = " else ".join(
         map(
             lambda x: """if stream_id == self.rs{}_id {{
