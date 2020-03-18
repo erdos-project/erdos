@@ -35,13 +35,16 @@ pub(crate) enum AccessContext {
 /// This trait is only accessible and implementable from ERDOS to enforce proper
 /// access patterns.
 pub(crate) trait ManagedState {
-    fn set_access_context(&mut self, _access_context: AccessContext);
-    fn set_current_time(&mut self, _t: Timestamp);
+    fn set_access_context(&mut self, access_context: AccessContext);
+    fn set_current_time(&mut self, t: Timestamp);
+    /// Garbage collects any state no longer needed up until time t.
+    fn close_time(&mut self, t: &Timestamp);
 }
 
 impl<S: State> ManagedState for S {
     default fn set_access_context(&mut self, _access_context: AccessContext) {}
     default fn set_current_time(&mut self, _t: Timestamp) {}
+    default fn close_time(&mut self, _t: &Timestamp) {}
 }
 
 /// Ensures that an operator behaves deterministically while allowing as much
@@ -85,12 +88,19 @@ impl<S: State + Default, T: Clone> TimeVersionedState<S, T> {
 
     /// Garbage collects state and messages no longer needed after the last watermark callback
     /// operating over t completes.
-    pub(crate) fn close_time(&mut self, t: &Timestamp) {
-        // Release all messages until and including t.
-        self.message_history = self.message_history.split_off(&t);
-        self.message_history.remove(&t);
-
-        // Release all states at least as old as history_size timestamps before t.
+    /// For now, accessible from watermark callbacks. In the future, this method may be made private
+    /// in favor of automatic GC via a lattice/partial ordering over time.
+    pub fn close_time(&mut self, t: &Timestamp) -> Result<(), AccessError> {
+        match self.access_context {
+            AccessContext::Operator => {
+                Err(AccessError("Attempted to close_time from Operator::new"))
+            }
+            AccessContext::Callback => {
+                Err(AccessError("Attempted to close_time from Operator::new"))
+            }
+            AccessContext::WatermarkCallback => Ok(()),
+        }?;
+        // Release all states and messages at least as old as history_size timestamps before t.
         // Clean this up if BTreeMap adds more detailed query methods in future Rust versions.
         let split_option = if self.history_size == 0 {
             let mut range = self
@@ -110,7 +120,9 @@ impl<S: State + Default, T: Clone> TimeVersionedState<S, T> {
             // immutably.
             let split_t = split_t_ref.clone();
             self.state_history = self.state_history.split_off(&split_t);
+            self.message_history = self.message_history.split_off(&split_t);
         }
+        Ok(())
     }
 
     pub fn history_size(&self) -> usize {
@@ -118,7 +130,7 @@ impl<S: State + Default, T: Clone> TimeVersionedState<S, T> {
     }
 
     /// Sets the number of past states available.
-    /// Only accessible from Operator::new.
+    /// Only accessible from `Operator::new`.
     pub fn set_history_size(&mut self, history_size: usize) -> Result<(), AccessError> {
         match self.access_context {
             AccessContext::Operator => {
@@ -135,10 +147,11 @@ impl<S: State + Default, T: Clone> TimeVersionedState<S, T> {
     }
 
     /// Sets the initial state stored for `Timestamp::bottom`.
-    /// Only accessible from Operator::new.
+    /// Only accessible from `Operator::new`.
     pub fn set_initial_state(&mut self, initial_state: S) -> Result<(), AccessError> {
         match self.access_context {
             AccessContext::Operator => {
+                self.message_history.insert(Timestamp::bottom(), Vec::new());
                 self.state_history
                     .insert(Timestamp::bottom(), initial_state);
                 Ok(())
@@ -173,8 +186,39 @@ impl<S: State + Default, T: Clone> TimeVersionedState<S, T> {
         }
     }
 
+    /// Gets the message history for the provided time.
+    /// Only accessible from watermark callbacks.
+    pub fn get_messages(&self, t: &Timestamp) -> Result<Option<&Vec<T>>, AccessError> {
+        match self.access_context {
+            AccessContext::Operator => {
+                Err(AccessError("Attempted to get_messages from Operator::new"))
+            }
+            AccessContext::WatermarkCallback => {
+                if t <= &self.current_time {
+                    let mut iter = self
+                        .message_history
+                        .range(t.clone()..self.current_time.clone());
+                    if let Some((oldest_allowed_t, _)) = iter.nth_back(self.history_size()) {
+                        if oldest_allowed_t <= t {
+                            Ok(self.message_history.get(t))
+                        } else {
+                            Ok(None)
+                        }
+                    } else {
+                        Ok(self.message_history.get(t))
+                    }
+                } else {
+                    Ok(None)
+                }
+            }
+            AccessContext::Callback => Err(AccessError(
+                "Attempted to get_messages from a non-watermark callback",
+            )),
+        }
+    }
+
     /// Gets the message history for the current time.
-    /// Can only be called by watermark callbacks, in `Operator::new()`, or in `Operator::run()`.
+    /// Only accessible from watermark callbacks.
     pub fn get_current_messages(&self) -> Result<&Vec<T>, AccessError> {
         match self.access_context {
             AccessContext::Operator => Err(AccessError(
@@ -195,7 +239,31 @@ impl<S: State + Default, T: Clone> TimeVersionedState<S, T> {
         }
     }
 
+    /// Iterates over all possible states accessible for the current time in reverse chronological
+    /// order.
+    /// Only accessible from watermark callbacks.
+    pub fn iter_messages(
+        &self,
+    ) -> Result<impl Iterator<Item = (&Timestamp, &Vec<T>)>, AccessError> {
+        match self.access_context {
+            AccessContext::Operator => {
+                Err(AccessError("Attempted to iter_states from Operator::new"))
+            }
+            AccessContext::Callback => Err(AccessError(
+                "Attempted to iter_states from a non-watermark callback",
+            )),
+            AccessContext::WatermarkCallback => Ok(self
+                .message_history
+                .range(..=self.current_time.clone())
+                .rev()
+                .enumerate()
+                .filter(move |x| x.0 <= self.history_size)
+                .map(|x| x.1)),
+        }
+    }
+
     /// Gets an immutable reference to the state at the provied timestamp.
+    /// Only accessible from watermark callbacks.
     pub fn get_state(&self, t: &Timestamp) -> Result<Option<&S>, AccessError> {
         match self.access_context {
             AccessContext::Operator => {
@@ -226,17 +294,21 @@ impl<S: State + Default, T: Clone> TimeVersionedState<S, T> {
     }
 
     /// Gets an immutable reference to the state for the current timestamp.
+    /// Only accessible from watermark callbacks.
     pub fn get_current_state(&self) -> Result<&S, AccessError> {
         match self.access_context {
             AccessContext::Operator => Err(AccessError(
                 "Attempted to get_current_state from Operator::new",
             )),
-            AccessContext::WatermarkCallback => {
-                Ok(self.state_history.get(&self.current_time).expect(&format!(
-                    "ERDOS interal error: state not initialized or {:?} (current timestamp).",
-                    self.current_time
-                )))
-            }
+            AccessContext::WatermarkCallback => Ok(self
+                .state_history
+                .get(&self.current_time)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "ERDOS interal error: state not initialized or {:?} (current timestamp).",
+                        self.current_time
+                    )
+                })),
             AccessContext::Callback => Err(AccessError(
                 "Attempted to get_current_state from a non-watermark callback",
             )),
@@ -244,6 +316,7 @@ impl<S: State + Default, T: Clone> TimeVersionedState<S, T> {
     }
 
     /// Gets a mutable reference to the state for the current timestamp.
+    /// Only accessible from watermark callbacks.
     pub fn get_current_state_mut(&mut self) -> Result<&mut S, AccessError> {
         match self.access_context {
             AccessContext::Operator => Err(AccessError(
@@ -264,6 +337,7 @@ impl<S: State + Default, T: Clone> TimeVersionedState<S, T> {
 
     /// Iterates over all possible states accessible for the current time in reverse chronological
     /// order.
+    /// Only accessible from watermark callbacks.
     pub fn iter_states(&self) -> Result<impl Iterator<Item = (&Timestamp, &S)>, AccessError> {
         match self.access_context {
             AccessContext::Operator => {
@@ -277,7 +351,7 @@ impl<S: State + Default, T: Clone> TimeVersionedState<S, T> {
                 .range(..=self.current_time.clone())
                 .rev()
                 .enumerate()
-                .filter(move |x| x.0 < self.history_size)
+                .filter(move |x| x.0 <= self.history_size)
                 .map(|x| x.1)),
         }
     }
@@ -298,6 +372,10 @@ impl<S: State + Default, T: Clone> ManagedState for TimeVersionedState<S, T> {
             .entry(self.current_time.clone())
             .or_default();
     }
+
+    fn close_time(&mut self, t: &Timestamp) {
+        self.close_time(t);
+    }
 }
 
 #[cfg(test)]
@@ -314,8 +392,13 @@ mod tests {
         state.set_initial_state(99).unwrap();
         assert_eq!(Some(&99), state.state_history.get(&Timestamp::bottom()));
         assert!(state.append(3).is_err());
-        assert_eq!(None, state.message_history.get(&Timestamp::bottom()));
+        assert_eq!(
+            Some(&Vec::new()),
+            state.message_history.get(&Timestamp::bottom())
+        );
         assert!(state.get_current_messages().is_err());
+        assert!(state.get_messages(&Timestamp::bottom()).is_err());
+        assert!(state.iter_messages().is_err());
         assert!(state.get_state(&Timestamp::bottom()).is_err());
         assert!(state.get_current_state().is_err());
         assert!(state.get_current_state_mut().is_err());
@@ -336,6 +419,8 @@ mod tests {
         assert!(state.append(3).is_ok());
         assert_eq!(Some(&vec![3]), state.message_history.get(&current_time));
         assert!(state.get_current_messages().is_err());
+        assert!(state.get_messages(&Timestamp::bottom()).is_err());
+        assert!(state.iter_messages().is_err());
         assert!(state.get_state(&Timestamp::bottom()).is_err());
         assert!(state.get_current_state().is_err());
         assert!(state.get_current_state_mut().is_err());
@@ -353,8 +438,12 @@ mod tests {
         assert!(state.set_initial_state(99).is_err());
         assert_eq!(None, state.state_history.get(&Timestamp::bottom()));
         assert!(state.append(3).is_err());
-        assert_eq!(None, state.message_history.get(&Timestamp::bottom()));
+        assert_eq!(
+            Ok(Some(&vec![])),
+            state.get_messages(&Timestamp::new(vec![1]))
+        );
         assert_eq!(Ok(&vec![]), state.get_current_messages());
+        assert_eq!(Ok(&mut usize::default()), state.get_current_state_mut());
         assert_eq!(Ok(None), state.get_state(&Timestamp::bottom()));
         assert_eq!(Ok(&usize::default()), state.get_current_state());
         assert_eq!(Ok(&mut usize::default()), state.get_current_state_mut());
@@ -405,23 +494,30 @@ mod tests {
             let expected_num_states_accessible = if i < versioned_state.history_size() {
                 i + 1
             } else {
-                versioned_state.history_size()
+                versioned_state.history_size() + 1
             };
-            for (j, (t, state)) in versioned_state.iter_states().unwrap().enumerate() {
-                let (expected_t, expected_state) = match i - j {
-                    0 => (Timestamp::bottom(), 100),
-                    x => (Timestamp::new(vec![x as u64]), 6 * x),
+            let msg_iter = versioned_state.iter_messages().unwrap();
+            let state_iter = versioned_state.iter_states().unwrap();
+            for (j, ((t_msg, msgs), (t_state, state))) in msg_iter.zip(state_iter).enumerate() {
+                let k = i - j;
+                let (expected_t, expected_state, expected_msgs) = match k {
+                    0 => (Timestamp::bottom(), 100, Vec::new()),
+                    x => (Timestamp::new(vec![x as u64]), 6 * x, vec![k, k * 2, k * 3]),
                 };
-                assert_eq!(
-                    t, &expected_t,
-                    "i: {}, j: {}, expected_num_states: {}",
-                    i, j, expected_num_states_accessible
-                );
+                assert_eq!(t_msg, t_state);
+                assert_eq!(t_msg, &expected_t);
+                assert_eq!(msgs, &expected_msgs);
                 assert_eq!(state, &expected_state);
-                assert_eq!(versioned_state.get_state(t), Ok(Some(state)));
+                assert_eq!(versioned_state.get_state(t_state), Ok(Some(state)));
+                assert_eq!(versioned_state.get_messages(t_msg), Ok(Some(msgs)));
                 num_states_accessible += 1;
             }
-            assert_eq!(num_states_accessible, expected_num_states_accessible);
+            let msg_iter: Vec<_> = versioned_state.iter_messages().unwrap().collect();
+            assert_eq!(
+                num_states_accessible, expected_num_states_accessible,
+                "{:?}\n{:?}",
+                current_time, msg_iter
+            );
             // Try to get a future state.
             assert!(versioned_state
                 .get_state(&Timestamp::new(vec![(i + 1) as u64]))
@@ -442,7 +538,7 @@ mod tests {
                     .state_history
                     .range(..expected_min_time.clone())
                     .collect();
-                assert!(gcd_states.is_empty(), "{}, {:?}");
+                assert!(gcd_states.is_empty());
             }
         }
     }
