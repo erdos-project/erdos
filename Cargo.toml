@@ -36,7 +36,8 @@ tokio-serde-bincode = "0.2"
 uuid = { version = "0.7", features = ["v4", "v5", "serde"] }
 
 [dev-dependencies]
-criterion = "0.1.2"
+criterion = "0.3.1"
+criterion-macro = "0.3.1"
 
 [features]
 default = []
@@ -46,7 +47,7 @@ python = ["pyo3"]  # Target python with 'cargo build --features=python
 crate-type=["rlib", "cdylib"]   # Required for python
 
 [[bench]]
-name = "erdos"
+name = "latency"
 harness = false
 
 [[bin]]
