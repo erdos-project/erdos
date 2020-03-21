@@ -120,8 +120,7 @@ impl<D: Data> OperatorExecutorStream<D> {
 
 /// `OperatorExecutor` is a structure that is in charge of executing callbacks associated with
 /// messages and watermarks arriving on input streams at an `Operator`. The callbacks are invoked
-/// according to the partial order defined in
-/// [`OperatorEvent`](../operator_event/struct.OperatorEvent.html).
+/// according to the partial order defined in [`OperatorEvent`].
 ///
 /// The `event_runner` function is in charge of executing the callbacks until it receives a
 /// `DestroyOperator` message. The `execute` function retrieves messages from the input streams and

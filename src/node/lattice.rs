@@ -8,9 +8,8 @@ use petgraph::{
 use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 
-/// `ExecutionLattice` is a data structure that maintains
-/// [`OperatorEvent`](../operator_event/struct.OperatorEvent.html)s in a directed acyclic graph
-/// according the partial order defined.
+/// `ExecutionLattice` is a data structure that maintains [`OperatorEvent`]s in a directed
+/// acyclic graph according the partial order defined.
 ///
 /// Events can be added to the lattice using the `add_event` function, and retrieved using the
 /// `get_event` function. The lattice requires a notification of the completion of the event using
@@ -74,8 +73,7 @@ impl ExecutionLattice {
     /// Add an event to the lattice.
     ///
     /// This function moves the passed event into the lattice, and inserts the appropriate edges to
-    /// existing events in the graph based on the partial order defined in
-    /// [`OperatorEvent`](../operator_event/struct.OperatorEvent.html).
+    /// existing events in the graph based on the partial order defined in [`OperatorEvent`].
     pub async fn add_event(&self, event: OperatorEvent) {
         // Take locks over everything.
         let forest: &mut StableGraph<Option<OperatorEvent>, ()> = &mut *self.forest.lock().await;
@@ -200,8 +198,8 @@ impl ExecutionLattice {
     ///
     /// This function retrieves an event that is not being executed by any other executor, along
     /// with a unique identifier for the event. This unique identifier needs to be passed to the
-    /// `mark_as_completed` function to remove the event from the lattice, and ensure that its
-    /// dependencies are runnable.
+    /// [`ExecutionLattice::mark_as_completed`] function to remove the event from the lattice, and
+    /// ensure that its dependencies are runnable.
     pub async fn get_event(&self) -> Option<(OperatorEvent, usize)> {
         // Take locks over everything.
         let forest: &mut StableGraph<Option<OperatorEvent>, ()> = &mut *self.forest.lock().await;
@@ -220,7 +218,8 @@ impl ExecutionLattice {
 
     /// Mark an event as completed, and break the dependency from this event to its children.
     ///
-    /// `event_id` is the unique identifer returned by the `get_event` invocation.
+    /// `event_id` is the unique identifer returned by the [`ExecutionLattice::get_event`]
+    /// invocation.
     pub async fn mark_as_completed(&self, event_id: usize) {
         // Take locks over everything.
         let forest: &mut StableGraph<Option<OperatorEvent>, ()> = &mut *self.forest.lock().await;
