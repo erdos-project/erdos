@@ -26,7 +26,7 @@ clap = "2.33.0"
 futures = "0.3.1"
 futures-util = "0.3.1"
 petgraph = "0.5.0"
-pyo3 = { version = "0.8.2", features=["unsound-subclass"] }
+pyo3 = { version = "0.8.2", features = ["unsound-subclass"], optional = true }
 rand = "0.3"
 serde = { version = "1.0.99", features = ["derive"] }
 slog = "2.4.2"
@@ -41,7 +41,7 @@ criterion = "0.1.2"
 
 [features]
 default = []
-python = []  # Target python with 'cargo build --features=python
+python = ["pyo3"]  # Target python with 'cargo build --features=python
 
 [lib]
 crate-type=["rlib", "cdylib"]   # Required for python
