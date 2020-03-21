@@ -76,9 +76,9 @@ impl ExecutionLattice {
     /// existing events in the graph based on the partial order defined in [`OperatorEvent`].
     pub async fn add_event(&self, event: OperatorEvent) {
         // Take locks over everything.
-        let forest: &mut StableGraph<Option<OperatorEvent>, ()> = &mut *self.forest.lock().await;
-        let roots: &mut HashSet<NodeIndex<u32>> = &mut *self.roots.lock().await;
-        let run_queue: &mut VecDeque<NodeIndex<u32>> = &mut *self.run_queue.lock().await;
+        let mut forest = self.forest.lock().await;
+        let mut roots = self.roots.lock().await;
+        let mut run_queue = self.run_queue.lock().await;
 
         // Iterate through all the roots, and figure out where to add a dependency edge.
         let mut dfs = DfsPostOrder::empty(&*forest);
@@ -87,7 +87,7 @@ impl ExecutionLattice {
         let mut add_edges_from: Vec<NodeIndex<u32>> = Vec::new();
         let mut remove_roots: Vec<(usize, NodeIndex<u32>)> = Vec::new();
 
-        for root in &*roots {
+        for root in roots.iter() {
             // This function maintains the stack when iterating over the graph so we do not have to
             // check the same node in the graph twice.
             dfs.move_to(*root);
@@ -114,15 +114,15 @@ impl ExecutionLattice {
                 if let Some(node) = forest.node_weight(nx).unwrap().as_ref() {
                     // If the event we are trying to add is dependent on the DFS node, then
                     // add an edge from the DFS node to the event to be added.
-                    if event < *node || event == *node {
+                    if &event <= node {
                         // Check if any of the children of the DFS node should be dependent on the
                         // event we are trying to add.
                         let mut remove_edges: Vec<NodeIndex<u32>> = Vec::new();
                         for child in forest.neighbors(nx) {
                             let child_node: &OperatorEvent =
-                                &forest.node_weight(child).unwrap().as_ref().unwrap();
-                            if *child_node < event {
-                                // The child has a dependency on the node being added. 
+                                forest.node_weight(child).unwrap().as_ref().unwrap();
+                            if child_node < &event {
+                                // The child has a dependency on the node being added.
                                 // Break the dependency from the DFS node to its child, and add a
                                 // dependency from the node to be added to the child.
                                 add_edges_to.push(child);
@@ -132,10 +132,10 @@ impl ExecutionLattice {
 
                         // Add a dependency from the DFS node to the node being added, only if the
                         // partial order says so.
-                        if event < *node {
+                        if &event < node {
                             add_edges_from.push(nx);
-                            for child in &remove_edges {
-                                let edge = forest.find_edge(nx, *child).unwrap();
+                            for child in remove_edges {
+                                let edge = forest.find_edge(nx, child).unwrap();
                                 forest.remove_edge(edge);
                             }
                             dependencies.insert(nx);
@@ -159,7 +159,7 @@ impl ExecutionLattice {
                     // children, if any.
                     for child in forest.neighbors(nx) {
                         let child_node = forest.node_weight(child).unwrap().as_ref().unwrap();
-                        if *child_node < event {
+                        if child_node < &event {
                             add_edges_to.push(child);
                         }
                     }
@@ -202,9 +202,9 @@ impl ExecutionLattice {
     /// ensure that its dependencies are runnable.
     pub async fn get_event(&self) -> Option<(OperatorEvent, usize)> {
         // Take locks over everything.
-        let forest: &mut StableGraph<Option<OperatorEvent>, ()> = &mut *self.forest.lock().await;
-        let roots: &mut HashSet<NodeIndex<u32>> = &mut *self.roots.lock().await;
-        let run_queue: &mut VecDeque<NodeIndex<u32>> = &mut *self.run_queue.lock().await;
+        let mut forest = self.forest.lock().await;
+        let roots = self.roots.lock().await;
+        let mut run_queue = self.run_queue.lock().await;
 
         // Retrieve the event
         match run_queue.pop_front() {
@@ -222,9 +222,9 @@ impl ExecutionLattice {
     /// invocation.
     pub async fn mark_as_completed(&self, event_id: usize) {
         // Take locks over everything.
-        let forest: &mut StableGraph<Option<OperatorEvent>, ()> = &mut *self.forest.lock().await;
-        let roots: &mut HashSet<NodeIndex<u32>> = &mut *self.roots.lock().await;
-        let run_queue: &mut VecDeque<NodeIndex<u32>> = &mut *self.run_queue.lock().await;
+        let mut forest = self.forest.lock().await;
+        let mut roots = self.roots.lock().await;
+        let mut run_queue = self.run_queue.lock().await;
 
         let node_id: NodeIndex<u32> = NodeIndex::new(event_id);
 
@@ -346,7 +346,8 @@ mod test {
         let no_event = block_on(lattice.get_event());
         assert_eq!(
             no_event.is_none(),
-            true, "Expected no event from the lattice"
+            true,
+            "Expected no event from the lattice"
         );
 
         // Mark one of the event as completed, and still don't expect an event.
