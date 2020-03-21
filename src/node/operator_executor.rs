@@ -1,6 +1,6 @@
 use std::{
     cell::RefCell,
-    collections::{BinaryHeap, HashMap},
+    collections::HashMap,
     pin::Pin,
     rc::Rc,
     sync::{
@@ -13,7 +13,7 @@ use std::{
 use tokio::{
     self,
     stream::{Stream, StreamExt},
-    sync::{watch, Mutex},
+    sync::watch,
 };
 
 use crate::{
@@ -23,6 +23,7 @@ use crate::{
         stream::{InternalReadStream, StreamId},
         Data, EventMakerT, Message, ReadStream,
     },
+    node::lattice::ExecutionLattice,
     node::operator_event::OperatorEvent,
 };
 
@@ -117,18 +118,32 @@ impl<D: Data> OperatorExecutorStream<D> {
     }
 }
 
+/// `OperatorExecutor` is a structure that is in charge of executing callbacks associated with
+/// messages and watermarks arriving on input streams at an `Operator`. The callbacks are invoked
+/// according to the partial order defined in
+/// [`OperatorEvent`](../operator_event/struct.OperatorEvent.html).
+///
+/// The `event_runner` function is in charge of executing the callbacks until it receives a
+/// `DestroyOperator` message. The `execute` function retrieves messages from the input streams and
+/// sends an `AddedEvents` message to the `event_runner` invocations to make them process the
+/// events. 
 pub struct OperatorExecutor {
+    /// The instance of the operator that needs to be executed.
     operator: Box<dyn Operator>,
+    /// The configuration with which the operator was instantiated.
     config: Box<dyn OperatorConfigT>,
+    /// A merged stream of all the input streams of the operator. This is used to retrieve events
+    /// to execute. 
     event_stream: Option<Pin<Box<dyn Send + Stream<Item = Vec<OperatorEvent>>>>>,
-    // Used to decide whether to run destroy()
+    /// Used to decide whether to run destroy()
     streams_closed: HashMap<StreamId, Arc<AtomicBool>>,
-    // Priority queue that sorts events by priority and timestamp.
-    event_queue: Arc<Mutex<BinaryHeap<OperatorEvent>>>,
+    /// A lattice that keeps a partial order of the events that need to be processed.
+    lattice: Arc<ExecutionLattice>,
     logger: slog::Logger,
 }
 
 impl OperatorExecutor {
+    /// Creates a new OperatorEvent.
     pub fn new<T: 'static + Operator, U: 'static + OperatorConfigT>(
         operator: T,
         config: U,
@@ -151,7 +166,7 @@ impl OperatorExecutor {
             config: Box::new(config),
             event_stream,
             streams_closed,
-            event_queue: Arc::new(Mutex::new(BinaryHeap::new())),
+            lattice: Arc::new(ExecutionLattice::new()),
             logger,
         }
     }
@@ -165,18 +180,24 @@ impl OperatorExecutor {
             .all(|x| x.load(Ordering::SeqCst))
     }
 
+    /// A high-level execute function that retrieves events from the input streams, adds them to
+    /// the lattice being maintained by the executor and notifies the `event_runner` invocations to
+    /// process the received events.
     pub async fn execute(&mut self) {
         if let Some(mut event_stream) = self.event_stream.take() {
             // Launch consumers
             // TODO: use better sync PQ and CondVar instead of watch
             // TODO: launch more consumers and adjust amount based on size of event queue
             let (notifier_tx, notifier_rx) = watch::channel(EventRunnerMessage::AddedEvents);
-            let event_runner_fut = Self::event_runner(Arc::clone(&self.event_queue), notifier_rx);
+            let event_runner_fut = Self::event_runner(Arc::clone(&self.lattice), notifier_rx);
             let event_runner_handle = tokio::spawn(event_runner_fut);
             while let Some(events) = event_stream.next().await {
                 {
                     {
-                        self.event_queue.lock().await.extend(events);
+                        // Add all the received events to the lattice.
+                        for event in events {
+                            self.lattice.add_event(event).await;
+                        }
                     }
                     // Notify receivers that new events were added.
                     notifier_tx
@@ -203,15 +224,24 @@ impl OperatorExecutor {
     }
 
     // TODO: run multiple of these in parallel?
+    /// An `event_runner` invocation is in charge of executing callbacks associated with an event.
+    /// Upon receipt of an `AddedEvents` notification, it queries the lattice for events that are
+    /// ready to run, executes them, and notifies the lattice of their completion.
     async fn event_runner(
-        event_queue: Arc<Mutex<BinaryHeap<OperatorEvent>>>,
+        lattice: Arc<ExecutionLattice>,
         mut notifier_rx: watch::Receiver<EventRunnerMessage>,
     ) {
         // Wait for notification for events added.
         while let Some(control_msg) = notifier_rx.recv().await {
-            while let Some(event) = { event_queue.lock().await.pop() } {
-                (event.callback)();
+            loop {
+                if let Some((event, event_id)) = lattice.get_event().await {
+                    (event.callback)();
+                    lattice.mark_as_completed(event_id).await;
+                } else {
+                    break;
+                }
             }
+
             if EventRunnerMessage::DestroyOperator == control_msg {
                 break;
             }
