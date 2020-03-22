@@ -4,7 +4,7 @@ Messages sent from these operators contain a list of Messages as data
 and have a timestamp corresponding to the most recent Message in the list.
 """
 
-import erdos.Operator
+import erdos
 
 class TumblingWindow(erdos.Operator):
     """Windows incoming messages into non-overlapping lists of `window_size`."""
