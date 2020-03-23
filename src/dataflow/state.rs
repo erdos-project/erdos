@@ -100,7 +100,7 @@ impl<S: State + Default, T: Clone> TimeVersionedState<S, T> {
                 Err(AccessError("Attempted to close_time from Operator::new"))
             }
             AccessContext::Callback => {
-                Err(AccessError("Attempted to close_time from Operator::new"))
+                Err(AccessError("Attempted to close_time from a callback"))
             }
             AccessContext::WatermarkCallback => Ok(()),
         }?;
