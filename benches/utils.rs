@@ -21,7 +21,7 @@ pub enum BenchType {
 
 pub struct DataflowHandle {
     pub ingest_stream: IngestStream<usize>,
-    pub extract_stream: ExtractStream<Duration>,
+    pub extract_streams: Vec<ExtractStream<Vec<Duration>>>,
     num_nodes: usize,
     node_handle: Option<NodeHandle>,
     child_pids: Vec<Pid>,
@@ -31,12 +31,12 @@ impl DataflowHandle {
     pub fn new(
         num_nodes: usize,
         ingest_stream: IngestStream<usize>,
-        extract_stream: ExtractStream<Duration>,
+        extract_streams: Vec<ExtractStream<Vec<Duration>>>,
     ) -> Self {
         Self {
             num_nodes,
             ingest_stream,
-            extract_stream,
+            extract_streams,
             node_handle: None,
             child_pids: Vec::new(),
         }
@@ -77,8 +77,13 @@ impl DataflowHandle {
                         }
                     }
                 }
-                let driver_config =
-                    Configuration::new(0, data_addresses, control_addresses, 4, None);
+                let driver_config = Configuration::new(
+                    0,
+                    data_addresses,
+                    control_addresses,
+                    4,
+                    Some("graph.gv".to_string()),
+                );
                 let node = Node::new(driver_config);
                 self.node_handle = Some(node.run_async());
             }
