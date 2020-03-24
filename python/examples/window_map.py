@@ -2,9 +2,10 @@
 Separate operator applies a map function on sent windows.
 """
 
-from erdos.operators import window, map
-import erdos
 import time
+
+import erdos
+from erdos.operators import window, map
 
 
 class SendOp(erdos.Operator):
@@ -26,35 +27,36 @@ class SendOp(erdos.Operator):
                                                  msg=msg))
             self.write_stream.send(msg)
 
-            if count % 3 == 0:
-                watermark = erdos.WatermarkMessage(timestamp)
-                print("{name}: sending watermark {watermark}".format(
-                    name=self.config.name, watermark=watermark))
-                self.write_stream.send(watermark)
-
             count += 1
             time.sleep(1 / self.frequency)
 
+
 def main():
     """Creates and runs the dataflow graph."""
-
-    def add(Msg):
-        """Mapping Function passed into MapWindowOp,
-           returns sums all the messages' data."""
+    def add(msg):
+        """Mapping Function passed into MapOp,
+           returns a new Message that sums the data of each message in msg.data."""
         total = 0
-        for msg in Msg.data:
-            total += msg.data
-        return erdos.Message(Msg.timestamp, total)
+        for i in msg.data:
+            total += i.data
+        return erdos.Message(msg.timestamp, total)
 
     (source_stream, ) = erdos.connect(SendOp,
-                                    erdos.OperatorConfig(name="SendOp"),
-                                    [],
-                                    frequency=1)
-    (window_stream, ) = erdos.connect(window.WatermarkWindow, erdos.OperatorConfig(),
-                                    [source_stream])
-    (map_stream, ) = erdos.connect(map.Map, erdos.OperatorConfig(),
-                                    [window_stream], function=add)
-    erdos.run()
+                                      erdos.OperatorConfig(name="SendOp"), [],
+                                      frequency=3)
+    (window_stream, ) = erdos.connect(window.TumblingWindow,
+                                      erdos.OperatorConfig(), [source_stream],
+                                      window_size=3)
+    (map_stream, ) = erdos.connect(map.Map,
+                                   erdos.OperatorConfig(), [window_stream],
+                                   function=add)
+    extract_stream = erdos.ExtractStream(map_stream)
+
+    erdos.run_async()
+
+    while True:
+        recv_msg = extract_stream.read()
+        print("ExtractStream: received {recv_msg}".format(recv_msg=recv_msg))
 
 
 if __name__ == "__main__":

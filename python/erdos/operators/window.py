@@ -6,6 +6,7 @@ and have a timestamp corresponding to the most recent Message in the list.
 
 import erdos
 
+
 class TumblingWindow(erdos.Operator):
     """Windows incoming messages into non-overlapping lists of `window_size`."""
     def __init__(self, read_stream, write_stream, window_size):
