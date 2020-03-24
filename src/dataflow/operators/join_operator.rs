@@ -90,8 +90,6 @@ impl<D: Data> StreamState<D> {
 /// let output_stream = connect_1_write!(JoinOperator<u32, u32, u64>, config, ingest_l, ingest_r);
 /// ```
 pub struct JoinOperator<D1: Data, D2: Data, D3: Data> {
-    /// The name given to the specific instance of the JoinOperator.
-    name: String,
     phantom_data: PhantomData<(D1, D2, D3)>,
 }
 
@@ -110,6 +108,11 @@ impl<'a, D1: Data, D2: Data, D3: Data + Deserialize<'a>> JoinOperator<D1, D2, D3
         input_stream_right: ReadStream<D2>,
         output_stream: WriteStream<D3>,
     ) -> Self {
+        let name = match config.name {
+            Some(s) => s,
+            None => format!("JoinOperator {}", config.id),
+        };
+
         // Package the state with the left stream and add a callback to the new stream.
         let stateful_stream_left = input_stream_left.add_state(StreamState::<D1>::new());
         stateful_stream_left.add_callback(Self::on_left_data_callback);
@@ -118,7 +121,9 @@ impl<'a, D1: Data, D2: Data, D3: Data + Deserialize<'a>> JoinOperator<D1, D2, D3
         let stateful_stream_right = input_stream_right.add_state(StreamState::<D2>::new());
         stateful_stream_right.add_callback(Self::on_right_data_callback);
 
-        let cb = config.arg.unwrap();
+        let cb = config
+            .arg
+            .unwrap_or_else(|| panic!("{}: no join function provided", name));
         stateful_stream_left
             .add_read_stream(&stateful_stream_right)
             .borrow_mut()
@@ -134,7 +139,6 @@ impl<'a, D1: Data, D2: Data, D3: Data + Deserialize<'a>> JoinOperator<D1, D2, D3
             );
 
         Self {
-            name: config.name.unwrap(),
             phantom_data: PhantomData,
         }
     }
