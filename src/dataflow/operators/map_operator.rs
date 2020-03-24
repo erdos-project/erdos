@@ -46,8 +46,13 @@ impl<'a, D1: Data, D2: Data + Deserialize<'a>> MapOperator<D1, D2> {
         let stateful_stream = input_stream.add_state(output_stream);
 
         // Clone the name so that we can move the passed function into the callback.
-        let name: String = config.name.unwrap();
-        let callback = config.arg.unwrap();
+        let name: String = config
+            .name
+            .clone()
+            .unwrap_or_else(|| format!("MapOperator {}", config.id));
+        let callback = config
+            .arg
+            .unwrap_or_else(|| panic!("{}: no map function supplied", name));
 
         stateful_stream.add_callback(
             move |t: Timestamp, msg: D1, output_stream: &mut WriteStream<_>| {
@@ -64,7 +69,7 @@ impl<'a, D1: Data, D2: Data + Deserialize<'a>> MapOperator<D1, D2> {
     ///
     /// # Arguments
     /// * `input_stream` - Represents the incoming stream of messages of type D1.
-    pub fn connect(input_stream: &ReadStream<D1>) -> WriteStream<D2> {
+    pub fn connect(_input_stream: &ReadStream<D1>) -> WriteStream<D2> {
         WriteStream::new()
     }
 
