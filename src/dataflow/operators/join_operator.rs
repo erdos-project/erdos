@@ -1,12 +1,16 @@
-use crate::dataflow::message::Message;
-use crate::dataflow::stream::WriteStreamT;
-use crate::dataflow::{Data, Operator, OperatorConfig, ReadStream, Timestamp, WriteStream};
-use chashmap::CHashMap;
+use std::{
+    cmp::Reverse,
+    collections::{BinaryHeap, HashMap},
+    marker::PhantomData,
+    sync::{Arc, RwLock},
+};
+
 use serde::Deserialize;
-use std::cmp::Reverse;
-use std::collections::BinaryHeap;
-use std::marker::PhantomData;
-use std::sync::{Arc, RwLock};
+
+use crate::dataflow::{
+    message::Message, stream::WriteStreamT, Data, Operator, OperatorConfig, ReadStream, Timestamp,
+    WriteStream,
+};
 
 /// A structure that stores the state associated with a stream for the JoinOperator, and provides
 /// the associated functions for mutation of the data.
@@ -14,8 +18,7 @@ use std::sync::{Arc, RwLock};
 /// timestamps for cleaning.
 #[derive(Clone)]
 struct StreamState<D: Data> {
-    // We use a CHashMap because multiple callbacks can be simultaneously invoked.
-    msgs: Arc<RwLock<CHashMap<Timestamp, Vec<D>>>>,
+    msgs: Arc<RwLock<HashMap<Timestamp, Vec<D>>>>,
     // A min-heap tracking the keys of the hashmap.
     timestamps: Arc<RwLock<BinaryHeap<Reverse<Timestamp>>>>,
 }
@@ -23,20 +26,19 @@ struct StreamState<D: Data> {
 impl<D: Data> StreamState<D> {
     fn new() -> Self {
         Self {
-            msgs: Arc::new(RwLock::new(CHashMap::new())),
+            msgs: Arc::new(RwLock::new(HashMap::new())),
             timestamps: Arc::new(RwLock::new(BinaryHeap::new())),
         }
     }
 
     /// Adds a message to the ConcurrentHashMap.
     fn add_msg(&mut self, timestamp: &Timestamp, msg: D) {
-        // Insert a new Vector if the key does not exist, and add the key to the timestamps.
-        //let _msgs = &(*(*self.msgs).write().unwrap());
-        let msgs = self.msgs.write().unwrap();
+        // Insert a new vector if the key does not exist, and add the key to the timestamps.
+        let mut msgs = self.msgs.write().unwrap();
         match msgs.get_mut(timestamp) {
-            Some(mut msg_vec) => msg_vec.push(msg),
+            Some(msg_vec) => msg_vec.push(msg),
             None => {
-                msgs.insert_new(timestamp.clone(), vec![msg]);
+                msgs.insert(timestamp.clone(), vec![msg]);
                 self.timestamps
                     .write()
                     .unwrap()
@@ -168,7 +170,9 @@ impl<'a, D1: Data, D2: Data, D3: Data + Deserialize<'a>> JoinOperator<D1, D2, D3
         let result_t: D3 = join_function(left_state_t, right_state_t);
 
         // Send the result on the write stream.
-        write_stream.send(Message::new_message(t.clone(), result_t));
+        write_stream
+            .send(Message::new_message(t.clone(), result_t))
+            .expect("JoinOperator: error sending on write stream");
 
         // Garbage collect all the data upto and including this timestamp.
         left_state.clean_state(t);
@@ -176,8 +180,8 @@ impl<'a, D1: Data, D2: Data, D3: Data + Deserialize<'a>> JoinOperator<D1, D2, D3
     }
 
     pub fn connect(
-        input_stream_left: &ReadStream<D1>,
-        input_stream_right: &ReadStream<D2>,
+        _left_read_stream: &ReadStream<D1>,
+        _right_read_stream: &ReadStream<D2>,
     ) -> WriteStream<D3> {
         WriteStream::new()
     }
