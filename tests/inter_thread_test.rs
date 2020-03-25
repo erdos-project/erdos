@@ -30,8 +30,10 @@ impl SendOperator {
     pub fn connect() -> WriteStream<usize> {
         WriteStream::new()
     }
+}
 
-    pub fn run(&mut self) {
+impl Operator for SendOperator {
+    fn run(&mut self) {
         for count in 0..5 {
             println!("SendOperator: sending {}", count);
             self.write_stream
@@ -44,8 +46,6 @@ impl SendOperator {
     }
 }
 
-impl Operator for SendOperator {}
-
 pub struct RecvOperator {}
 
 impl RecvOperator {
@@ -55,8 +55,6 @@ impl RecvOperator {
     }
 
     pub fn connect(_read_stream: &ReadStream<usize>) {}
-
-    pub fn run(&self) {}
 
     pub fn msg_callback(_t: Timestamp, msg: usize) {
         println!("RecvOperator: received {}", msg);
@@ -83,8 +81,6 @@ impl SquareOperator {
     pub fn connect(_read_stream: &ReadStream<usize>) -> WriteStream<usize> {
         WriteStream::new()
     }
-
-    pub fn run(&self) {}
 
     pub fn msg_callback(t: Timestamp, data: usize, write_stream: &mut WriteStream<usize>) {
         println!("SquareOperator: received {}", data);

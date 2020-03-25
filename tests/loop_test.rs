@@ -35,8 +35,10 @@ impl LoopOperator {
     pub fn connect(_read_stream: &ReadStream<usize>) -> WriteStream<usize> {
         WriteStream::new()
     }
+}
 
-    pub fn run(&mut self) {
+impl Operator for LoopOperator {
+    fn run(&mut self) {
         if self.send_first_msg {
             let msg = Message::new_message(Timestamp::new(vec![0]), 0);
             println!("LoopOp: sending {:?}", msg);
@@ -59,8 +61,6 @@ impl LoopOperator {
         }
     }
 }
-
-impl Operator for LoopOperator {}
 
 #[test]
 fn test_loop() {

@@ -25,8 +25,10 @@ impl SendOperator {
     pub fn connect() -> WriteStream<usize> {
         WriteStream::new()
     }
+}
 
-    pub fn run(&mut self) {
+impl Operator for SendOperator {
+    fn run(&mut self) {
         for count in 0..5 {
             println!("SendOperator: sending {}", count);
             self.write_stream
@@ -35,8 +37,6 @@ impl SendOperator {
         }
     }
 }
-
-impl Operator for SendOperator {}
 
 pub struct MultiStreamCallbackOperator {}
 
@@ -62,8 +62,6 @@ impl MultiStreamCallbackOperator {
     pub fn watermark_callback(t: &Timestamp, _s1: &(), _s2: &(), ws: &mut WriteStream<usize>) {
         ws.send(Message::new_watermark(t.clone())).unwrap();
     }
-
-    pub fn run(&self) {}
 }
 
 impl Operator for MultiStreamCallbackOperator {}
@@ -85,8 +83,6 @@ impl RecvOperator {
     }
 
     pub fn connect(_read_stream: &ReadStream<usize>) {}
-
-    pub fn run(&self) {}
 
     pub fn watermark_callback(t: &Timestamp, should_flow_watermarks: &mut bool) {
         if *should_flow_watermarks {
