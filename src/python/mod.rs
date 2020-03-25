@@ -205,18 +205,6 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
                         "Error sending OperatorInitialized message to control handler: {:?}", e
                     );
                 }
-                // Wait for control message to run
-                loop {
-                    if let Ok(ControlMessage::RunOperator(id)) = control_receiver.try_recv() {
-                        if id == op_id {
-                            break;
-                        }
-                    }
-                }
-                let py_result = py.run("operator.run()", None, Some(&locals));
-                if let Err(e) = py_result {
-                    e.print(py)
-                }
 
                 let operator_obj = py
                     .eval("operator", None, Some(&locals))
@@ -234,6 +222,7 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
                     },
                     config,
                     op_ex_streams,
+                    control_receiver,
                     logger,
                 )
             };
@@ -335,6 +324,14 @@ struct PyOperator {
 }
 
 impl Operator for PyOperator {
+    fn run(&mut self) {
+        let gil = Python::acquire_gil();
+        let py = gil.python();
+        if let Err(e) = self.operator.call_method0(py, "run") {
+            e.print(py);
+        }
+    }
+
     fn destroy(&mut self) {
         let gil = Python::acquire_gil();
         let py = gil.python();

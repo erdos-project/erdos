@@ -308,7 +308,7 @@ impl Node {
             let join_handle = tokio::spawn(async move {
                 let mut operator_executor =
                     (operator_info.runner)(channel_manager_copy, operator_tx_copy, rx);
-                operator_executor.execute().await;
+                operator_executor.execute_on_control_message().await;
             });
             join_handles.push(join_handle);
         }

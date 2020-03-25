@@ -62,7 +62,7 @@ pub use dataflow::OperatorConfig;
 
 /// Makes a callback which automatically flows watermarks to downstream operators.
 ///
-/// Note: this is intended as an internal macro invoked by `make_operator_runner!`
+/// Note: this is intended as an internal macro invoked by `make_operator_executor!`
 #[macro_export]
 macro_rules! flow_watermarks {
     (($($rs:ident),+), ($($ws:ident),+)) => {
@@ -83,7 +83,7 @@ macro_rules! flow_watermarks {
 
 /// Makes a callback which automatically flows watermarks to downstream operators.
 ///
-/// Note: this is intended as an internal macro invoked by `make_operator_runner!`
+/// Note: this is intended as an internal macro invoked by `make_operator_executor!`
 #[macro_export]
 macro_rules! make_operator {
     ($t:ty, $config:expr, ($($rs:ident),+), ($($ws:ident),*)) => {
@@ -99,11 +99,11 @@ macro_rules! make_operator {
     };
 }
 
-/// Makes a closure that runs an operator inside of an operator exectuor when invoked.
+/// Makes a closure that initializes the operator and returns the corresponding [`OperatorExecutor`].
 ///
 /// Note: this is intended as an internal macro called by connect_x_write!
 #[macro_export]
-macro_rules! make_operator_runner {
+macro_rules! make_operator_executor {
     ($t:ty, $config:expr, ($($rs:ident),*), ($($ws:ident),*)) => {{
         // Copy IDs to avoid moving streams into closure
         // Before: $rs is an identifier pointing to a read stream
@@ -154,18 +154,7 @@ macro_rules! make_operator_runner {
                     "Error sending OperatorInitialized message to control handler: {:?}", e
                 );
             }
-            // Wait for control message to run
-            loop {
-                if let Ok(ControlMessage::RunOperator(id)) = control_receiver.try_recv() {
-                    if id == config.id {
-                        break;
-                    }
-                }
-            }
-            // TODO: execute the operator in parallel?
-            // Currently, callbacks are NOT invoked while operator.execute() runs.
-            op.run();
-            let mut op_executor = OperatorExecutor::new(op, config, op_ex_streams, logger);
+            let mut op_executor = OperatorExecutor::new(op, config, op_ex_streams, control_receiver, logger);
             op_executor
         }
     }};
@@ -224,7 +213,7 @@ macro_rules! register {
         // Add operator to dataflow graph.
         let read_stream_ids = vec![$($rs.get_id()),*];
         let write_stream_ids = vec![$($ws.get_id()),*];
-        let op_runner = $crate::make_operator_runner!($t, config_copy, ($($rs),*), ($($ws),*));
+        let op_runner = $crate::make_operator_executor!($t, config_copy, ($($rs),*), ($($ws),*));
         default_graph::add_operator(config.id, config.name.clone(), config.node_id, read_stream_ids, write_stream_ids, op_runner);
         $(
             default_graph::add_operator_stream(config.id, &$ws);

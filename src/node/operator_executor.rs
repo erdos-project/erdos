@@ -13,11 +13,11 @@ use std::{
 use tokio::{
     self,
     stream::{Stream, StreamExt},
-    sync::watch,
+    sync::{mpsc, watch},
 };
 
 use crate::{
-    communication::RecvEndpoint,
+    communication::{ControlMessage, RecvEndpoint},
     dataflow::{
         operator::{Operator, OperatorConfigT},
         stream::{InternalReadStream, StreamId},
@@ -125,19 +125,21 @@ impl<D: Data> OperatorExecutorStream<D> {
 /// The `event_runner` function is in charge of executing the callbacks until it receives a
 /// `DestroyOperator` message. The `execute` function retrieves messages from the input streams and
 /// sends an `AddedEvents` message to the `event_runner` invocations to make them process the
-/// events. 
+/// events.
 pub struct OperatorExecutor {
     /// The instance of the operator that needs to be executed.
     operator: Box<dyn Operator>,
     /// The configuration with which the operator was instantiated.
     config: Box<dyn OperatorConfigT>,
     /// A merged stream of all the input streams of the operator. This is used to retrieve events
-    /// to execute. 
+    /// to execute.
     event_stream: Option<Pin<Box<dyn Send + Stream<Item = Vec<OperatorEvent>>>>>,
     /// Used to decide whether to run destroy()
     streams_closed: HashMap<StreamId, Arc<AtomicBool>>,
     /// A lattice that keeps a partial order of the events that need to be processed.
     lattice: Arc<ExecutionLattice>,
+    /// Receives control messages regarding the operator.
+    control_rx: mpsc::UnboundedReceiver<ControlMessage>,
     logger: slog::Logger,
 }
 
@@ -147,6 +149,7 @@ impl OperatorExecutor {
         operator: T,
         config: U,
         mut operator_streams: Vec<Box<dyn OperatorExecutorStreamT>>,
+        control_rx: mpsc::UnboundedReceiver<ControlMessage>,
         logger: slog::Logger,
     ) -> Self {
         let streams_closed: HashMap<_, _> = operator_streams
@@ -166,6 +169,7 @@ impl OperatorExecutor {
             event_stream,
             streams_closed,
             lattice: Arc::new(ExecutionLattice::new()),
+            control_rx,
             logger,
         }
     }
@@ -179,10 +183,25 @@ impl OperatorExecutor {
             .all(|x| x.load(Ordering::SeqCst))
     }
 
+    /// Runs [`OperatorExecutor::execute`] upon receiving [`ControlMessage::RunOperator`] matching this operator's ID.
+    pub async fn execute_on_control_message(&mut self) {
+        loop {
+            if let Some(ControlMessage::RunOperator(id)) = self.control_rx.recv().await {
+                if id == self.config.id() {
+                    break;
+                }
+            }
+        }
+        self.execute().await;
+    }
+
     /// A high-level execute function that retrieves events from the input streams, adds them to
     /// the lattice being maintained by the executor and notifies the `event_runner` invocations to
     /// process the received events.
-    pub async fn execute(&mut self) {
+    async fn execute(&mut self) {
+        // Callbacks are not invoked while the operator is running.
+        self.operator.run();
+
         if let Some(mut event_stream) = self.event_stream.take() {
             // Launch consumers
             // TODO: use better sync PQ and CondVar instead of watch
