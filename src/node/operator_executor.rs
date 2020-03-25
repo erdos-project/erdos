@@ -183,8 +183,12 @@ impl OperatorExecutor {
             .all(|x| x.load(Ordering::SeqCst))
     }
 
-    /// Runs [`OperatorExecutor::execute`] upon receiving [`ControlMessage::RunOperator`] matching this operator's ID.
-    pub async fn execute_on_control_message(&mut self) {
+    /// A high-level execute function that first waits for a [`ControlMessage::RunOperator`] message
+    /// and executes [`Operator::run`].
+    /// Once [`Operator::run`] completes, the function runs callbacks by retrieving events from the
+    /// input streams, adding them to the lattice maintained by the executor and notifying the
+    /// `event_runner` invocations to process the received events.
+    pub async fn execute(&mut self) {
         loop {
             if let Some(ControlMessage::RunOperator(id)) = self.control_rx.recv().await {
                 if id == self.config.id() {
@@ -192,13 +196,7 @@ impl OperatorExecutor {
                 }
             }
         }
-        self.execute().await;
-    }
 
-    /// A high-level execute function that retrieves events from the input streams, adds them to
-    /// the lattice being maintained by the executor and notifies the `event_runner` invocations to
-    /// process the received events.
-    async fn execute(&mut self) {
         // Callbacks are not invoked while the operator is running.
         self.operator.run();
 
