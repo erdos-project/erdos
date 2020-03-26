@@ -292,7 +292,8 @@ fn measure_p_latency(handle: &mut DataflowHandle, time: u64, p: f32) -> Duration
     durations[idx]
 }
 
-/// Varies the size of a message and measures the resulting latency.
+/// Varies the size of a message and measures the resulting latency on a
+/// dataflow with 1 sender and 1 receiver.
 fn benchmark_msg_size(c: &mut Criterion, bench_type: BenchType) {
     erdos::reset();
     let mut handle = setup_latency_dataflow(1, 1, bench_type);

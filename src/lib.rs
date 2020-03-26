@@ -406,7 +406,7 @@ impl fmt::Display for Uuid {
     }
 }
 
-/// Resets the internal dataflow graph.
+/// Resets seed and creates a new dataflow graph.
 pub fn reset() {
     // All global variables should be reset here.
     RNG.with(|rng| {
