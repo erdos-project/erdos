@@ -4,18 +4,16 @@ pub mod graph;
 pub mod message;
 pub mod operator;
 pub mod operators;
+pub mod state;
 pub mod stream;
 
 // Re-export structs as if they were defined here.
 pub use message::{Data, Message, Timestamp, TimestampedData};
 pub use operator::{Operator, OperatorConfig};
+pub use state::State;
 pub use stream::{
     EventMakerT, LoopStream, ReadStream, StatefulReadStream, WriteStream, WriteStreamError,
 };
-
-/// Trait that must be implemented by stream state structs.
-pub trait State: 'static + Clone {}
-impl<T: 'static + Clone> State for T {}
 
 #[cfg(test)]
 mod tests {
