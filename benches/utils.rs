@@ -14,6 +14,7 @@ use erdos::{
     Configuration,
 };
 
+#[derive(Clone, Copy)]
 pub enum BenchType {
     InterProcess,
     InterThread,
@@ -77,13 +78,8 @@ impl DataflowHandle {
                         }
                     }
                 }
-                let driver_config = Configuration::new(
-                    0,
-                    data_addresses,
-                    control_addresses,
-                    4,
-                    Some("graph.gv".to_string()),
-                );
+                let driver_config =
+                    Configuration::new(0, data_addresses, control_addresses, 4, None);
                 let node = Node::new(driver_config);
                 self.node_handle = Some(node.run_async());
             }
