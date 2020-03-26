@@ -4,10 +4,10 @@ addons:
   apt:
     packages:
       - python3-pip
+      - python3-setuptools
 
 rust:
   - nightly
 
 install:
-  - pip3 install --upgrade --user pip
   - pip3 install --user fire
