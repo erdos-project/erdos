@@ -406,6 +406,15 @@ impl fmt::Display for Uuid {
     }
 }
 
+/// Resets seed and creates a new dataflow graph.
+pub fn reset() {
+    // All global variables should be reset here.
+    RNG.with(|rng| {
+        *rng.borrow_mut() = StdRng::from_seed(&[1913, 03, 26]);
+    });
+    dataflow::graph::default_graph::set(dataflow::graph::Graph::new());
+}
+
 pub fn get_terminal_logger() -> slog::Logger {
     use slog::Drain;
     use slog::Logger;

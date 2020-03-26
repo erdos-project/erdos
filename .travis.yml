@@ -1,7 +1,13 @@
 language: rust
 
+addons:
+  apt:
+    packages:
+      - python3-pip
+      - python3-setuptools
+
 rust:
   - nightly
 
 install:
-  - pip install --user fire
+  - pip3 install --user fire

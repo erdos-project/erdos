@@ -5,4 +5,4 @@ pub mod operator_executor;
 pub mod lattice;
 
 // Re-export structs as if they were defined here.
-pub use node::{Node, NodeId};
+pub use node::{Node, NodeHandle, NodeId};

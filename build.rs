@@ -16,7 +16,7 @@ fn make_callback_builder() -> Result<(), String> {
     let callback_builder_file = File::create(callback_builder_path.to_str().unwrap())
         .map_err(|e| format!("make_callback_builder: {}", e.to_string()))?;
 
-    let child = Command::new("python")
+    let child = Command::new("python3")
         .arg(callback_builder_script.to_str().unwrap())
         .args(&["build", "8", "8"])
         .stdout(Stdio::from(callback_builder_file))

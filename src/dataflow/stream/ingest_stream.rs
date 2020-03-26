@@ -89,14 +89,9 @@ where
             .map(WriteStream::is_closed)
             .unwrap_or(true)
     }
-}
 
-impl<D> WriteStreamT<D> for IngestStream<D>
-where
-    for<'a> D: Data + Deserialize<'a>,
-{
     /// Blocks until write stream is available
-    fn send(&mut self, msg: Message<D>) -> Result<(), WriteStreamError> {
+    pub fn send(&mut self, msg: Message<D>) -> Result<(), WriteStreamError> {
         loop {
             {
                 if let Some(write_stream) = self.write_stream_option.lock().unwrap().as_mut() {
@@ -106,5 +101,15 @@ where
             }
             thread::sleep(Duration::from_millis(100));
         }
+    }
+}
+
+impl<D> WriteStreamT<D> for IngestStream<D>
+where
+    for<'a> D: Data + Deserialize<'a>,
+{
+    /// Blocks until write stream is available
+    fn send(&mut self, msg: Message<D>) -> Result<(), WriteStreamError> {
+        self.send(msg)
     }
 }
