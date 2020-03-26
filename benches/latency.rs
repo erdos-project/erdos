@@ -365,14 +365,14 @@ fn benchmark_num_receivers(c: &mut Criterion, bench_type: BenchType) {
         BenchType::InterThread => c.benchmark_group("num receivers vs. latency (inter-thread)"),
     };
 
-    for receivers in 1..=5 {
+    for num_receivers in 1..=5 {
         erdos::reset();
-        let mut handle = setup_latency_dataflow(1, receivers, bench_type);
+        let mut handle = setup_latency_dataflow(1, num_receivers, bench_type);
         handle.run();
         let mut time = 0;
 
         for p in &P_VALUES {
-            group.bench_function(format!("{} receivers (p={})", receivers, p), |b| {
+            group.bench_function(format!("{} receivers (p={})", num_receivers, p), |b| {
                 b.iter_custom(|iters| {
                     let mut duration = Duration::from_nanos(0);
                     for _ in 0..iters {
