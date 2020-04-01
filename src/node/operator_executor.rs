@@ -10,6 +10,7 @@ use std::{
     task::{Context, Poll},
 };
 
+use futures::future;
 use tokio::{
     self,
     stream::{Stream, StreamExt},
@@ -19,7 +20,7 @@ use tokio::{
 use crate::{
     communication::{ControlMessage, RecvEndpoint},
     dataflow::{
-        operator::{Operator, OperatorConfigT},
+        operator::{Operator, OperatorConfig},
         stream::{InternalReadStream, StreamId},
         Data, EventMakerT, Message, ReadStream,
     },
@@ -129,8 +130,8 @@ impl<D: Data> OperatorExecutorStream<D> {
 pub struct OperatorExecutor {
     /// The instance of the operator that needs to be executed.
     operator: Box<dyn Operator>,
-    /// The configuration with which the operator was instantiated.
-    config: Box<dyn OperatorConfigT>,
+    /// The configuration with which the operator was instantiated, without the argument.
+    config: OperatorConfig<()>,
     /// A merged stream of all the input streams of the operator. This is used to retrieve events
     /// to execute.
     event_stream: Option<Pin<Box<dyn Send + Stream<Item = Vec<OperatorEvent>>>>>,
@@ -145,9 +146,9 @@ pub struct OperatorExecutor {
 
 impl OperatorExecutor {
     /// Creates a new OperatorEvent.
-    pub fn new<T: 'static + Operator, U: 'static + OperatorConfigT>(
+    pub fn new<T: 'static + Operator, U: Clone>(
         operator: T,
-        config: U,
+        config: OperatorConfig<U>,
         mut operator_streams: Vec<Box<dyn OperatorExecutorStreamT>>,
         control_rx: mpsc::UnboundedReceiver<ControlMessage>,
         logger: slog::Logger,
@@ -165,7 +166,7 @@ impl OperatorExecutor {
         });
         Self {
             operator: Box::new(operator),
-            config: Box::new(config),
+            config: config.drop_arg(),
             event_stream,
             streams_closed,
             lattice: Arc::new(ExecutionLattice::new()),
@@ -191,7 +192,7 @@ impl OperatorExecutor {
     pub async fn execute(&mut self) {
         loop {
             if let Some(ControlMessage::RunOperator(id)) = self.control_rx.recv().await {
-                if id == self.config.id() {
+                if id == self.config.id {
                     break;
                 }
             }
@@ -202,11 +203,15 @@ impl OperatorExecutor {
 
         if let Some(mut event_stream) = self.event_stream.take() {
             // Launch consumers
-            // TODO: use better sync PQ and CondVar instead of watch
-            // TODO: launch more consumers and adjust amount based on size of event queue
+            // TODO: use CondVar instead of watch.
+            // TODO: adjust number of event runners. based on size of event lattice.
             let (notifier_tx, notifier_rx) = watch::channel(EventRunnerMessage::AddedEvents);
-            let event_runner_fut = Self::event_runner(Arc::clone(&self.lattice), notifier_rx);
-            let event_runner_handle = tokio::spawn(event_runner_fut);
+            let mut event_runner_handles = Vec::new();
+            for _ in 0..self.config.num_event_runners {
+                let event_runner_fut =
+                    Self::event_runner(Arc::clone(&self.lattice), notifier_rx.clone());
+                event_runner_handles.push(tokio::spawn(event_runner_fut));
+            }
             while let Some(events) = event_stream.next().await {
                 {
                     {
@@ -225,21 +230,21 @@ impl OperatorExecutor {
             notifier_tx
                 .broadcast(EventRunnerMessage::DestroyOperator)
                 .unwrap();
-            event_runner_handle.await.unwrap();
+            // Handle errors?
+            future::join_all(event_runner_handles).await;
 
             if self.all_streams_closed() {
                 slog::debug!(
                     self.logger,
                     "Destroying operator with name {:?} and ID {}.",
-                    self.config.name(),
-                    self.config.id(),
+                    self.config.name,
+                    self.config.id,
                 );
                 self.operator.destroy();
             }
         }
     }
 
-    // TODO: run multiple of these in parallel?
     /// An `event_runner` invocation is in charge of executing callbacks associated with an event.
     /// Upon receipt of an `AddedEvents` notification, it queries the lattice for events that are
     /// ready to run, executes them, and notifies the lattice of their completion.
