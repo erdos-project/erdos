@@ -249,15 +249,10 @@ impl OperatorExecutor {
     ) {
         // Wait for notification for events added.
         while let Some(control_msg) = notifier_rx.recv().await {
-            loop {
-                if let Some((event, event_id)) = lattice.get_event().await {
-                    (event.callback)();
-                    lattice.mark_as_completed(event_id).await;
-                } else {
-                    break;
-                }
+            while let Some((event, event_id)) = lattice.get_event().await {
+                (event.callback)();
+                lattice.mark_as_completed(event_id).await;
             }
-
             if EventRunnerMessage::DestroyOperator == control_msg {
                 break;
             }
