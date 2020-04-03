@@ -12,11 +12,6 @@ pub trait Operator {
     fn destroy(&mut self) {}
 }
 
-pub trait OperatorConfigT {
-    fn name(&self) -> Option<String>;
-    fn id(&self) -> OperatorId;
-}
-
 #[derive(Clone)]
 pub struct OperatorConfig<T: Clone> {
     pub name: Option<String>,
@@ -25,6 +20,7 @@ pub struct OperatorConfig<T: Clone> {
     pub arg: Option<T>,
     pub flow_watermarks: bool,
     pub node_id: NodeId,
+    pub num_event_runners: usize,
 }
 
 impl<T: Clone> OperatorConfig<T> {
@@ -35,6 +31,7 @@ impl<T: Clone> OperatorConfig<T> {
             arg: None,
             flow_watermarks: true,
             node_id: 0,
+            num_event_runners: 1,
         }
     }
 
@@ -60,14 +57,28 @@ impl<T: Clone> OperatorConfig<T> {
         self.node_id = node_id;
         self
     }
-}
 
-impl<T: Clone> OperatorConfigT for OperatorConfig<T> {
-    fn name(&self) -> Option<String> {
-        self.name.clone()
+    /// Sets the maximum number of callbacks the operator can process in parallel
+    /// at a time. Defaults to 1.
+    pub fn num_event_runners(&mut self, num_event_runners: usize) -> &mut Self {
+        assert!(
+            num_event_runners > 0,
+            "Operator must have at least 1 thread."
+        );
+        self.num_event_runners = num_event_runners;
+        self
     }
 
-    fn id(&self) -> OperatorId {
-        self.id
+    /// Loses argument type information in the
+    /// [`OperatorExecutor`](crate::node::operator_executor::OperatorExecutor).
+    pub(crate) fn drop_arg(self) -> OperatorConfig<()> {
+        OperatorConfig {
+            id: self.id,
+            name: None,
+            arg: None,
+            flow_watermarks: self.flow_watermarks,
+            node_id: self.node_id,
+            num_event_runners: self.num_event_runners,
+        }
     }
 }
