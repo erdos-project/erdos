@@ -32,7 +32,7 @@
 #![feature(specialization)]
 #![feature(box_into_pin)]
 
-pub extern crate abomonation;
+extern crate abomonation;
 #[macro_use]
 extern crate abomonation_derive;
 extern crate bincode;
