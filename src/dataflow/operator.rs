@@ -58,8 +58,8 @@ impl<T: Clone> OperatorConfig<T> {
         self
     }
 
-    /// Set the number of event runners with which the operator processes callbacks in parallel.
-    /// Defaults to 1.
+    /// Sets the maximum number of callbacks the operator can process in parallel
+    /// at a time. Defaults to 1.
     pub fn num_event_runners(&mut self, num_event_runners: usize) -> &mut Self {
         assert!(
             num_event_runners > 0,
