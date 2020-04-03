@@ -12,11 +12,6 @@ pub trait Operator {
     fn destroy(&mut self) {}
 }
 
-pub trait OperatorConfigT {
-    fn name(&self) -> Option<String>;
-    fn id(&self) -> OperatorId;
-}
-
 #[derive(Clone)]
 pub struct OperatorConfig<T: Clone> {
     pub name: Option<String>,
