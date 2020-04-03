@@ -38,8 +38,9 @@ extern crate abomonation_derive;
 extern crate bincode;
 extern crate clap;
 #[macro_use]
-extern crate slog;
+pub extern crate slog;
 extern crate slog_term;
+pub extern crate tokio;
 
 // Libraries used in this file.
 use clap::{App, Arg};
@@ -166,8 +167,6 @@ macro_rules! make_operator_executor {
 #[macro_export]
 macro_rules! imports {
     () => {
-        extern crate slog;
-        extern crate tokio;
         use std::{
             cell::RefCell,
             rc::Rc,
@@ -175,7 +174,8 @@ macro_rules! imports {
             thread,
             time::Duration,
         };
-        use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+        use $crate::slog;
+        use $crate::tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
         use $crate::{
             self,
             communication::ControlMessage,
