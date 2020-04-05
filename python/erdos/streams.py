@@ -129,6 +129,10 @@ class WriteStream(object):
         internal_msg = _to_py_message(msg)
         return self._py_write_stream.send(internal_msg)
 
+    def send_pickled(self, timestamp, pickled):
+        msg = PyMessage(timestamp.coordinates, False, pickled)
+        return self._py_write_stream.send(msg)
+
 
 class LoopStream(object):
     """Stream placeholder used to construct loops in the dataflow graph.
@@ -167,6 +171,10 @@ class IngestStream(object):
 
         internal_msg = _to_py_message(msg)
         self._py_ingest_stream.send(internal_msg)
+
+    def send_pickled(self, timestamp, pickled):
+        msg = PyMessage(timestamp.coordinates, False, pickled)
+        return self._py_write_stream.send(msg)
 
 
 class ExtractStream(object):
