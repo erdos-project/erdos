@@ -116,7 +116,7 @@ impl Node {
         *started = true;
         cvar.notify_all();
 
-        debug!(self.config.logger, "Notfiying node initialized");
+        debug!(self.config.logger, "Node {}: done initializing.", self.id);
     }
 
     /// Splits a vector of TCPStreams into `DataSender`s and `DataReceiver`s.
@@ -240,6 +240,10 @@ impl Node {
     }
 
     async fn broadcast_local_operators_initialized(&mut self) -> Result<(), String> {
+        debug!(
+            self.config.logger,
+            "Node {}: initialized all operators on this node.", self.id
+        );
         self.control_handler
             .broadcast_to_nodes(ControlMessage::AllOperatorsInitializedOnNode(self.id))
             .map_err(|e| format!("Error broadcasting control message: {:?}", e))

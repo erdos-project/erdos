@@ -198,6 +198,18 @@ impl OperatorExecutor {
             }
         }
 
+        let name = self
+            .config
+            .name
+            .clone()
+            .unwrap_or_else(|| format!("{}", self.config.id));
+        slog::debug!(
+            self.logger,
+            "Node {}: running operator {}",
+            self.config.node_id,
+            name
+        );
+
         // Callbacks are not invoked while the operator is running.
         self.operator.run();
 
