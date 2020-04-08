@@ -14,7 +14,6 @@ setup(
     rust_extensions=[
         RustExtension("erdos.internal",
                       path="Cargo.toml",
-                      debug=False,
                       features=["python"],
                       binding=Binding.PyO3)
     ],
