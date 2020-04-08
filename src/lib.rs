@@ -38,6 +38,8 @@ extern crate abomonation_derive;
 extern crate bincode;
 extern crate clap;
 #[macro_use]
+extern crate lazy_static;
+#[macro_use]
 pub extern crate slog;
 extern crate slog_term;
 pub extern crate tokio;
@@ -46,6 +48,8 @@ pub extern crate tokio;
 use clap::{App, Arg};
 use rand::{Rng, SeedableRng, StdRng};
 use serde::{Deserialize, Serialize};
+use slog::{Drain, Logger};
+use slog_term::term_full;
 use std::{cell::RefCell, fmt};
 use uuid;
 
@@ -415,12 +419,13 @@ pub fn reset() {
     dataflow::graph::default_graph::set(dataflow::graph::Graph::new());
 }
 
+lazy_static! {
+    static ref TERMINAL_LOGGER: Logger =
+        Logger::root(std::sync::Mutex::new(term_full()).fuse(), o!());
+}
+
 pub fn get_terminal_logger() -> slog::Logger {
-    use slog::Drain;
-    use slog::Logger;
-    use slog_term::term_full;
-    use std::sync::Mutex;
-    Logger::root(Mutex::new(term_full()).fuse(), o!())
+    TERMINAL_LOGGER.clone()
 }
 
 pub fn new_app(name: &str) -> clap::App {
