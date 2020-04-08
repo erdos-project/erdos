@@ -143,11 +143,12 @@ macro_rules! make_operator_executor {
             )*
             // After: $rs is an identifier pointing to ReadStream
             // $ws is an identifier pointing to WriteStream
-            let config = $config.clone();
+            let mut config = $config.clone();
+            config.node_id = channel_manager.lock().unwrap().node_id();
             let flow_watermarks = config.flow_watermarks;
             let logger = $crate::get_terminal_logger();
             // TODO: set operator name?
-            let mut op = $crate::make_operator!($t, $config, ($($rs),*), ($($ws),*));
+            let mut op = $crate::make_operator!($t, config.clone(), ($($rs),*), ($($ws),*));
             // Pass on watermarks
             if flow_watermarks {
                 $crate::flow_watermarks!(($($rs),*), ($($ws),*));
