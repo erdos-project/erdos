@@ -248,9 +248,9 @@ impl OperatorExecutor {
             if self.all_streams_closed() {
                 slog::debug!(
                     self.logger,
-                    "Destroying operator with name {:?} and ID {}.",
-                    self.config.name,
-                    self.config.id,
+                    "Node {}: destroying operator {}",
+                    self.config.node_id,
+                    name,
                 );
                 self.operator.destroy();
             }

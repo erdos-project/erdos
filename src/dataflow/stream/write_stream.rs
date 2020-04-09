@@ -79,6 +79,12 @@ impl<D: Data> WriteStream<D> {
         }
     }
 
+    fn close_stream(&mut self) {
+        let logger = crate::get_terminal_logger();
+        slog::debug!(logger, "Closing write stream {}", self.id);
+        self.stream_closed = true;
+    }
+
     fn update_watermark(&mut self, msg: &Message<D>) -> Result<(), WriteStreamError> {
         match msg {
             Message::TimestampedData(td) => {
@@ -120,7 +126,7 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
             return Err(WriteStreamError::Closed);
         }
         if msg.is_top_watermark() {
-            self.stream_closed = true;
+            self.close_stream();
         }
         self.update_watermark(&msg)?;
         if !self.inter_process_endpoints.is_empty() {
@@ -164,7 +170,7 @@ impl<'a, D: Data + Deserialize<'a> + Abomonation> WriteStreamT<D> for WriteStrea
             return Err(WriteStreamError::Closed);
         }
         if msg.is_top_watermark() {
-            self.stream_closed = true;
+            self.close_stream();
         }
         self.update_watermark(&msg)?;
         if !self.inter_process_endpoints.is_empty() {
