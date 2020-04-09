@@ -61,6 +61,14 @@ def connect(op_type, config, read_streams, *args, **kwargs):
     return [ReadStream(_py_read_stream=s) for s in internal_streams]
 
 
+def reset():
+    """Resets internal seed and creates a new dataflow graph.
+    
+    Note that no streams or operators can be re-used safely.
+    """
+    _internal.reset()
+
+
 def run(graph_filename=None, start_port=9000):
     """Instantiates and runs the dataflow graph.
 

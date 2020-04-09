@@ -249,6 +249,11 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
         Ok(result)
     }
 
+    #[pyfn(m, "reset")]
+    fn reset_py() {
+        crate::reset();
+    }
+
     #[pyfn(m, "run")]
     fn run_py(
         py: Python,
