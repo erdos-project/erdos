@@ -72,7 +72,7 @@ impl Node {
     ///
     /// The method never returns.
     pub fn run(&mut self) {
-        debug!(self.config.logger, "Starting node {}", self.id);
+        debug!(self.config.logger, "Node {}: running", self.id);
         // Build a runtime with n threads.
         let mut runtime = Builder::new()
             .threaded_scheduler()
@@ -82,6 +82,7 @@ impl Node {
             .build()
             .unwrap();
         runtime.block_on(self.async_run());
+        debug!(self.config.logger, "Node {}: finished running", self.id);
     }
 
     /// Runs an ERDOS node in a seperate OS thread.
