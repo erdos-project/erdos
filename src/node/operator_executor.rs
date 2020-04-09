@@ -198,6 +198,18 @@ impl OperatorExecutor {
             }
         }
 
+        let name = self
+            .config
+            .name
+            .clone()
+            .unwrap_or_else(|| format!("{}", self.config.id));
+        slog::debug!(
+            self.logger,
+            "Node {}: running operator {}",
+            self.config.node_id,
+            name
+        );
+
         // Callbacks are not invoked while the operator is running.
         self.operator.run();
 
@@ -236,9 +248,9 @@ impl OperatorExecutor {
             if self.all_streams_closed() {
                 slog::debug!(
                     self.logger,
-                    "Destroying operator with name {:?} and ID {}.",
-                    self.config.name,
-                    self.config.id,
+                    "Node {}: destroying operator {}",
+                    self.config.node_id,
+                    name,
                 );
                 self.operator.destroy();
             }

@@ -72,7 +72,7 @@ impl Node {
     ///
     /// The method never returns.
     pub fn run(&mut self) {
-        debug!(self.config.logger, "Starting node {}", self.id);
+        debug!(self.config.logger, "Node {}: running", self.id);
         // Build a runtime with n threads.
         let mut runtime = Builder::new()
             .threaded_scheduler()
@@ -82,6 +82,7 @@ impl Node {
             .build()
             .unwrap();
         runtime.block_on(self.async_run());
+        debug!(self.config.logger, "Node {}: finished running", self.id);
     }
 
     /// Runs an ERDOS node in a seperate OS thread.
@@ -116,7 +117,7 @@ impl Node {
         *started = true;
         cvar.notify_all();
 
-        debug!(self.config.logger, "Notfiying node initialized");
+        debug!(self.config.logger, "Node {}: done initializing.", self.id);
     }
 
     /// Splits a vector of TCPStreams into `DataSender`s and `DataReceiver`s.
@@ -240,6 +241,10 @@ impl Node {
     }
 
     async fn broadcast_local_operators_initialized(&mut self) -> Result<(), String> {
+        debug!(
+            self.config.logger,
+            "Node {}: initialized all operators on this node.", self.id
+        );
         self.control_handler
             .broadcast_to_nodes(ControlMessage::AllOperatorsInitializedOnNode(self.id))
             .map_err(|e| format!("Error broadcasting control message: {:?}", e))
@@ -296,9 +301,13 @@ impl Node {
 
         let mut join_handles = Vec::with_capacity(num_local_operators);
         for operator_info in local_operators {
+            let name = operator_info
+                .name
+                .clone()
+                .unwrap_or_else(|| format!("{}", operator_info.id));
             debug!(
                 self.config.logger,
-                "Executing operator {} on node {}", operator_info.id, operator_info.node_id
+                "Node {}: starting operator {}", self.id, name
             );
             let channel_manager_copy = Arc::clone(&channel_manager);
             let operator_tx_copy = operator_tx.clone();
@@ -388,7 +397,7 @@ impl Node {
                     logger,
                     "Error running operators on node {:?}: {:?}", self.id, e
                 ),
-                _ = shutdown_fut => debug!(logger, "Shutting down node {}", self.id),
+                _ = shutdown_fut => debug!(logger, "Node {}: shutting down", self.id),
             }
         } else {
             tokio::select! {
@@ -403,7 +412,7 @@ impl Node {
                     logger,
                     "Error running operators on node {:?}: {:?}", self.id, e
                 ),
-                _ = shutdown_fut => debug!(logger, "Shutting down node {}", self.id),
+                _ = shutdown_fut => debug!(logger, "Node {}: shutting down", self.id),
             }
         }
     }

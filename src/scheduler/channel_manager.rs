@@ -140,7 +140,9 @@ where
 /// Data structure that stores information needed to set up dataflow channels
 /// by constructing individual transport channels.
 pub struct ChannelManager {
-    /// The dataflow graph
+    /// The node to which the [`ChannelManager`] belongs.
+    node_id: NodeId,
+    /// The dataflow graph.
     graph: Graph,
     /// Stores a `StreamEndpoints` for each stream id.
     stream_entries: HashMap<StreamId, Box<dyn StreamEndpointsT>>,
@@ -158,6 +160,7 @@ impl ChannelManager {
         channels_to_senders: Arc<Mutex<ChannelsToSenders>>,
     ) -> Self {
         let mut channel_manager = Self {
+            node_id,
             graph: graph.clone(),
             stream_entries: HashMap::new(),
         };
@@ -217,6 +220,10 @@ impl ChannelManager {
             channels_to_receivers.lock().await.send(k, v);
         }
         channel_manager
+    }
+
+    pub fn node_id(&self) -> NodeId {
+        self.node_id
     }
 
     /// Takes a `RecvEnvpoint` from a given stream.

@@ -216,6 +216,7 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
                 config.name = name_clone.clone();
                 config.id = op_id;
                 config.flow_watermarks = flow_watermarks;
+                config.node_id = node_id;
                 OperatorExecutor::new(
                     PyOperator {
                         operator: operator_arc,

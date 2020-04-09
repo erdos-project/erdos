@@ -74,7 +74,7 @@ impl<T: Clone> OperatorConfig<T> {
     pub(crate) fn drop_arg(self) -> OperatorConfig<()> {
         OperatorConfig {
             id: self.id,
-            name: None,
+            name: self.name,
             arg: None,
             flow_watermarks: self.flow_watermarks,
             node_id: self.node_id,
