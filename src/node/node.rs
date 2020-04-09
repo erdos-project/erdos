@@ -397,7 +397,7 @@ impl Node {
                     logger,
                     "Error running operators on node {:?}: {:?}", self.id, e
                 ),
-                _ = shutdown_fut => debug!(logger, "Shutting down node {}", self.id),
+                _ = shutdown_fut => debug!(logger, "Node {}: shutting down", self.id),
             }
         } else {
             tokio::select! {
@@ -412,7 +412,7 @@ impl Node {
                     logger,
                     "Error running operators on node {:?}: {:?}", self.id, e
                 ),
-                _ = shutdown_fut => debug!(logger, "Shutting down node {}", self.id),
+                _ = shutdown_fut => debug!(logger, "Node {}: shutting down", self.id),
             }
         }
     }
