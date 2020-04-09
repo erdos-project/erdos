@@ -300,9 +300,13 @@ impl Node {
 
         let mut join_handles = Vec::with_capacity(num_local_operators);
         for operator_info in local_operators {
+            let name = operator_info
+                .name
+                .clone()
+                .unwrap_or_else(|| format!("{}", operator_info.id));
             debug!(
                 self.config.logger,
-                "Executing operator {} on node {}", operator_info.id, operator_info.node_id
+                "Node {}: starting operator {}", self.id, name
             );
             let channel_manager_copy = Arc::clone(&channel_manager);
             let operator_tx_copy = operator_tx.clone();
