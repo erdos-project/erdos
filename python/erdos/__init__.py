@@ -66,6 +66,8 @@ def reset():
     
     Note that no streams or operators can be re-used safely.
     """
+    global _num_py_operators
+    _num_py_operators = 0
     _internal.reset()
 
 
@@ -244,6 +246,7 @@ class NodeHandle(object):
         print("shutting down other processes")
         for p in self.processes:
             p.terminate()
+            p.join()
         print("shutting down node")
         self.py_node_handle.shutdown_node()
         print("done shutting down")
