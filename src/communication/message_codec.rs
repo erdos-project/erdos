@@ -27,8 +27,6 @@ enum DecodeStatus {
 pub struct MessageCodec {
     status: DecodeStatus,
     msg_metadata: Option<MessageMetadata>,
-    start: u128,
-    num_calls: usize,
 }
 
 impl MessageCodec {
@@ -36,8 +34,6 @@ impl MessageCodec {
         MessageCodec {
             status: DecodeStatus::Header,
             msg_metadata: None,
-            start: 0,
-            num_calls: 0,
         }
     }
 }
@@ -51,10 +47,8 @@ impl Decoder for MessageCodec {
     /// It first tries to read the header_size, then the header, and finally the
     /// message content.
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<SerializedMessage>, CodecError> {
-        self.num_calls += 1;
         match self.status {
             DecodeStatus::Header => {
-                self.start = crate::current_time_us();
                 if buf.len() >= HEADER_SIZE {
                     let header = buf.split_to(HEADER_SIZE);
                     let metadata_size = NetworkEndian::read_u32(&header[0..4]) as usize;
@@ -64,10 +58,6 @@ impl Decoder for MessageCodec {
                         data_size,
                     };
                     // Reserve space in the buffer for the rest of the message and the next header.
-                    println!(
-                        "metadata_size = {}, data_size = {}",
-                        metadata_size, data_size,
-                    );
                     // buf.reserve(metadata_size + data_size + HEADER_SIZE);
                     self.decode(buf)
                 } else {
@@ -97,14 +87,6 @@ impl Decoder for MessageCodec {
                         metadata: self.msg_metadata.take().unwrap(),
                         data,
                     };
-
-                    let duration_us = crate::current_time_us() - self.start;
-                    println!("decoder: {}", self.start);
-                    println!(
-                        "decoding took {} us and {} calls",
-                        duration_us, self.num_calls
-                    );
-                    self.num_calls = 0;
                     buf.reserve(20_000_000);
 
                     Ok(Some(msg))
@@ -125,7 +107,6 @@ impl Encoder for MessageCodec {
     /// It first writes the header_size, then the header, and finally the
     /// serialized message.
     fn encode(&mut self, msg: SerializedMessage, buf: &mut BytesMut) -> Result<(), CodecError> {
-        let start = crate::current_time_us();
         // Serialize and write the header.
         let metadata = bincode::serialize(&msg.metadata).map_err(CodecError::from)?;
         // Write the size of the serialized header.
@@ -137,15 +118,7 @@ impl Encoder for MessageCodec {
         buf.put_slice(&header[..]);
         buf.put_slice(&metadata[..]);
         // Write the message data.
-        let start_x = crate::current_time_us();
         buf.put_slice(&msg.data[..]);
-        println!(
-            "putting data in slice took {} us",
-            crate::current_time_us() - start_x
-        );
-        let duration_us = crate::current_time_us() - start;
-        println!("encoder: {}", start);
-        println!("encoding took {} us", duration_us);
         // TODO: pre-allocate a constant size to speed up
         buf.reserve(20_000_000);
         Ok(())
