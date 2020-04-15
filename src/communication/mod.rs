@@ -46,24 +46,20 @@ pub enum ControlMessage {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MessageHeader {
+pub struct MessageMetadata {
     pub stream_id: StreamId,
-    pub data_size: usize,
 }
 
 #[derive(Debug, Clone)]
 pub struct SerializedMessage {
-    pub header: MessageHeader,
+    pub metadata: MessageMetadata,
     pub data: BytesMut,
 }
 
 impl SerializedMessage {
     pub fn new(data: BytesMut, stream_id: StreamId) -> Self {
         Self {
-            header: MessageHeader {
-                stream_id,
-                data_size: data.len(),
-            },
+            metadata: MessageMetadata { stream_id },
             data,
         }
     }

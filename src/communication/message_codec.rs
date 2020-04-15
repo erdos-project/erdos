@@ -3,7 +3,21 @@ use bytes::{BufMut, BytesMut};
 use std::fmt::Debug;
 use tokio_util::codec::{Decoder, Encoder};
 
-use crate::communication::{CodecError, MessageHeader, SerializedMessage};
+use crate::communication::{CodecError, MessageMetadata, SerializedMessage};
+
+const HEADER_SIZE: usize = 8;
+
+#[derive(Debug)]
+enum DecodeStatus {
+    Header,
+    Metadata {
+        metadata_size: usize,
+        data_size: usize,
+    },
+    Data {
+        data_size: usize,
+    },
+}
 
 /// Encodes messages into bytes, and decodes bytes into SerializedMessages.
 ///
@@ -11,64 +25,20 @@ use crate::communication::{CodecError, MessageHeader, SerializedMessage};
 /// then the message header, and finally the content of the message.
 #[derive(Debug)]
 pub struct MessageCodec {
-    header_size: Option<usize>,
-    header: Option<MessageHeader>,
+    status: DecodeStatus,
+    msg_metadata: Option<MessageMetadata>,
+    start: u128,
+    num_calls: usize,
 }
 
 impl MessageCodec {
     pub fn new() -> MessageCodec {
         MessageCodec {
-            header_size: None,
-            header: None,
+            status: DecodeStatus::Header,
+            msg_metadata: None,
+            start: 0,
+            num_calls: 0,
         }
-    }
-
-    /// Tries to read the size of the message header from the stream.
-    fn try_read_header_size(&self, buf: &mut BytesMut) -> Option<usize> {
-        if buf.len() >= 4 {
-            let header_size_bytes = buf.split_to(4);
-            let header_size = NetworkEndian::read_u32(&header_size_bytes);
-            Some(header_size as usize)
-        } else {
-            None
-        }
-    }
-
-    /// Tries to read a message header from the stream.
-    fn try_read_header(&mut self, buf: &mut BytesMut) -> Result<Option<MessageHeader>, CodecError> {
-        let header_size = self.header_size.unwrap();
-        if buf.len() >= header_size {
-            // Split the buffer where the message ends. The returned
-            // buffer will contain the bytes [0, header_size), and
-            // the self buffer will contain bytes [header_size..].
-            let header_bytes = buf.split_to(header_size);
-            // Upon the next invocation we have to read the size
-            // of the next message.
-            let header: MessageHeader =
-                bincode::deserialize(&header_bytes).map_err(|e| CodecError::from(e))?;
-            Ok(Some(header))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Tries to read the message content from the stream.
-    fn try_read_message(&mut self, buf: &mut BytesMut) -> Option<SerializedMessage> {
-        if let Some(header) = &self.header {
-            if buf.len() >= header.data_size {
-                // We have sufficient bytes to read the entire message.
-                let data_bytes = buf.split_to(header.data_size);
-                let msg = SerializedMessage {
-                    // Consure the header so that the coded can read the next header.
-                    header: self.header.take().unwrap(),
-                    data: data_bytes,
-                };
-                // Reset the header size so that it is read for the next message.
-                self.header_size = None;
-                return Some(msg);
-            }
-        }
-        None
     }
 }
 
@@ -81,33 +51,64 @@ impl Decoder for MessageCodec {
     /// It first tries to read the header_size, then the header, and finally the
     /// message content.
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<SerializedMessage>, CodecError> {
-        if let Some(_) = &self.header {
-            // We already have a header. Read the message data.
-            Ok(self.try_read_message(buf))
-        } else {
-            if let Some(_) = self.header_size {
-                // We've previously read how many bytes the header has. Try to read the header.
-                if let Some(header) = self.try_read_header(buf)? {
-                    self.header = Some(header);
-                    Ok(self.try_read_message(buf))
+        self.num_calls += 1;
+        match self.status {
+            DecodeStatus::Header => {
+                self.start = crate::current_time_us();
+                if buf.len() >= HEADER_SIZE {
+                    let header = buf.split_to(HEADER_SIZE);
+                    let metadata_size = NetworkEndian::read_u32(&header[0..4]) as usize;
+                    let data_size = NetworkEndian::read_u32(&header[4..8]) as usize;
+                    self.status = DecodeStatus::Metadata {
+                        metadata_size,
+                        data_size,
+                    };
+                    // Reserve space in the buffer for the rest of the message and the next header.
+                    println!(
+                        "metadata_size = {}, data_size = {}",
+                        metadata_size, data_size,
+                    );
+                    // buf.reserve(metadata_size + data_size + HEADER_SIZE);
+                    self.decode(buf)
                 } else {
-                    // We need more bytes before we can read the header.
                     Ok(None)
                 }
-            } else {
-                // Try to read the header size.
-                if let Some(header_size) = self.try_read_header_size(buf) {
-                    self.header_size = Some(header_size);
-                    // Try to read the header.
-                    if let Some(header) = self.try_read_header(buf)? {
-                        self.header = Some(header);
-                        // Try to read the message.
-                        Ok(self.try_read_message(buf))
-                    } else {
-                        Ok(None)
-                    }
+            }
+            DecodeStatus::Metadata {
+                metadata_size,
+                data_size,
+            } => {
+                if buf.len() >= metadata_size {
+                    let metadata_bytes = buf.split_to(metadata_size);
+                    let metadata: MessageMetadata =
+                        bincode::deserialize(&metadata_bytes).map_err(CodecError::BincodeError)?;
+                    self.msg_metadata = Some(metadata);
+                    self.status = DecodeStatus::Data { data_size };
+                    self.decode(buf)
                 } else {
-                    // We need more bytes before we can read the header size.
+                    Ok(None)
+                }
+            }
+            DecodeStatus::Data { data_size } => {
+                if buf.len() >= data_size {
+                    let data = buf.split_to(data_size);
+                    self.status = DecodeStatus::Header;
+                    let msg = SerializedMessage {
+                        metadata: self.msg_metadata.take().unwrap(),
+                        data,
+                    };
+
+                    let duration_us = crate::current_time_us() - self.start;
+                    println!("decoder: {}", self.start);
+                    println!(
+                        "decoding took {} us and {} calls",
+                        duration_us, self.num_calls
+                    );
+                    self.num_calls = 0;
+                    buf.reserve(20_000_000);
+
+                    Ok(Some(msg))
+                } else {
                     Ok(None)
                 }
             }
@@ -124,17 +125,29 @@ impl Encoder for MessageCodec {
     /// It first writes the header_size, then the header, and finally the
     /// serialized message.
     fn encode(&mut self, msg: SerializedMessage, buf: &mut BytesMut) -> Result<(), CodecError> {
+        let start = crate::current_time_us();
         // Serialize and write the header.
-        let header = bincode::serialize(&msg.header).map_err(|e| CodecError::from(e))?;
+        let metadata = bincode::serialize(&msg.metadata).map_err(CodecError::from)?;
         // Write the size of the serialized header.
-        let mut size_buffer: Vec<u8> = Vec::new();
-        size_buffer.write_u32::<NetworkEndian>(header.len() as u32)?;
+        let mut header: Vec<u8> = Vec::with_capacity(HEADER_SIZE);
+        header.write_u32::<NetworkEndian>(metadata.len() as u32)?;
+        header.write_u32::<NetworkEndian>(msg.data.len() as u32)?;
         // Reserve space for header size, header, and message.
-        buf.reserve(size_buffer.len() + header.len() + msg.data.len());
-        buf.put_slice(&size_buffer[..]);
+        // buf.reserve(HEADER_SIZE + metadata.len() + msg.data.len());
         buf.put_slice(&header[..]);
+        buf.put_slice(&metadata[..]);
         // Write the message data.
+        let start_x = crate::current_time_us();
         buf.put_slice(&msg.data[..]);
+        println!(
+            "putting data in slice took {} us",
+            crate::current_time_us() - start_x
+        );
+        let duration_us = crate::current_time_us() - start;
+        println!("encoder: {}", start);
+        println!("encoding took {} us", duration_us);
+        // TODO: pre-allocate a constant size to speed up
+        buf.reserve(20_000_000);
         Ok(())
     }
 }
