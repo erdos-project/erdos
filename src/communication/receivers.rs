@@ -74,7 +74,7 @@ impl DataReceiver {
                     // Note: we may want to update the pushers less frequently.
                     self.update_pushers();
                     // Send the message.
-                    match self.stream_id_to_pusher.get_mut(&msg.header.stream_id) {
+                    match self.stream_id_to_pusher.get_mut(&msg.metadata.stream_id) {
                         Some(pusher) => {
                             if let Err(e) = pusher.send(msg.data) {
                                 return Err(e);
