@@ -180,23 +180,23 @@ impl<D: Data> EventMakerT for InternalReadStream<D> {
         self.id
     }
 
-    fn make_events(&self, msg: Message<Self::EventDataType>) -> Vec<OperatorEvent> {
+    fn make_events(&self, msg: Arc<Message<Self::EventDataType>>) -> Vec<OperatorEvent> {
         let mut events: Vec<OperatorEvent> = Vec::new();
         let mut child_events: Vec<OperatorEvent> = Vec::new();
         for child in self.children.iter() {
             child_events.append(&mut child.borrow_mut().make_events(msg.clone()));
         }
-        match msg {
-            Message::TimestampedData(msg) => {
+        match msg.as_ref() {
+            Message::TimestampedData(_) => {
                 // Stateless callbacks may run in parallel, so create 1 event for each
                 let stateless_cbs = self.callbacks.clone();
                 for callback in stateless_cbs {
-                    let msg_copy = msg.clone();
+                    let msg_arc = Arc::clone(&msg);
                     events.push(OperatorEvent::new(
-                        msg.timestamp.clone(),
+                        msg_arc.timestamp().clone(),
                         false,
                         move || {
-                            (callback)(&msg_copy.timestamp, &msg_copy.data);
+                            (callback)(msg_arc.timestamp(), msg_arc.data().unwrap());
                         },
                     ))
                 }
@@ -216,7 +216,7 @@ impl<D: Data> EventMakerT for InternalReadStream<D> {
                     cbs.push(child_event.callback);
                 }
                 if cbs.len() > 0 {
-                    events.push(OperatorEvent::new(timestamp, true, move || {
+                    events.push(OperatorEvent::new(timestamp.clone(), true, move || {
                         for cb in cbs {
                             (cb)();
                         }

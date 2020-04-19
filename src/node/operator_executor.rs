@@ -83,7 +83,8 @@ impl<D: Data> Stream for OperatorExecutorStream<D> {
                         self.closed.store(true, Ordering::SeqCst);
                         self.recv_endpoint = None;
                     }
-                    Poll::Ready(Some(self.stream.borrow().make_events(msg)))
+                    let msg_arc = Arc::new(msg);
+                    Poll::Ready(Some(self.stream.borrow().make_events(msg_arc)))
                 }
                 Poll::Ready(None) => Poll::Ready(None),
                 Poll::Pending => Poll::Pending,

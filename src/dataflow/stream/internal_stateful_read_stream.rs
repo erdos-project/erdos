@@ -73,26 +73,30 @@ impl<D: Data, S: State> EventMakerT for InternalStatefulReadStream<D, S> {
         self.id
     }
 
-    fn make_events(&self, msg: Message<Self::EventDataType>) -> Vec<OperatorEvent> {
+    fn make_events(&self, msg: Arc<Message<Self::EventDataType>>) -> Vec<OperatorEvent> {
         let mut events: Vec<OperatorEvent> = Vec::new();
-        match msg {
-            Message::TimestampedData(msg) => {
+        match msg.as_ref() {
+            Message::TimestampedData(_) => {
                 // Stateful callbacks may not run in parallel because they access shared state,
                 // so create 1 callback for all
                 let stateful_cbs = self.callbacks.clone();
                 let mut state_arc = Arc::clone(&self.state);
                 if !stateful_cbs.is_empty() {
                     events.push(OperatorEvent::new(
-                        msg.timestamp.clone(),
+                        msg.timestamp().clone(),
                         false,
                         move || {
                             for callback in stateful_cbs {
-                                let msg_copy = msg.clone();
+                                let msg_arc = Arc::clone(&msg);
                                 let state_ref_mut =
                                     unsafe { Arc::get_mut_unchecked(&mut state_arc) };
                                 state_ref_mut.set_access_context(AccessContext::Callback);
-                                state_ref_mut.set_current_time(msg.timestamp.clone());
-                                (callback)(&msg_copy.timestamp, &msg_copy.data, state_ref_mut)
+                                state_ref_mut.set_current_time(msg_arc.timestamp().clone());
+                                (callback)(
+                                    msg_arc.timestamp(),
+                                    msg_arc.data().unwrap(),
+                                    state_ref_mut,
+                                )
                             }
                         },
                     ));
@@ -121,11 +125,15 @@ impl<D: Data, S: State> EventMakerT for InternalStatefulReadStream<D, S> {
                     }
                 }
                 if !cbs.is_empty() {
-                    events.push(OperatorEvent::new(timestamp, true, move || {
-                        for cb in cbs {
-                            (cb)();
-                        }
-                    }))
+                    events.push(OperatorEvent::new(
+                        msg.timestamp().clone(),
+                        true,
+                        move || {
+                            for cb in cbs {
+                                (cb)();
+                            }
+                        },
+                    ))
                 }
             }
         }

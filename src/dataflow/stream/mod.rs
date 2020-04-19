@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     dataflow::{Data, Message},
     node::operator_event::OperatorEvent,
@@ -32,7 +34,7 @@ pub trait EventMakerT {
     fn get_id(&self) -> StreamId;
 
     /// Returns the vector of events that a message receipt generates.
-    fn make_events(&self, msg: Message<Self::EventDataType>) -> Vec<OperatorEvent>;
+    fn make_events(&self, msg: Arc<Message<Self::EventDataType>>) -> Vec<OperatorEvent>;
 }
 
 pub trait WriteStreamT<D: Data> {
