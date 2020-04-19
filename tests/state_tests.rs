@@ -50,8 +50,8 @@ impl TimeVersionedStateOp {
         WriteStream::new()
     }
 
-    pub fn callback(_t: Timestamp, data: usize, cb_state: &mut TimeVersionedState<(), usize>) {
-        cb_state.append(data);
+    pub fn callback(_t: &Timestamp, data: &usize, cb_state: &mut TimeVersionedState<(), usize>) {
+        cb_state.append(*data);
     }
 
     fn watermark_callback_helper(

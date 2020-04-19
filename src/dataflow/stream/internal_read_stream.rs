@@ -24,7 +24,7 @@ pub struct InternalReadStream<D: Data> {
     /// Vector of stream bundles that must be invoked when this stream receives a message.
     children: Vec<Rc<RefCell<dyn EventMakerT<EventDataType = D>>>>,
     /// A vector on callbacks registered on the stream.
-    callbacks: Vec<Arc<dyn Fn(Timestamp, D)>>,
+    callbacks: Vec<Arc<dyn Fn(&Timestamp, &D)>>,
     /// A vector of watermark callbacks registered on the stream.
     watermark_cbs: Vec<Arc<dyn Fn(&Timestamp)>>,
 }
@@ -70,7 +70,7 @@ impl<D: Data> InternalReadStream<D> {
 
     pub fn from_endpoint(recv_endpoint: RecvEndpoint<Message<D>>, id: StreamId) -> Self {
         Self {
-            id: id,
+            id,
             name: id.to_string(),
             closed: false,
             recv_endpoint: Some(recv_endpoint),
@@ -81,7 +81,7 @@ impl<D: Data> InternalReadStream<D> {
     }
 
     /// Add a callback to be invoked when the stream receives a message.
-    pub fn add_callback<F: 'static + Fn(Timestamp, D)>(&mut self, callback: F) {
+    pub fn add_callback<F: 'static + Fn(&Timestamp, &D)>(&mut self, callback: F) {
         self.callbacks.push(Arc::new(callback));
     }
 
@@ -196,7 +196,7 @@ impl<D: Data> EventMakerT for InternalReadStream<D> {
                         msg.timestamp.clone(),
                         false,
                         move || {
-                            (callback)(msg_copy.timestamp, msg_copy.data);
+                            (callback)(&msg_copy.timestamp, &msg_copy.data);
                         },
                     ))
                 }

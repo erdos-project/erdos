@@ -81,10 +81,10 @@ impl FiveStreamReceiver {
         WriteStream::new()
     }
 
-    pub fn data_callback(t: Timestamp, sender_datas: Vec<SenderData>, state: &mut Vec<Duration>) {
+    pub fn data_callback(t: &Timestamp, sender_datas: &Vec<SenderData>, state: &mut Vec<Duration>) {
         let recv_time = SystemTime::now();
         *state = sender_datas
-            .into_iter()
+            .iter()
             .map(|data| recv_time.duration_since(data.send_time).unwrap())
             .collect();
     }
@@ -131,8 +131,8 @@ impl SenderData {
 }
 
 /// Added to a [`MapOperator`] to create senders.
-fn sender_fn(msg_size: usize) -> Vec<SenderData> {
-    vec![SenderData::new(msg_size)]
+fn sender_fn(msg_size: &usize) -> Vec<SenderData> {
+    vec![SenderData::new(*msg_size)]
 }
 
 /// Added to a [`JoinOperator`] to join data sent by senders.
@@ -145,7 +145,7 @@ fn join_fn(left: Vec<Vec<SenderData>>, right: Vec<Vec<SenderData>>) -> Vec<Sende
 
 /// Added to a [`MapOperator`] to create receivers.
 /// Measures the latencies of the potentially joined messages and sends the result.
-fn receiver_fn(sender_datas: Vec<SenderData>) -> Vec<Duration> {
+fn receiver_fn(sender_datas: &Vec<SenderData>) -> Vec<Duration> {
     let recv_time = SystemTime::now();
     sender_datas
         .into_iter()

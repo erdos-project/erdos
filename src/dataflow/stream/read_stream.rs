@@ -24,7 +24,7 @@ impl<D: Data> ReadStream<D> {
     }
 
     /// Add a callback to be invoked when the stream receives a message.
-    pub fn add_callback<F: 'static + Fn(Timestamp, D)>(&self, callback: F) {
+    pub fn add_callback<F: 'static + Fn(&Timestamp, &D)>(&self, callback: F) {
         self.internal_stream.borrow_mut().add_callback(callback);
     }
 

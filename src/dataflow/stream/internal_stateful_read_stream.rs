@@ -21,7 +21,7 @@ pub struct InternalStatefulReadStream<D: Data, S: State> {
     /// simultaneously.
     state: Arc<S>,
     /// Callbacks registered on the stream.
-    callbacks: Vec<Arc<dyn Fn(Timestamp, D, &mut S)>>,
+    callbacks: Vec<Arc<dyn Fn(&Timestamp, &D, &mut S)>>,
     /// Watermark callbacks registered on the stream.
     watermark_cbs: Vec<Arc<dyn Fn(&Timestamp, &mut S)>>,
     /// Vector of stream bundles that must be invoked when this stream receives a message.
@@ -46,7 +46,7 @@ impl<D: Data, S: State> InternalStatefulReadStream<D, S> {
     /// Add a callback to be invoked when the stream receives a message.
     /// The callback will be invoked for each message, and will receive the
     /// message and the stream's state as arguments.
-    pub fn add_callback<F: 'static + Fn(Timestamp, D, &mut S)>(&mut self, callback: F) {
+    pub fn add_callback<F: 'static + Fn(&Timestamp, &D, &mut S)>(&mut self, callback: F) {
         self.callbacks.push(Arc::new(callback));
     }
 
@@ -92,7 +92,7 @@ impl<D: Data, S: State> EventMakerT for InternalStatefulReadStream<D, S> {
                                     unsafe { Arc::get_mut_unchecked(&mut state_arc) };
                                 state_ref_mut.set_access_context(AccessContext::Callback);
                                 state_ref_mut.set_current_time(msg.timestamp.clone());
-                                (callback)(msg_copy.timestamp, msg_copy.data, state_ref_mut)
+                                (callback)(&msg_copy.timestamp, &msg_copy.data, state_ref_mut)
                             }
                         },
                     ));

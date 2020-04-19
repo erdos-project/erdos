@@ -35,8 +35,8 @@ mod tests {
     fn test_callback() {
         let rs: ReadStream<String> = ReadStream::new();
         let (tx, mut rx) = mpsc::unbounded_channel();
-        rs.add_callback(move |_t: Timestamp, msg: String| {
-            tx.send(msg).unwrap();
+        rs.add_callback(move |_t: &Timestamp, msg: &String| {
+            tx.send(msg.clone()).unwrap();
         });
 
         // Generate events from message
@@ -99,7 +99,7 @@ mod tests {
         let state = CounterState { count: 0 };
         let srs = rs.add_state(state);
         let irs: Rc<RefCell<InternalReadStream<usize>>> = (&rs).into();
-        srs.add_callback(|_t: Timestamp, data: usize, state: &mut CounterState| {
+        srs.add_callback(|_t: &Timestamp, data: &usize, state: &mut CounterState| {
             state.count += data
         });
 
@@ -313,7 +313,7 @@ mod tests {
         let rs: ReadStream<String> = ReadStream::new();
         let irs: Rc<RefCell<InternalReadStream<String>>> = (&rs).into();
         let (tx1, mut rx1) = mpsc::unbounded_channel();
-        rs.add_callback(move |_t: Timestamp, _msg: String| {
+        rs.add_callback(move |_t: &Timestamp, _msg: &String| {
             tx1.send("callback invoked").unwrap();
         });
         let (tx2, mut rx2) = mpsc::unbounded_channel();

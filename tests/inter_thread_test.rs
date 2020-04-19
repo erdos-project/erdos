@@ -56,8 +56,8 @@ impl RecvOperator {
 
     pub fn connect(_read_stream: &ReadStream<usize>) {}
 
-    pub fn msg_callback(_t: Timestamp, msg: usize) {
-        println!("RecvOperator: received {}", msg);
+    pub fn msg_callback(_t: &Timestamp, data: &usize) {
+        println!("RecvOperator: received {}", data);
     }
 }
 
@@ -82,10 +82,10 @@ impl SquareOperator {
         WriteStream::new()
     }
 
-    pub fn msg_callback(t: Timestamp, data: usize, write_stream: &mut WriteStream<usize>) {
+    pub fn msg_callback(t: &Timestamp, data: &usize, write_stream: &mut WriteStream<usize>) {
         println!("SquareOperator: received {}", data);
         write_stream
-            .send(Message::new_message(t, data * data))
+            .send(Message::new_message(t.clone(), data * data))
             .unwrap();
     }
 }
@@ -102,7 +102,7 @@ impl DestroyOperator {
 
     pub fn connect(_read_stream: &ReadStream<usize>) {}
 
-    pub fn msg_callback(_t: Timestamp, data: usize) {
+    pub fn msg_callback(_t: &Timestamp, data: &usize) {
         let logger = erdos::get_terminal_logger();
         slog::debug!(logger, "DestroyOperator: received {}", data);
     }
