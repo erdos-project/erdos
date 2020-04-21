@@ -13,7 +13,7 @@ use tokio_util::codec::Framed;
 use crate::{
     communication::{
         CommunicationError, ControlMessage, ControlMessageCodec, ControlMessageHandler,
-        MessageCodec, PusherT,
+        InterProcessMessage, MessageCodec, PusherT,
     },
     dataflow::stream::StreamId,
     node::node::NodeId,
@@ -74,9 +74,13 @@ impl DataReceiver {
                     // Note: we may want to update the pushers less frequently.
                     self.update_pushers();
                     // Send the message.
-                    match self.stream_id_to_pusher.get_mut(&msg.metadata.stream_id) {
+                    let (metadata, bytes) = match msg {
+                        InterProcessMessage::Serialized { metadata, bytes } => (metadata, bytes),
+                        InterProcessMessage::Deserialized { metadata, data } => unreachable!(),
+                    };
+                    match self.stream_id_to_pusher.get_mut(&metadata.stream_id) {
                         Some(pusher) => {
-                            if let Err(e) = pusher.send(msg.data) {
+                            if let Err(e) = pusher.send(bytes) {
                                 return Err(e);
                             }
                         }

@@ -1,11 +1,15 @@
+use std::{
+    any::Any,
+    fmt::{self, Debug},
+    sync::Arc,
+};
+
 use bytes::BytesMut;
 use serde::Deserialize;
-use std::fmt;
-use std::{any::Any, fmt::Debug};
 
 use crate::{
     communication::{
-        serializable::{DeserializedMessage, Serializable},
+        serializable::{Deserializable, DeserializedMessage},
         CommunicationError, SendEndpoint,
     },
     dataflow::Data,
@@ -47,7 +51,7 @@ impl Clone for Box<dyn PusherT> {
 }
 
 /// The `PusherT` trait is implemented only for the `Data` pushers.
-impl<D> PusherT for Pusher<D>
+impl<D> PusherT for Pusher<Arc<D>>
 where
     for<'de> D: Data + Deserialize<'de>,
 {
@@ -61,18 +65,13 @@ where
 
     fn send(&mut self, mut buf: BytesMut) -> Result<(), CommunicationError> {
         if !self.endpoints.is_empty() {
-            match Serializable::decode(&mut buf)? {
-                DeserializedMessage::<D>::Owned(msg) => {
-                    for i in 1..self.endpoints.len() {
-                        self.endpoints[i].send(msg.clone())?;
-                    }
-                    self.endpoints[0].send(msg)?;
-                }
-                DeserializedMessage::<D>::Ref(msg) => {
-                    for i in 0..self.endpoints.len() {
-                        self.endpoints[i].send(msg.clone())?;
-                    }
-                }
+            let msg = match Deserializable::decode(&mut buf)? {
+                DeserializedMessage::<D>::Owned(msg) => msg,
+                DeserializedMessage::<D>::Ref(msg) => msg.clone(),
+            };
+            let msg_arc = Arc::new(msg);
+            for endpoint in self.endpoints.iter_mut() {
+                endpoint.send(Arc::clone(&msg_arc))?;
             }
         }
         Ok(())

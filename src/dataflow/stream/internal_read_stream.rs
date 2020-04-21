@@ -20,7 +20,7 @@ pub struct InternalReadStream<D: Data> {
     /// Whether the stream is closed.
     closed: bool,
     /// The endpoint on which the stream receives data.
-    recv_endpoint: Option<RecvEndpoint<Message<D>>>,
+    recv_endpoint: Option<RecvEndpoint<Arc<Message<D>>>>,
     /// Vector of stream bundles that must be invoked when this stream receives a message.
     children: Vec<Rc<RefCell<dyn EventMakerT<EventDataType = D>>>>,
     /// A vector on callbacks registered on the stream.
@@ -68,7 +68,7 @@ impl<D: Data> InternalReadStream<D> {
         self.closed
     }
 
-    pub fn from_endpoint(recv_endpoint: RecvEndpoint<Message<D>>, id: StreamId) -> Self {
+    pub fn from_endpoint(recv_endpoint: RecvEndpoint<Arc<Message<D>>>, id: StreamId) -> Self {
         Self {
             id,
             name: id.to_string(),
@@ -102,7 +102,7 @@ impl<D: Data> InternalReadStream<D> {
         child
     }
 
-    pub fn take_endpoint(&mut self) -> Option<RecvEndpoint<Message<D>>> {
+    pub fn take_endpoint(&mut self) -> Option<RecvEndpoint<Arc<Message<D>>>> {
         self.recv_endpoint.take()
     }
 
@@ -118,7 +118,9 @@ impl<D: Data> InternalReadStream<D> {
             .recv_endpoint
             .as_mut()
             .map_or(Err(TryReadError::Disconnected), |rx| {
-                rx.try_read().map_err(TryReadError::from)
+                rx.try_read()
+                    .map(|msg| Message::clone(&msg))
+                    .map_err(TryReadError::from)
             });
         if result
             .as_ref()
@@ -144,7 +146,7 @@ impl<D: Data> InternalReadStream<D> {
             .map_or(Err(ReadError::Disconnected), |rx| loop {
                 match rx.try_read() {
                     Ok(msg) => {
-                        break Ok(msg);
+                        break Ok(Message::clone(&msg));
                     }
                     Err(TryRecvError::Empty) => (),
                     Err(TryRecvError::Disconnected) => {

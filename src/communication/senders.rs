@@ -12,8 +12,8 @@ use tokio::{
 use tokio_util::codec::Framed;
 
 use crate::communication::{
-    CommunicationError, ControlMessage, ControlMessageCodec, ControlMessageHandler, MessageCodec,
-    SerializedMessage,
+    CommunicationError, ControlMessage, ControlMessageCodec, ControlMessageHandler,
+    InterProcessMessage, MessageCodec,
 };
 use crate::node::node::NodeId;
 use crate::scheduler::endpoints_manager::ChannelsToSenders;
@@ -24,9 +24,9 @@ pub struct DataSender {
     /// The id of the node the sink is sending data to.
     node_id: NodeId,
     /// Framed TCP write sink.
-    sink: SplitSink<Framed<TcpStream, MessageCodec>, SerializedMessage>,
+    sink: SplitSink<Framed<TcpStream, MessageCodec>, InterProcessMessage>,
     /// Tokio channel receiver on which to receive data from worker threads.
-    rx: UnboundedReceiver<SerializedMessage>,
+    rx: UnboundedReceiver<InterProcessMessage>,
     /// Tokio channel sender to `ControlMessageHandler`.
     control_tx: UnboundedSender<ControlMessage>,
     /// Tokio channel receiver from `ControlMessageHandler`.
@@ -36,7 +36,7 @@ pub struct DataSender {
 impl DataSender {
     pub async fn new(
         node_id: NodeId,
-        sink: SplitSink<Framed<TcpStream, MessageCodec>, SerializedMessage>,
+        sink: SplitSink<Framed<TcpStream, MessageCodec>, InterProcessMessage>,
         channels_to_senders: Arc<Mutex<ChannelsToSenders>>,
         control_handler: &mut ControlMessageHandler,
     ) -> Self {
@@ -77,7 +77,7 @@ impl DataSender {
 
 /// Sends messages received from operator executors to other nodes.
 /// The function launches a task for each TCP sink. Each task listens
-/// on a mpsc channel for new `SerializedMessages` messages, which it
+/// on a mpsc channel for new `InterProcessMessages` messages, which it
 /// forwards on the TCP stream.
 pub async fn run_senders(mut senders: Vec<DataSender>) -> Result<(), CommunicationError> {
     // Waits until all futures complete. This code will only be reached

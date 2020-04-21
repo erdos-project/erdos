@@ -42,7 +42,7 @@ pub trait OperatorExecutorStreamT: Send + Stream<Item = Vec<OperatorEvent>> {
 
 pub struct OperatorExecutorStream<D: Data> {
     stream: Rc<RefCell<InternalReadStream<D>>>,
-    recv_endpoint: Option<RecvEndpoint<Message<D>>>,
+    recv_endpoint: Option<RecvEndpoint<Arc<Message<D>>>>,
     closed: Arc<AtomicBool>,
 }
 
@@ -83,8 +83,7 @@ impl<D: Data> Stream for OperatorExecutorStream<D> {
                         self.closed.store(true, Ordering::SeqCst);
                         self.recv_endpoint = None;
                     }
-                    let msg_arc = Arc::new(msg);
-                    Poll::Ready(Some(self.stream.borrow().make_events(msg_arc)))
+                    Poll::Ready(Some(self.stream.borrow().make_events(msg)))
                 }
                 Poll::Ready(None) => Poll::Ready(None),
                 Poll::Pending => Poll::Pending,

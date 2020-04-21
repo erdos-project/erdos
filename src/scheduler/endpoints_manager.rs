@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
-    communication::{PusherT, SerializedMessage},
+    communication::{InterProcessMessage, PusherT},
     dataflow::stream::StreamId,
     node::NodeId,
 };
@@ -44,7 +44,7 @@ impl ChannelsToReceivers {
 /// Wrapper used to store mappings between node ids and `mpsc::UnboundedSender` to sender threads.
 pub struct ChannelsToSenders {
     /// The ith sender corresponds to a TCP connection to the ith node.
-    senders: HashMap<NodeId, UnboundedSender<SerializedMessage>>,
+    senders: HashMap<NodeId, UnboundedSender<InterProcessMessage>>,
 }
 
 impl ChannelsToSenders {
@@ -58,7 +58,7 @@ impl ChannelsToSenders {
     pub fn add_sender(
         &mut self,
         node_id: NodeId,
-        sender: tokio::sync::mpsc::UnboundedSender<SerializedMessage>,
+        sender: tokio::sync::mpsc::UnboundedSender<InterProcessMessage>,
     ) {
         self.senders.insert(node_id, sender);
     }
@@ -67,7 +67,7 @@ impl ChannelsToSenders {
     pub fn clone_channel(
         &self,
         node_id: NodeId,
-    ) -> Option<tokio::sync::mpsc::UnboundedSender<SerializedMessage>> {
+    ) -> Option<tokio::sync::mpsc::UnboundedSender<InterProcessMessage>> {
         self.senders.get(&node_id).map(|c| c.clone())
     }
 }

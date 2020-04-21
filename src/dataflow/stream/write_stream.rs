@@ -1,9 +1,9 @@
-use std::fmt;
+use std::{fmt, sync::Arc};
 
 use serde::Deserialize;
 
 use crate::{
-    communication::{SendEndpoint, Serializable},
+    communication::{InterProcessMessage, SendEndpoint, Serializable},
     dataflow::{Data, Message, Timestamp, WriteStreamError},
 };
 
@@ -17,9 +17,9 @@ pub struct WriteStream<D: Data> {
     /// User-defined stream name.
     name: String,
     /// Send to other threads in the same process.
-    inter_thread_endpoints: Vec<SendEndpoint<Message<D>>>,
+    inter_thread_endpoints: Vec<SendEndpoint<Arc<Message<D>>>>,
     /// Send to other processes.
-    inter_process_endpoints: Vec<SendEndpoint<Message<D>>>,
+    inter_process_endpoints: Vec<SendEndpoint<Arc<Message<D>>>>,
     /// Current low watermark.
     low_watermark: Timestamp,
     /// Whether the stream is closed.
@@ -51,7 +51,7 @@ impl<D: Data> WriteStream<D> {
         }
     }
 
-    pub fn from_endpoints(endpoints: Vec<SendEndpoint<Message<D>>>, id: StreamId) -> Self {
+    pub fn from_endpoints(endpoints: Vec<SendEndpoint<Arc<Message<D>>>>, id: StreamId) -> Self {
         let mut stream = Self::new_from_id(id);
         for endpoint in endpoints {
             stream.add_endpoint(endpoint);
@@ -71,7 +71,7 @@ impl<D: Data> WriteStream<D> {
         self.stream_closed
     }
 
-    fn add_endpoint(&mut self, endpoint: SendEndpoint<Message<D>>) {
+    fn add_endpoint(&mut self, endpoint: SendEndpoint<Arc<Message<D>>>) {
         match endpoint {
             SendEndpoint::InterThread(_) => self.inter_thread_endpoints.push(endpoint),
             SendEndpoint::InterProcess(_, _) => self.inter_process_endpoints.push(endpoint),
@@ -128,28 +128,17 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
             self.close_stream();
         }
         self.update_watermark(&msg)?;
-        if !self.inter_process_endpoints.is_empty() {
-            // Serialize the message because we have endpoints in different processes.
-            let serialized_msg = msg.encode().map_err(WriteStreamError::from)?;
-            // Copy the serialized message n-1 times.
-            for i in 1..self.inter_process_endpoints.len() {
-                self.inter_process_endpoints[i]
-                    .send_from_bytes(serialized_msg.clone())
-                    .map_err(WriteStreamError::from)?;
-            }
-            self.inter_process_endpoints[0]
-                .send_from_bytes(serialized_msg)
+        let msg_arc = Arc::new(msg);
+        let inter_process_msg = InterProcessMessage::new_deserialized(msg_arc.clone(), self.id);
+        for i in 0..self.inter_process_endpoints.len() {
+            self.inter_process_endpoints[i]
+                .send_inter_process(inter_process_msg.clone())
                 .map_err(WriteStreamError::from)?;
         }
 
-        if self.inter_thread_endpoints.len() > 0 {
-            for i in 1..self.inter_thread_endpoints.len() {
-                self.inter_thread_endpoints[i]
-                    .send(msg.clone())
-                    .map_err(WriteStreamError::from)?;
-            }
-            self.inter_thread_endpoints[0]
-                .send(msg)
+        for i in 0..self.inter_thread_endpoints.len() {
+            self.inter_thread_endpoints[i]
+                .send(Arc::clone(&msg_arc))
                 .map_err(WriteStreamError::from)?;
         }
 

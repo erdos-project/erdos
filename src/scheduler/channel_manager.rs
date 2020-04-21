@@ -46,9 +46,9 @@ where
     /// The id of the stream.
     stream_id: StreamId,
     /// The receive endopoints of the stream.
-    recv_endpoints: Vec<RecvEndpoint<Message<D>>>,
+    recv_endpoints: Vec<RecvEndpoint<Arc<Message<D>>>>,
     /// The send endpoints of the stream.
-    send_endpoints: Vec<SendEndpoint<Message<D>>>,
+    send_endpoints: Vec<SendEndpoint<Arc<Message<D>>>>,
 }
 
 impl<D> StreamEndpoints<D>
@@ -64,7 +64,7 @@ where
     }
 
     /// Takes a `RecvEndpoint` out of the stream.
-    fn take_recv_endpoint(&mut self) -> Result<RecvEndpoint<Message<D>>, &'static str> {
+    fn take_recv_endpoint(&mut self) -> Result<RecvEndpoint<Arc<Message<D>>>, &'static str> {
         match self.recv_endpoints.pop() {
             Some(recv_endpoint) => Ok(recv_endpoint),
             None => Err("No more recv endpoints available"),
@@ -72,17 +72,17 @@ where
     }
 
     /// Returns a cloned list of the `SendEndpoint`s the stream has.
-    fn get_send_endpoints(&mut self) -> Result<Vec<SendEndpoint<Message<D>>>, &'static str> {
-        let mut result: Vec<SendEndpoint<Message<D>>> = Vec::new();
+    fn get_send_endpoints(&mut self) -> Result<Vec<SendEndpoint<Arc<Message<D>>>>, &'static str> {
+        let mut result: Vec<SendEndpoint<Arc<Message<D>>>> = Vec::new();
         result.append(&mut self.send_endpoints);
         Ok(result)
     }
 
-    fn add_send_endpoint(&mut self, endpoint: SendEndpoint<Message<D>>) {
+    fn add_send_endpoint(&mut self, endpoint: SendEndpoint<Arc<Message<D>>>) {
         self.send_endpoints.push(endpoint);
     }
 
-    fn add_recv_endpoint(&mut self, endpoint: RecvEndpoint<Message<D>>) {
+    fn add_recv_endpoint(&mut self, endpoint: RecvEndpoint<Arc<Message<D>>>) {
         self.recv_endpoints.push(endpoint);
     }
 }
@@ -122,8 +122,8 @@ where
     ) -> Result<(), String> {
         let pusher: &mut Box<dyn PusherT> = receiver_pushers
             .entry(self.stream_id)
-            .or_insert_with(|| Box::new(Pusher::<Message<D>>::new()));
-        if let Some(pusher) = pusher.as_any().downcast_mut::<Pusher<Message<D>>>() {
+            .or_insert_with(|| Box::new(Pusher::<Arc<Message<D>>>::new()));
+        if let Some(pusher) = pusher.as_any().downcast_mut::<Pusher<Arc<Message<D>>>>() {
             let (tx, rx) = mpsc::unbounded_channel();
             pusher.add_endpoint(SendEndpoint::InterThread(tx));
             self.add_recv_endpoint(RecvEndpoint::InterThread(rx));
@@ -230,7 +230,7 @@ impl ChannelManager {
     pub fn take_recv_endpoint<D>(
         &mut self,
         stream_id: StreamId,
-    ) -> Result<RecvEndpoint<Message<D>>, String>
+    ) -> Result<RecvEndpoint<Arc<Message<D>>>, String>
     where
         for<'a> D: Data + Deserialize<'a>,
     {
@@ -261,7 +261,7 @@ impl ChannelManager {
     pub fn get_send_endpoints<D>(
         &mut self,
         stream_id: StreamId,
-    ) -> Result<Vec<SendEndpoint<Message<D>>>, String>
+    ) -> Result<Vec<SendEndpoint<Arc<Message<D>>>>, String>
     where
         for<'a> D: Data + Deserialize<'a>,
     {

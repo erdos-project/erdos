@@ -12,7 +12,7 @@ pub mod senders;
 // Re-export structs as if they were defined here.
 pub use control_message_codec::ControlMessageCodec;
 pub use control_message_handler::ControlMessageHandler;
-pub use endpoints::{RecvEndpoint, SendEndpoint};
+pub(crate) use endpoints::{RecvEndpoint, SendEndpoint};
 pub use errors::{CodecError, CommunicationError, TryRecvError};
 pub use message_codec::MessageCodec;
 pub use pusher::{Pusher, PusherT};
@@ -24,6 +24,7 @@ use futures::future;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::{
     io::AsyncWriteExt,
@@ -32,7 +33,11 @@ use tokio::{
     time::delay_for,
 };
 
-use crate::{dataflow::stream::StreamId, node::node::NodeId, OperatorId};
+use crate::{
+    dataflow::{stream::StreamId, Data},
+    node::node::NodeId,
+    OperatorId,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ControlMessage {
@@ -50,15 +55,28 @@ pub struct MessageMetadata {
     pub stream_id: StreamId,
 }
 
-#[derive(Debug, Clone)]
-pub struct SerializedMessage {
-    pub metadata: MessageMetadata,
-    pub data: BytesMut,
+#[derive(Clone)]
+pub enum InterProcessMessage {
+    Serialized {
+        metadata: MessageMetadata,
+        bytes: BytesMut,
+    },
+    Deserialized {
+        metadata: MessageMetadata,
+        data: Arc<dyn Serializable + Send + Sync>,
+    },
 }
 
-impl SerializedMessage {
-    pub fn new(data: BytesMut, stream_id: StreamId) -> Self {
-        Self {
+impl InterProcessMessage {
+    pub fn new_serialized(bytes: BytesMut, metadata: MessageMetadata) -> Self {
+        Self::Serialized { metadata, bytes }
+    }
+
+    pub fn new_deserialized(
+        data: Arc<dyn Serializable + Send + Sync>,
+        stream_id: StreamId,
+    ) -> Self {
+        Self::Deserialized {
             metadata: MessageMetadata { stream_id },
             data,
         }
