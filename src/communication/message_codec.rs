@@ -1,5 +1,5 @@
 use byteorder::{ByteOrder, NetworkEndian, WriteBytesExt};
-use bytes::{BufMut, BytesMut};
+use bytes::{buf::ext::BufMutExt, BufMut, BytesMut};
 use std::fmt::Debug;
 use tokio_util::codec::{Decoder, Encoder};
 
@@ -113,18 +113,16 @@ impl Encoder for MessageCodec {
             InterProcessMessage::Serialized { metadata, bytes } => unreachable!(),
         };
 
-        let metadata_serialized = bincode::serialize(&metadata).map_err(CodecError::from)?;
-        let data_serialized = data.encode().unwrap();
+        let metadata_size = bincode::serialized_size(&metadata).map_err(CodecError::from)?;
+        let data_size = data.serialized_size().unwrap();
 
-        // Write the size of the serialized header.
-        let mut header: Vec<u8> = Vec::with_capacity(HEADER_SIZE);
-        header.write_u32::<NetworkEndian>(metadata_serialized.len() as u32)?;
-        header.write_u32::<NetworkEndian>(data_serialized.len() as u32)?;
-        buf.put_slice(&header[..]);
+        let mut writer = buf.writer();
 
-        buf.put_slice(&metadata_serialized[..]);
-
-        buf.put_slice(&data_serialized[..]);
+        // Serialize directly into the buffer.
+        writer.write_u32::<NetworkEndian>(metadata_size as u32)?;
+        writer.write_u32::<NetworkEndian>(data_size as u32)?;
+        bincode::serialize_into(&mut writer, &metadata).map_err(CodecError::from)?;
+        data.encode_into(buf).unwrap();
 
         // Pre-allocate a constant size to speed up.
         // TODO: make this configurable.

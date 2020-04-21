@@ -1,5 +1,5 @@
 use abomonation::{decode, encode, measure, Abomonation};
-use bytes::BytesMut;
+use bytes::{buf::ext::BufMutExt, BytesMut};
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::Debug,
@@ -18,7 +18,7 @@ pub enum DeserializedMessage<'a, T> {
 /// Trait automatically derived for all messages that derive `Serialize`.
 pub trait Serializable {
     fn encode(&self) -> Result<BytesMut, CommunicationError>;
-    fn encode_into(&self, buffer: &mut Vec<u8>) -> Result<(), CommunicationError>;
+    fn encode_into(&self, buffer: &mut BytesMut) -> Result<(), CommunicationError>;
     fn serialized_size(&self) -> Result<usize, CommunicationError>;
 }
 
@@ -32,8 +32,9 @@ where
         Ok(serialized_msg)
     }
 
-    default fn encode_into(&self, buffer: &mut Vec<u8>) -> Result<(), CommunicationError> {
-        bincode::serialize_into(buffer, self).map_err(CommunicationError::from)
+    default fn encode_into(&self, buffer: &mut BytesMut) -> Result<(), CommunicationError> {
+        let mut writer = buffer.writer();
+        bincode::serialize_into(&mut writer, self).map_err(CommunicationError::from)
     }
 
     default fn serialized_size(&self) -> Result<usize, CommunicationError> {
@@ -57,8 +58,9 @@ where
         Ok(serialized_msg)
     }
 
-    fn encode_into(&self, buffer: &mut Vec<u8>) -> Result<(), CommunicationError> {
-        unsafe { encode(self, buffer).map_err(CommunicationError::AbomonationError) }
+    fn encode_into(&self, buffer: &mut BytesMut) -> Result<(), CommunicationError> {
+        let mut writer = buffer.writer();
+        unsafe { encode(self, &mut writer).map_err(CommunicationError::AbomonationError) }
     }
 
     fn serialized_size(&self) -> Result<usize, CommunicationError> {
