@@ -189,12 +189,6 @@ def add_watermark_callback(read_streams, write_streams, callback):
                                      internal_watermark_callback)
 
 
-def _flow_watermark_callback(timestamp, *write_streams):
-    """Flows a watermark to all write streams."""
-    for write_stream in write_streams:
-        write_stream.send(WatermarkMessage(timestamp))
-
-
 def profile(event_name, operator, event_data=None):
     return Profile(event_name, operator, event_data)
 
