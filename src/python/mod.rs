@@ -187,6 +187,9 @@ operator._config = config
 trace_logger_name = "{}-profile".format(type(operator) if config.name is None else config.name)
 operator._trace_event_logger = erdos.utils.setup_trace_logging(trace_logger_name, config.profile_file_name)
 operator.__init__(*read_streams, *write_streams, *args, **kwargs)
+
+if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
+   erdos.add_watermark_callback(read_streams, write_streams, erdos._flow_watermark_callback)
 "#,
                     None,
                     Some(&locals),
