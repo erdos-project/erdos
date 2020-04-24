@@ -27,7 +27,6 @@ enum DecodeStatus {
 pub struct MessageCodec {
     status: DecodeStatus,
     msg_metadata: Option<MessageMetadata>,
-    start_us: u128,
 }
 
 impl MessageCodec {
@@ -35,7 +34,6 @@ impl MessageCodec {
         MessageCodec {
             status: DecodeStatus::Header,
             msg_metadata: None,
-            start_us: crate::current_time_us(),
         }
     }
 }
@@ -51,7 +49,6 @@ impl Decoder for MessageCodec {
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<InterProcessMessage>, CodecError> {
         match self.status {
             DecodeStatus::Header => {
-                self.start_us = crate::current_time_us();
                 if buf.len() >= HEADER_SIZE {
                     let header = buf.split_to(HEADER_SIZE);
                     let metadata_size = NetworkEndian::read_u32(&header[0..4]) as usize;
@@ -92,13 +89,6 @@ impl Decoder for MessageCodec {
                         self.msg_metadata.take().unwrap(),
                     );
                     // buf.reserve(20_000_000);
-
-                    println!(
-                        "Decoding {} bytes took {} us",
-                        byte_size,
-                        crate::current_time_us() - self.start_us
-                    );
-
                     Ok(Some(msg))
                 } else {
                     Ok(None)
@@ -117,7 +107,6 @@ impl Encoder for MessageCodec {
     /// It first writes the header_size, then the header, and finally the
     /// serialized message.
     fn encode(&mut self, msg: InterProcessMessage, buf: &mut BytesMut) -> Result<(), CodecError> {
-        let start = crate::current_time_us();
         // Serialize and write the header.
         let (metadata, data, send_us) = match msg {
             InterProcessMessage::Deserialized {
@@ -135,20 +124,16 @@ impl Encoder for MessageCodec {
         let metadata_size = bincode::serialized_size(&metadata).map_err(CodecError::from)?;
         let data_size = data.serialized_size().unwrap();
 
-        let reserve_start = crate::current_time_us();
         buf.reserve(HEADER_SIZE + metadata_size as usize + data_size);
-        let reserve_duration = crate::current_time_us() - reserve_start;
 
         let mut writer = buf.writer();
 
         // Serialize directly into the buffer.
-        let serialize_start = crate::current_time_us();
         writer.write_u32::<NetworkEndian>(metadata_size as u32)?;
         writer.write_u32::<NetworkEndian>(data_size as u32)?;
 
         bincode::serialize_into(&mut writer, &metadata).map_err(CodecError::from)?;
         data.encode_into(buf).unwrap();
-        let serialize_duration = crate::current_time_us() - serialize_start;
 
 
         // Pre-allocate a constant size to speed up.
@@ -158,16 +143,7 @@ impl Encoder for MessageCodec {
         buf.reserve(20_000_000);
         let reserve_duration = crate::current_time_us() - reserve_start;
         */
-
-        let duration = crate::current_time_us() - start;
-        println!("Serializing {} bytes took {} us", data_size, serialize_duration);
-        println!("Reserving took {} us", reserve_duration);
-        println!(
-            "Message took {} us to reach encode",
-            crate::current_time_us() - send_us
-        );
-        println!("Encoding {} bytes took {} us", data_size, duration);
-
+        
         Ok(())
     }
 }

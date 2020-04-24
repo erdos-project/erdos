@@ -121,7 +121,6 @@ impl<D: Data> fmt::Debug for WriteStream<D> {
 impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
     /// Specialized implementation for when the Data does not implement `Abomonation`.
     fn send(&mut self, msg: Message<D>) -> Result<(), WriteStreamError> {
-        let start = crate::current_time_us();
         if self.stream_closed {
             return Err(WriteStreamError::Closed);
         }
@@ -148,7 +147,6 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
             self.inter_thread_endpoints = Vec::with_capacity(0);
             self.inter_process_endpoints = Vec::with_capacity(0);
         }
-        println!("WriteStream::send took {} us", crate::current_time_us() - start);
         Ok(())
     }
 }
