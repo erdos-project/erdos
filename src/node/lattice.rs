@@ -515,4 +515,39 @@ mod test {
             "The wrong event was returned by the lattice."
         );
     }
+
+    /// Test that the messages are retrieved in the timestamp order.
+    /// Added to address the bug where we would have starvation due to
+    /// watermark messages of earlier timestamps being blocked by non-watermark
+    /// callbacks of newer timestamps.
+    #[test]
+    fn test_ordered_concurrent_execution() {
+        // Since this bug involves non-deterministic order. Run it for n tries.
+        for i in 0..20 {
+            let mut lattice: ExecutionLattice = ExecutionLattice::new();
+            block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), true, || ())));
+            block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![2]), false, || ())));
+            block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![3]), false, || ())));
+
+            let (event, event_id) = block_on(lattice.get_event()).unwrap();
+            assert_eq!(
+                event.timestamp.time[0] == 1 && event.is_watermark_callback,
+                true,
+                "The wrong event was returned by the lattice."
+            );
+
+            let (event_2, event_id_2) = block_on(lattice.get_event()).unwrap();
+            assert_eq!(
+                event_2.timestamp.time[0] == 1 && !event_2.is_watermark_callback,
+                true,
+                "The wrong event was returned by the lattice."
+            );
+            let (event_3, event_id_3) = block_on(lattice.get_event()).unwrap();
+            assert_eq!(
+                event_3.timestamp.time[0] == 1 && !event_3.is_watermark_callback,
+                true,
+                "The wrong event was returned by the lattice."
+            );
+        }
+    }
 }
