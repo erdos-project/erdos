@@ -75,8 +75,16 @@ impl DataReceiver {
                     self.update_pushers();
                     // Send the message.
                     let (metadata, bytes) = match msg {
-                        InterProcessMessage::Serialized { metadata, bytes } => (metadata, bytes),
-                        InterProcessMessage::Deserialized { metadata, data } => unreachable!(),
+                        InterProcessMessage::Serialized {
+                            metadata,
+                            bytes,
+                            decode_us,
+                        } => (metadata, bytes),
+                        InterProcessMessage::Deserialized {
+                            metadata,
+                            data,
+                            send_us,
+                        } => unreachable!(),
                     };
                     match self.stream_id_to_pusher.get_mut(&metadata.stream_id) {
                         Some(pusher) => {

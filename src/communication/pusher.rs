@@ -65,10 +65,16 @@ where
 
     fn send(&mut self, mut buf: BytesMut) -> Result<(), CommunicationError> {
         if !self.endpoints.is_empty() {
+            let start = crate::current_time_us();
             let msg = match Deserializable::decode(&mut buf)? {
                 DeserializedMessage::<D>::Owned(msg) => msg,
                 DeserializedMessage::<D>::Ref(msg) => msg.clone(),
             };
+            println!(
+                "Deserializing {} bytes took {} us",
+                buf.len(),
+                crate::current_time_us() - start
+            );
             let msg_arc = Arc::new(msg);
             for endpoint in self.endpoints.iter_mut() {
                 endpoint.send(Arc::clone(&msg_arc))?;

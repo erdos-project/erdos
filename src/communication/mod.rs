@@ -60,16 +60,22 @@ pub enum InterProcessMessage {
     Serialized {
         metadata: MessageMetadata,
         bytes: BytesMut,
+        decode_us: u128,
     },
     Deserialized {
         metadata: MessageMetadata,
         data: Arc<dyn Serializable + Send + Sync>,
+        send_us: u128,
     },
 }
 
 impl InterProcessMessage {
     pub fn new_serialized(bytes: BytesMut, metadata: MessageMetadata) -> Self {
-        Self::Serialized { metadata, bytes }
+        Self::Serialized {
+            metadata,
+            bytes,
+            decode_us: crate::current_time_us(),
+        }
     }
 
     pub fn new_deserialized(
@@ -79,6 +85,7 @@ impl InterProcessMessage {
         Self::Deserialized {
             metadata: MessageMetadata { stream_id },
             data,
+            send_us: crate::current_time_us(),
         }
     }
 }
