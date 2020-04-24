@@ -82,7 +82,7 @@ impl DataSender {
 pub async fn run_senders(mut senders: Vec<DataSender>) -> Result<(), CommunicationError> {
     // Waits until all futures complete. This code will only be reached
     // when all the mpsc channels are closed.
-    future::join_all(senders.iter_mut().map(|sender| sender.run())).await;
+    future::join_all(senders.into_iter().map(|mut sender| tokio::spawn(async move { sender.run().await }))).await;
     Ok(())
 }
 

@@ -61,7 +61,7 @@ impl Decoder for MessageCodec {
                         data_size,
                     };
                     // Reserve space in the buffer for the rest of the message and the next header.
-                    // buf.reserve(metadata_size + data_size + HEADER_SIZE);
+                    buf.reserve(metadata_size + data_size + HEADER_SIZE);
                     self.decode(buf)
                 } else {
                     Ok(None)
@@ -91,7 +91,7 @@ impl Decoder for MessageCodec {
                         bytes,
                         self.msg_metadata.take().unwrap(),
                     );
-                    buf.reserve(20_000_000);
+                    // buf.reserve(20_000_000);
 
                     println!(
                         "Decoding {} bytes took {} us",
@@ -131,27 +131,41 @@ impl Encoder for MessageCodec {
                 decode_us,
             } => unreachable!(),
         };
-        println!(
-            "Message took {} us to reach encode",
-            crate::current_time_us() - send_us
-        );
 
         let metadata_size = bincode::serialized_size(&metadata).map_err(CodecError::from)?;
         let data_size = data.serialized_size().unwrap();
 
+        let reserve_start = crate::current_time_us();
+        buf.reserve(HEADER_SIZE + metadata_size as usize + data_size);
+        let reserve_duration = crate::current_time_us() - reserve_start;
+
         let mut writer = buf.writer();
 
         // Serialize directly into the buffer.
+        let serialize_start = crate::current_time_us();
         writer.write_u32::<NetworkEndian>(metadata_size as u32)?;
         writer.write_u32::<NetworkEndian>(data_size as u32)?;
+
         bincode::serialize_into(&mut writer, &metadata).map_err(CodecError::from)?;
         data.encode_into(buf).unwrap();
+        let serialize_duration = crate::current_time_us() - serialize_start;
+
 
         // Pre-allocate a constant size to speed up.
         // TODO: make this configurable.
+        /*
+        let reserve_start = crate::current_time_us();
         buf.reserve(20_000_000);
+        let reserve_duration = crate::current_time_us() - reserve_start;
+        */
 
         let duration = crate::current_time_us() - start;
+        println!("Serializing {} bytes took {} us", data_size, serialize_duration);
+        println!("Reserving took {} us", reserve_duration);
+        println!(
+            "Message took {} us to reach encode",
+            crate::current_time_us() - send_us
+        );
         println!("Encoding {} bytes took {} us", data_size, duration);
 
         Ok(())
