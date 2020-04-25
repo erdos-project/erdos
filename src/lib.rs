@@ -31,6 +31,7 @@
 #![feature(get_mut_unchecked)]
 #![feature(specialization)]
 #![feature(box_into_pin)]
+#![feature(vec_remove_item)]
 
 extern crate abomonation;
 #[macro_use]

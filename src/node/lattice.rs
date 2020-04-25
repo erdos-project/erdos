@@ -1,3 +1,4 @@
+use crate::dataflow::Timestamp;
 use crate::node::operator_event::OperatorEvent;
 use futures::lock::Mutex;
 use petgraph::{
@@ -5,8 +6,102 @@ use petgraph::{
     visit::DfsPostOrder,
     Direction,
 };
-use std::collections::{HashSet, VecDeque};
+use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashSet};
+use std::fmt;
 use std::sync::Arc;
+
+/// `RunnableEvent` is a data structure that is used to represent an event that is ready to be
+/// executed.
+///
+/// A `RunnableEvent` is essentially an index into the lattice, with additional metadata to
+/// prioritize events that are ready to run.
+#[derive(Clone)]
+pub struct RunnableEvent {
+    /// The `node_index` is the index of the runnable event in the lattice.
+    node_index: NodeIndex<u32>,
+    /// The `timestamp` is the timestamp of the event indexed by the id.
+    timestamp: Option<Timestamp>,
+}
+
+impl RunnableEvent {
+    /// Creates a new instance of `RunnableEvent`.
+    pub fn new(node_index: NodeIndex<u32>) -> Self {
+        RunnableEvent {
+            node_index,
+            timestamp: None,
+        }
+    }
+
+    /// Add a timestamp to the event.
+    pub fn with_timestamp(mut self, timestamp: Timestamp) -> Self {
+        self.timestamp = Some(timestamp);
+        self
+    }
+}
+
+// Implement the `Display` and `Debug` traits so that we can visualize the event.
+impl fmt::Display for RunnableEvent {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "RunnableEvent(index: {}, Timestamp: {:?}",
+            self.node_index.index(),
+            self.timestamp
+        )
+    }
+}
+
+impl fmt::Debug for RunnableEvent {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "RunnableEvent(index: {}, Timestamp: {:?}",
+            self.node_index.index(),
+            self.timestamp
+        )
+    }
+}
+
+// Implement the equality criteria for a RunnableEvent.
+impl Eq for RunnableEvent {}
+
+impl PartialEq for RunnableEvent {
+    // Two events are equal iff they are the same i.e. same index into the lattice.
+    fn eq(&self, other: &RunnableEvent) -> bool {
+        match self.node_index.index().cmp(&other.node_index.index()) {
+            Ordering::Equal => true,
+            _ => false,
+        }
+    }
+}
+
+// Implement the Ordering for a RunnableEvent.
+impl Ord for RunnableEvent {
+    fn cmp(&self, other: &RunnableEvent) -> Ordering {
+        match (self.timestamp.as_ref(), other.timestamp.as_ref()) {
+            (Some(ts1), Some(ts2)) => match ts1.cmp(ts2) {
+                Ordering::Less => Ordering::Greater,
+                Ordering::Greater => Ordering::Less,
+                Ordering::Equal => {
+                    // Break ties with the order of insertion into the lattice.
+                    self.node_index.index().cmp(&other.node_index.index()).reverse()
+                }
+            },
+            _ => {
+                // We don't have enough information about the timestamps.
+                // Order based on the order of insertion into the lattice.
+                self.node_index.index().cmp(&other.node_index.index()).reverse()
+            }
+        }
+    }
+}
+
+impl PartialOrd for RunnableEvent {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
 
 /// `ExecutionLattice` is a data structure that maintains [`OperatorEvent`]s in a directed
 /// acyclic graph according the partial order defined.
@@ -54,10 +149,10 @@ pub struct ExecutionLattice {
     forest: Arc<Mutex<StableGraph<Option<OperatorEvent>, ()>>>,
     /// The `roots` are the roots of the forest of graphs, have no dependencies and can be run by
     /// the event executors.
-    roots: Arc<Mutex<HashSet<NodeIndex<u32>>>>,
+    roots: Arc<Mutex<Vec<RunnableEvent>>>,
     /// The `run_queue` is the queue that maintains the events to be executed next. Note that this
     /// is different from the `roots` because a root is only removed once its marked as complete.
-    run_queue: Arc<Mutex<VecDeque<NodeIndex<u32>>>>,
+    run_queue: Arc<Mutex<BinaryHeap<RunnableEvent>>>,
 }
 
 impl ExecutionLattice {
@@ -65,8 +160,8 @@ impl ExecutionLattice {
     pub fn new() -> Self {
         ExecutionLattice {
             forest: Arc::new(Mutex::new(StableGraph::new())),
-            roots: Arc::new(Mutex::new(HashSet::new())),
-            run_queue: Arc::new(Mutex::new(VecDeque::new())),
+            roots: Arc::new(Mutex::new(Vec::new())),
+            run_queue: Arc::new(Mutex::new(BinaryHeap::new())),
         }
     }
 
@@ -85,12 +180,15 @@ impl ExecutionLattice {
         let mut dependencies: HashSet<NodeIndex<u32>> = HashSet::new();
         let mut add_edges_to: Vec<NodeIndex<u32>> = Vec::new();
         let mut add_edges_from: Vec<NodeIndex<u32>> = Vec::new();
-        let mut remove_roots: Vec<(usize, NodeIndex<u32>)> = Vec::new();
+        let mut remove_roots: Vec<RunnableEvent> = Vec::new();
 
         for root in roots.iter() {
+            // Retrieve the index into the lattice.
+            let root_index: NodeIndex<u32> = root.node_index;
+
             // This function maintains the stack when iterating over the graph so we do not have to
             // check the same node in the graph twice.
-            dfs.move_to(*root);
+            dfs.move_to(root_index);
 
             // Retrieve the next node in DFS order from the forest.
             while let Some(nx) = dfs.next(&*forest) {
@@ -146,9 +244,9 @@ impl ExecutionLattice {
                         // above, but add edges if the node is root.
                         if forest.neighbors_directed(nx, Direction::Incoming).count() == 0 {
                             add_edges_to.push(nx);
-                            for (i, n) in run_queue.iter().enumerate() {
-                                if n.index() == nx.index() {
-                                    remove_roots.push((i, nx));
+                            for n in run_queue.iter() {
+                                if n.node_index.index() == nx.index() {
+                                    remove_roots.push(n.clone());
                                 }
                             }
                         }
@@ -168,6 +266,7 @@ impl ExecutionLattice {
         }
 
         // Add the node into the forest.
+        let event_timestamp: Timestamp = event.timestamp.clone();
         let event_ix: NodeIndex<u32> = forest.add_node(Some(event));
 
         // Add the edges from the inserted event to its dependencies.
@@ -181,16 +280,35 @@ impl ExecutionLattice {
         }
 
         // Clean up the roots and the run queue, if any.
-        for (i, n) in remove_roots {
-            roots.remove(&n);
-            run_queue.remove(i);
+        // TODO (Sukrit) :: BinaryHeap does not provide a way to remove an element that is not at
+        // the top of the heap. So, this particularly costly implementation clones the elements out
+        // of the earlier run_queue, clears the run_queue and initializes it afresh with the set
+        // difference of the old run_queue and the nodes to remove.
+        // Since the invocation of this code is hopefully rare, we can optimize it later.
+        if remove_roots.len() > 0 {
+            // The run queue needs to be reconstructed.
+            let mut old_run_queue: Vec<RunnableEvent> = Vec::new();
+            for event in run_queue.iter() {
+                old_run_queue.push(event.clone());
+            }
+            run_queue.clear();
+
+            for n in &remove_roots {
+                roots.remove_item(n);
+            }
+
+            for item in old_run_queue {
+                if !remove_roots.contains(&item) {
+                    run_queue.push(item);
+                }
+            }
         }
 
         // If no dependencies of this event, then we can safely create a new root in the forest and
         // add the event to the run queue.
         if dependencies.is_empty() {
-            roots.insert(event_ix);
-            run_queue.push_back(event_ix);
+            roots.push(RunnableEvent::new(event_ix).with_timestamp(event_timestamp.clone()));
+            run_queue.push(RunnableEvent::new(event_ix).with_timestamp(event_timestamp));
         }
     }
 
@@ -207,10 +325,10 @@ impl ExecutionLattice {
         let mut run_queue = self.run_queue.lock().await;
 
         // Retrieve the event
-        match run_queue.pop_front() {
-            Some(event_id) => {
-                let event = forest[event_id].take();
-                Some((event.unwrap(), event_id.index()))
+        match run_queue.pop() {
+            Some(runnable_event) => {
+                let event = forest[runnable_event.node_index].take();
+                Some((event.unwrap(), runnable_event.node_index.index()))
             }
             None => None,
         }
@@ -228,14 +346,13 @@ impl ExecutionLattice {
 
         let node_id: NodeIndex<u32> = NodeIndex::new(event_id);
 
-        if !roots.remove(&node_id) {
-            panic!("A non-root event should not be removed from the lattice.");
-        }
+        // Throw an error if the item was not in the roots.
+        roots.remove_item(&RunnableEvent::new(node_id)).unwrap();
 
         // Go over the children of the node, and check which ones have no dependencies on other
         // nodes, and add them to the list of the roots.
         let mut remove_edges: Vec<NodeIndex<u32>> = Vec::new();
-        let mut root_nodes: Vec<NodeIndex<u32>> = Vec::new();
+        let mut root_nodes: Vec<RunnableEvent> = Vec::new();
         for child_id in forest.neighbors(node_id) {
             // Does this node have any other incoming edge?
             if forest
@@ -243,7 +360,8 @@ impl ExecutionLattice {
                 .count()
                 == 1
             {
-                root_nodes.push(child_id);
+                let timestamp: Timestamp = forest[child_id].as_ref().unwrap().timestamp.clone();
+                root_nodes.push(RunnableEvent::new(child_id).with_timestamp(timestamp));
             }
 
             // Remove the edge from the child.
@@ -257,9 +375,9 @@ impl ExecutionLattice {
         }
 
         // Push the root nodes to the root of the forest, and add them to the run queue.
-        for child_id in root_nodes {
-            roots.insert(child_id);
-            run_queue.push_back(child_id);
+        for child in root_nodes {
+            roots.push(child.clone());
+            run_queue.push(child);
         }
 
         // Remove the node from the forest.
@@ -422,7 +540,7 @@ mod test {
         block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), false, || ())));
         let (event, event_id) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
-            event.timestamp.time[0], 3,
+            event.timestamp.time[0], 1,
             "The wrong event was returned by the lattice."
         );
         let (event_2, event_id_2) = block_on(lattice.get_event()).unwrap();
@@ -432,7 +550,7 @@ mod test {
         );
         let (event_3, event_id_3) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
-            event_3.timestamp.time[0], 1,
+            event_3.timestamp.time[0], 3,
             "The wrong event was returned by the lattice."
         );
     }
@@ -546,5 +664,5 @@ mod test {
             true,
             "The wrong event was returned by the lattice."
         );
-   }
+    }
 }
