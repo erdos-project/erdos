@@ -85,13 +85,19 @@ impl Ord for RunnableEvent {
                 Ordering::Greater => Ordering::Less,
                 Ordering::Equal => {
                     // Break ties with the order of insertion into the lattice.
-                    self.node_index.index().cmp(&other.node_index.index()).reverse()
+                    self.node_index
+                        .index()
+                        .cmp(&other.node_index.index())
+                        .reverse()
                 }
             },
             _ => {
                 // We don't have enough information about the timestamps.
                 // Order based on the order of insertion into the lattice.
-                self.node_index.index().cmp(&other.node_index.index()).reverse()
+                self.node_index
+                    .index()
+                    .cmp(&other.node_index.index())
+                    .reverse()
             }
         }
     }
