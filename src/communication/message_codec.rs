@@ -108,16 +108,14 @@ impl Encoder for MessageCodec {
     /// serialized message.
     fn encode(&mut self, msg: InterProcessMessage, buf: &mut BytesMut) -> Result<(), CodecError> {
         // Serialize and write the header.
-        let (metadata, data, send_us) = match msg {
+        let (metadata, data) = match msg {
             InterProcessMessage::Deserialized {
                 metadata,
                 data,
-                send_us,
-            } => (metadata, data, send_us),
+            } => (metadata, data),
             InterProcessMessage::Serialized {
                 metadata,
                 bytes,
-                decode_us,
             } => unreachable!(),
         };
 
