@@ -332,10 +332,10 @@ def make_receive_watermark(num_rs, num_ws, has_state):
     args = ", ".join(
         itertools.chain(
             ["&current_low_watermark"],
-            [("{{ let state = unsafe { Arc::get_mut_unchecked(&mut state) };"
+            [("{ let state = unsafe { Arc::get_mut_unchecked(&mut state) };"
               "state.set_access_context(AccessContext::WatermarkCallback); "
-              "state.set_current_time(current_low_watermark.clone()); state }}"
-              )] if has_state else [],
+              "state.set_current_time(current_low_watermark.clone()); state }")
+             ] if has_state else [],
             map(
                 lambda x:
                 ("{{ let state = unsafe {{ Arc::get_mut_unchecked(&mut rs{x}_state) }}; "

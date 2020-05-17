@@ -211,7 +211,8 @@ impl OperatorExecutor {
         );
 
         // Callbacks are not invoked while the operator is running.
-        self.operator.run();
+        tokio::task::block_in_place(|| self.operator.run());
+        // self.operator.run();
 
         if let Some(mut event_stream) = self.event_stream.take() {
             // Launch consumers
