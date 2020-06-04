@@ -20,7 +20,7 @@ use crate::scheduler::endpoints_manager::ChannelsToSenders;
 
 #[allow(dead_code)]
 /// Listens on a `tokio::sync::mpsc` channel, and sends received messages on the network.
-pub struct DataSender {
+pub(crate) struct DataSender {
     /// The id of the node the sink is sending data to.
     node_id: NodeId,
     /// Framed TCP write sink.
@@ -34,7 +34,7 @@ pub struct DataSender {
 }
 
 impl DataSender {
-    pub async fn new(
+    pub(crate) async fn new(
         node_id: NodeId,
         sink: SplitSink<Framed<TcpStream, MessageCodec>, InterProcessMessage>,
         channels_to_senders: Arc<Mutex<ChannelsToSenders>>,
@@ -56,7 +56,7 @@ impl DataSender {
         }
     }
 
-    pub async fn run(&mut self) -> Result<(), CommunicationError> {
+    pub(crate) async fn run(&mut self) -> Result<(), CommunicationError> {
         // Notify `ControlMessageHandler` that sender is initialized.
         self.control_tx
             .send(ControlMessage::DataSenderInitialized(self.node_id))
@@ -79,16 +79,21 @@ impl DataSender {
 /// The function launches a task for each TCP sink. Each task listens
 /// on a mpsc channel for new `InterProcessMessages` messages, which it
 /// forwards on the TCP stream.
-pub async fn run_senders(mut senders: Vec<DataSender>) -> Result<(), CommunicationError> {
+pub(crate) async fn run_senders(senders: Vec<DataSender>) -> Result<(), CommunicationError> {
     // Waits until all futures complete. This code will only be reached
     // when all the mpsc channels are closed.
-    future::join_all(senders.into_iter().map(|mut sender| tokio::spawn(async move { sender.run().await }))).await;
+    future::join_all(
+        senders
+            .into_iter()
+            .map(|mut sender| tokio::spawn(async move { sender.run().await })),
+    )
+    .await;
     Ok(())
 }
 
 #[allow(dead_code)]
 /// Listens for control messages on a `tokio::sync::mpsc` channel, and sends received messages on the network.
-pub struct ControlSender {
+pub(crate) struct ControlSender {
     /// The id of the node the sink is sending data to.
     node_id: NodeId,
     /// Framed TCP write sink.
@@ -102,7 +107,7 @@ pub struct ControlSender {
 }
 
 impl ControlSender {
-    pub fn new(
+    pub(crate) fn new(
         node_id: NodeId,
         sink: SplitSink<Framed<TcpStream, ControlMessageCodec>, ControlMessage>,
         control_handler: &mut ControlMessageHandler,
@@ -122,7 +127,7 @@ impl ControlSender {
         }
     }
 
-    pub async fn run(&mut self) -> Result<(), CommunicationError> {
+    pub(crate) async fn run(&mut self) -> Result<(), CommunicationError> {
         // Notify `ControlMessageHandler` that sender is initialized.
         self.control_tx
             .send(ControlMessage::ControlSenderInitialized(self.node_id))
@@ -147,7 +152,7 @@ impl ControlSender {
 /// The function launches a task for each TCP sink. Each task listens
 /// on a mpsc channel for new `ControlMessage`s, which it
 /// forwards on the TCP stream.
-pub async fn run_control_senders(
+pub(crate) async fn run_control_senders(
     mut senders: Vec<ControlSender>,
 ) -> Result<(), CommunicationError> {
     // Waits until all futures complete. This code will only be reached

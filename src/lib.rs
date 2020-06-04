@@ -468,10 +468,3 @@ pub fn new_app(name: &str) -> clap::App {
                 .help("Exports the dataflow graph as a DOT file to the provided filename"),
         )
 }
-
-fn current_time_us() -> u128 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::SystemTime::UNIX_EPOCH)
-        .unwrap()
-        .as_micros()
-}

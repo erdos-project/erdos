@@ -3,7 +3,7 @@ use bytes::{buf::ext::BufMutExt, BytesMut};
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::Debug,
-    io::{Error, ErrorKind, Write},
+    io::{Error, ErrorKind},
 };
 
 use crate::communication::CommunicationError;

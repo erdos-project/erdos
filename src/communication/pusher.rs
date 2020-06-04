@@ -9,7 +9,7 @@ use serde::Deserialize;
 
 use crate::{
     communication::{
-        serializable::{Deserializable, DeserializedMessage},
+        serializable::{Deserializable, DeserializedMessage, Serializable},
         CommunicationError, SendEndpoint,
     },
     dataflow::Data,
@@ -21,7 +21,7 @@ pub trait PusherT: Send {
     /// To be used to clone a boxed pusher.
     fn box_clone(&self) -> Box<dyn PusherT>;
     /// Creates message from bytes and sends it to endpoints.
-    fn send(&mut self, buf: BytesMut) -> Result<(), CommunicationError>;
+    fn send_from_bytes(&mut self, buf: BytesMut) -> Result<(), CommunicationError>;
 }
 
 /// Internal structure used to send data to other operators or threads.
@@ -30,16 +30,23 @@ pub struct Pusher<D: Debug + Clone + Send> {
     endpoints: Vec<SendEndpoint<D>>,
 }
 
-impl<D: Debug + Clone + Send> Pusher<D> {
+/// Zero-copy implementation of the endpoint.
+impl<D: 'static + Serializable + Send + Sync + Debug> Pusher<Arc<D>> {
     pub fn new() -> Self {
         Self {
             endpoints: Vec::new(),
         }
     }
 
-    /// Adds a SendEndpoint to the pusher.
-    pub fn add_endpoint(&mut self, endpoint: SendEndpoint<D>) {
+    pub fn add_endpoint(&mut self, endpoint: SendEndpoint<Arc<D>>) {
         self.endpoints.push(endpoint);
+    }
+
+    pub fn send(&mut self, msg: Arc<D>) -> Result<(), CommunicationError> {
+        for endpoint in self.endpoints.iter_mut() {
+            endpoint.send(Arc::clone(&msg))?;
+        }
+        Ok(())
     }
 }
 
@@ -63,7 +70,7 @@ where
         Box::new((*self).clone())
     }
 
-    fn send(&mut self, mut buf: BytesMut) -> Result<(), CommunicationError> {
+    fn send_from_bytes(&mut self, mut buf: BytesMut) -> Result<(), CommunicationError> {
         if !self.endpoints.is_empty() {
             let msg = match Deserializable::decode(&mut buf)? {
                 DeserializedMessage::<D>::Owned(msg) => msg,

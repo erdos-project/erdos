@@ -1,5 +1,5 @@
 use byteorder::{ByteOrder, NetworkEndian, WriteBytesExt};
-use bytes::{buf::ext::BufMutExt, BufMut, BytesMut};
+use bytes::{buf::ext::BufMutExt, BytesMut};
 use std::fmt::Debug;
 use tokio_util::codec::{Decoder, Encoder};
 
@@ -19,12 +19,13 @@ enum DecodeStatus {
     },
 }
 
-/// Encodes messages into bytes, and decodes bytes into InterProcessMessages.
+/// Encodes messages into bytes, and decodes bytes into an [`InterProcessMessage`].
 ///
 /// For each message, the codec first writes the size of its message header,
 /// then the message header, and finally the content of the message.
 #[derive(Debug)]
 pub struct MessageCodec {
+    /// Current part of the message to decode.
     status: DecodeStatus,
     msg_metadata: Option<MessageMetadata>,
 }
@@ -42,12 +43,14 @@ impl Decoder for MessageCodec {
     type Item = InterProcessMessage;
     type Error = CodecError;
 
-    /// Decodes a bunch of bytes into a InterProcessMessage.
+    /// Decodes a sequence of bytes into an InterProcessMessage.
     ///
-    /// It first tries to read the header_size, then the header, and finally the
-    /// message content.
+    /// Reads the header size, then the header, and finally the message.
+    /// Reserves memory for the entire message to reduce upon reading the header
+    /// costly memory allocations.
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<InterProcessMessage>, CodecError> {
         match self.status {
+            // Decode the header and reserve
             DecodeStatus::Header => {
                 if buf.len() >= HEADER_SIZE {
                     let header = buf.split_to(HEADER_SIZE);
@@ -64,6 +67,7 @@ impl Decoder for MessageCodec {
                     Ok(None)
                 }
             }
+            // Decode the metadata.
             DecodeStatus::Metadata {
                 metadata_size,
                 data_size,
@@ -79,16 +83,15 @@ impl Decoder for MessageCodec {
                     Ok(None)
                 }
             }
+            // Decode the data.
             DecodeStatus::Data { data_size } => {
                 if buf.len() >= data_size {
                     let bytes = buf.split_to(data_size);
-                    self.status = DecodeStatus::Header;
-                    let byte_size = bytes.len();
                     let msg = InterProcessMessage::new_serialized(
                         bytes,
                         self.msg_metadata.take().unwrap(),
                     );
-                    // buf.reserve(20_000_000);
+                    self.status = DecodeStatus::Header;
                     Ok(Some(msg))
                 } else {
                     Ok(None)
@@ -102,46 +105,33 @@ impl Encoder for MessageCodec {
     type Item = InterProcessMessage;
     type Error = CodecError;
 
-    /// Encondes a InterProcessMessage into a bunch of bytes.
+    /// Encodes a InterProcessMessage into a buffer.
     ///
-    /// It first writes the header_size, then the header, and finally the
+    /// First writes the header_size, then the header, and finally the
     /// serialized message.
     fn encode(&mut self, msg: InterProcessMessage, buf: &mut BytesMut) -> Result<(), CodecError> {
         // Serialize and write the header.
         let (metadata, data) = match msg {
-            InterProcessMessage::Deserialized {
-                metadata,
-                data,
-            } => (metadata, data),
+            InterProcessMessage::Deserialized { metadata, data } => (metadata, data),
             InterProcessMessage::Serialized {
-                metadata,
-                bytes,
+                metadata: _,
+                bytes: _,
             } => unreachable!(),
         };
 
+        // Allocate memory in the buffer for serialized metadata and data
+        // to reduce memory allocations.
         let metadata_size = bincode::serialized_size(&metadata).map_err(CodecError::from)?;
         let data_size = data.serialized_size().unwrap();
-
         buf.reserve(HEADER_SIZE + metadata_size as usize + data_size);
 
-        let mut writer = buf.writer();
-
         // Serialize directly into the buffer.
+        let mut writer = buf.writer();
         writer.write_u32::<NetworkEndian>(metadata_size as u32)?;
         writer.write_u32::<NetworkEndian>(data_size as u32)?;
-
         bincode::serialize_into(&mut writer, &metadata).map_err(CodecError::from)?;
         data.encode_into(buf).unwrap();
 
-
-        // Pre-allocate a constant size to speed up.
-        // TODO: make this configurable.
-        /*
-        let reserve_start = crate::current_time_us();
-        buf.reserve(20_000_000);
-        let reserve_duration = crate::current_time_us() - reserve_start;
-        */
-        
         Ok(())
     }
 }

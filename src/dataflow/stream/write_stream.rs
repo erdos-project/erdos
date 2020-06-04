@@ -3,7 +3,7 @@ use std::{fmt, sync::Arc};
 use serde::Deserialize;
 
 use crate::{
-    communication::{InterProcessMessage, SendEndpoint, Serializable},
+    communication::{Pusher, SendEndpoint},
     dataflow::{Data, Message, Timestamp, WriteStreamError},
 };
 
@@ -16,10 +16,8 @@ pub struct WriteStream<D: Data> {
     id: StreamId,
     /// User-defined stream name.
     name: String,
-    /// Send to other threads in the same process.
-    inter_thread_endpoints: Vec<SendEndpoint<Arc<Message<D>>>>,
-    /// Send to other processes.
-    inter_process_endpoints: Vec<SendEndpoint<Arc<Message<D>>>>,
+    /// Sends message to other operators.
+    pusher: Option<Pusher<Arc<Message<D>>>>,
     /// Current low watermark.
     low_watermark: Timestamp,
     /// Whether the stream is closed.
@@ -44,8 +42,7 @@ impl<D: Data> WriteStream<D> {
         Self {
             id,
             name,
-            inter_thread_endpoints: Vec::new(),
-            inter_process_endpoints: Vec::new(),
+            pusher: Some(Pusher::new()),
             low_watermark: Timestamp::new(vec![0]),
             stream_closed: false,
         }
@@ -72,10 +69,10 @@ impl<D: Data> WriteStream<D> {
     }
 
     fn add_endpoint(&mut self, endpoint: SendEndpoint<Arc<Message<D>>>) {
-        match endpoint {
-            SendEndpoint::InterThread(_) => self.inter_thread_endpoints.push(endpoint),
-            SendEndpoint::InterProcess(_, _) => self.inter_process_endpoints.push(endpoint),
-        }
+        self.pusher
+            .as_mut()
+            .expect("Attempted to add endpoint to WriteStream, however no pusher exists")
+            .add_endpoint(endpoint);
     }
 
     fn close_stream(&mut self) {
@@ -129,23 +126,15 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
         }
         self.update_watermark(&msg)?;
         let msg_arc = Arc::new(msg);
-        let inter_process_msg = InterProcessMessage::new_deserialized(msg_arc.clone(), self.id);
-        for i in 0..self.inter_process_endpoints.len() {
-            self.inter_process_endpoints[i]
-                .send_inter_process(inter_process_msg.clone())
-                .map_err(WriteStreamError::from)?;
-        }
 
-        for i in 0..self.inter_thread_endpoints.len() {
-            self.inter_thread_endpoints[i]
-                .send(Arc::clone(&msg_arc))
-                .map_err(WriteStreamError::from)?;
-        }
+        match self.pusher.as_mut() {
+            Some(pusher) => pusher.send(msg_arc).map_err(WriteStreamError::from)?,
+            None => (),
+        };
 
-        // Drop SendEndpoints.
+        // Drop pusher.
         if self.stream_closed {
-            self.inter_thread_endpoints = Vec::with_capacity(0);
-            self.inter_process_endpoints = Vec::with_capacity(0);
+            self.pusher = None;
         }
         Ok(())
     }

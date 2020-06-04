@@ -33,11 +33,7 @@ use tokio::{
     time::delay_for,
 };
 
-use crate::{
-    dataflow::{stream::StreamId, Data},
-    node::node::NodeId,
-    OperatorId,
-};
+use crate::{dataflow::stream::StreamId, node::node::NodeId, OperatorId};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ControlMessage {
@@ -69,10 +65,7 @@ pub enum InterProcessMessage {
 
 impl InterProcessMessage {
     pub fn new_serialized(bytes: BytesMut, metadata: MessageMetadata) -> Self {
-        Self::Serialized {
-            metadata,
-            bytes,
-        }
+        Self::Serialized { metadata, bytes }
     }
 
     pub fn new_deserialized(
