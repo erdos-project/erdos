@@ -50,11 +50,3 @@ crate-type=["rlib", "cdylib"]   # Required for python
 
 [[bench]]
 name = "latency"
-
-[[bin]]
-name = "experiment-throughput-driver"
-path = "experiments/throughput_driver.rs"
-
-[[bin]]
-name = "experiment-throughput"
-path = "experiments/throughput.rs"
