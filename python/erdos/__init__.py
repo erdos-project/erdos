@@ -1,4 +1,5 @@
 import multiprocessing as mp
+import inspect
 import signal
 import sys
 
@@ -37,6 +38,13 @@ def connect(op_type, config, read_streams, *args, **kwargs):
     """
     if not issubclass(op_type, Operator):
         raise TypeError("{} must subclass erdos.Operator".format(op_type))
+
+    # Check if the number of read streams passed are correct.
+    required_stream_len = len(inspect.signature(op_type.connect).parameters)
+    if not required_stream_len == len(read_streams):
+        raise ValueError("{} requires {} streams, but {} were passed.".format(
+            op_type.__name__, required_stream_len, len(read_streams)))
+
     # 1-index operators because node 0 is preserved for the current process,
     # and each node can only run 1 python operator.
     global _num_py_operators
@@ -63,7 +71,7 @@ def connect(op_type, config, read_streams, *args, **kwargs):
 
 def reset():
     """Resets internal seed and creates a new dataflow graph.
-    
+
     Note that no streams or operators can be re-used safely.
     """
     global _num_py_operators
