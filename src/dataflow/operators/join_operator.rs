@@ -146,15 +146,15 @@ impl<'a, D1: Data, D2: Data, D3: Data + Deserialize<'a>> JoinOperator<D1, D2, D3
     /// The function to be called when a message is received on the left input stream.
     /// This callback adds the data received in the message to the state associated with the
     /// stream.
-    fn on_left_data_callback(t: Timestamp, msg: D1, state: &mut StreamState<D1>) {
-        state.add_msg(&t, msg);
+    fn on_left_data_callback(t: &Timestamp, msg: &D1, state: &mut StreamState<D1>) {
+        state.add_msg(t, msg.clone());
     }
 
     /// The function to be called when a message is received on the right input stream.
     /// This callback adds the data received in the message to the state associated with the
     /// stream.
-    fn on_right_data_callback(t: Timestamp, msg: D2, state: &mut StreamState<D2>) {
-        state.add_msg(&t, msg);
+    fn on_right_data_callback(t: &Timestamp, msg: &D2, state: &mut StreamState<D2>) {
+        state.add_msg(t, msg.clone());
     }
 
     /// The function to be called when a watermark is received on both the left and the right

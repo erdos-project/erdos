@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     dataflow::{Data, Message},
     node::operator_event::OperatorEvent,
@@ -32,7 +34,7 @@ pub trait EventMakerT {
     fn get_id(&self) -> StreamId;
 
     /// Returns the vector of events that a message receipt generates.
-    fn make_events(&self, msg: Message<Self::EventDataType>) -> Vec<OperatorEvent>;
+    fn make_events(&self, msg: Arc<Message<Self::EventDataType>>) -> Vec<OperatorEvent>;
 }
 
 pub trait WriteStreamT<D: Data> {
@@ -96,7 +98,7 @@ mod tests {
             ws.send(msg2).unwrap();
         });
         let first_msg = rt.block_on(rx.recv()).unwrap();
-        match first_msg {
+        match &*first_msg {
             Message::TimestampedData(td) => {
                 assert_eq!(td.data, 1);
             }
@@ -105,7 +107,7 @@ mod tests {
             }
         }
         let second_msg = rt.block_on(rx.recv()).unwrap();
-        match second_msg {
+        match &*second_msg {
             Message::TimestampedData(td) => {
                 assert_eq!(td.data, 2);
             }
@@ -131,7 +133,7 @@ mod tests {
             ws.send(w2).unwrap();
         });
         let w1 = rt.block_on(rx.recv()).unwrap();
-        match w1 {
+        match &*w1 {
             Message::Watermark(t) => {
                 assert_eq!(t.time[0], 1);
             }
@@ -140,7 +142,7 @@ mod tests {
             }
         }
         let w2 = rt.block_on(rx.recv()).unwrap();
-        match w2 {
+        match &*w2 {
             Message::Watermark(t) => {
                 assert_eq!(t.time[0], 2);
             }

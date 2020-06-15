@@ -1,10 +1,9 @@
-use std::fmt;
+use std::{fmt, sync::Arc};
 
-use abomonation::Abomonation;
 use serde::Deserialize;
 
 use crate::{
-    communication::{SendEndpoint, Serializable},
+    communication::{Pusher, SendEndpoint},
     dataflow::{Data, Message, Timestamp, WriteStreamError},
 };
 
@@ -17,10 +16,8 @@ pub struct WriteStream<D: Data> {
     id: StreamId,
     /// User-defined stream name.
     name: String,
-    /// Send to other threads in the same process.
-    inter_thread_endpoints: Vec<SendEndpoint<Message<D>>>,
-    /// Send to other processes.
-    inter_process_endpoints: Vec<SendEndpoint<Message<D>>>,
+    /// Sends message to other operators.
+    pusher: Option<Pusher<Arc<Message<D>>>>,
     /// Current low watermark.
     low_watermark: Timestamp,
     /// Whether the stream is closed.
@@ -45,14 +42,13 @@ impl<D: Data> WriteStream<D> {
         Self {
             id,
             name,
-            inter_thread_endpoints: Vec::new(),
-            inter_process_endpoints: Vec::new(),
+            pusher: Some(Pusher::new()),
             low_watermark: Timestamp::new(vec![0]),
             stream_closed: false,
         }
     }
 
-    pub fn from_endpoints(endpoints: Vec<SendEndpoint<Message<D>>>, id: StreamId) -> Self {
+    pub fn from_endpoints(endpoints: Vec<SendEndpoint<Arc<Message<D>>>>, id: StreamId) -> Self {
         let mut stream = Self::new_from_id(id);
         for endpoint in endpoints {
             stream.add_endpoint(endpoint);
@@ -72,11 +68,11 @@ impl<D: Data> WriteStream<D> {
         self.stream_closed
     }
 
-    fn add_endpoint(&mut self, endpoint: SendEndpoint<Message<D>>) {
-        match endpoint {
-            SendEndpoint::InterThread(_) => self.inter_thread_endpoints.push(endpoint),
-            SendEndpoint::InterProcess(_, _) => self.inter_process_endpoints.push(endpoint),
-        }
+    fn add_endpoint(&mut self, endpoint: SendEndpoint<Arc<Message<D>>>) {
+        self.pusher
+            .as_mut()
+            .expect("Attempted to add endpoint to WriteStream, however no pusher exists")
+            .add_endpoint(endpoint);
     }
 
     fn close_stream(&mut self) {
@@ -121,50 +117,6 @@ impl<D: Data> fmt::Debug for WriteStream<D> {
 
 impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
     /// Specialized implementation for when the Data does not implement `Abomonation`.
-    default fn send(&mut self, msg: Message<D>) -> Result<(), WriteStreamError> {
-        if self.stream_closed {
-            return Err(WriteStreamError::Closed);
-        }
-        if msg.is_top_watermark() {
-            self.close_stream();
-        }
-        self.update_watermark(&msg)?;
-        if !self.inter_process_endpoints.is_empty() {
-            // Serialize the message because we have endpoints in different processes.
-            let serialized_msg = msg.encode().map_err(WriteStreamError::from)?;
-            // Copy the serialized message n-1 times.
-            for i in 1..self.inter_process_endpoints.len() {
-                self.inter_process_endpoints[i]
-                    .send_from_bytes(serialized_msg.clone())
-                    .map_err(WriteStreamError::from)?;
-            }
-            self.inter_process_endpoints[0]
-                .send_from_bytes(serialized_msg)
-                .map_err(WriteStreamError::from)?;
-        }
-
-        if self.inter_thread_endpoints.len() > 0 {
-            for i in 1..self.inter_thread_endpoints.len() {
-                self.inter_thread_endpoints[i]
-                    .send(msg.clone())
-                    .map_err(WriteStreamError::from)?;
-            }
-            self.inter_thread_endpoints[0]
-                .send(msg)
-                .map_err(WriteStreamError::from)?;
-        }
-
-        // Drop SendEndpoints.
-        if self.stream_closed {
-            self.inter_thread_endpoints = Vec::with_capacity(0);
-            self.inter_process_endpoints = Vec::with_capacity(0);
-        }
-        Ok(())
-    }
-}
-
-impl<'a, D: Data + Deserialize<'a> + Abomonation> WriteStreamT<D> for WriteStream<D> {
-    /// Specialized implementation for when the Data implements `Abomonation`.
     fn send(&mut self, msg: Message<D>) -> Result<(), WriteStreamError> {
         if self.stream_closed {
             return Err(WriteStreamError::Closed);
@@ -173,33 +125,16 @@ impl<'a, D: Data + Deserialize<'a> + Abomonation> WriteStreamT<D> for WriteStrea
             self.close_stream();
         }
         self.update_watermark(&msg)?;
-        if !self.inter_process_endpoints.is_empty() {
-            let serialized_msg = msg.encode().map_err(WriteStreamError::from)?;
-            for i in 1..self.inter_process_endpoints.len() {
-                self.inter_process_endpoints[i]
-                    .send_from_bytes(serialized_msg.clone())
-                    .map_err(WriteStreamError::from)?;
-            }
-            self.inter_process_endpoints[0]
-                .send_from_bytes(serialized_msg)
-                .map_err(WriteStreamError::from)?;
-        }
+        let msg_arc = Arc::new(msg);
 
-        if !self.inter_thread_endpoints.is_empty() {
-            for i in 1..self.inter_thread_endpoints.len() {
-                self.inter_thread_endpoints[i]
-                    .send(msg.clone())
-                    .map_err(WriteStreamError::from)?;
-            }
-            self.inter_thread_endpoints[0]
-                .send(msg)
-                .map_err(WriteStreamError::from)?;
-        }
+        match self.pusher.as_mut() {
+            Some(pusher) => pusher.send(msg_arc).map_err(WriteStreamError::from)?,
+            None => (),
+        };
 
-        // Drop SendEndpoints.
+        // Drop pusher.
         if self.stream_closed {
-            self.inter_thread_endpoints = Vec::with_capacity(0);
-            self.inter_process_endpoints = Vec::with_capacity(0);
+            self.pusher = None;
         }
         Ok(())
     }

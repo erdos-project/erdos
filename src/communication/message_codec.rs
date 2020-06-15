@@ -1,113 +1,99 @@
 use byteorder::{ByteOrder, NetworkEndian, WriteBytesExt};
-use bytes::{BufMut, BytesMut};
+use bytes::{buf::ext::BufMutExt, BytesMut};
 use std::fmt::Debug;
 use tokio_util::codec::{Decoder, Encoder};
 
-use crate::communication::{CodecError, MessageHeader, SerializedMessage};
+use crate::communication::{CodecError, InterProcessMessage, MessageMetadata};
 
-/// Encodes messages into bytes, and decodes bytes into SerializedMessages.
+const HEADER_SIZE: usize = 8;
+
+#[derive(Debug)]
+enum DecodeStatus {
+    Header,
+    Metadata {
+        metadata_size: usize,
+        data_size: usize,
+    },
+    Data {
+        data_size: usize,
+    },
+}
+
+/// Encodes messages into bytes, and decodes bytes into an [`InterProcessMessage`].
 ///
 /// For each message, the codec first writes the size of its message header,
 /// then the message header, and finally the content of the message.
 #[derive(Debug)]
 pub struct MessageCodec {
-    header_size: Option<usize>,
-    header: Option<MessageHeader>,
+    /// Current part of the message to decode.
+    status: DecodeStatus,
+    msg_metadata: Option<MessageMetadata>,
 }
 
 impl MessageCodec {
     pub fn new() -> MessageCodec {
         MessageCodec {
-            header_size: None,
-            header: None,
+            status: DecodeStatus::Header,
+            msg_metadata: None,
         }
-    }
-
-    /// Tries to read the size of the message header from the stream.
-    fn try_read_header_size(&self, buf: &mut BytesMut) -> Option<usize> {
-        if buf.len() >= 4 {
-            let header_size_bytes = buf.split_to(4);
-            let header_size = NetworkEndian::read_u32(&header_size_bytes);
-            Some(header_size as usize)
-        } else {
-            None
-        }
-    }
-
-    /// Tries to read a message header from the stream.
-    fn try_read_header(&mut self, buf: &mut BytesMut) -> Result<Option<MessageHeader>, CodecError> {
-        let header_size = self.header_size.unwrap();
-        if buf.len() >= header_size {
-            // Split the buffer where the message ends. The returned
-            // buffer will contain the bytes [0, header_size), and
-            // the self buffer will contain bytes [header_size..].
-            let header_bytes = buf.split_to(header_size);
-            // Upon the next invocation we have to read the size
-            // of the next message.
-            let header: MessageHeader =
-                bincode::deserialize(&header_bytes).map_err(|e| CodecError::from(e))?;
-            Ok(Some(header))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Tries to read the message content from the stream.
-    fn try_read_message(&mut self, buf: &mut BytesMut) -> Option<SerializedMessage> {
-        if let Some(header) = &self.header {
-            if buf.len() >= header.data_size {
-                // We have sufficient bytes to read the entire message.
-                let data_bytes = buf.split_to(header.data_size);
-                let msg = SerializedMessage {
-                    // Consure the header so that the coded can read the next header.
-                    header: self.header.take().unwrap(),
-                    data: data_bytes,
-                };
-                // Reset the header size so that it is read for the next message.
-                self.header_size = None;
-                return Some(msg);
-            }
-        }
-        None
     }
 }
 
 impl Decoder for MessageCodec {
-    type Item = SerializedMessage;
+    type Item = InterProcessMessage;
     type Error = CodecError;
 
-    /// Decodes a bunch of bytes into a SerializedMessage.
+    /// Decodes a sequence of bytes into an InterProcessMessage.
     ///
-    /// It first tries to read the header_size, then the header, and finally the
-    /// message content.
-    fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<SerializedMessage>, CodecError> {
-        if let Some(_) = &self.header {
-            // We already have a header. Read the message data.
-            Ok(self.try_read_message(buf))
-        } else {
-            if let Some(_) = self.header_size {
-                // We've previously read how many bytes the header has. Try to read the header.
-                if let Some(header) = self.try_read_header(buf)? {
-                    self.header = Some(header);
-                    Ok(self.try_read_message(buf))
+    /// Reads the header size, then the header, and finally the message.
+    /// Reserves memory for the entire message to reduce upon reading the header
+    /// costly memory allocations.
+    fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<InterProcessMessage>, CodecError> {
+        match self.status {
+            // Decode the header and reserve
+            DecodeStatus::Header => {
+                if buf.len() >= HEADER_SIZE {
+                    let header = buf.split_to(HEADER_SIZE);
+                    let metadata_size = NetworkEndian::read_u32(&header[0..4]) as usize;
+                    let data_size = NetworkEndian::read_u32(&header[4..8]) as usize;
+                    self.status = DecodeStatus::Metadata {
+                        metadata_size,
+                        data_size,
+                    };
+                    // Reserve space in the buffer for the rest of the message and the next header.
+                    buf.reserve(metadata_size + data_size + HEADER_SIZE);
+                    self.decode(buf)
                 } else {
-                    // We need more bytes before we can read the header.
                     Ok(None)
                 }
-            } else {
-                // Try to read the header size.
-                if let Some(header_size) = self.try_read_header_size(buf) {
-                    self.header_size = Some(header_size);
-                    // Try to read the header.
-                    if let Some(header) = self.try_read_header(buf)? {
-                        self.header = Some(header);
-                        // Try to read the message.
-                        Ok(self.try_read_message(buf))
-                    } else {
-                        Ok(None)
-                    }
+            }
+            // Decode the metadata.
+            DecodeStatus::Metadata {
+                metadata_size,
+                data_size,
+            } => {
+                if buf.len() >= metadata_size {
+                    let metadata_bytes = buf.split_to(metadata_size);
+                    let metadata: MessageMetadata =
+                        bincode::deserialize(&metadata_bytes).map_err(CodecError::BincodeError)?;
+                    self.msg_metadata = Some(metadata);
+                    self.status = DecodeStatus::Data { data_size };
+                    self.decode(buf)
                 } else {
-                    // We need more bytes before we can read the header size.
+                    Ok(None)
+                }
+            }
+            // Decode the data.
+            DecodeStatus::Data { data_size } => {
+                if buf.len() >= data_size {
+                    let bytes = buf.split_to(data_size);
+                    let msg = InterProcessMessage::new_serialized(
+                        bytes,
+                        self.msg_metadata.take().unwrap(),
+                    );
+                    self.status = DecodeStatus::Header;
+                    Ok(Some(msg))
+                } else {
                     Ok(None)
                 }
             }
@@ -116,25 +102,36 @@ impl Decoder for MessageCodec {
 }
 
 impl Encoder for MessageCodec {
-    type Item = SerializedMessage;
+    type Item = InterProcessMessage;
     type Error = CodecError;
 
-    /// Encondes a SerializedMessage into a bunch of bytes.
+    /// Encodes a InterProcessMessage into a buffer.
     ///
-    /// It first writes the header_size, then the header, and finally the
+    /// First writes the header_size, then the header, and finally the
     /// serialized message.
-    fn encode(&mut self, msg: SerializedMessage, buf: &mut BytesMut) -> Result<(), CodecError> {
+    fn encode(&mut self, msg: InterProcessMessage, buf: &mut BytesMut) -> Result<(), CodecError> {
         // Serialize and write the header.
-        let header = bincode::serialize(&msg.header).map_err(|e| CodecError::from(e))?;
-        // Write the size of the serialized header.
-        let mut size_buffer: Vec<u8> = Vec::new();
-        size_buffer.write_u32::<NetworkEndian>(header.len() as u32)?;
-        // Reserve space for header size, header, and message.
-        buf.reserve(size_buffer.len() + header.len() + msg.data.len());
-        buf.put_slice(&size_buffer[..]);
-        buf.put_slice(&header[..]);
-        // Write the message data.
-        buf.put_slice(&msg.data[..]);
+        let (metadata, data) = match msg {
+            InterProcessMessage::Deserialized { metadata, data } => (metadata, data),
+            InterProcessMessage::Serialized {
+                metadata: _,
+                bytes: _,
+            } => unreachable!(),
+        };
+
+        // Allocate memory in the buffer for serialized metadata and data
+        // to reduce memory allocations.
+        let metadata_size = bincode::serialized_size(&metadata).map_err(CodecError::from)?;
+        let data_size = data.serialized_size().unwrap();
+        buf.reserve(HEADER_SIZE + metadata_size as usize + data_size);
+
+        // Serialize directly into the buffer.
+        let mut writer = buf.writer();
+        writer.write_u32::<NetworkEndian>(metadata_size as u32)?;
+        writer.write_u32::<NetworkEndian>(data_size as u32)?;
+        bincode::serialize_into(&mut writer, &metadata).map_err(CodecError::from)?;
+        data.encode_into(buf).unwrap();
+
         Ok(())
     }
 }

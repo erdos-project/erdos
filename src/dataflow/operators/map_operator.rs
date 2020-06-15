@@ -17,7 +17,7 @@ use std::marker::PhantomData;
 /// use erdos::*;
 /// let mut map_config = OperatorConfig::new();
 /// map_config.name("MapOperator").arg(
-///     |data: u32| -> u64 { (data * 2) as u64 });
+///     |data: &u32| -> u64 { (data * 2) as u64 });
 /// let mut ingest_stream = IngestStream::new(0);
 /// let output_read_stream = connect_1_write!(MapOperator<u32, u64>, map_config, ingest_stream);
 /// ```
@@ -35,7 +35,7 @@ impl<'a, D1: Data, D2: Data + Deserialize<'a>> MapOperator<D1, D2> {
     /// type D1 to D2.
     /// * `input_stream` - Represents the incoming stream of messages of type D1.
     /// * `output_stream` - Represents an outgoing stream of messages of type D2.
-    pub fn new<F: 'static + Clone + Fn(D1) -> D2>(
+    pub fn new<F: 'static + Clone + Fn(&D1) -> D2>(
         config: OperatorConfig<F>,
         input_stream: ReadStream<D1>,
         output_stream: WriteStream<D2>,
@@ -55,7 +55,7 @@ impl<'a, D1: Data, D2: Data + Deserialize<'a>> MapOperator<D1, D2> {
             .unwrap_or_else(|| panic!("{}: no map function supplied", name));
 
         stateful_stream.add_callback(
-            move |t: Timestamp, msg: D1, output_stream: &mut WriteStream<_>| {
+            move |t: &Timestamp, msg: &D1, output_stream: &mut WriteStream<_>| {
                 Self::on_data_callback(t, msg, output_stream, &callback)
             },
         );
@@ -80,14 +80,14 @@ impl<'a, D1: Data, D2: Data + Deserialize<'a>> MapOperator<D1, D2> {
     /// * `msg` - The incoming message on the input stream.
     /// * `output_stream` - A handle to the output stream to write the output to.
     /// * `map_function` - A reference to the function to invoke for the message.
-    fn on_data_callback<F: 'static + Clone + Fn(D1) -> D2>(
-        t: Timestamp,
-        msg: D1,
+    fn on_data_callback<F: 'static + Clone + Fn(&D1) -> D2>(
+        t: &Timestamp,
+        msg: &D1,
         output_stream: &mut WriteStream<D2>,
         map_function: &F,
     ) {
         let result: D2 = map_function(msg);
-        output_stream.send(Message::new_message(t, result));
+        output_stream.send(Message::new_message(t.clone(), result));
     }
 }
 

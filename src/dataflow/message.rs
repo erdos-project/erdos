@@ -4,9 +4,12 @@ use std::fmt::Debug;
 
 /// Trait for valid message data. The data must be clonable, sendable between threads and
 /// serializable.
-pub trait Data: 'static + Clone + Send + Debug + Serialize {}
+pub trait Data: 'static + Clone + Send + Sync + Debug + Serialize {}
 /// Any type that is clonable, sendable, and can be serialized and dereserialized implements `Data`.
-impl<T> Data for T where for<'a> T: 'static + Clone + Send + Debug + Serialize + Deserialize<'a> {}
+impl<T> Data for T where
+    for<'a> T: 'static + Clone + Send + Sync + Debug + Serialize + Deserialize<'a>
+{
+}
 
 /// Operators send messages on streams. A message can be either a `Watermark` or a `TimestampedData`.
 #[derive(Clone, Debug, Serialize, Deserialize, Abomonation)]

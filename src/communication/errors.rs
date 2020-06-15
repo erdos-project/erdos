@@ -66,7 +66,7 @@ impl From<CodecError> for CommunicationError {
 #[derive(Debug)]
 pub enum CodecError {
     IoError(io::Error),
-    /// Bincode serialization/deserialization error. It is raised when the `MessageHeader` serialization
+    /// Bincode serialization/deserialization error. It is raised when the `MessageMetadata` serialization
     /// fails. This should not ever happen.
     BincodeError(bincode::Error),
 }

@@ -23,7 +23,7 @@ impl<D: Data, T: State> StatefulReadStream<D, T> {
     /// Add a callback to be invoked when the stream receives a message.
     /// The callback will be invoked for each message, and will receive the
     /// message and the stream's state as arguments.
-    pub fn add_callback<F: 'static + Fn(Timestamp, D, &mut T)>(&self, callback: F) {
+    pub fn add_callback<F: 'static + Fn(&Timestamp, &D, &mut T)>(&self, callback: F) {
         self.internal_stream.borrow_mut().add_callback(callback);
     }
 

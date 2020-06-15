@@ -13,7 +13,7 @@ use tokio_util::codec::Framed;
 use crate::{
     communication::{
         CommunicationError, ControlMessage, ControlMessageCodec, ControlMessageHandler,
-        MessageCodec, PusherT,
+        InterProcessMessage, MessageCodec, PusherT,
     },
     dataflow::stream::StreamId,
     node::node::NodeId,
@@ -22,7 +22,7 @@ use crate::{
 
 /// Listens on a TCP stream, and pushes messages it receives to operator executors.
 #[allow(dead_code)]
-pub struct DataReceiver {
+pub(crate) struct DataReceiver {
     /// The id of the node the stream is receiving data from.
     node_id: NodeId,
     /// Framed TCP read stream.
@@ -38,7 +38,7 @@ pub struct DataReceiver {
 }
 
 impl DataReceiver {
-    pub async fn new(
+    pub(crate) async fn new(
         node_id: NodeId,
         stream: SplitStream<Framed<TcpStream, MessageCodec>>,
         channels_to_receivers: Arc<Mutex<ChannelsToReceivers>>,
@@ -61,7 +61,7 @@ impl DataReceiver {
         }
     }
 
-    pub async fn run(&mut self) -> Result<(), CommunicationError> {
+    pub(crate) async fn run(&mut self) -> Result<(), CommunicationError> {
         // Notify `ControlMessageHandler` that receiver is initialized.
         self.control_tx
             .send(ControlMessage::DataReceiverInitialized(self.node_id))
@@ -74,9 +74,16 @@ impl DataReceiver {
                     // Note: we may want to update the pushers less frequently.
                     self.update_pushers();
                     // Send the message.
-                    match self.stream_id_to_pusher.get_mut(&msg.header.stream_id) {
+                    let (metadata, bytes) = match msg {
+                        InterProcessMessage::Serialized { metadata, bytes } => (metadata, bytes),
+                        InterProcessMessage::Deserialized {
+                            metadata: _,
+                            data: _,
+                        } => unreachable!(),
+                    };
+                    match self.stream_id_to_pusher.get_mut(&metadata.stream_id) {
                         Some(pusher) => {
-                            if let Err(e) = pusher.send(msg.data) {
+                            if let Err(e) = pusher.send_from_bytes(bytes) {
                                 return Err(e);
                             }
                         }
@@ -103,7 +110,9 @@ impl DataReceiver {
 /// Receives TCP messages, and pushes them to operators endpoints.
 /// The function receives a vector of framed TCP receiver halves.
 /// It launches a task that listens for new messages for each TCP connection.
-pub async fn run_receivers(mut receivers: Vec<DataReceiver>) -> Result<(), CommunicationError> {
+pub(crate) async fn run_receivers(
+    mut receivers: Vec<DataReceiver>,
+) -> Result<(), CommunicationError> {
     // Wait for all futures to finish. It will happen only when all streams are closed.
     future::join_all(receivers.iter_mut().map(|receiver| receiver.run())).await;
     Ok(())
@@ -111,7 +120,7 @@ pub async fn run_receivers(mut receivers: Vec<DataReceiver>) -> Result<(), Commu
 
 /// Listens on a TCP stream, and pushes control messages it receives to the node.
 #[allow(dead_code)]
-pub struct ControlReceiver {
+pub(crate) struct ControlReceiver {
     /// The id of the node the stream is receiving data from.
     node_id: NodeId,
     /// Framed TCP read stream.
@@ -123,7 +132,7 @@ pub struct ControlReceiver {
 }
 
 impl ControlReceiver {
-    pub fn new(
+    pub(crate) fn new(
         node_id: NodeId,
         stream: SplitStream<Framed<TcpStream, ControlMessageCodec>>,
         control_handler: &mut ControlMessageHandler,
@@ -139,7 +148,7 @@ impl ControlReceiver {
         }
     }
 
-    pub async fn run(&mut self) -> Result<(), CommunicationError> {
+    pub(crate) async fn run(&mut self) -> Result<(), CommunicationError> {
         // TODO: update `self.channel_to_handler` for up-to-date mappings.
         // between channels and handlers (e.g. for fault-tolerance).
         // Notify `ControlMessageHandler` that sender is initialized.
@@ -163,7 +172,7 @@ impl ControlReceiver {
 /// Receives TCP messages, and pushes them to the ControlHandler
 /// The function receives a vector of framed TCP receiver halves.
 /// It launches a task that listens for new messages for each TCP connection.
-pub async fn run_control_receivers(
+pub(crate) async fn run_control_receivers(
     mut receivers: Vec<ControlReceiver>,
 ) -> Result<(), CommunicationError> {
     // Wait for all futures to finish. It will happen only when all streams are closed.

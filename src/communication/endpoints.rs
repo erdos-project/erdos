@@ -1,9 +1,8 @@
-use bytes::BytesMut;
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 use tokio::sync::mpsc;
 
 use crate::{
-    communication::{CommunicationError, SerializedMessage, TryRecvError},
+    communication::{CommunicationError, InterProcessMessage, Serializable, TryRecvError},
     dataflow::stream::StreamId,
 };
 
@@ -13,30 +12,17 @@ pub enum SendEndpoint<D: Clone + Send + Debug> {
     /// Send messages between operators running in the same process.
     InterThread(mpsc::UnboundedSender<D>),
     /// Send messages between operator executors and network threads.
-    InterProcess(StreamId, mpsc::UnboundedSender<SerializedMessage>),
+    InterProcess(StreamId, mpsc::UnboundedSender<InterProcessMessage>),
 }
 
-impl<D: Clone + Send + Debug> SendEndpoint<D> {
-    /// To be used with `SendEndpoint::InterThread` endpoints. We do not implement this method for
-    /// other types of endpoints because we do not want to encourage usages of endpoints in which
-    /// the messages is serialized for each endpoint.
-    pub fn send(&mut self, msg: D) -> Result<(), CommunicationError> {
+/// Zero-copy implementation of the endpoint.
+impl<D: 'static + Serializable + Send + Sync + Debug> SendEndpoint<Arc<D>> {
+    pub fn send(&mut self, msg: Arc<D>) -> Result<(), CommunicationError> {
         match self {
-            Self::InterThread(sender) => sender.send(msg).map_err(|e| CommunicationError::from(e)),
-            Self::InterProcess(_, _) => Err(CommunicationError::SerializeNotImplemented),
-        }
-    }
-
-    /// To be used with `SendEndpoint::InterProcess` endpoints. We do not implement this method for
-    /// other types of endpoints because we do not want to encourage usages of endpoints in which
-    /// the messages is deserialized for each endpoint.
-    pub fn send_from_bytes(&mut self, data: BytesMut) -> Result<(), CommunicationError> {
-        match self {
-            Self::InterThread(_) => Err(CommunicationError::DeserializeNotImplemented),
-            Self::InterProcess(stream_id, sender) => {
-                let msg = SerializedMessage::new(data, *stream_id);
-                sender.send(msg).map_err(CommunicationError::from)
-            }
+            Self::InterThread(sender) => sender.send(msg).map_err(CommunicationError::from),
+            Self::InterProcess(stream_id, sender) => sender
+                .send(InterProcessMessage::new_deserialized(msg, *stream_id))
+                .map_err(CommunicationError::from),
         }
     }
 }

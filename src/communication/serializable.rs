@@ -1,5 +1,5 @@
 use abomonation::{decode, encode, measure, Abomonation};
-use bytes::BytesMut;
+use bytes::{buf::ext::BufMutExt, BytesMut};
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::Debug,
@@ -15,24 +15,68 @@ pub enum DeserializedMessage<'a, T> {
     Owned(T),
 }
 
-/// Trait automatically derived for all messages that derive `Serialize` and `Deserialize`.
-pub trait Serializable<'a>: Sized {
+/// Trait automatically derived for all messages that derive `Serialize`.
+pub trait Serializable {
     fn encode(&self) -> Result<BytesMut, CommunicationError>;
-    fn decode(buf: &'a mut BytesMut) -> Result<DeserializedMessage<'a, Self>, CommunicationError>;
+    fn encode_into(&self, buffer: &mut BytesMut) -> Result<(), CommunicationError>;
+    fn serialized_size(&self) -> Result<usize, CommunicationError>;
 }
 
-impl<'a, D> Serializable<'a> for D
+impl<D> Serializable for D
 where
-    D: Debug + Clone + Send + Serialize + Deserialize<'a>,
+    D: Debug + Clone + Send + Serialize,
 {
     default fn encode(&self) -> Result<BytesMut, CommunicationError> {
-        let serialized_msg = bincode::serialize(self).map_err(|e| CommunicationError::from(e))?;
-        // TODO: check whether this introduces extra copies
-        // On v0.5.4, BytesMut does not implement From<Vec<u8>>
+        let serialized_msg = bincode::serialize(self).map_err(CommunicationError::from)?;
         let serialized_msg: BytesMut = BytesMut::from(&serialized_msg[..]);
         Ok(serialized_msg)
     }
 
+    default fn encode_into(&self, buffer: &mut BytesMut) -> Result<(), CommunicationError> {
+        let mut writer = buffer.writer();
+        bincode::serialize_into(&mut writer, self).map_err(CommunicationError::from)
+    }
+
+    default fn serialized_size(&self) -> Result<usize, CommunicationError> {
+        bincode::serialized_size(&self)
+            .map(|x| x as usize)
+            .map_err(CommunicationError::from)
+    }
+}
+
+/// Specialized version used when messages derive `Abomonation`.
+impl<D> Serializable for D
+where
+    for<'a> D: Debug + Clone + Send + Serialize + Deserialize<'a> + Abomonation,
+{
+    fn encode(&self) -> Result<BytesMut, CommunicationError> {
+        let mut serialized_msg: Vec<u8> = Vec::with_capacity(measure(self));
+        unsafe {
+            encode(self, &mut serialized_msg).map_err(CommunicationError::AbomonationError)?;
+        }
+        let serialized_msg: BytesMut = BytesMut::from(&serialized_msg[..]);
+        Ok(serialized_msg)
+    }
+
+    fn encode_into(&self, buffer: &mut BytesMut) -> Result<(), CommunicationError> {
+        let mut writer = buffer.writer();
+        unsafe { encode(self, &mut writer).map_err(CommunicationError::AbomonationError) }
+    }
+
+    fn serialized_size(&self) -> Result<usize, CommunicationError> {
+        Ok(abomonation::measure(self))
+    }
+}
+
+/// Trait automatically derived for all messages that derive `Deserialize`.
+pub trait Deserializable<'a>: Sized {
+    fn decode(buf: &'a mut BytesMut) -> Result<DeserializedMessage<'a, Self>, CommunicationError>;
+}
+
+impl<'a, D> Deserializable<'a> for D
+where
+    D: Debug + Clone + Send + Deserialize<'a>,
+{
     default fn decode(
         buf: &'a mut BytesMut,
     ) -> Result<DeserializedMessage<'a, D>, CommunicationError> {
@@ -42,22 +86,10 @@ where
 }
 
 /// Specialized version used when messages derive `Abomonation`.
-impl<'a, D> Serializable<'a> for D
+impl<'a, D> Deserializable<'a> for D
 where
-    D: Debug + Clone + Send + Serialize + Deserialize<'a> + Abomonation,
+    D: Debug + Clone + Send + Deserialize<'a> + Abomonation,
 {
-    fn encode(&self) -> Result<BytesMut, CommunicationError> {
-        let mut serialized_msg: Vec<u8> = Vec::with_capacity(measure(self));
-        unsafe {
-            encode(self, &mut serialized_msg)
-                .map_err(|e| CommunicationError::AbomonationError(e))?;
-        }
-        // TODO: check whether this introduces extra copies
-        // On v0.5.4, BytesMut does not implement From<Vec<u8>>
-        let serialized_msg: BytesMut = BytesMut::from(&serialized_msg[..]);
-        Ok(serialized_msg)
-    }
-
     fn decode(buf: &'a mut BytesMut) -> Result<DeserializedMessage<'a, D>, CommunicationError> {
         let (msg, _) = {
             unsafe {

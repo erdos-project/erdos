@@ -49,7 +49,7 @@ fn test_input_receiver_map() {
     let mut map_config = OperatorConfig::new();
     map_config
         .name("MapOperator")
-        .arg(|data: u32| -> u64 { (data * 2) as u64 });
+        .arg(|data: &u32| -> u64 { (data * 2) as u64 });
     let s2 = connect_1_write!(MapOperator<u32, u64>, map_config, s1);
     let mut extract_stream = ExtractStream::new(0, &s2);
 

@@ -20,11 +20,11 @@ pub struct InternalReadStream<D: Data> {
     /// Whether the stream is closed.
     closed: bool,
     /// The endpoint on which the stream receives data.
-    recv_endpoint: Option<RecvEndpoint<Message<D>>>,
+    recv_endpoint: Option<RecvEndpoint<Arc<Message<D>>>>,
     /// Vector of stream bundles that must be invoked when this stream receives a message.
     children: Vec<Rc<RefCell<dyn EventMakerT<EventDataType = D>>>>,
     /// A vector on callbacks registered on the stream.
-    callbacks: Vec<Arc<dyn Fn(Timestamp, D)>>,
+    callbacks: Vec<Arc<dyn Fn(&Timestamp, &D)>>,
     /// A vector of watermark callbacks registered on the stream.
     watermark_cbs: Vec<Arc<dyn Fn(&Timestamp)>>,
 }
@@ -68,9 +68,9 @@ impl<D: Data> InternalReadStream<D> {
         self.closed
     }
 
-    pub fn from_endpoint(recv_endpoint: RecvEndpoint<Message<D>>, id: StreamId) -> Self {
+    pub fn from_endpoint(recv_endpoint: RecvEndpoint<Arc<Message<D>>>, id: StreamId) -> Self {
         Self {
-            id: id,
+            id,
             name: id.to_string(),
             closed: false,
             recv_endpoint: Some(recv_endpoint),
@@ -81,7 +81,7 @@ impl<D: Data> InternalReadStream<D> {
     }
 
     /// Add a callback to be invoked when the stream receives a message.
-    pub fn add_callback<F: 'static + Fn(Timestamp, D)>(&mut self, callback: F) {
+    pub fn add_callback<F: 'static + Fn(&Timestamp, &D)>(&mut self, callback: F) {
         self.callbacks.push(Arc::new(callback));
     }
 
@@ -102,7 +102,7 @@ impl<D: Data> InternalReadStream<D> {
         child
     }
 
-    pub fn take_endpoint(&mut self) -> Option<RecvEndpoint<Message<D>>> {
+    pub fn take_endpoint(&mut self) -> Option<RecvEndpoint<Arc<Message<D>>>> {
         self.recv_endpoint.take()
     }
 
@@ -118,7 +118,9 @@ impl<D: Data> InternalReadStream<D> {
             .recv_endpoint
             .as_mut()
             .map_or(Err(TryReadError::Disconnected), |rx| {
-                rx.try_read().map_err(TryReadError::from)
+                rx.try_read()
+                    .map(|msg| Message::clone(&msg))
+                    .map_err(TryReadError::from)
             });
         if result
             .as_ref()
@@ -144,7 +146,7 @@ impl<D: Data> InternalReadStream<D> {
             .map_or(Err(ReadError::Disconnected), |rx| loop {
                 match rx.try_read() {
                     Ok(msg) => {
-                        break Ok(msg);
+                        break Ok(Message::clone(&msg));
                     }
                     Err(TryRecvError::Empty) => (),
                     Err(TryRecvError::Disconnected) => {
@@ -180,23 +182,23 @@ impl<D: Data> EventMakerT for InternalReadStream<D> {
         self.id
     }
 
-    fn make_events(&self, msg: Message<Self::EventDataType>) -> Vec<OperatorEvent> {
+    fn make_events(&self, msg: Arc<Message<Self::EventDataType>>) -> Vec<OperatorEvent> {
         let mut events: Vec<OperatorEvent> = Vec::new();
         let mut child_events: Vec<OperatorEvent> = Vec::new();
         for child in self.children.iter() {
             child_events.append(&mut child.borrow_mut().make_events(msg.clone()));
         }
-        match msg {
-            Message::TimestampedData(msg) => {
+        match msg.as_ref() {
+            Message::TimestampedData(_) => {
                 // Stateless callbacks may run in parallel, so create 1 event for each
                 let stateless_cbs = self.callbacks.clone();
                 for callback in stateless_cbs {
-                    let msg_copy = msg.clone();
+                    let msg_arc = Arc::clone(&msg);
                     events.push(OperatorEvent::new(
-                        msg.timestamp.clone(),
+                        msg_arc.timestamp().clone(),
                         false,
                         move || {
-                            (callback)(msg_copy.timestamp, msg_copy.data);
+                            (callback)(msg_arc.timestamp(), msg_arc.data().unwrap());
                         },
                     ))
                 }
@@ -216,7 +218,7 @@ impl<D: Data> EventMakerT for InternalReadStream<D> {
                     cbs.push(child_event.callback);
                 }
                 if cbs.len() > 0 {
-                    events.push(OperatorEvent::new(timestamp, true, move || {
+                    events.push(OperatorEvent::new(timestamp.clone(), true, move || {
                         for cb in cbs {
                             (cb)();
                         }

@@ -1,11 +1,15 @@
+use std::{
+    any::Any,
+    fmt::{self, Debug},
+    sync::Arc,
+};
+
 use bytes::BytesMut;
 use serde::Deserialize;
-use std::fmt;
-use std::{any::Any, fmt::Debug};
 
 use crate::{
     communication::{
-        serializable::{DeserializedMessage, Serializable},
+        serializable::{Deserializable, DeserializedMessage, Serializable},
         CommunicationError, SendEndpoint,
     },
     dataflow::Data,
@@ -17,7 +21,7 @@ pub trait PusherT: Send {
     /// To be used to clone a boxed pusher.
     fn box_clone(&self) -> Box<dyn PusherT>;
     /// Creates message from bytes and sends it to endpoints.
-    fn send(&mut self, buf: BytesMut) -> Result<(), CommunicationError>;
+    fn send_from_bytes(&mut self, buf: BytesMut) -> Result<(), CommunicationError>;
 }
 
 /// Internal structure used to send data to other operators or threads.
@@ -26,16 +30,23 @@ pub struct Pusher<D: Debug + Clone + Send> {
     endpoints: Vec<SendEndpoint<D>>,
 }
 
-impl<D: Debug + Clone + Send> Pusher<D> {
+/// Zero-copy implementation of the endpoint.
+impl<D: 'static + Serializable + Send + Sync + Debug> Pusher<Arc<D>> {
     pub fn new() -> Self {
         Self {
             endpoints: Vec::new(),
         }
     }
 
-    /// Adds a SendEndpoint to the pusher.
-    pub fn add_endpoint(&mut self, endpoint: SendEndpoint<D>) {
+    pub fn add_endpoint(&mut self, endpoint: SendEndpoint<Arc<D>>) {
         self.endpoints.push(endpoint);
+    }
+
+    pub fn send(&mut self, msg: Arc<D>) -> Result<(), CommunicationError> {
+        for endpoint in self.endpoints.iter_mut() {
+            endpoint.send(Arc::clone(&msg))?;
+        }
+        Ok(())
     }
 }
 
@@ -47,7 +58,7 @@ impl Clone for Box<dyn PusherT> {
 }
 
 /// The `PusherT` trait is implemented only for the `Data` pushers.
-impl<D> PusherT for Pusher<D>
+impl<D> PusherT for Pusher<Arc<D>>
 where
     for<'de> D: Data + Deserialize<'de>,
 {
@@ -59,20 +70,15 @@ where
         Box::new((*self).clone())
     }
 
-    fn send(&mut self, mut buf: BytesMut) -> Result<(), CommunicationError> {
+    fn send_from_bytes(&mut self, mut buf: BytesMut) -> Result<(), CommunicationError> {
         if !self.endpoints.is_empty() {
-            match Serializable::decode(&mut buf)? {
-                DeserializedMessage::<D>::Owned(msg) => {
-                    for i in 1..self.endpoints.len() {
-                        self.endpoints[i].send(msg.clone())?;
-                    }
-                    self.endpoints[0].send(msg)?;
-                }
-                DeserializedMessage::<D>::Ref(msg) => {
-                    for i in 0..self.endpoints.len() {
-                        self.endpoints[i].send(msg.clone())?;
-                    }
-                }
+            let msg = match Deserializable::decode(&mut buf)? {
+                DeserializedMessage::<D>::Owned(msg) => msg,
+                DeserializedMessage::<D>::Ref(msg) => msg.clone(),
+            };
+            let msg_arc = Arc::new(msg);
+            for endpoint in self.endpoints.iter_mut() {
+                endpoint.send(Arc::clone(&msg_arc))?;
             }
         }
         Ok(())
