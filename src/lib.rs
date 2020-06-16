@@ -33,17 +33,13 @@
 #![feature(box_into_pin)]
 #![feature(vec_remove_item)]
 
-extern crate abomonation;
-#[macro_use]
-extern crate abomonation_derive;
-extern crate bincode;
-extern crate clap;
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-pub extern crate slog;
-extern crate slog_term;
-pub extern crate tokio;
+pub use ::slog;
+pub use ::tokio;
+
+use abomonation_derive::*;
+use clap;
+use lazy_static::lazy_static;
+use slog_term;
 
 // Libraries used in this file.
 use clap::{App, Arg};
@@ -54,15 +50,20 @@ use slog_term::term_full;
 use std::{cell::RefCell, fmt};
 use uuid;
 
-// Export the modules to be visible outside of the library.
-pub mod communication;
+// Private submodules
 pub mod configuration;
-pub mod dataflow;
-pub mod node;
 #[cfg(feature = "python")]
 pub mod python;
+
+// Crate-wide visible submodules
+
+// Public submodules
+pub mod communication;
+pub mod dataflow;
+pub mod node;
 pub mod scheduler;
 
+// Public exports
 pub use configuration::Configuration;
 pub use dataflow::OperatorConfig;
 
@@ -423,7 +424,7 @@ pub fn reset() {
 
 lazy_static! {
     static ref TERMINAL_LOGGER: Logger =
-        Logger::root(std::sync::Mutex::new(term_full()).fuse(), o!());
+        Logger::root(std::sync::Mutex::new(term_full()).fuse(), slog::o!());
 }
 
 pub fn get_terminal_logger() -> slog::Logger {

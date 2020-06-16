@@ -1,31 +1,15 @@
-mod control_message_codec;
-mod control_message_handler;
-mod endpoints;
-mod errors;
-mod message_codec;
-mod serializable;
-
-pub mod pusher;
-pub mod receivers;
-pub mod senders;
-
-// Re-export structs as if they were defined here.
-pub use control_message_codec::ControlMessageCodec;
-pub use control_message_handler::ControlMessageHandler;
-pub(crate) use endpoints::{RecvEndpoint, SendEndpoint};
-pub use errors::{CodecError, CommunicationError, TryRecvError};
-pub use message_codec::MessageCodec;
-pub use pusher::{Pusher, PusherT};
-pub use serializable::Serializable;
+use std::{
+    fmt::Debug,
+    net::SocketAddr,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use byteorder::{ByteOrder, NetworkEndian, WriteBytesExt};
 use bytes::BytesMut;
 use futures::future;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
-use std::net::SocketAddr;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use slog;
 use tokio::{
     io::AsyncWriteExt,
     net::{TcpListener, TcpStream},
@@ -33,7 +17,33 @@ use tokio::{
     time::delay_for,
 };
 
-use crate::{dataflow::stream::StreamId, node::node::NodeId, OperatorId};
+use crate::{dataflow::stream::StreamId, node::NodeId, OperatorId};
+
+// Private submodules
+mod control_message_codec;
+mod control_message_handler;
+mod endpoints;
+mod errors;
+mod message_codec;
+mod serializable;
+
+// Crate-wide visible submodules
+pub(crate) mod pusher;
+pub(crate) mod receivers;
+pub(crate) mod senders;
+
+// Private imports
+use serializable::Serializable;
+
+// Module-wide exports
+pub(crate) use control_message_codec::ControlMessageCodec;
+pub(crate) use control_message_handler::ControlMessageHandler;
+pub(crate) use errors::{CodecError, CommunicationError, TryRecvError};
+pub(crate) use message_codec::MessageCodec;
+pub(crate) use pusher::{Pusher, PusherT};
+
+// Crate-wide exports
+pub(crate) use endpoints::{RecvEndpoint, SendEndpoint};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ControlMessage {
@@ -156,7 +166,7 @@ async fn connect_to_node(
                     match stream.write(&buffer[..]).await {
                         Ok(_) => return Ok(stream),
                         Err(e) => {
-                            error!(
+                            slog::error!(
                                 logger,
                                 "Node {}: could not send node id to {}; error {}; retrying in 100 ms",
                                 node_id,
@@ -171,7 +181,7 @@ async fn connect_to_node(
                 // Only print connection errors every 1s.
                 let now = Instant::now();
                 if now.duration_since(last_err_msg_time) >= Duration::from_secs(1) {
-                    error!(
+                    slog::error!(
                         logger,
                         "Node {}: could not connect to {}; error {}; retrying",
                         node_id,
@@ -220,7 +230,7 @@ async fn read_node_id(
     match stream.read_exact(&mut buffer).await {
         Ok(n) => n,
         Err(e) => {
-            error!(logger, "failed to read from socket; err = {:?}", e);
+            slog::error!(logger, "failed to read from socket; err = {:?}", e);
             return Err(e);
         }
     };

@@ -1,6 +1,7 @@
+use std::{cmp::Ordering, fmt::Debug};
+
+use abomonation_derive::*;
 use serde::{Deserialize, Serialize};
-use std::cmp::Ordering;
-use std::fmt::Debug;
 
 /// Trait for valid message data. The data must be clonable, sendable between threads and
 /// serializable.
@@ -12,7 +13,7 @@ impl<T> Data for T where
 }
 
 /// Operators send messages on streams. A message can be either a `Watermark` or a `TimestampedData`.
-#[derive(Clone, Debug, Serialize, Deserialize, Abomonation)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Message<D: Data> {
     TimestampedData(TimestampedData<D>),
     Watermark(Timestamp),

@@ -4,10 +4,10 @@ use serde::Deserialize;
 
 use crate::{
     communication::{Pusher, SendEndpoint},
-    dataflow::{Data, Message, Timestamp, WriteStreamError},
+    dataflow::{Data, Message, Timestamp},
 };
 
-use super::{StreamId, WriteStreamT};
+use super::{errors::WriteStreamError, StreamId, WriteStreamT};
 
 // TODO: refactor with internal write stream
 #[derive(Clone)]

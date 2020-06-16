@@ -1,12 +1,14 @@
 use crate::dataflow::graph::{Channel, Graph, Vertex};
 
-// Export the modules to be visible outside of the scheduler module.
+// Crate-wide visible submodules
+pub(crate) mod endpoints_manager;
+
+// Public exports
 pub mod channel_manager;
-pub mod endpoints_manager;
 
 /// Schedules a dataflow graph. Assigns operators to nodes and updates channels.
 /// After running this method, there should be no unscheduled channels remaining.
-pub fn schedule(graph: &Graph) -> Graph {
+pub(crate) fn schedule(graph: &Graph) -> Graph {
     let mut scheduled_graph = graph.clone();
     for stream in scheduled_graph.get_streams_ref_mut() {
         let source_node_id = match stream.get_source() {

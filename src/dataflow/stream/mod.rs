@@ -5,17 +5,23 @@ use crate::{
     node::operator_event::OperatorEvent,
 };
 
-pub mod errors;
-pub mod extract_stream;
-pub mod ingest_stream;
-pub mod internal_read_stream;
-pub mod internal_stateful_read_stream;
-pub mod loop_stream;
-pub mod read_stream;
-pub mod stateful_read_stream;
-pub mod write_stream;
+// Private submodules
+mod extract_stream;
+mod ingest_stream;
+mod internal_read_stream;
+mod internal_stateful_read_stream;
+mod loop_stream;
+mod read_stream;
+mod stateful_read_stream;
+mod write_stream;
 
-pub use errors::WriteStreamError;
+// Public submodules
+pub mod errors;
+
+// Private imports
+use errors::WriteStreamError;
+
+// Public exports
 pub use extract_stream::ExtractStream;
 pub use ingest_stream::IngestStream;
 pub use internal_read_stream::InternalReadStream;
@@ -27,7 +33,7 @@ pub use write_stream::WriteStream;
 
 pub type StreamId = crate::Uuid;
 
-pub trait EventMakerT {
+pub(crate) trait EventMakerT {
     type EventDataType: Data;
 
     /// Returns the id of the stream.

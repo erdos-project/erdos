@@ -1,8 +1,12 @@
-// Modules visible outside of the node module.
-pub mod node;
-pub mod operator_event;
-pub mod operator_executor;
-pub mod lattice;
+// Private submodules
+mod lattice;
+mod node;
 
-// Re-export structs as if they were defined here.
+// Crate-wide visible submodules
+pub(crate) mod operator_event;
+
+// Public submodules
+pub mod operator_executor;
+
+// Public exports
 pub use node::{Node, NodeHandle, NodeId};

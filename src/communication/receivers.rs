@@ -16,7 +16,7 @@ use crate::{
         InterProcessMessage, MessageCodec, PusherT,
     },
     dataflow::stream::StreamId,
-    node::node::NodeId,
+    node::NodeId,
     scheduler::endpoints_manager::ChannelsToReceivers,
 };
 
