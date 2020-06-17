@@ -3,25 +3,20 @@ use erdos::dataflow::{
     operators::JoinOperator,
     operators::MapOperator,
     stream::{ExtractStream, WriteStreamT},
-    Message, Operator, OperatorConfig, ReadStream, Timestamp, WriteStream,
+    Message, Operator, OperatorConfig, Timestamp, WriteStream,
 };
 use erdos::node::Node;
 use erdos::*;
-use std::thread;
 
 mod utils;
 
 pub struct InputGenOp {
-    name: String,
     output_stream: WriteStream<u32>,
 }
 
 impl InputGenOp {
-    pub fn new(config: OperatorConfig<()>, output_stream: WriteStream<u32>) -> Self {
-        Self {
-            name: config.name.unwrap(),
-            output_stream,
-        }
+    pub fn new(_config: OperatorConfig<()>, output_stream: WriteStream<u32>) -> Self {
+        Self { output_stream }
     }
 
     pub fn connect() -> WriteStream<u32> {
@@ -33,9 +28,11 @@ impl Operator for InputGenOp {
     fn run(&mut self) {
         for i in 0..10 {
             self.output_stream
-                .send(Message::new_message(Timestamp::new(vec![i as u64]), i));
+                .send(Message::new_message(Timestamp::new(vec![i as u64]), i))
+                .unwrap();
             self.output_stream
-                .send(Message::new_watermark(Timestamp::new(vec![i as u64])));
+                .send(Message::new_watermark(Timestamp::new(vec![i as u64])))
+                .unwrap();
         }
     }
 }

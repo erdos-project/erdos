@@ -6,27 +6,24 @@ use erdos::dataflow::{
 use erdos::node::Node;
 
 use erdos::*;
-use std::thread;
 
 mod utils;
 
 /// Operator that outputs 10 integers on two output streams.
 pub struct TwoOutputZeroInputGenerator {
-    name: String,
-    output_stream_a: WriteStream<u32>,
-    output_stream_b: WriteStream<u32>,
+    write_stream_a: WriteStream<u32>,
+    write_stream_b: WriteStream<u32>,
 }
 
 impl TwoOutputZeroInputGenerator {
     pub fn new(
-        config: OperatorConfig<()>,
-        output_stream_a: WriteStream<u32>,
-        output_stream_b: WriteStream<u32>,
+        _config: OperatorConfig<()>,
+        write_stream_a: WriteStream<u32>,
+        write_stream_b: WriteStream<u32>,
     ) -> Self {
         Self {
-            name: config.name.unwrap(),
-            output_stream_a,
-            output_stream_b,
+            write_stream_a,
+            write_stream_b,
         }
     }
 
@@ -38,10 +35,12 @@ impl TwoOutputZeroInputGenerator {
 impl Operator for TwoOutputZeroInputGenerator {
     fn run(&mut self) {
         for i in 0..10 {
-            self.output_stream_a
-                .send(Message::new_message(Timestamp::new(vec![i as u64]), i));
-            self.output_stream_b
-                .send(Message::new_message(Timestamp::new(vec![i as u64]), i));
+            self.write_stream_a
+                .send(Message::new_message(Timestamp::new(vec![i as u64]), i))
+                .unwrap();
+            self.write_stream_b
+                .send(Message::new_message(Timestamp::new(vec![i as u64]), i))
+                .unwrap();
         }
     }
 }
@@ -84,28 +83,26 @@ fn test_two_output_zero_input_generator() {
 
 /// Operator that outputs 10 integers on two output streams, with one input stream.
 pub struct TwoOutputOneInputGenerator {
-    name: String,
-    read_stream: ReadStream<u32>,
-    output_stream_a: WriteStream<u32>,
-    output_stream_b: WriteStream<u32>,
+    _read_stream: ReadStream<u32>,
+    write_stream_a: WriteStream<u32>,
+    write_stream_b: WriteStream<u32>,
 }
 
 impl TwoOutputOneInputGenerator {
     pub fn new(
-        config: OperatorConfig<()>,
-        read_stream: ReadStream<u32>,
-        output_stream_a: WriteStream<u32>,
-        output_stream_b: WriteStream<u32>,
+        _config: OperatorConfig<()>,
+        _read_stream: ReadStream<u32>,
+        write_stream_a: WriteStream<u32>,
+        write_stream_b: WriteStream<u32>,
     ) -> Self {
         Self {
-            name: config.name.unwrap(),
-            read_stream,
-            output_stream_a,
-            output_stream_b,
+            _read_stream,
+            write_stream_a,
+            write_stream_b,
         }
     }
 
-    pub fn connect(read_stream: &ReadStream<u32>) -> (WriteStream<u32>, WriteStream<u32>) {
+    pub fn connect(_read_stream: &ReadStream<u32>) -> (WriteStream<u32>, WriteStream<u32>) {
         (WriteStream::new(), WriteStream::new())
     }
 }
@@ -113,10 +110,12 @@ impl TwoOutputOneInputGenerator {
 impl Operator for TwoOutputOneInputGenerator {
     fn run(&mut self) {
         for i in 0..10 {
-            self.output_stream_a
-                .send(Message::new_message(Timestamp::new(vec![i as u64]), i));
-            self.output_stream_b
-                .send(Message::new_message(Timestamp::new(vec![i as u64]), i));
+            self.write_stream_a
+                .send(Message::new_message(Timestamp::new(vec![i as u64]), i))
+                .unwrap();
+            self.write_stream_b
+                .send(Message::new_message(Timestamp::new(vec![i as u64]), i))
+                .unwrap();
         }
     }
 }
@@ -161,24 +160,22 @@ fn test_two_output_one_input_generator() {
 
 /// Operator that outputs 10 integers on three output streams.
 pub struct ThreeOutputZeroInputGenerator {
-    name: String,
-    output_stream_a: WriteStream<u32>,
-    output_stream_b: WriteStream<u32>,
-    output_stream_c: WriteStream<u32>,
+    write_stream_a: WriteStream<u32>,
+    write_stream_b: WriteStream<u32>,
+    write_stream_c: WriteStream<u32>,
 }
 
 impl ThreeOutputZeroInputGenerator {
     pub fn new(
-        config: OperatorConfig<()>,
-        output_stream_a: WriteStream<u32>,
-        output_stream_b: WriteStream<u32>,
-        output_stream_c: WriteStream<u32>,
+        _config: OperatorConfig<()>,
+        write_stream_a: WriteStream<u32>,
+        write_stream_b: WriteStream<u32>,
+        write_stream_c: WriteStream<u32>,
     ) -> Self {
         Self {
-            name: config.name.unwrap(),
-            output_stream_a,
-            output_stream_b,
-            output_stream_c,
+            write_stream_a,
+            write_stream_b,
+            write_stream_c,
         }
     }
 
@@ -190,12 +187,15 @@ impl ThreeOutputZeroInputGenerator {
 impl Operator for ThreeOutputZeroInputGenerator {
     fn run(&mut self) {
         for i in 0..10 {
-            self.output_stream_a
-                .send(Message::new_message(Timestamp::new(vec![i as u64]), i));
-            self.output_stream_b
-                .send(Message::new_message(Timestamp::new(vec![i as u64]), i));
-            self.output_stream_c
-                .send(Message::new_message(Timestamp::new(vec![i as u64]), i));
+            self.write_stream_a
+                .send(Message::new_message(Timestamp::new(vec![i as u64]), i))
+                .unwrap();
+            self.write_stream_b
+                .send(Message::new_message(Timestamp::new(vec![i as u64]), i))
+                .unwrap();
+            self.write_stream_c
+                .send(Message::new_message(Timestamp::new(vec![i as u64]), i))
+                .unwrap();
         }
     }
 }
@@ -247,32 +247,30 @@ fn test_three_output_zero_input_generator() {
 
 /// Operator that outputs 10 integers on three output streams, with one input stream.
 pub struct ThreeOutputOneInputGenerator {
-    name: String,
-    input_stream: ReadStream<u32>,
-    output_stream_a: WriteStream<u32>,
-    output_stream_b: WriteStream<u32>,
-    output_stream_c: WriteStream<u32>,
+    _read_stream: ReadStream<u32>,
+    write_stream_a: WriteStream<u32>,
+    write_stream_b: WriteStream<u32>,
+    write_stream_c: WriteStream<u32>,
 }
 
 impl ThreeOutputOneInputGenerator {
     pub fn new(
-        config: OperatorConfig<()>,
-        input_stream: ReadStream<u32>,
-        output_stream_a: WriteStream<u32>,
-        output_stream_b: WriteStream<u32>,
-        output_stream_c: WriteStream<u32>,
+        _config: OperatorConfig<()>,
+        read_stream: ReadStream<u32>,
+        write_stream_a: WriteStream<u32>,
+        write_stream_b: WriteStream<u32>,
+        write_stream_c: WriteStream<u32>,
     ) -> Self {
         Self {
-            name: config.name.unwrap(),
-            input_stream,
-            output_stream_a,
-            output_stream_b,
-            output_stream_c,
+            _read_stream: read_stream,
+            write_stream_a,
+            write_stream_b,
+            write_stream_c,
         }
     }
 
     pub fn connect(
-        input_stream: &ReadStream<u32>,
+        _read_stream: &ReadStream<u32>,
     ) -> (WriteStream<u32>, WriteStream<u32>, WriteStream<u32>) {
         (WriteStream::new(), WriteStream::new(), WriteStream::new())
     }
@@ -281,12 +279,15 @@ impl ThreeOutputOneInputGenerator {
 impl Operator for ThreeOutputOneInputGenerator {
     fn run(&mut self) {
         for i in 0..10 {
-            self.output_stream_a
-                .send(Message::new_message(Timestamp::new(vec![i as u64]), i));
-            self.output_stream_b
-                .send(Message::new_message(Timestamp::new(vec![i as u64]), i));
-            self.output_stream_c
-                .send(Message::new_message(Timestamp::new(vec![i as u64]), i));
+            self.write_stream_a
+                .send(Message::new_message(Timestamp::new(vec![i as u64]), i))
+                .unwrap();
+            self.write_stream_b
+                .send(Message::new_message(Timestamp::new(vec![i as u64]), i))
+                .unwrap();
+            self.write_stream_c
+                .send(Message::new_message(Timestamp::new(vec![i as u64]), i))
+                .unwrap();
         }
     }
 }

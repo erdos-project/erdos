@@ -327,7 +327,7 @@ impl ExecutionLattice {
     pub async fn get_event(&self) -> Option<(OperatorEvent, usize)> {
         // Take locks over everything.
         let mut forest = self.forest.lock().await;
-        let roots = self.roots.lock().await;
+        let _roots = self.roots.lock().await;
         let mut run_queue = self.run_queue.lock().await;
 
         // Retrieve the event
@@ -401,11 +401,11 @@ mod test {
     /// the lattice.
     #[test]
     fn test_root_addition() {
-        let mut lattice: ExecutionLattice = ExecutionLattice::new();
+        let lattice: ExecutionLattice = ExecutionLattice::new();
         block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), false, || ())));
 
         // Ensure that the correct event is returned by the lattice.
-        let (event, event_id) = block_on(lattice.get_event()).unwrap();
+        let (event, _event_id) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
             event.timestamp.time[0], 1,
             "The wrong event was returned by the lattice."
@@ -423,12 +423,12 @@ mod test {
     /// Test that the addition of two messages of the same timestamp leads to no dependencies.
     #[test]
     fn test_concurrent_messages() {
-        let mut lattice: ExecutionLattice = ExecutionLattice::new();
+        let lattice: ExecutionLattice = ExecutionLattice::new();
         block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), false, || ())));
         block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), false, || ())));
 
         // Check the first event is returned correctly by the lattice.
-        let (event, event_id) = block_on(lattice.get_event()).unwrap();
+        let (event, _event_id) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
             event.timestamp.time[0], 1,
             "The wrong event was returned by the lattice."
@@ -436,7 +436,7 @@ mod test {
 
         // Check that the other event is returned without marking the first one as completed.
         // This shows that they can be executed concurrently.
-        let (event_2, event_id_2) = block_on(lattice.get_event()).unwrap();
+        let (event_2, _event_id_2) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
             event_2.timestamp.time[0], 1,
             "The wrong event was returned by the lattice."
@@ -447,7 +447,7 @@ mod test {
     /// the watermark runs after both of the messages are marked as finished executing.
     #[test]
     fn test_watermark_post_concurrent_messages() {
-        let mut lattice: ExecutionLattice = ExecutionLattice::new();
+        let lattice: ExecutionLattice = ExecutionLattice::new();
         block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), false, || ())));
         block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), false, || ())));
         block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), true, || ())));
@@ -479,7 +479,7 @@ mod test {
 
         let no_event_2 = block_on(lattice.get_event());
         assert_eq!(
-            no_event.is_none(),
+            no_event_2.is_none(),
             true,
             "Expected no event from the lattice"
         );
@@ -487,7 +487,7 @@ mod test {
         // Mark the other as completed and expect a Watermark.
         block_on(lattice.mark_as_completed(event_id_2));
 
-        let (event_3, event_id_3) = block_on(lattice.get_event()).unwrap();
+        let (event_3, _event_id_3) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
             event_3.timestamp.time[0] == 1 && event_3.is_watermark_callback,
             true,
@@ -499,7 +499,7 @@ mod test {
     /// executed in the correct order.
     #[test]
     fn test_unordered_watermark() {
-        let mut lattice: ExecutionLattice = ExecutionLattice::new();
+        let lattice: ExecutionLattice = ExecutionLattice::new();
         block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![3]), true, || ())));
         block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![2]), true, || ())));
         block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), true, || ())));
@@ -525,7 +525,7 @@ mod test {
             "The wrong event was returned by the lattice."
         );
         block_on(lattice.mark_as_completed(event_id_2));
-        let (event_3, event_id_3) = block_on(lattice.get_event()).unwrap();
+        let (event_3, _event_id_3) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
             event_3.timestamp.time[0], 3,
             "The wrong event was returned by the lattice."
@@ -540,21 +540,21 @@ mod test {
     /// Test that the addition of messages of different timestamps leads to concurrent execution.
     #[test]
     fn test_concurrent_messages_diff_timestamps() {
-        let mut lattice: ExecutionLattice = ExecutionLattice::new();
+        let lattice: ExecutionLattice = ExecutionLattice::new();
         block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![3]), false, || ())));
         block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![2]), false, || ())));
         block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), false, || ())));
-        let (event, event_id) = block_on(lattice.get_event()).unwrap();
+        let (event, _event_id) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
             event.timestamp.time[0], 1,
             "The wrong event was returned by the lattice."
         );
-        let (event_2, event_id_2) = block_on(lattice.get_event()).unwrap();
+        let (event_2, _event_id_2) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
             event_2.timestamp.time[0], 2,
             "The wrong event was returned by the lattice."
         );
-        let (event_3, event_id_3) = block_on(lattice.get_event()).unwrap();
+        let (event_3, _event_id_3) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
             event_3.timestamp.time[0], 3,
             "The wrong event was returned by the lattice."
@@ -564,7 +564,7 @@ mod test {
     /// Test that concurrent messages are followed by their watermarks.
     #[test]
     fn test_concurrent_messages_watermarks_diff_timestamps() {
-        let mut lattice: ExecutionLattice = ExecutionLattice::new();
+        let lattice: ExecutionLattice = ExecutionLattice::new();
         block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![3]), true, || ())));
         block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![2]), true, || ())));
         block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), true, || ())));
@@ -646,25 +646,25 @@ mod test {
     /// callbacks of newer timestamps.
     #[test]
     fn test_ordered_concurrent_execution() {
-        let mut lattice: ExecutionLattice = ExecutionLattice::new();
+        let lattice: ExecutionLattice = ExecutionLattice::new();
         block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![2]), false, || ())));
         block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), true, || ())));
         block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![3]), false, || ())));
 
-        let (event, event_id) = block_on(lattice.get_event()).unwrap();
+        let (event, _event_id) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
             event.timestamp.time[0] == 1 && event.is_watermark_callback,
             true,
             "The wrong event was returned by the lattice."
         );
 
-        let (event_2, event_id_2) = block_on(lattice.get_event()).unwrap();
+        let (event_2, _event_id_2) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
             event_2.timestamp.time[0] == 2 && !event_2.is_watermark_callback,
             true,
             "The wrong event was returned by the lattice."
         );
-        let (event_3, event_id_3) = block_on(lattice.get_event()).unwrap();
+        let (event_3, _event_id_3) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
             event_3.timestamp.time[0] == 3 && !event_3.is_watermark_callback,
             true,

@@ -1,6 +1,3 @@
-use std::thread;
-use std::time::Duration;
-
 use slog;
 
 mod utils;
@@ -9,11 +6,8 @@ use erdos::{
     self,
     dataflow::{
         message::*,
-        state::{State, TimeVersionedState},
-        stream::{
-            errors::{ReadError, TryReadError, WriteStreamError},
-            ExtractStream, IngestStream, WriteStreamT,
-        },
+        state::TimeVersionedState,
+        stream::{ExtractStream, IngestStream, WriteStreamT},
         Operator, OperatorConfig, ReadStream, WriteStream,
     },
     node::Node,
@@ -46,12 +40,12 @@ impl TimeVersionedStateOp {
         Self {}
     }
 
-    pub fn connect(read_stream: &ReadStream<usize>) -> WriteStream<Option<usize>> {
+    pub fn connect(_read_stream: &ReadStream<usize>) -> WriteStream<Option<usize>> {
         WriteStream::new()
     }
 
     pub fn callback(_t: &Timestamp, data: &usize, cb_state: &mut TimeVersionedState<(), usize>) {
-        cb_state.append(*data);
+        cb_state.append(*data).expect("Error appending state");
     }
 
     fn watermark_callback_helper(
