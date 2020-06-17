@@ -7,14 +7,20 @@ use crate::{
     scheduler::channel_manager::ChannelManager,
 };
 
-pub mod default_graph;
-pub mod edge;
-pub mod graph;
-pub mod vertex;
+// Private submodules
+mod edge;
+mod graph;
+mod vertex;
 
-pub use edge::{Channel, ChannelMetadata, StreamMetadata};
+// Public submodules
+pub mod default_graph;
+
+// Crate-wide exports
+pub(crate) use edge::{Channel, ChannelMetadata, StreamMetadata};
+pub(crate) use vertex::{DriverMetadata, OperatorMetadata, Vertex};
+
+// Public exports
 pub use graph::Graph;
-pub use vertex::{DriverMetadata, OperatorMetadata, Vertex};
 
 pub trait OperatorRunner:
     'static

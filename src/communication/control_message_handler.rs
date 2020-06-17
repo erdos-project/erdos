@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use slog::Logger;
+use slog::{self, Logger};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 use crate::node::NodeId;
@@ -22,6 +22,7 @@ pub struct ControlMessageHandler {
     channels_to_nodes: HashMap<NodeId, UnboundedSender<ControlMessage>>,
 }
 
+#[allow(dead_code)]
 impl ControlMessageHandler {
     pub fn new(logger: Logger) -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
@@ -43,9 +44,10 @@ impl ControlMessageHandler {
         tx: UnboundedSender<ControlMessage>,
     ) {
         if let Some(_) = self.channels_to_control_senders.insert(node_id, tx) {
-            error!(
+            slog::error!(
                 self.logger,
-                "ControlMessageHandler: overwrote channel to control sender for node {}", node_id
+                "ControlMessageHandler: overwrote channel to control sender for node {}",
+                node_id
             );
         }
     }
@@ -77,9 +79,10 @@ impl ControlMessageHandler {
         tx: UnboundedSender<ControlMessage>,
     ) {
         if let Some(_) = self.channels_to_control_receivers.insert(node_id, tx) {
-            error!(
+            slog::error!(
                 self.logger,
-                "ControlMessageHandler: overwrote channel to control receiver for node {}", node_id
+                "ControlMessageHandler: overwrote channel to control receiver for node {}",
+                node_id
             );
         }
     }
@@ -111,9 +114,10 @@ impl ControlMessageHandler {
         tx: UnboundedSender<ControlMessage>,
     ) {
         if let Some(_) = self.channels_to_data_senders.insert(node_id, tx) {
-            error!(
+            slog::error!(
                 self.logger,
-                "ControlMessageHandler: overwrote channel to data sender for node {}", node_id
+                "ControlMessageHandler: overwrote channel to data sender for node {}",
+                node_id
             );
         }
     }
@@ -145,9 +149,10 @@ impl ControlMessageHandler {
         tx: UnboundedSender<ControlMessage>,
     ) {
         if let Some(_) = self.channels_to_data_receivers.insert(node_id, tx) {
-            error!(
+            slog::error!(
                 self.logger,
-                "ControlMessageHandler: overwrote channel to data receiver for node {}", node_id
+                "ControlMessageHandler: overwrote channel to data receiver for node {}",
+                node_id
             );
         }
     }

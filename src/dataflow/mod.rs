@@ -1,4 +1,4 @@
-// Export the modules to be visible outside of the dataflow module.
+// Public submodules
 pub mod callback_builder;
 pub mod graph;
 pub mod message;
@@ -7,13 +7,14 @@ pub mod operators;
 pub mod state;
 pub mod stream;
 
-// Re-export structs as if they were defined here.
+// Crate-wide exports
+pub(crate) use stream::EventMakerT;
+
+// Public exports
 pub use message::{Data, Message, Timestamp, TimestampedData};
 pub use operator::{Operator, OperatorConfig};
 pub use state::State;
-pub use stream::{
-    EventMakerT, LoopStream, ReadStream, StatefulReadStream, WriteStream, WriteStreamError,
-};
+pub use stream::{LoopStream, ReadStream, StatefulReadStream, WriteStream};
 
 #[cfg(test)]
 mod tests {

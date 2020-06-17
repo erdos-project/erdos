@@ -7,12 +7,12 @@ use std::{
 use serde::Deserialize;
 
 use crate::{
-    dataflow::{graph::default_graph, Data, Message, WriteStreamError},
+    dataflow::{graph::default_graph, Data, Message},
     node::NodeId,
     scheduler::channel_manager::ChannelManager,
 };
 
-use super::{StreamId, WriteStream, WriteStreamT};
+use super::{errors::WriteStreamError, StreamId, WriteStream, WriteStreamT};
 
 pub struct IngestStream<D>
 where

@@ -1,7 +1,6 @@
-use pyo3::{exceptions, prelude::*, types::*};
-
 use std::sync::{Arc, Mutex};
 
+use pyo3::{exceptions, prelude::*, types::*};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::{
@@ -11,20 +10,20 @@ use crate::{
         WriteStream,
     },
     node::{
-        node::NodeHandle,
         operator_executor::{OperatorExecutor, OperatorExecutorStream, OperatorExecutorStreamT},
-        Node, NodeId,
+        Node, NodeHandle, NodeId,
     },
     scheduler::channel_manager::ChannelManager,
     Configuration, Uuid,
 };
 
+// Private submodules
 mod py_message;
 mod py_stream;
 
+// Private imports
+use py_message::PyMessage;
 use py_stream::{PyExtractStream, PyIngestStream, PyLoopStream, PyReadStream, PyWriteStream};
-
-pub(crate) use py_message::PyMessage;
 
 #[pymodule]
 fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
@@ -348,7 +347,7 @@ impl Operator for PyOperator {
 }
 
 #[pyclass]
-pub(crate) struct PyNodeHandle {
+struct PyNodeHandle {
     node_handle: Option<NodeHandle>,
 }
 

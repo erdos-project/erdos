@@ -15,7 +15,7 @@ use crate::communication::{
     CommunicationError, ControlMessage, ControlMessageCodec, ControlMessageHandler,
     InterProcessMessage, MessageCodec,
 };
-use crate::node::node::NodeId;
+use crate::node::NodeId;
 use crate::scheduler::endpoints_manager::ChannelsToSenders;
 
 #[allow(dead_code)]

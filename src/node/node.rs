@@ -1,10 +1,12 @@
-use futures::future;
-use futures_util::stream::StreamExt;
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
     thread,
 };
+
+use futures::future;
+use futures_util::stream::StreamExt;
+use slog;
 use tokio::{
     net::TcpStream,
     runtime::Builder,
@@ -72,7 +74,7 @@ impl Node {
     ///
     /// The method never returns.
     pub fn run(&mut self) {
-        debug!(self.config.logger, "Node {}: running", self.id);
+        slog::debug!(self.config.logger, "Node {}: running", self.id);
         // Build a runtime with n threads.
         let mut runtime = Builder::new()
             .threaded_scheduler()
@@ -82,7 +84,7 @@ impl Node {
             .build()
             .unwrap();
         runtime.block_on(self.async_run());
-        debug!(self.config.logger, "Node {}: finished running", self.id);
+        slog::debug!(self.config.logger, "Node {}: finished running", self.id);
     }
 
     /// Runs an ERDOS node in a seperate OS thread.
@@ -117,7 +119,7 @@ impl Node {
         *started = true;
         cvar.notify_all();
 
-        debug!(self.config.logger, "Node {}: done initializing.", self.id);
+        slog::debug!(self.config.logger, "Node {}: done initializing.", self.id);
     }
 
     /// Splits a vector of TCPStreams into `DataSender`s and `DataReceiver`s.
@@ -241,9 +243,10 @@ impl Node {
     }
 
     async fn broadcast_local_operators_initialized(&mut self) -> Result<(), String> {
-        debug!(
+        slog::debug!(
             self.config.logger,
-            "Node {}: initialized all operators on this node.", self.id
+            "Node {}: initialized all operators on this node.",
+            self.id
         );
         self.control_handler
             .broadcast_to_nodes(ControlMessage::AllOperatorsInitializedOnNode(self.id))
@@ -305,9 +308,11 @@ impl Node {
                 .name
                 .clone()
                 .unwrap_or_else(|| format!("{}", operator_info.id));
-            debug!(
+            slog::debug!(
                 self.config.logger,
-                "Node {}: starting operator {}", self.id, name
+                "Node {}: starting operator {}",
+                self.id,
+                name
             );
             let channel_manager_copy = Arc::clone(&channel_manager);
             let operator_tx_copy = operator_tx.clone();
@@ -387,32 +392,33 @@ impl Node {
                 control_senders_fut,
                 control_recvs_fut
             ) {
-                error!(
+                slog::error!(
                     logger,
-                    "Non-fatal network communication error; this should not happen! {:?}", e
+                    "Non-fatal network communication error; this should not happen! {:?}",
+                    e
                 );
             }
             tokio::select! {
-                Err(e) = ops_fut => error!(
+                Err(e) = ops_fut => slog::error!(
                     logger,
                     "Error running operators on node {:?}: {:?}", self.id, e
                 ),
-                _ = shutdown_fut => debug!(logger, "Node {}: shutting down", self.id),
+                _ = shutdown_fut => slog::debug!(logger, "Node {}: shutting down", self.id),
             }
         } else {
             tokio::select! {
-                Err(e) = senders_fut => error!(logger, "Error with data senders: {:?}", e),
-                Err(e) = recvs_fut => error!(logger, "Error with data receivers: {:?}", e),
-                Err(e) = control_senders_fut => error!(logger, "Error with control senders: {:?}", e),
-                Err(e) = control_recvs_fut => error!(
+                Err(e) = senders_fut => slog::error!(logger, "Error with data senders: {:?}", e),
+                Err(e) = recvs_fut => slog::error!(logger, "Error with data receivers: {:?}", e),
+                Err(e) = control_senders_fut => slog::error!(logger, "Error with control senders: {:?}", e),
+                Err(e) = control_recvs_fut => slog::error!(
                     self.config.logger,
                     "Error with control receivers: {:?}", e
                 ),
-                Err(e) = ops_fut => error!(
+                Err(e) = ops_fut => slog::error!(
                     logger,
                     "Error running operators on node {:?}: {:?}", self.id, e
                 ),
-                _ = shutdown_fut => debug!(logger, "Node {}: shutting down", self.id),
+                _ = shutdown_fut => slog::debug!(logger, "Node {}: shutting down", self.id),
             }
         }
     }
