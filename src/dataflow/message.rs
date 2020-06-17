@@ -13,7 +13,7 @@ impl<T> Data for T where
 }
 
 /// Operators send messages on streams. A message can be either a `Watermark` or a `TimestampedData`.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Abomonation)]
 pub enum Message<D: Data> {
     TimestampedData(TimestampedData<D>),
     Watermark(Timestamp),
