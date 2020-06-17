@@ -106,7 +106,8 @@ macro_rules! make_operator {
     };
 }
 
-/// Makes a closure that initializes the operator and returns the corresponding [`OperatorExecutor`].
+/// Makes a closure that initializes the operator and returns a corresponding
+/// [`OperatorExecutor`](crate::node::operator_executor::OperatorExecutor).
 ///
 /// Note: this is intended as an internal macro called by connect_x_write!
 #[macro_export]

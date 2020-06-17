@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use pyo3::{exceptions, prelude::*, types::*};
+use slog;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::{
@@ -82,7 +83,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
         let operator_runner =
             move |channel_manager: Arc<Mutex<ChannelManager>>,
                   control_sender: UnboundedSender<ControlMessage>,
-                  mut control_receiver: UnboundedReceiver<ControlMessage>| {
+                  control_receiver: UnboundedReceiver<ControlMessage>| {
                 // Create python streams from endpoints
                 let py_read_streams: Vec<PyReadStream> = read_stream_ids_clone
                     .clone()
@@ -199,9 +200,10 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
                 // Notify node that operator is done setting up
                 let logger = crate::get_terminal_logger();
                 if let Err(e) = control_sender.send(ControlMessage::OperatorInitialized(op_id)) {
-                    error!(
+                    slog::error!(
                         logger,
-                        "Error sending OperatorInitialized message to control handler: {:?}", e
+                        "Error sending OperatorInitialized message to control handler: {:?}",
+                        e
                     );
                 }
 

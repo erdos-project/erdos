@@ -121,9 +121,9 @@ pub struct TwoStreamDestroyOperator {}
 impl TwoStreamDestroyOperator {
     pub fn new(
         _config: OperatorConfig<()>,
-        left_stream: ReadStream<usize>,
-        right_stream: ReadStream<usize>,
-        write_stream: WriteStream<bool>,
+        _left_stream: ReadStream<usize>,
+        _right_stream: ReadStream<usize>,
+        _write_stream: WriteStream<bool>,
     ) -> Self {
         Self {}
     }

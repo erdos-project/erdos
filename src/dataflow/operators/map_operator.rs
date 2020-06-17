@@ -22,8 +22,6 @@ use std::marker::PhantomData;
 /// let output_read_stream = connect_1_write!(MapOperator<u32, u64>, map_config, ingest_stream);
 /// ```
 pub struct MapOperator<D1: Data, D2: Data> {
-    /// The name given to the specific instance of the MapOperator.
-    name: String,
     phantom_data: PhantomData<(D1, D2)>,
 }
 
@@ -60,7 +58,6 @@ impl<'a, D1: Data, D2: Data + Deserialize<'a>> MapOperator<D1, D2> {
             },
         );
         Self {
-            name,
             phantom_data: PhantomData,
         }
     }
@@ -87,7 +84,12 @@ impl<'a, D1: Data, D2: Data + Deserialize<'a>> MapOperator<D1, D2> {
         map_function: &F,
     ) {
         let result: D2 = map_function(msg);
-        output_stream.send(Message::new_message(t.clone(), result));
+        output_stream
+            .send(Message::new_message(t.clone(), result))
+            .expect(&format!(
+                "Map operator unable to send message on stream {}",
+                output_stream.get_id()
+            ));
     }
 }
 

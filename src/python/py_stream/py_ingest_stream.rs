@@ -2,7 +2,7 @@ use pyo3::{exceptions, prelude::*};
 
 use crate::{
     dataflow::{
-        stream::{IngestStream, ReadStream, WriteStreamT},
+        stream::{IngestStream, ReadStream},
         Message,
     },
     node::NodeId,
