@@ -119,7 +119,7 @@ impl PartialOrd for RunnableEvent {
 /// # Example
 /// The below example shows how to insert events into the Lattice and retrieve runnable events from
 /// the lattice.
-/// ```
+/// ```ignore
 /// use erdos::node::{operator_event::OperatorEvent, lattice::ExecutionLattice};
 /// use erdos::dataflow::Timestamp;
 /// use futures::executor::block_on;
