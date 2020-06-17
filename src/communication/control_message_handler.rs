@@ -22,6 +22,7 @@ pub struct ControlMessageHandler {
     channels_to_nodes: HashMap<NodeId, UnboundedSender<ControlMessage>>,
 }
 
+#[allow(dead_code)]
 impl ControlMessageHandler {
     pub fn new(logger: Logger) -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
