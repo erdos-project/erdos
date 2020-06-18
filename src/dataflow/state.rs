@@ -99,9 +99,7 @@ impl<S: State + Default, T: Clone> TimeVersionedState<S, T> {
             AccessContext::Operator => {
                 Err(AccessError("Attempted to close_time from Operator::new"))
             }
-            AccessContext::Callback => {
-                Err(AccessError("Attempted to close_time from a callback"))
-            }
+            AccessContext::Callback => Err(AccessError("Attempted to close_time from a callback")),
             AccessContext::WatermarkCallback => Ok(()),
         }?;
         // Release all states and messages at least as old as history_size timestamps before t.

@@ -35,7 +35,8 @@ def main():
     """Creates and runs the dataflow graph."""
     def add(msg):
         """Mapping Function passed into MapOp,
-           returns a new Message that sums the data of each message in msg.data."""
+           returns a new Message that sums the data of each message in
+           msg.data."""
         total = 0
         for i in msg.data:
             total += i.data

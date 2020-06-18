@@ -4,7 +4,7 @@ Then shuts down and resets the dataflow, and runs a different dataflow.
 import time
 
 import erdos
-from erdos.operators import window, map
+from erdos.operators import map
 
 
 def double(msg):

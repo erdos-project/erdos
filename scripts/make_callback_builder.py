@@ -1,3 +1,4 @@
+# flake8: noqa E501
 import fire
 import itertools
 
@@ -352,14 +353,14 @@ def make_receive_watermark(num_rs, num_ws, has_state):
             map(lambda y: "&mut ws{}".format(y), range(num_ws))))
     set_watermark = " else ".join(
         map(
-            lambda x: """if stream_id == self.rs{}_id {{
-            if some_t > self.rs{}_watermark {{
-                self.rs{}_watermark = Some(t.clone());
+            lambda x: """if stream_id == self.rs{x}_id {{
+            if some_t > self.rs{x}_watermark {{
+                self.rs{x}_watermark = Some(t.clone());
             }} else {{
                 // The watermark is outdated
                 return Vec::new();
             }}
-        }}""".format(x, x, x, x), range(num_rs)))
+        }}""".format(x=x), range(num_rs)))
     return make_receive_watermark_template.format(
         previous_low_watermark=previous_low_watermark,
         current_low_watermark=current_low_watermark,
