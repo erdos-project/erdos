@@ -1,4 +1,4 @@
-name: Rust
+name: CI
 
 on:
   push:
@@ -47,12 +47,6 @@ jobs:
     
     steps:
       - uses: actions/checkout@v2
-      - name: Install latest Rust nightly
-        uses: actions-rs/toolchain@v1
-        with:
-            toolchain: nightly
-            override: true
-            components: rustfmt
       - name: Setup python
         uses: actions/setup-python@v2
         with:
@@ -68,7 +62,12 @@ jobs:
           yapf --diff --recursive ./doc/
           yapf --diff --recursive ./python/
           yapf --diff --recursive ./scripts/
+      - name: Install latest Rust nightly
+        uses: actions-rs/toolchain@v1
+        with:
+            toolchain: nightly
+            override: true
+            components: rustfmt
       - name: Build
         # Building with develop is faster than with install
         run: python python/setup.py develop
-    
