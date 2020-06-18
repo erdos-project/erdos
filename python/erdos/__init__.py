@@ -258,3 +258,25 @@ class NodeHandle(object):
         print("shutting down node")
         self.py_node_handle.shutdown_node()
         print("done shutting down")
+
+
+__all__ = [
+    "ReadStream",
+    "WriteStream",
+    "LoopStream",
+    "IngestStream",
+    "ExtractStream",
+    "Operator",
+    "OperatorConfig",
+    "Profile",
+    "Message",
+    "WatermarkMessage",
+    "Timestamp",
+    "connect",
+    "reset",
+    "run",
+    "run_async",
+    "add_watermark_callback",
+    "profile_method",
+    "NodeHandle",
+]
