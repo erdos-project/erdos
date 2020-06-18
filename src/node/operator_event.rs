@@ -5,9 +5,9 @@ use crate::dataflow::Timestamp;
 
 /// `OperatorEvent` is a structure that encapsulates a particular invocation of the
 /// callback in response to a message or watermark. These events are processed according to the
-/// partial order defined by the `PartialOrd` trait. 
+/// partial order defined by the `PartialOrd` trait.
 ///
-/// The event is passed to an instance of 
+/// The event is passed to an instance of
 /// [`OperatorExecutor`](../operator_executor/struct.OperatorExecutor.html)
 /// which is in charge of inserting the event into a
 /// [`ExecutionLattice`](../lattice/struct.ExecutionLattice.html). The `ExecutionLattice` ensures
@@ -46,17 +46,25 @@ unsafe impl Send for OperatorEvent {}
 // Implement the `Display` and `Debug` traits so that we can visualize the event.
 impl fmt::Display for OperatorEvent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Timestamp: {:?}, Watermark: {}", self.timestamp, self.is_watermark_callback)
+        write!(
+            f,
+            "Timestamp: {:?}, Watermark: {}",
+            self.timestamp, self.is_watermark_callback
+        )
     }
 }
 
 impl fmt::Debug for OperatorEvent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Timestamp: {:?}, Watermark: {}", self.timestamp, self.is_watermark_callback)
+        write!(
+            f,
+            "Timestamp: {:?}, Watermark: {}",
+            self.timestamp, self.is_watermark_callback
+        )
     }
 }
 
-// Implement traits to define the order in which the events should be executed. 
+// Implement traits to define the order in which the events should be executed.
 // Make changes to the `cmp` function of the `Ord` trait to change the partial order of the events.
 impl Eq for OperatorEvent {}
 
