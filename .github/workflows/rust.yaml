@@ -1,9 +1,6 @@
 name: Rust
 
-on:
-  pull_request:
-  push:
-    branches: [ master ]
+on: [push, pull_request]
 
 env:
   CARGO_TERM_COLOR: always
