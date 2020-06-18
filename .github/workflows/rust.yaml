@@ -24,8 +24,7 @@ jobs:
       with:
         python-version: 3.6
     - name: Install Python dependencies
-      run: |
-      python -m pip install fire
+      run: python -m pip install fire
     - name: Build
       run: cargo build --verbose
     - name: Run tests
