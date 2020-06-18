@@ -22,6 +22,8 @@ jobs:
           toolchain: nightly
           override: true
           components: rustfmt
+    - name: Check Rust formatting
+      run: cargo fmt -- --check
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
