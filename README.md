@@ -22,13 +22,13 @@ docker pull erdosproject/erdos
 
 ## System requirements
 
-ERDOS is known to work on Ubuntu 16.04, 18.04, and 19.10.
+ERDOS is known to work on Ubuntu 16.04, 18.04, and 20.04.
 
 ## Installation
 
 ```console
 git clone https://github.com/erdos-project/erdos.git && cd erdos
-
+pip3 install fire
 python3 python/setup.py develop
 ```
 
