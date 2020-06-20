@@ -1,20 +1,93 @@
+#![doc(html_logo_url = "https://avatars2.githubusercontent.com/u/44586405")]
 //! # ERDOS
 //!
-//! `ERDOS` is a platform  for developing self-driving cars and robotics
-//!  applications.
+//! ERDOS is a platform for developing self-driving car and robotics
+//! applications. The system is built using techniques from streaming dataflow
+//! systems which is reflected by the API.
 //!
-//! `ERDOS` is a streaming dataflow system designed for self-driving car
-//! pipelines and robotics applications.
+//! Applications are modeled as directed graphs, in which data flows through
+//! [streams](crate::dataflow::stream) and is processed by
+//! [operators](crate::dataflow::Operator).
+//! Because applications often resemble a sequence of connected operators,
+//! an ERDOS application may also be referred to as a *pipeline*.
 //!
-//! Components of the pipelines are implemented as **operators** which
-//! are connected by **data streams**. The set of operators and streams
-//! forms the **dataflow graph**, the representation of the pipline that
-//! `ERDOS` processes.
+//! ## Driver
+//! The *driver* section of the program connects operators together using
+//! streams to build an ERDOS application which may then be executed.
+//! The driver is typically the `main` function in `main.rs`.
 //!
-//! Applications define the dataflow graph by connecting operators to streams
-//! in the **driver** section of the program. Operators are typically
-//! implemented elsewhere.
+//! The driver may also interact with a running ERDOS application.
+//! Using the [`IngestStream`](crate::dataflow::stream::IngestStream),
+//! the driver can send data to operators on a stream.
+//! The [`ExtractStream`](crate::dataflow::stream::ExtractStream)
+//! allows the driver to read data sent from an opreator.
 //!
+//! ## Streams
+//! Data is broadcast to all receivers when sending on an ERDOS stream.
+//! Streams are typed on their data, and expose 2 classes of interfaces
+//! that access the underlying stream:
+//! 1. Read-interfaces expose methods to receive and process data.
+//!    They allow pulling data by calling
+//!    [`read()`](crate::dataflow::stream::ReadStream::read) and
+//!    [`try_read()`](crate::dataflow::stream::ReadStream::try_read).
+//!    Often, they also support a push data model accessed by registering
+//!    callbacks (e.g.
+//!    [`add_callback`](crate::dataflow::stream::ReadStream::add_callback) and
+//!    [`add_watermark_callback`](crate::dataflow::stream::ReadStream::add_watermark_callback)).
+//!    Structures that implement read interfaces include:
+//!    - [`ReadStream`](crate::dataflow::stream::ReadStream):
+//!      used by operators to read data and register callbacks.
+//!    - [`ExtractStream`](crate::dataflow::stream::ExtractStream):
+//!      used by the driver to read data.
+//! 2. Write-interfaces expose the
+//!    [`send`](crate::dataflow::stream::WriteStreamT::send) method to send
+//!    data on a stream. Structures that implement write interfaces include:
+//!    - [`WriteStream`](crate::dataflow::stream::WriteStream): used by
+//!      operators to send data.
+//!    - [`IngestStream`](crate::dataflow::stream::IngestStream): used by
+//!      the driver to send data.
+//!
+//! Some applications may want to introduce loops in their dataflow graphs.
+//! These may use the
+//! [`LoopStream`](crate::dataflow::stream::LoopStream) to do so.
+//!
+//! ## Operators
+//! An ERDOS operator receives data on
+//! [`ReadStream`](crate::dataflow::stream::ReadStream)s,
+//! and sends processed data on
+//! [`WriteStream`](crate::dataflow::stream::WriteStream)s.
+//! We provide a [standard library of operators](crate::dataflow::operators)
+//! for common dataflow patterns.
+//! While the standard operators are general and versatile, some applications
+//! may implement custom operators to better optimize performance and take
+//! fine-grained control over exection.
+//!
+//! All operators must implement `new` and `connect` methods, in addition to
+//! the [`Operator`](crate::dataflow::Operator) trait.
+//! - The `new` method takes an
+//!   [`OperatorConfig`](crate::dataflow::OperatorConfig),
+//!   all [`ReadStream`](crate::dataflow::stream::ReadStream)s from which the
+//!   operator receives data, all
+//!   [`WriteStream`](crate::dataflow::stream::WriteStream)s on which the
+//!   operator sends data, and returns `Self`.
+//!   Within `new`, the state should be initialized, and callbacks may be
+//!   registered across [`ReadStream`](crate::dataflow::stream::ReadStream)s.
+//! - The `connect` method takes references to the required
+//!   [`ReadStream`](crate::dataflow::stream::ReadStream)s
+//!   and returns [`WriteStream`](crate::dataflow::stream::WriteStream)s in the
+//!   same order as in `new`.
+//!
+//! For an example, see the implementation of the
+//! [`MapOperator`](crate::dataflow::operators::MapOperator).
+//!
+//! While ERDOS manages the execution of callbacks, some operators require
+//! more finegrained control. Operators can take manual control over the
+//! thread of execution by overriding the
+//! [`run`](crate::dataflow::Operator::run) of the
+//! [`Operator`](crate::dataflow::Operator) trait and pulling data from
+//! [`ReadStream`](crate::dataflow::stream::ReadStream)s.
+//!
+//! ## Performance
 //! `ERDOS` is designed for low latency. Self-driving car pipelines require
 //! end-to-end deadlines on the order of hundreds of milliseconds for safe
 //! driving. Similarly, self-driving cars typically process gigabytes per
@@ -22,7 +95,8 @@
 //! send small amounts of data (gigabytes as opposed to terabytes)
 //! as quickly as possible.
 //!
-//! `ERDOS` provides determinisim through **watermarks**. Low watermarks
+//! ## Determinism
+//! ERDOS provides determinisim through **watermarks**. Low watermarks
 //! are a bound on the age of messages received and operators will ignore
 //! any messages older than the most recent watermark received. By processing
 //! on watermarks, applications can avoid non-determinism from processing
@@ -51,9 +125,9 @@ use std::{cell::RefCell, fmt};
 use uuid;
 
 // Private submodules
-pub mod configuration;
+mod configuration;
 #[cfg(feature = "python")]
-pub mod python;
+mod python;
 
 // Crate-wide visible submodules
 
