@@ -247,7 +247,7 @@ pub fn get_terminal_logger() -> slog::Logger {
     TERMINAL_LOGGER.clone()
 }
 
-/// Defines arguments for running a multi-node ERDOS application.
+/// Defines command line arguments for running a multi-node ERDOS application.
 pub fn new_app(name: &str) -> clap::App {
     App::new(name)
         .arg(

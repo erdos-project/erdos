@@ -31,8 +31,13 @@ use crate::scheduler::{
 };
 use crate::Configuration;
 
+/// Unique index for a [`Node`].
 pub type NodeId = usize;
 
+/// Structure which executes a portion of an ERDOS application.
+///
+/// The [`Node`] contains a runtime which executes operators and manages
+/// communication between operators via streams.
 #[allow(dead_code)]
 pub struct Node {
     /// Node's configuration parameters.
@@ -424,6 +429,7 @@ impl Node {
     }
 }
 
+/// Handle to a [`Node`] running asynchronously.
 pub struct NodeHandle {
     thread_handle: thread::JoinHandle<()>,
     shutdown_tx: Sender<()>,
@@ -431,11 +437,11 @@ pub struct NodeHandle {
 
 // TODO: distinguish between shutting down the dataflow and shutting down the node.
 impl NodeHandle {
-    /// Waits for the associated ERDOS node to finish.
+    /// Waits for the associated [`Node`] to finish.
     pub fn join(self) -> Result<(), String> {
         self.thread_handle.join().map_err(|e| format!("{:?}", e))
     }
-    /// Blocks until the node shuts down.
+    /// Blocks until the [`Node`] shuts down.
     pub fn shutdown(mut self) -> Result<(), String> {
         // Error indicates node is already shutting down.
         self.shutdown_tx.try_send(()).ok();
