@@ -14,6 +14,8 @@ use crate::{
 
 use super::{errors::WriteStreamError, StreamId, WriteStream, WriteStreamT};
 
+/// Enables sending data on an ERDOS stream from the driver of a running ERDOS
+/// applicatinon.
 pub struct IngestStream<D>
 where
     for<'a> D: Data + Deserialize<'a>,
@@ -90,7 +92,9 @@ where
             .unwrap_or(true)
     }
 
-    /// Blocks until write stream is available
+    /// Sends data on the stream.
+    ///
+    /// Blocks until write stream is available.
     pub fn send(&mut self, msg: Message<D>) -> Result<(), WriteStreamError> {
         loop {
             {

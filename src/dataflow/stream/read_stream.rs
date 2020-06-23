@@ -9,6 +9,10 @@ use super::{
     IngestStream, InternalReadStream, LoopStream, StatefulReadStream, StreamId, WriteStream,
 };
 
+/// Allows reading from a stream and registering callbacks.
+///
+/// Passed as an argument to `Operator::new` and `Operator::connect`.
+/// Also used in the driver to construct a dataflow.
 #[derive(Clone, Default)]
 pub struct ReadStream<D: Data> {
     /// Stores information and internal information about the stream
@@ -36,7 +40,10 @@ impl<D: Data> ReadStream<D> {
             .add_watermark_callback(callback);
     }
 
-    /// Returns a new instance of the stream with state associated to it.
+    /// Returns a new instance of the stream with an associated state.
+    ///
+    /// This state is accessible by callbacks added to the
+    /// [`StatefulReadStream`].
     pub fn add_state<S: State>(&self, state: S) -> StatefulReadStream<D, S> {
         StatefulReadStream::from(self.internal_stream.borrow_mut().add_state(state))
     }

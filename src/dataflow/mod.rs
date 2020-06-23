@@ -1,5 +1,8 @@
+//! Functions and structures for building an ERDOS application.
+
 // Public submodules
 pub mod callback_builder;
+#[doc(hidden)]
 pub mod graph;
 pub mod message;
 pub mod operator;

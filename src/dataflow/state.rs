@@ -1,3 +1,5 @@
+//! Structures and traits for states added to streams.
+
 // TODO: keep around messages. Add an iterator over messages.
 // Add set_timestamp and set_access_context to State.
 use std::{
@@ -7,10 +9,12 @@ use std::{
 
 use crate::dataflow::Timestamp;
 
-/// Trait that must be implemented by stream state structs.
+/// Trait that must be implemented by stream state.
 pub trait State: 'static + Clone {}
 impl<T: 'static + Clone> State for T {}
 
+/// Error thrown upon an invalid attempt to access a portion of the
+/// [`TimeVersionedState`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AccessError(&'static str);
 
@@ -53,15 +57,16 @@ impl<S: State> ManagedState for S {
 /// parallelism as possible.
 ///
 /// Time-versioned state enforces 3 different access patterns:
-/// 1. When created in Operator::new(). This allows setting the number of past states
-///    accessible via the history size and an initial state associated with `Timestamp::bottom()`.
+/// 1. When created in `Operator::new`. This allows setting the number of past states
+///    accessible via the history size and an initial state associated with
+///    [`Timestamp::bottom`](crate::dataflow::message::IntTimestamp::bottom).
 /// 2. From a regular, non-watermark callback. This allows appending messages which are later exposed
 ///    to watermark callbacks. Appended messages may be compressed versions of ERDOS messages.
 /// 3. From a watermark callback. This allows reading appended messages and reading state up until the
 ///    current timestamp. In addition, it allows mutating the state associated with the current timestamp.
 ///
-/// For each access pattern, access rules are enforced via the `AccessContext`.
-/// ERDOS manages transitions between `AccessContext`s.
+/// For each access pattern, access rules are enforced via the [`AccessContext`].
+/// ERDOS manages transitions between [`AccessContext`]s.
 #[derive(Clone)]
 pub struct TimeVersionedState<S: State + Default, T: Clone> {
     current_time: Timestamp,

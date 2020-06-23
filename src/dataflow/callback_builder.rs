@@ -1,4 +1,4 @@
-//! # Callback Builders for Multiple Streams
+//! Structures for applying callbacks to bundles of streams.
 //!
 //! This file loads code generated during build.
 //! For more information on how code is generated, see `build.rs` and

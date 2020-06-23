@@ -9,7 +9,10 @@ use crate::{
 
 use super::{errors::WriteStreamError, StreamId, WriteStreamT};
 
-// TODO: refactor with internal write stream
+/// Enables sending messages on a stream.
+///
+/// Returned by `Operator::connect`, and automatically passed as an argument
+/// to `Operator::new`.
 #[derive(Clone)]
 pub struct WriteStream<D: Data> {
     /// StreamId of the stream.
