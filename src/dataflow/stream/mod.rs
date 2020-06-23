@@ -9,7 +9,7 @@
 //! [`WriteStreamT::send`] broadcasts data to all connected operators, using
 //! zero-copy communication for operators on the same node.
 //! Messages sent across nodes are serialized using
-//! [Abomonation](https://github.com/TimelyDataflow/abomonation) if possible,
+//! [abomonation](https://github.com/TimelyDataflow/abomonation) if possible,
 //! before falling back to [bincode](https://github.com/servo/bincode).
 //!
 //! The streams an operator reads from and writes to are automatically passed
