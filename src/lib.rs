@@ -29,7 +29,8 @@
 //! messages out of order.
 
 #![feature(get_mut_unchecked)]
-#![feature(specialization)]
+#![feature(min_specialization)]
+#![feature(rustc_attrs)]
 #![feature(box_into_pin)]
 #![feature(vec_remove_item)]
 
