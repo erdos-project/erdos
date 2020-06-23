@@ -32,7 +32,6 @@
 #![feature(min_specialization)]
 #![feature(rustc_attrs)]
 #![feature(box_into_pin)]
-#![feature(vec_remove_item)]
 
 pub use ::slog;
 pub use ::tokio;
