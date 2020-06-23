@@ -142,21 +142,22 @@
 #![feature(box_into_pin)]
 #![feature(vec_remove_item)]
 
+// Re-exports of libraries used in macros.
+#[doc(hidden)]
 pub use ::slog;
+#[doc(hidden)]
 pub use ::tokio;
 
-use abomonation_derive::Abomonation;
-use clap;
-use lazy_static::lazy_static;
-use slog_term;
-
 // Libraries used in this file.
-use clap::{App, Arg};
+use std::{cell::RefCell, fmt};
+
+use abomonation_derive::Abomonation;
+use clap::{self, App, Arg};
+use lazy_static::lazy_static;
 use rand::{Rng, SeedableRng, StdRng};
 use serde::{Deserialize, Serialize};
 use slog::{Drain, Logger};
-use slog_term::term_full;
-use std::{cell::RefCell, fmt};
+use slog_term::{self, term_full};
 use uuid;
 
 // Private submodules
@@ -165,8 +166,6 @@ mod configuration;
 mod connect;
 #[cfg(feature = "python")]
 mod python;
-
-// Crate-wide visible submodules
 
 // Public submodules
 #[doc(hidden)]
