@@ -1,6 +1,4 @@
 #![doc(html_logo_url = "https://avatars2.githubusercontent.com/u/44586405")]
-//! # ERDOS
-//!
 //! ERDOS is a platform for developing self-driving car and robotics
 //! applications. The system is built using techniques from streaming dataflow
 //! systems which is reflected by the API.
@@ -11,6 +9,43 @@
 //! Because applications often resemble a sequence of connected operators,
 //! an ERDOS application may also be referred to as a *pipeline*.
 //!
+//! ## Quick example
+//! This example shows an ERDOS application which counts the number of objects
+//! detected from a stream of camera frames.
+//! The example consists of the [driver](#driver) part of the program, which
+//! is responsible for connecting operators via streams.
+//! For information on building operators, see the [§ Operators](#operators).
+//!
+//! ```no_run
+//! // Capture arguments to set up an ERDOS node.
+//! let args = erdos::new_app("ObjectCounter");
+//! // Create an ERDOS node which runs the application.
+//! let mut node = Node::new(Configuration::from_args(args));
+//!
+//! // Stream of RGB images from a camera.
+//! let camera_frames = erdos::connect_1_write!(
+//!     CameraOperator,
+//!     OperatorConfig::new().name("Camera")
+//! );
+//! // Stream of labeled bounding boxes for each RGB image.
+//! let detected_objects = erdos::connect_1_write!(
+//!     ObjectDetector,
+//!     OperatorConfig::new().name("Detector"),
+//!     camera_stream
+//! );
+//! // Stream of detected object count for each RGB image.
+//! let num_detected = erdos::connect_1_write!(
+//!     MapOperator,
+//!     OperatorConfig::new()
+//!         .name("Counter")
+//!         .arg(|bboxes: &Vec<BBox>| -> usize { bbxes.len() }),
+//!     detected_objects
+//! );
+//!
+//! // Run the application
+//! node.run();
+//! ```
+//!
 //! ## Driver
 //! The *driver* section of the program connects operators together using
 //! streams to build an ERDOS application which may then be executed.
@@ -20,7 +55,7 @@
 //! Using the [`IngestStream`](crate::dataflow::stream::IngestStream),
 //! the driver can send data to operators on a stream.
 //! The [`ExtractStream`](crate::dataflow::stream::ExtractStream)
-//! allows the driver to read data sent from an opreator.
+//! allows the driver to read data sent from an operator.
 //!
 //! ## Streams
 //! Data is broadcast to all receivers when sending on an ERDOS stream.
@@ -110,7 +145,7 @@
 pub use ::slog;
 pub use ::tokio;
 
-use abomonation_derive::*;
+use abomonation_derive::Abomonation;
 use clap;
 use lazy_static::lazy_static;
 use slog_term;
@@ -134,15 +169,18 @@ mod python;
 // Crate-wide visible submodules
 
 // Public submodules
+#[doc(hidden)]
 pub mod communication;
 pub mod dataflow;
 pub mod node;
+#[doc(hidden)]
 pub mod scheduler;
 
 // Public exports
 pub use configuration::Configuration;
 pub use dataflow::OperatorConfig;
 
+/// A unique identifier for an operator.
 pub type OperatorId = Uuid;
 
 // Random number generator which should be the same accross threads and processes.
@@ -157,7 +195,7 @@ pub fn generate_id() -> Uuid {
     })
 }
 
-/// Wrapper around uuid::Uuid that implements Abomonation for fast serialization.
+/// Wrapper around [`uuid::Uuid`] that implements [`Abomonation`](abomonation::Abomonation) for fast serialization.
 #[derive(Abomonation, Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
 pub struct Uuid(uuid::Bytes);
 
@@ -205,10 +243,12 @@ lazy_static! {
         Logger::root(std::sync::Mutex::new(term_full()).fuse(), slog::o!());
 }
 
+/// Returns a logger that prints messages to the console.
 pub fn get_terminal_logger() -> slog::Logger {
     TERMINAL_LOGGER.clone()
 }
 
+/// Defines arguments for running a multi-node ERDOS application.
 pub fn new_app(name: &str) -> clap::App {
     App::new(name)
         .arg(

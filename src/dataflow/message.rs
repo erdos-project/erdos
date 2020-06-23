@@ -1,6 +1,6 @@
 use std::{cmp::Ordering, fmt::Debug};
 
-use abomonation_derive::*;
+use abomonation_derive::Abomonation;
 use serde::{Deserialize, Serialize};
 
 /// Trait for valid message data. The data must be clonable, sendable between threads and
