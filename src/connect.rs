@@ -1,6 +1,8 @@
-/// Makes a callback which automatically flows watermarks to downstream operators.
+/// Makes a callback which automatically flows watermarks to downstream
+/// operators.
 ///
-/// Note: this is intended as an internal macro invoked by `make_operator_executor!`
+/// Note: this is intended as an internal macro invoked by
+/// [`make_operator_executor`].
 #[doc(hidden)]
 #[macro_export]
 macro_rules! flow_watermarks {
@@ -20,9 +22,10 @@ macro_rules! flow_watermarks {
     ((), ()) => ();
 }
 
-/// Makes a callback which automatically flows watermarks to downstream operators.
+/// Calls `Operator::new(config, rs1, rs2, ..., ws1, ws2, ...)`
+/// and returns the operator instance.
 ///
-/// Note: this is intended as an internal macro invoked by `make_operator_executor!`
+/// Note: this is an internal macro called by [`make_operator_executor`].
 #[doc(hidden)]
 #[macro_export]
 macro_rules! make_operator {
@@ -42,7 +45,7 @@ macro_rules! make_operator {
 /// Makes a closure that initializes the operator and returns a corresponding
 /// [`OperatorExecutor`](crate::node::operator_executor::OperatorExecutor).
 ///
-/// Note: this is intended as an internal macro called by connect_x_write!
+/// Note: this is intended as an internal macro called by `connect_x_write`.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! make_operator_executor {
@@ -103,9 +106,9 @@ macro_rules! make_operator_executor {
     }};
 }
 
-/// Imports crates needed to run register!
+/// Imports crates needed to run [`register`].
 ///
-/// Note: this is intended as an internal macro called by register!
+/// Note: this is intended as an internal macro called by [`register`].
 #[doc(hidden)]
 #[macro_export]
 macro_rules! imports {
@@ -134,7 +137,8 @@ macro_rules! imports {
     };
 }
 
-/// Registers and operator and streams produced by that operator to the dataflow graph and the stream manager.
+/// Registers and operator and streams produced by that operator to the
+/// dataflow graph and the stream manager.
 ///
 /// Note: this is intended as an internal macro called by connect_x_write!
 #[doc(hidden)]
@@ -170,7 +174,9 @@ macro_rules! register {
 /// Connects read streams to an operator that writes on 0 streams.
 ///
 /// Use:
-/// connect_3_write!(MyOp, arg, read_stream_1, read_stream_2, ...);
+/// ```ignore
+/// connect_0_write!(MyOp, arg, read_stream_1, read_stream_2, ...);
+/// ```
 #[macro_export]
 macro_rules! connect_0_write {
     ($t:ty, $config:expr $(,$s:ident)*) => {{
@@ -186,7 +192,9 @@ macro_rules! connect_0_write {
 /// Connects read streams to an operator that writes on 1 stream.
 ///
 /// Use:
+/// ```ignore
 /// let read_stream_3 = connect_3_write!(MyOp, arg, read_stream_1, read_stream_2, ...);
+/// ```
 #[macro_export]
 macro_rules! connect_1_write {
     ($t:ty, $config:expr $(,$s:ident)*) => {{
@@ -202,7 +210,9 @@ macro_rules! connect_1_write {
 /// Connects read streams to an operator that writes on 2 streams.
 ///
 /// Use:
+/// ```ignore
 /// let (read_stream_3, read_stream_4) = connect_3_write!(MyOp, arg, read_stream_1, read_stream_2, ...);
+/// ```
 #[macro_export]
 macro_rules! connect_2_write {
     ($t:ty, $config:expr $(,$s:ident)*) => {{
@@ -218,7 +228,9 @@ macro_rules! connect_2_write {
 /// Connects read streams to an operator that writes on 3 streams.
 ///
 /// Use:
+/// ```ignore
 /// let (read_stream_3, read_stream_4, read_stream_5) = connect_3_write!(MyOp, arg, read_stream_1, read_stream_2, ...);
+/// ```
 #[macro_export]
 macro_rules! connect_3_write {
     ($t:ty, $config:expr $(,$s:ident)*) => {{
@@ -284,9 +296,11 @@ macro_rules! make_callback_builder {
 /// Optionally add a state that is shared across callbacks.
 ///
 /// Use:
+/// ```ignore
 /// add_watermark_callback!((read_stream_1, read_stream_2, ...),
 ///                        (write_stream_1, write_stream_2, ...)
 ///                        (callback_1, callback_2, ...), state?);
+/// ```
 #[macro_export]
 macro_rules! add_watermark_callback {
     (($($rs:expr),+), ($($ws:expr),*), ($($cb:expr),+), $state:expr) => (
