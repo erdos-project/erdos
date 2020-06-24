@@ -47,7 +47,7 @@ where
 /// Specialized version used when messages derive `Abomonation`.
 impl<D> Serializable for D
 where
-    for<'a> D: Debug + Clone + Send + Serialize + Deserialize<'a> + Abomonation,
+    D: Debug + Clone + Send + Serialize + Abomonation,
 {
     fn encode(&self) -> Result<BytesMut, CommunicationError> {
         let mut serialized_msg: Vec<u8> = Vec::with_capacity(measure(self));

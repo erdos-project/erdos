@@ -299,9 +299,7 @@ impl ExecutionLattice {
             }
             run_queue.clear();
 
-            for n in &remove_roots {
-                roots.remove_item(n);
-            }
+            roots.retain(|e| !remove_roots.contains(e));
 
             for item in old_run_queue {
                 if !remove_roots.contains(&item) {
@@ -353,7 +351,12 @@ impl ExecutionLattice {
         let node_id: NodeIndex<u32> = NodeIndex::new(event_id);
 
         // Throw an error if the item was not in the roots.
-        roots.remove_item(&RunnableEvent::new(node_id)).unwrap();
+        let event = RunnableEvent::new(node_id);
+        let event_idx = roots
+            .iter()
+            .position(|e| e == &event)
+            .expect("Item must be in the roots of the lattice.");
+        roots.remove(event_idx);
 
         // Go over the children of the node, and check which ones have no dependencies on other
         // nodes, and add them to the list of the roots.

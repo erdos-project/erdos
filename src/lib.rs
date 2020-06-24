@@ -148,9 +148,9 @@
 //! [Kahn process networks](https://en.wikipedia.org/wiki/Kahn_process_networks).
 
 #![feature(get_mut_unchecked)]
-#![feature(specialization)]
+#![feature(min_specialization)]
+#![feature(rustc_attrs)]
 #![feature(box_into_pin)]
-#![feature(vec_remove_item)]
 
 // Re-exports of libraries used in macros.
 #[doc(hidden)]

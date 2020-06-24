@@ -15,7 +15,7 @@ ERDOS is a platform for developing self-driving cars and robotics applications.
 keywords = ["data-flow", "robotics", "autonomos", "driving"]
 
 [dependencies]
-abomonation = "0.7.3"
+abomonation = { git = "https://github.com/erdos-project/abomonation" }
 abomonation_derive = "0.5.0"
 async-trait = "0.1.18"
 bincode = "1.2.1"
