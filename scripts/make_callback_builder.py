@@ -494,9 +494,15 @@ def generate_code(num_rs, num_ws):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate callback builders for m read streams and n write streams.")
-    parser.add_argument("read_streams", type=int, help="number of read streams")
-    parser.add_argument("write_streams", type=int, help="number of write streams")
+    parser = argparse.ArgumentParser(
+        description=
+        "Generate callback builders for m read streams and n write streams.")
+    parser.add_argument("read_streams",
+                        type=int,
+                        help="number of read streams")
+    parser.add_argument("write_streams",
+                        type=int,
+                        help="number of write streams")
 
     args = parser.parse_args()
     generate_code(args.read_streams, args.write_streams)
