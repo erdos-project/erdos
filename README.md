@@ -22,17 +22,47 @@ docker pull erdosproject/erdos
 
 ## System requirements
 
-ERDOS is known to work on Ubuntu 16.04, 18.04, and 19.10.
+ERDOS is known to work on Ubuntu 16.04, 18.04, and 20.04.
 
-## Installation
+## Rust installation
 
+To develop an ERDOS application in Rust, simply include ERDOS in `Cargo.toml`.
+The latest ERDOS release is published on
+[Crates.io](https://crates.io/crates/erdos)
+and documentation is available on [Crates.io](https://crates.io/crates/erdos).
+
+If you'd like to contribute to ERDOS, first
+[install Rust](https://www.rust-lang.org/tools/install).
+Then run the following to clone the repository and build ERDOS:
 ```console
+rustup default nightly  # use nightly Rust toolchain
 git clone https://github.com/erdos-project/erdos.git && cd erdos
+pip3 install fire
+cargo build
+```
 
+
+## Python Installation
+
+To develop an ERDOS application in Python, simply run
+`pip install erdos`. Documentation is available on
+[Read the Docs](https://erdos.readthedocs.io/en/stable/).
+
+If you'd like to contribute to ERDOS, first
+[install Rust](https://www.rust-lang.org/tools/install).
+Then run the following to clone the repository and build ERDOS:
+```console
+rustup default nightly  # use nightly Rust toolchain
+git clone https://github.com/erdos-project/erdos.git && cd erdos
+pip3 install fire
 python3 python/setup.py develop
 ```
 
-This script installs Python and Rust dependencies in addition to ERDOS.
+Python files are available under the `python/` directory, and the Python-Rust
+bridge interface is developed under `src/python/`.
+
+If you'd like to build ERDOS for release (has better performance, but longer
+build times), run `python3 python/setup.py install`.
 
 ## Running an example
 

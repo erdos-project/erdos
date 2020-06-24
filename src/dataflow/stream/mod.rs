@@ -1,3 +1,20 @@
+//! Streams are used to send data between operators.
+//!
+//! In the `Operator::connect` function, operators return the streams on which
+//! they intend to send messages as [`WriteStream`]s.
+//! Any number of operators can be connected to those streams to read
+//! data via the `erdos::connect` macros; however, only the operator that
+//! created the stream may send data.
+//!
+//! [`WriteStreamT::send`] broadcasts data to all connected operators, using
+//! zero-copy communication for operators on the same node.
+//! Messages sent across nodes are serialized using
+//! [abomonation](https://github.com/TimelyDataflow/abomonation) if possible,
+//! before falling back to [bincode](https://github.com/servo/bincode).
+//!
+//! The streams an operator reads from and writes to are automatically passed
+//! to the `Operator::new` function.
+
 use std::sync::Arc;
 
 use crate::{
@@ -24,7 +41,9 @@ use errors::WriteStreamError;
 // Public exports
 pub use extract_stream::ExtractStream;
 pub use ingest_stream::IngestStream;
+#[doc(hidden)]
 pub use internal_read_stream::InternalReadStream;
+#[doc(hidden)]
 pub use internal_stateful_read_stream::InternalStatefulReadStream;
 pub use loop_stream::LoopStream;
 pub use read_stream::ReadStream;
@@ -43,6 +62,8 @@ pub(crate) trait EventMakerT {
     fn make_events(&self, msg: Arc<Message<Self::EventDataType>>) -> Vec<OperatorEvent>;
 }
 
+/// Write stream trait which allows specialized implementations of
+/// [`send`](WriteStreamT::send) depending on the serialization library used.
 pub trait WriteStreamT<D: Data> {
     /// Sends a messsage to a channel.
     fn send(&mut self, msg: Message<D>) -> Result<(), WriteStreamError>;

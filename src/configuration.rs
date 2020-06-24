@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 
 use crate::node::NodeId;
 
-/// Stores the configuration parameters of a node.
+/// Stores the configuration parameters of a [`node`](crate::node::Node).
 #[derive(Clone)]
 pub struct Configuration {
     /// The index of the node.

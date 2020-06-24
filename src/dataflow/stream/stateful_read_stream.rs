@@ -8,7 +8,7 @@ use crate::dataflow::{
 
 use super::{InternalStatefulReadStream, ReadStream, StreamId, WriteStream};
 
-/// Stream that has associated some state with it.
+/// Stream with an associated state.
 pub struct StatefulReadStream<D: Data, T: State> {
     /// Stores information and internal information about the stream
     internal_stream: Rc<RefCell<InternalStatefulReadStream<D, T>>>,

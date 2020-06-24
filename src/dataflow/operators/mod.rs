@@ -1,3 +1,5 @@
+//! Library of generic operators for building ERDOS applications.
+
 // Private submodules
 mod join_operator;
 mod map_operator;

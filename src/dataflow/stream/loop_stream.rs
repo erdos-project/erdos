@@ -6,6 +6,15 @@ use crate::dataflow::{graph::default_graph, Data};
 
 use super::{ReadStream, StreamId};
 
+/// Enables loops in the dataflow.
+///
+/// # Example
+/// ```ignore
+/// let loop_stream = LoopStream::new();
+/// let output_stream = erdos::connect_1_write!(MyOperator, OperatorConfig::new(), loop_stream);
+/// // Makes sending on output_stream equivalent to sending on loop_stream.
+/// loop_stream.set(&output_stream);
+/// ```
 pub struct LoopStream<D: Data>
 where
     for<'a> D: Data + Deserialize<'a>,

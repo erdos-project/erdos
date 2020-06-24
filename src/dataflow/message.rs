@@ -1,6 +1,6 @@
 use std::{cmp::Ordering, fmt::Debug};
 
-use abomonation_derive::*;
+use abomonation_derive::Abomonation;
 use serde::{Deserialize, Serialize};
 
 /// Trait for valid message data. The data must be clonable, sendable between threads and
@@ -84,7 +84,7 @@ impl<D: Data + PartialEq> PartialEq for TimestampedData<D> {
     }
 }
 
-// Alias timestamp in case we move to generic timestamps.
+// Alias to [`IntTimestamp`] in case more timestamp variants are added.
 pub type Timestamp = IntTimestamp;
 
 /// Information about when an operator released a message.

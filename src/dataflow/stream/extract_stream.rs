@@ -17,6 +17,8 @@ use super::{
     InternalReadStream, ReadStream, StreamId,
 };
 
+/// Enables reading data from streams in the driver of a running ERDOS
+/// application.
 pub struct ExtractStream<D>
 where
     for<'a> D: Data + Deserialize<'a>,
