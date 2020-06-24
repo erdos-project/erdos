@@ -130,12 +130,22 @@
 //! send small amounts of data (gigabytes as opposed to terabytes)
 //! as quickly as possible.
 //!
+//! ## Watermarks
+//! Watermarks in ERDOS signal completion of computation. More concretely,
+//! sending a watermark with timestamp `t` on a stream asserts that all future
+//! messages sent on that stream will have timestamps `t' > t`.
+//! ERDOS also introduces a *top watermark*, which is a watermark with the
+//! maximum possible timestamp. Sending a top watermark closes the stream as
+//! there is no `t' > t_top`, so no more messages can be sent.
+//!
 //! ## Determinism
-//! ERDOS provides determinisim through **watermarks**. Low watermarks
-//! are a bound on the age of messages received and operators will ignore
-//! any messages older than the most recent watermark received. By processing
-//! on watermarks, applications can avoid non-determinism from processing
-//! messages out of order.
+//! ERDOS provides mechanisms to enable the building of deterministic
+//! applications.
+//! For instance, processing sets of messages separated by watermarks using
+//! watermark callbacks and
+//! [time-versioned state](crate::dataflow::state::TimeVersionedState)
+//! turns ERDOS pipelines into
+//! [Kahn process networks](https://en.wikipedia.org/wiki/Kahn_process_networks).
 
 #![feature(get_mut_unchecked)]
 #![feature(specialization)]
