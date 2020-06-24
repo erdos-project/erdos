@@ -16,7 +16,7 @@
 //! is responsible for connecting operators via streams.
 //! For information on building operators, see the [§ Operators](#operators).
 //!
-//! ```no_run
+//! ```ignore
 //! // Capture arguments to set up an ERDOS node.
 //! let args = erdos::new_app("ObjectCounter");
 //! // Create an ERDOS node which runs the application.

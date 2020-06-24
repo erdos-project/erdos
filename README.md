@@ -37,7 +37,6 @@ Then run the following to clone the repository and build ERDOS:
 ```console
 rustup default nightly  # use nightly Rust toolchain
 git clone https://github.com/erdos-project/erdos.git && cd erdos
-pip3 install fire
 cargo build
 ```
 
@@ -54,7 +53,6 @@ Then run the following to clone the repository and build ERDOS:
 ```console
 rustup default nightly  # use nightly Rust toolchain
 git clone https://github.com/erdos-project/erdos.git && cd erdos
-pip3 install fire
 python3 python/setup.py develop
 ```
 
