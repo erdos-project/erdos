@@ -1,5 +1,5 @@
 # flake8: noqa E501
-import fire
+import argparse
 import itertools
 
 rust_imports = """// # Callback Builders for Multiple Streams
@@ -469,30 +469,34 @@ def make_builder(num_rs,
         received_watermark_assignments=received_watermark_assignments)
 
 
-class CLI(object):
-    def build(self, num_rs, num_ws):
-        print(rust_imports.format(num_rs=num_rs, num_ws=num_ws))
-        for i in range(1, num_rs + 1):
-            for j in range(num_ws + 1):
-                if i == 1 and j == 0:
-                    continue
-                include_add_read_stream = (i < num_rs)
-                include_add_write_stream = (j < num_ws)
-                print(
-                    make_builder(
-                        i,
-                        j,
-                        False,
-                        include_add_read_stream=include_add_read_stream,
-                        include_add_write_stream=include_add_write_stream))
-                print(
-                    make_builder(
-                        i,
-                        j,
-                        True,
-                        include_add_read_stream=include_add_read_stream,
-                        include_add_write_stream=include_add_write_stream))
+def generate_code(num_rs, num_ws):
+    print(rust_imports.format(num_rs=num_rs, num_ws=num_ws))
+    for i in range(1, num_rs + 1):
+        for j in range(num_ws + 1):
+            if i == 1 and j == 0:
+                continue
+            include_add_read_stream = (i < num_rs)
+            include_add_write_stream = (j < num_ws)
+            print(
+                make_builder(
+                    i,
+                    j,
+                    False,
+                    include_add_read_stream=include_add_read_stream,
+                    include_add_write_stream=include_add_write_stream))
+            print(
+                make_builder(
+                    i,
+                    j,
+                    True,
+                    include_add_read_stream=include_add_read_stream,
+                    include_add_write_stream=include_add_write_stream))
 
 
 if __name__ == "__main__":
-    fire.Fire(CLI)
+    parser = argparse.ArgumentParser(description="Generate callback builders for m read streams and n write streams.")
+    parser.add_argument("read_streams", type=int, help="number of read streams")
+    parser.add_argument("write_streams", type=int, help="number of write streams")
+
+    args = parser.parse_args()
+    generate_code(args.read_streams, args.write_streams)
