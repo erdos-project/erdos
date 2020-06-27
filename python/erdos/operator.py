@@ -15,11 +15,11 @@ class Operator(object):
         """Instantiates the operator.
 
         ERDOS will pass read streams followed by write streams as arguments,
-        matching the read streams and write streams in `connect()`.
+        matching the read streams and write streams in connect().
 
-        Invoked automatically during `erdos.run()`.
+        Invoked automatically during erdos.run().
 
-        ERDOS operators never need to call super().__init__(*streams) because
+        ERDOS operators never need to call super().__init__() because
         setup is handled by the ERDOS backend code.
         """
         pass

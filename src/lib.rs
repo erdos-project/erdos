@@ -9,12 +9,12 @@
 //! Because applications often resemble a sequence of connected operators,
 //! an ERDOS application may also be referred to as a *pipeline*.
 //!
-//! ## Quick example
+//! ## Example
 //! This example shows an ERDOS application which counts the number of objects
 //! detected from a stream of camera frames.
 //! The example consists of the [driver](#driver) part of the program, which
 //! is responsible for connecting operators via streams.
-//! For information on building operators, see the [§ Operators](#operators).
+//! For information on building operators, see [§ Operators](#operators).
 //!
 //! ```ignore
 //! // Capture arguments to set up an ERDOS node.
@@ -83,8 +83,8 @@
 //!      the driver to send data.
 //!
 //! Some applications may want to introduce loops in their dataflow graphs
-//! which is possible by using the
-//! [`LoopStream`](crate::dataflow::stream::LoopStream) to do so.
+//! which is possible using the
+//! [`LoopStream`](crate::dataflow::stream::LoopStream).
 //!
 //! ## Operators
 //! An ERDOS operator receives data on
@@ -121,12 +121,13 @@
 //! [`run`](crate::dataflow::Operator::run) of the
 //! [`Operator`](crate::dataflow::Operator) trait and pulling data from
 //! [`ReadStream`](crate::dataflow::stream::ReadStream)s.
+//! *Callbacks are not invoked while run executes.*
 //!
 //! ## Performance
-//! `ERDOS` is designed for low latency. Self-driving car pipelines require
+//! ERDOS is designed for low latency. Self-driving car pipelines require
 //! end-to-end deadlines on the order of hundreds of milliseconds for safe
 //! driving. Similarly, self-driving cars typically process gigabytes per
-//! second of data on small clusters. Therefore, `ERDOS` is optimized to
+//! second of data on small clusters. Therefore, ERDOS is optimized to
 //! send small amounts of data (gigabytes as opposed to terabytes)
 //! as quickly as possible.
 //!
