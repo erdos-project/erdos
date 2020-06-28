@@ -1,18 +1,36 @@
 Streams
 =======
 
-Streams are used to send messages in ERDOS applications.
-
-Operators send and read messages from streams to communicate with other
-operators and ingest/extract data from the system.
+Streams are used to send data in ERDOS applications.
 
 ERDOS streams are similar to ROS topics, but have a few additional desirable
 properties. Streams facilitate one-to-many communication, so only 1 operator
-sends messages on a stream. ERDOS broadcasts messages sent on a stream to all
-connected operators. In addition, streams are typed when using the Rust API.
+sends messages on a stream.
+ERDOS broadcasts messages sent on a stream to all connected operators.
+In addition, streams are typed when using the Rust API.
 
-Use the following interfaces to send and receive data from streams:
-Read Stream, Write Stream, Ingest Stream, and Extract Stream.
+Streams expose 2 classes of interfaces that access the underlying stream:
+
+#. Read-interfaces expose methods to receive and process data. They allow
+   pulling data by calling ``read()`` and ``try_read()``.
+   Often, they also support a push data model accessed by registering
+   callbacks (e.g. ``add_callback`` and ``add_watermark_callback``).
+   Structures that implement read interfaces include:
+
+  * :py:class:`~erdos.ReadStream`: used by operators to read data and register callbacks.
+
+  * :py:class:`~erdos.ExtractStream`: used by the driver to read data.
+
+#. Write-interfaces expose the send method to send data on a stream.
+   Structures that implement write interfaces include:
+
+  * :py:class:`~erdos.WriteStream`: used by operators to send data.
+
+  * :py:class:`~erdos.IngestStream`: used by the driver to send data.
+
+Some applications may want to introduce loops in their dataflow graphs which
+is possible using the :py:class:`~erdos.LoopStream`.
+
 
 Sending Messages
 ----------------
