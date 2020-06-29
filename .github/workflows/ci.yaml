@@ -34,9 +34,6 @@ jobs:
       with:
         python-version: 3.6
 
-    - name: Install Python dependencies
-      run: python -m pip install fire
-
     - name: Build
       run: cargo build --verbose
 
@@ -62,7 +59,7 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          python -m pip install fire setuptools_rust flake8 yapf flake8-quotes
+          python -m pip install setuptools_rust flake8 yapf flake8-quotes
 
       - name: Check Python formatting
         run: |
