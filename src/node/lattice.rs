@@ -112,7 +112,7 @@ impl PartialOrd for RunnableEvent {
 /// `ExecutionLattice` is a data structure that maintains [`OperatorEvent`]s in a directed
 /// acyclic graph according the partial order defined.
 ///
-/// Events can be added to the lattice using the `add_event` function, and retrieved using the
+/// Events can be added to the lattice using the `add_events` function, and retrieved using the
 /// `get_event` function. The lattice requires a notification of the completion of the event using
 /// the `mark_as_compeleted` function in order to unblock dependent events, and make them runnable.
 ///
@@ -128,8 +128,11 @@ impl PartialOrd for RunnableEvent {
 ///     let mut lattice: ExecutionLattice = ExecutionLattice::new();
 ///
 ///     // Add two events of timestamp 1 and 2 to the lattice with empty callbacks.
-///     lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), true, || ())).await;
-///     lattice.add_event(OperatorEvent::new(Timestamp::new(vec![2]), true, || ())).await;
+///     events = vec![
+///         OperatorEvent::new(Timestamp::new(vec![1]), true, || ())
+///         OperatorEvent::new(Timestamp::new(vec![2]), true, || ())
+///     ];
+///     lattice.add_events(events).await;
 ///
 ///     // Retrieve the first event from the lattice.
 ///     let (event_1, event_id_1) = lattice.get_event().await.unwrap();
@@ -171,148 +174,150 @@ impl ExecutionLattice {
         }
     }
 
-    /// Add an event to the lattice.
+    /// Add a batch of events to the lattice.
     ///
-    /// This function moves the passed event into the lattice, and inserts the appropriate edges to
+    /// This function moves the passed events into the lattice, and inserts the appropriate edges to
     /// existing events in the graph based on the partial order defined in [`OperatorEvent`].
-    pub async fn add_event(&self, event: OperatorEvent) {
+    pub async fn add_events(&self, events: Vec<OperatorEvent>) {
         // Take locks over everything.
         let mut forest = self.forest.lock().await;
         let mut roots = self.roots.lock().await;
         let mut run_queue = self.run_queue.lock().await;
 
-        // Iterate through all the roots, and figure out where to add a dependency edge.
-        let mut dfs = DfsPostOrder::empty(&*forest);
-        let mut dependencies: HashSet<NodeIndex<u32>> = HashSet::new();
-        let mut add_edges_to: Vec<NodeIndex<u32>> = Vec::new();
-        let mut add_edges_from: Vec<NodeIndex<u32>> = Vec::new();
-        let mut remove_roots: Vec<RunnableEvent> = Vec::new();
+        for event in events {
+            // Iterate through all the roots, and figure out where to add a dependency edge.
+            let mut dfs = DfsPostOrder::empty(&*forest);
+            let mut dependencies: HashSet<NodeIndex<u32>> = HashSet::new();
+            let mut add_edges_to: Vec<NodeIndex<u32>> = Vec::new();
+            let mut add_edges_from: Vec<NodeIndex<u32>> = Vec::new();
+            let mut remove_roots: Vec<RunnableEvent> = Vec::new();
 
-        for root in roots.iter() {
-            // Retrieve the index into the lattice.
-            let root_index: NodeIndex<u32> = root.node_index;
+            for root in roots.iter() {
+                // Retrieve the index into the lattice.
+                let root_index: NodeIndex<u32> = root.node_index;
 
-            // This function maintains the stack when iterating over the graph so we do not have to
-            // check the same node in the graph twice.
-            dfs.move_to(root_index);
+                // This function maintains the stack when iterating over the graph so we do not have to
+                // check the same node in the graph twice.
+                dfs.move_to(root_index);
 
-            // Retrieve the next node in DFS order from the forest.
-            while let Some(nx) = dfs.next(&*forest) {
-                // Check if any of the children of the current node in DFS traversal already have a
-                // dependency on the node we are trying to add.
-                let mut dependent_child: bool = false;
-                for child in forest.neighbors(nx) {
-                    if dependencies.contains(&child) {
-                        dependencies.insert(nx);
-                        dependent_child = true;
+                // Retrieve the next node in DFS order from the forest.
+                while let Some(nx) = dfs.next(&*forest) {
+                    // Check if any of the children of the current node in DFS traversal already have a
+                    // dependency on the node we are trying to add.
+                    let mut dependent_child: bool = false;
+                    for child in forest.neighbors(nx) {
+                        if dependencies.contains(&child) {
+                            dependencies.insert(nx);
+                            dependent_child = true;
+                            break;
+                        }
+                    }
+
+                    // If the event we are trying to add has already been added as a dependency of one
+                    // of the children of the DFS node, then move to the next root of the forest.
+                    if dependent_child {
                         break;
                     }
-                }
 
-                // If the event we are trying to add has already been added as a dependency of one
-                // of the children of the DFS node, then move to the next root of the forest.
-                if dependent_child {
-                    break;
-                }
-
-                if let Some(node) = forest.node_weight(nx).unwrap().as_ref() {
-                    // If the event we are trying to add is dependent on the DFS node, then
-                    // add an edge from the DFS node to the event to be added.
-                    if &event <= node {
-                        // Check if any of the children of the DFS node should be dependent on the
-                        // event we are trying to add.
-                        let mut remove_edges: Vec<NodeIndex<u32>> = Vec::new();
-                        for child in forest.neighbors(nx) {
-                            let child_node: &OperatorEvent =
-                                forest.node_weight(child).unwrap().as_ref().unwrap();
-                            if child_node < &event {
-                                // The child has a dependency on the node being added.
-                                // Break the dependency from the DFS node to its child, and add a
-                                // dependency from the node to be added to the child.
-                                add_edges_to.push(child);
-                                remove_edges.push(child);
+                    if let Some(node) = forest.node_weight(nx).unwrap().as_ref() {
+                        // If the event we are trying to add is dependent on the DFS node, then
+                        // add an edge from the DFS node to the event to be added.
+                        if &event <= node {
+                            // Check if any of the children of the DFS node should be dependent on the
+                            // event we are trying to add.
+                            let mut remove_edges: Vec<NodeIndex<u32>> = Vec::new();
+                            for child in forest.neighbors(nx) {
+                                let child_node: &OperatorEvent =
+                                    forest.node_weight(child).unwrap().as_ref().unwrap();
+                                if child_node < &event {
+                                    // The child has a dependency on the node being added.
+                                    // Break the dependency from the DFS node to its child, and add a
+                                    // dependency from the node to be added to the child.
+                                    add_edges_to.push(child);
+                                    remove_edges.push(child);
+                                }
                             }
-                        }
 
-                        // Add a dependency from the DFS node to the node being added, only if the
-                        // partial order says so.
-                        if &event < node {
-                            add_edges_from.push(nx);
-                            for child in remove_edges {
-                                let edge = forest.find_edge(nx, child).unwrap();
-                                forest.remove_edge(edge);
+                            // Add a dependency from the DFS node to the node being added, only if the
+                            // partial order says so.
+                            if &event < node {
+                                add_edges_from.push(nx);
+                                for child in remove_edges {
+                                    let edge = forest.find_edge(nx, child).unwrap();
+                                    forest.remove_edge(edge);
+                                }
+                                dependencies.insert(nx);
                             }
-                            dependencies.insert(nx);
-                        }
-                    } else {
-                        // The current event had no dependent children, but the node in DFS is
-                        // dependent on the current event. Usually, this is resolved in a level
-                        // above, but add edges if the node is root.
-                        if forest.neighbors_directed(nx, Direction::Incoming).count() == 0 {
-                            add_edges_to.push(nx);
-                            for n in run_queue.iter() {
-                                if n.node_index.index() == nx.index() {
-                                    remove_roots.push(n.clone());
+                        } else {
+                            // The current event had no dependent children, but the node in DFS is
+                            // dependent on the current event. Usually, this is resolved in a level
+                            // above, but add edges if the node is root.
+                            if forest.neighbors_directed(nx, Direction::Incoming).count() == 0 {
+                                add_edges_to.push(nx);
+                                for n in run_queue.iter() {
+                                    if n.node_index.index() == nx.index() {
+                                        remove_roots.push(n.clone());
+                                    }
                                 }
                             }
                         }
-                    }
-                } else {
-                    // Reached a node that is already executing, but hasn't been completed.
-                    // The current node will probably get added as a root. Add dependencies to the
-                    // children, if any.
-                    for child in forest.neighbors(nx) {
-                        let child_node = forest.node_weight(child).unwrap().as_ref().unwrap();
-                        if child_node < &event {
-                            add_edges_to.push(child);
+                    } else {
+                        // Reached a node that is already executing, but hasn't been completed.
+                        // The current node will probably get added as a root. Add dependencies to the
+                        // children, if any.
+                        for child in forest.neighbors(nx) {
+                            let child_node = forest.node_weight(child).unwrap().as_ref().unwrap();
+                            if child_node < &event {
+                                add_edges_to.push(child);
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // Add the node into the forest.
-        let event_timestamp: Timestamp = event.timestamp.clone();
-        let event_ix: NodeIndex<u32> = forest.add_node(Some(event));
+            // Add the node into the forest.
+            let event_timestamp: Timestamp = event.timestamp.clone();
+            let event_ix: NodeIndex<u32> = forest.add_node(Some(event));
 
-        // Add the edges from the inserted event to its dependencies.
-        for child in add_edges_to {
-            forest.add_edge(event_ix, child, ());
-        }
-
-        // Break the edges from the dependency graph.
-        for node in add_edges_from {
-            forest.add_edge(node, event_ix, ());
-        }
-
-        // Clean up the roots and the run queue, if any.
-        // TODO (Sukrit) :: BinaryHeap does not provide a way to remove an element that is not at
-        // the top of the heap. So, this particularly costly implementation clones the elements out
-        // of the earlier run_queue, clears the run_queue and initializes it afresh with the set
-        // difference of the old run_queue and the nodes to remove.
-        // Since the invocation of this code is hopefully rare, we can optimize it later.
-        if remove_roots.len() > 0 {
-            // The run queue needs to be reconstructed.
-            let mut old_run_queue: Vec<RunnableEvent> = Vec::new();
-            for event in run_queue.iter() {
-                old_run_queue.push(event.clone());
+            // Add the edges from the inserted event to its dependencies.
+            for child in add_edges_to {
+                forest.add_edge(event_ix, child, ());
             }
-            run_queue.clear();
 
-            roots.retain(|e| !remove_roots.contains(e));
+            // Break the edges from the dependency graph.
+            for node in add_edges_from {
+                forest.add_edge(node, event_ix, ());
+            }
 
-            for item in old_run_queue {
-                if !remove_roots.contains(&item) {
-                    run_queue.push(item);
+            // Clean up the roots and the run queue, if any.
+            // TODO (Sukrit) :: BinaryHeap does not provide a way to remove an element that is not at
+            // the top of the heap. So, this particularly costly implementation clones the elements out
+            // of the earlier run_queue, clears the run_queue and initializes it afresh with the set
+            // difference of the old run_queue and the nodes to remove.
+            // Since the invocation of this code is hopefully rare, we can optimize it later.
+            if remove_roots.len() > 0 {
+                // The run queue needs to be reconstructed.
+                let mut old_run_queue: Vec<RunnableEvent> = Vec::new();
+                for event in run_queue.iter() {
+                    old_run_queue.push(event.clone());
+                }
+                run_queue.clear();
+
+                roots.retain(|e| !remove_roots.contains(e));
+
+                for item in old_run_queue {
+                    if !remove_roots.contains(&item) {
+                        run_queue.push(item);
+                    }
                 }
             }
-        }
 
-        // If no dependencies of this event, then we can safely create a new root in the forest and
-        // add the event to the run queue.
-        if dependencies.is_empty() {
-            roots.push(RunnableEvent::new(event_ix).with_timestamp(event_timestamp.clone()));
-            run_queue.push(RunnableEvent::new(event_ix).with_timestamp(event_timestamp));
+            // If no dependencies of this event, then we can safely create a new root in the forest and
+            // add the event to the run queue.
+            if dependencies.is_empty() {
+                roots.push(RunnableEvent::new(event_ix).with_timestamp(event_timestamp.clone()));
+                run_queue.push(RunnableEvent::new(event_ix).with_timestamp(event_timestamp));
+            }
         }
     }
 
@@ -405,7 +410,8 @@ mod test {
     #[test]
     fn test_root_addition() {
         let lattice: ExecutionLattice = ExecutionLattice::new();
-        block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), false, || ())));
+        let events = vec![OperatorEvent::new(Timestamp::new(vec![1]), false, || ())];
+        block_on(lattice.add_events(events));
 
         // Ensure that the correct event is returned by the lattice.
         let (event, _event_id) = block_on(lattice.get_event()).unwrap();
@@ -427,8 +433,11 @@ mod test {
     #[test]
     fn test_concurrent_messages() {
         let lattice: ExecutionLattice = ExecutionLattice::new();
-        block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), false, || ())));
-        block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), false, || ())));
+        let events = vec![
+            OperatorEvent::new(Timestamp::new(vec![1]), false, || ()),
+            OperatorEvent::new(Timestamp::new(vec![1]), false, || ()),
+        ];
+        block_on(lattice.add_events(events));
 
         // Check the first event is returned correctly by the lattice.
         let (event, _event_id) = block_on(lattice.get_event()).unwrap();
@@ -451,10 +460,12 @@ mod test {
     #[test]
     fn test_watermark_post_concurrent_messages() {
         let lattice: ExecutionLattice = ExecutionLattice::new();
-        block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), false, || ())));
-        block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), false, || ())));
-        block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), true, || ())));
-
+        let events = vec![
+            OperatorEvent::new(Timestamp::new(vec![1]), false, || ()),
+            OperatorEvent::new(Timestamp::new(vec![1]), false, || ()),
+            OperatorEvent::new(Timestamp::new(vec![1]), true, || ()),
+        ];
+        block_on(lattice.add_events(events));
         // Check that the first event is returned correctly by the lattice.
         let (event, event_id) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
@@ -503,9 +514,13 @@ mod test {
     #[test]
     fn test_unordered_watermark() {
         let lattice: ExecutionLattice = ExecutionLattice::new();
-        block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![3]), true, || ())));
-        block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![2]), true, || ())));
-        block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), true, || ())));
+        let events = vec![
+            OperatorEvent::new(Timestamp::new(vec![3]), true, || ()),
+            OperatorEvent::new(Timestamp::new(vec![2]), true, || ()),
+            OperatorEvent::new(Timestamp::new(vec![1]), true, || ()),
+        ];
+        block_on(lattice.add_events(events));
+
         let (event, event_id) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
             event.timestamp.time[0], 1,
@@ -544,9 +559,13 @@ mod test {
     #[test]
     fn test_concurrent_messages_diff_timestamps() {
         let lattice: ExecutionLattice = ExecutionLattice::new();
-        block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![3]), false, || ())));
-        block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![2]), false, || ())));
-        block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), false, || ())));
+        let events = vec![
+            OperatorEvent::new(Timestamp::new(vec![3]), false, || ()),
+            OperatorEvent::new(Timestamp::new(vec![2]), false, || ()),
+            OperatorEvent::new(Timestamp::new(vec![1]), false, || ()),
+        ];
+        block_on(lattice.add_events(events));
+
         let (event, _event_id) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
             event.timestamp.time[0], 1,
@@ -568,12 +587,15 @@ mod test {
     #[test]
     fn test_concurrent_messages_watermarks_diff_timestamps() {
         let lattice: ExecutionLattice = ExecutionLattice::new();
-        block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![3]), true, || ())));
-        block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![2]), true, || ())));
-        block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), true, || ())));
-        block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), false, || ())));
-        block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![2]), false, || ())));
-        block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![3]), false, || ())));
+        let events = vec![
+            OperatorEvent::new(Timestamp::new(vec![3]), true, || ()),
+            OperatorEvent::new(Timestamp::new(vec![2]), true, || ()),
+            OperatorEvent::new(Timestamp::new(vec![1]), true, || ()),
+            OperatorEvent::new(Timestamp::new(vec![1]), false, || ()),
+            OperatorEvent::new(Timestamp::new(vec![2]), false, || ()),
+            OperatorEvent::new(Timestamp::new(vec![3]), false, || ()),
+        ];
+        block_on(lattice.add_events(events));
         let (event, event_id) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
             event.timestamp.time[0] == 1 && !event.is_watermark_callback,
@@ -650,9 +672,12 @@ mod test {
     #[test]
     fn test_ordered_concurrent_execution() {
         let lattice: ExecutionLattice = ExecutionLattice::new();
-        block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![2]), false, || ())));
-        block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![1]), true, || ())));
-        block_on(lattice.add_event(OperatorEvent::new(Timestamp::new(vec![3]), false, || ())));
+        let events = vec![
+            OperatorEvent::new(Timestamp::new(vec![2]), false, || ()),
+            OperatorEvent::new(Timestamp::new(vec![1]), true, || ()),
+            OperatorEvent::new(Timestamp::new(vec![3]), false, || ()),
+        ];
+        block_on(lattice.add_events(events));
 
         let (event, _event_id) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
