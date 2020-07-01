@@ -7,14 +7,15 @@
 #[macro_export]
 macro_rules! flow_watermarks {
     (($($rs:ident),+), ($($ws:ident),+)) => {
-        $crate::add_watermark_callback!(($($rs.add_state(())),+), ($($ws),+), (|timestamp, $($rs),+, $($ws),+| {
+        let cb_builder = $crate::make_callback_builder!(($($rs.add_state(())),+), ($($ws),+));
+        cb_builder.borrow_mut().add_watermark_callback_with_priority(|timestamp, $($rs),+, $($ws),+| {
             $(
                 match $ws.send(Message::new_watermark(timestamp.clone())) {
                     Ok(_) => (),
                     Err(_) => eprintln!("Error flowing watermark"),
                 }
             )+
-        }));
+        }, 127);
     };
     // Cases in which the system doesn't need to flow watermarks
     (($($rs:ident),+), ()) => ();
