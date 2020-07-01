@@ -279,7 +279,9 @@ make_receive_watermark_template = """
                     {get_states}
                     {clone_write_streams}
                     if !watermark_callbacks.is_empty() || !child_events.is_empty() {{
-                        let priority = watermark_callbacks.last().unwrap().1;
+                        // TODO: fix this when unbundling operator events.
+                        let priority = watermark_callbacks.last().map(|x| x.1);
+                        let priority = std::cmp::max(child_events.iter().map(|event| event.priority).max(), priority).unwrap_or(0);
                         events.push(OperatorEvent::new(current_low_watermark.clone(), true, priority, move || {{
                             for (callback, _priority) in watermark_callbacks {{
                                 (callback)({args});
@@ -298,7 +300,8 @@ make_receive_watermark_template = """
                     {get_states}
                     {clone_write_streams}
                     if !watermark_callbacks.is_empty() || !child_events.is_empty() {{
-                        let priority = watermark_callbacks.last().unwrap().1;
+                        let priority = watermark_callbacks.last().map(|x| x.1);
+                        let priority = std::cmp::max(child_events.iter().map(|event| event.priority).max(), priority).unwrap_or(0);
                         events.push(OperatorEvent::new(current_low_watermark.clone(), true, priority, move || {{
                             for (callback, _priority) in watermark_callbacks {{
                                 (callback)({args});
