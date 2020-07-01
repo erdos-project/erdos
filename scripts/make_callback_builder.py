@@ -279,7 +279,7 @@ make_receive_watermark_template = """
                     {get_states}
                     {clone_write_streams}
                     if !watermark_callbacks.is_empty() || !child_events.is_empty() {{
-                        events.push(OperatorEvent::new(current_low_watermark.clone(), true, move || {{
+                        events.push(OperatorEvent::new(current_low_watermark.clone(), true, 0, move || {{
                             for callback in watermark_callbacks {{
                                 (callback)({args});
                             }}
@@ -297,7 +297,7 @@ make_receive_watermark_template = """
                     {get_states}
                     {clone_write_streams}
                     if !watermark_callbacks.is_empty() || !child_events.is_empty() {{
-                        events.push(OperatorEvent::new(current_low_watermark.clone(), true, move || {{
+                        events.push(OperatorEvent::new(current_low_watermark.clone(), true, 0, move || {{
                             for callback in watermark_callbacks {{
                                 (callback)({args});
                             }}

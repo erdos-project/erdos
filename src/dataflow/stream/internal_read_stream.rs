@@ -197,6 +197,7 @@ impl<D: Data> EventMakerT for InternalReadStream<D> {
                     events.push(OperatorEvent::new(
                         msg_arc.timestamp().clone(),
                         false,
+                        0,
                         move || {
                             (callback)(msg_arc.timestamp(), msg_arc.data().unwrap());
                         },
@@ -218,7 +219,7 @@ impl<D: Data> EventMakerT for InternalReadStream<D> {
                     cbs.push(child_event.callback);
                 }
                 if cbs.len() > 0 {
-                    events.push(OperatorEvent::new(timestamp.clone(), true, move || {
+                    events.push(OperatorEvent::new(timestamp.clone(), true, 0, move || {
                         for cb in cbs {
                             (cb)();
                         }
