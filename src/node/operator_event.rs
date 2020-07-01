@@ -24,7 +24,7 @@ pub struct OperatorEvent {
     /// For two otherwise equal watermark callbacks, the lattice creates a dependency from the lower
     /// priority event to the higher priority event. Thus, these events cannot run concurrently,
     /// with the high-priority event running first. An effect is that only watermark callbacks with
-    /// the same priority can run concrurently.
+    /// the same priority can run concurrently.
     pub priority: i8,
     /// The callback invoked when the event is processed.
     pub callback: Box<dyn FnOnce()>,
