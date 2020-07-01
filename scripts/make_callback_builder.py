@@ -279,12 +279,13 @@ make_receive_watermark_template = """
                     {get_states}
                     {clone_write_streams}
                     if !watermark_callbacks.is_empty() || !child_events.is_empty() {{
-                        events.push(OperatorEvent::new(current_low_watermark.clone(), true, 0, move || {{
-                            for callback in watermark_callbacks {{
+                        let priority = watermark_callbacks.last().unwrap().1;
+                        events.push(OperatorEvent::new(current_low_watermark.clone(), true, priority, move || {{
+                            for (callback, _priority) in watermark_callbacks {{
                                 (callback)({args});
                             }}
                             for event in child_events {{
-                            (event.callback)();
+                                (event.callback)();
                             }}
                         }}));
                    }}
@@ -297,12 +298,13 @@ make_receive_watermark_template = """
                     {get_states}
                     {clone_write_streams}
                     if !watermark_callbacks.is_empty() || !child_events.is_empty() {{
-                        events.push(OperatorEvent::new(current_low_watermark.clone(), true, 0, move || {{
-                            for callback in watermark_callbacks {{
+                        let priority = watermark_callbacks.last().unwrap().1;
+                        events.push(OperatorEvent::new(current_low_watermark.clone(), true, priority, move || {{
+                            for (callback, _priority) in watermark_callbacks {{
                                 (callback)({args});
                             }}
                             for event in child_events {{
-                            (event.callback)();
+                                (event.callback)();
                             }}
                         }}));
                    }}
@@ -375,7 +377,8 @@ def make_receive_watermark(num_rs, num_ws, has_state):
 builder_template = """
 pub struct {name}<{types}> {{
     children: Vec<Rc<RefCell<dyn MultiStreamEventMaker>>>,
-    watermark_callbacks: Vec<Arc<dyn {callback_type}>>,
+    /// Callbacks and their priorities
+    watermark_callbacks: Vec<(Arc<dyn {callback_type}>, i8)>,
     {read_stream_id_declarations}
     {read_stream_state_declarations}
     {write_stream_declarations}
@@ -397,7 +400,14 @@ impl<{types}> {name}<{type_params}> {{
     }}
 
     pub fn add_watermark_callback<F: 'static + {callback_type}>(&mut self, callback: F) {{
-        self.watermark_callbacks.push(Arc::new(callback));
+        self.add_watermark_callback_with_priority(callback, 0);
+    }}
+
+    /// Experimental. Should only be used to flow watermarks.
+    /// May break if multiple callbacks.
+    pub fn add_watermark_callback_with_priority<F: 'static + {callback_type}>(&mut self, callback: F, priority: i8) {{
+        self.watermark_callbacks.push((Arc::new(callback), priority));
+        self.watermark_callbacks.sort_by_key(|x| x.1);
     }}
 
     {add_state}
