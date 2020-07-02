@@ -227,12 +227,8 @@ impl OperatorExecutor {
             }
             while let Some(events) = event_stream.next().await {
                 {
-                    {
-                        // Add all the received events to the lattice.
-                        for event in events {
-                            self.lattice.add_event(event).await;
-                        }
-                    }
+                    // Add all the received events to the lattice.
+                    self.lattice.add_events(events).await;
                     // Notify receivers that new events were added.
                     notifier_tx
                         .broadcast(EventRunnerMessage::AddedEvents)

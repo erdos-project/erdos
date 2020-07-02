@@ -85,6 +85,7 @@ impl<D: Data, S: State> EventMakerT for InternalStatefulReadStream<D, S> {
                     events.push(OperatorEvent::new(
                         msg.timestamp().clone(),
                         false,
+                        0,
                         move || {
                             for callback in stateful_cbs {
                                 let msg_arc = Arc::clone(&msg);
@@ -128,6 +129,7 @@ impl<D: Data, S: State> EventMakerT for InternalStatefulReadStream<D, S> {
                     events.push(OperatorEvent::new(
                         msg.timestamp().clone(),
                         true,
+                        0,
                         move || {
                             for cb in cbs {
                                 (cb)();
