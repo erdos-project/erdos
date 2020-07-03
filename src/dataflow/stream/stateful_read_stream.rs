@@ -1,9 +1,11 @@
-use std::sync::Arc;
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
-use crate::dataflow::{
-    callback_builder::{OneReadOneWrite, TwoReadZeroWrite},
-    Data, State, Timestamp,
+use crate::{
+    dataflow::{
+        callback_builder::{OneReadOneWrite, TwoReadZeroWrite},
+        Data, State, Timestamp,
+    },
+    Uuid,
 };
 
 use super::{InternalStatefulReadStream, ReadStream, StreamId, WriteStream};
@@ -38,6 +40,10 @@ impl<D: Data, T: State> StatefulReadStream<D, T> {
     /// Gets a reference to the stream state.
     pub fn get_state(&self) -> Arc<T> {
         self.internal_stream.borrow_mut().get_state()
+    }
+
+    pub(crate) fn get_state_id(&self) -> Uuid {
+        self.internal_stream.borrow().get_state_id()
     }
 
     /// Extends the stream into a bundle of two stateful streams.

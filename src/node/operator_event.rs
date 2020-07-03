@@ -1,7 +1,6 @@
-use std::cmp::Ordering;
-use std::fmt;
+use std::{cmp::Ordering, collections::HashSet, fmt};
 
-use crate::dataflow::Timestamp;
+use crate::{dataflow::Timestamp, Uuid};
 
 /// `OperatorEvent` is a structure that encapsulates a particular invocation of the
 /// callback in response to a message or watermark. These events are processed according to the
@@ -28,6 +27,10 @@ pub struct OperatorEvent {
     pub priority: i8,
     /// The callback invoked when the event is processed.
     pub callback: Box<dyn FnOnce()>,
+    /// IDs of items the event requires read access to.
+    pub read_ids: HashSet<Uuid>,
+    /// IDs of items the event requires write access to.
+    pub write_ids: HashSet<Uuid>,
 }
 
 impl OperatorEvent {
@@ -35,12 +38,16 @@ impl OperatorEvent {
         t: Timestamp,
         is_watermark_callback: bool,
         priority: i8,
+        read_ids: HashSet<Uuid>,
+        write_ids: HashSet<Uuid>,
         callback: impl FnOnce() + 'static,
     ) -> Self {
         Self {
             priority,
             timestamp: t,
             is_watermark_callback,
+            read_ids,
+            write_ids,
             callback: Box::new(callback),
         }
     }
@@ -82,14 +89,47 @@ impl PartialEq for OperatorEvent {
     }
 }
 
+// TODO: we can allow appends to occur in parallel.
+fn resolve_access_conflicts(x: &OperatorEvent, y: &OperatorEvent) -> Ordering {
+    let has_ww_conflicts = !x.write_ids.is_disjoint(&y.write_ids);
+    if has_ww_conflicts {
+        match x.priority.cmp(&y.priority) {
+            Ordering::Equal => {
+                // Prioritize events with less dependencies
+                let x_num_dependencies = x.read_ids.len() + x.write_ids.len();
+                let y_num_dependencies = y.read_ids.len() + y.write_ids.len();
+                x_num_dependencies.cmp(&y_num_dependencies)
+            }
+            ord => ord,
+        }
+    } else {
+        let has_rw_conflicts = !x.read_ids.is_disjoint(&y.write_ids);
+        let has_wr_conflicts = !x.write_ids.is_disjoint(&y.read_ids);
+        match (has_rw_conflicts, has_wr_conflicts) {
+            (true, true) => {
+                panic!("A circular dependency between OperatorEvents should never happen.")
+            }
+            (true, false) => Ordering::Less,
+            (false, true) => Ordering::Greater,
+            (false, false) => x.priority.cmp(&y.priority).reverse(),
+        }
+    }
+}
+
 impl Ord for OperatorEvent {
     fn cmp(&self, other: &OperatorEvent) -> Ordering {
         match (self.is_watermark_callback, other.is_watermark_callback) {
             (true, true) => {
                 // Both of the events are watermarks, so the watermark with the lower timestamp
-                // should run first. Ties are broken by priority where asmaller number is higher priority.
+                // should run first. Ties are broken by first by dependencies to ensure
+                // that writes to state occur before reads, and then by priority where a smaller
+                // number is higher priority.
                 match self.timestamp.cmp(&other.timestamp).reverse() {
-                    Ordering::Equal => self.priority.cmp(&other.priority).reverse(),
+                    Ordering::Equal => match resolve_access_conflicts(&self, other) {
+                        // Prioritize other
+                        Ordering::Equal => Ordering::Less,
+                        ord => ord,
+                    },
                     ord => ord,
                 }
             }
@@ -106,6 +146,7 @@ impl Ord for OperatorEvent {
                     }
                     Ordering::Less => {
                         // `self` timestamp is less than `other`, run them in any order.
+                        // Assume state is time-versioned, so dependency issues should not arise.
                         Ordering::Equal
                     }
                 }
@@ -123,14 +164,14 @@ impl Ord for OperatorEvent {
                     }
                     Ordering::Less => {
                         // `other` timestamp is less than `self`, run them in any order.
+                        // Assume state is time-versioned, so dependency issues should not arise.
                         Ordering::Equal
                     }
                 }
             }
-            (false, false) => {
-                // Neither of the events are watermark callbacks, and can be run concurrently.
-                Ordering::Equal
-            }
+            // Neither of the events are watermark callbacks.
+            // If they have no WW, RW, or WR conflicts, they can run concurrently.
+            (false, false) => resolve_access_conflicts(&self, other),
         }
     }
 }
@@ -149,10 +190,22 @@ mod test {
     #[test]
     fn test_watermark_event_orderings() {
         {
-            let watermark_event_a: OperatorEvent =
-                OperatorEvent::new(Timestamp::new(vec![1]), true, 0, || ());
-            let watermark_event_b: OperatorEvent =
-                OperatorEvent::new(Timestamp::new(vec![2]), true, 0, || ());
+            let watermark_event_a: OperatorEvent = OperatorEvent::new(
+                Timestamp::new(vec![1]),
+                true,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            );
+            let watermark_event_b: OperatorEvent = OperatorEvent::new(
+                Timestamp::new(vec![2]),
+                true,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            );
             assert_eq!(
                 watermark_event_a < watermark_event_b,
                 false,
@@ -171,17 +224,35 @@ mod test {
         }
         // Test that priorities should break ties only for otherwise equal watermark callbacks.
         {
-            let watermark_event_a: OperatorEvent =
-                OperatorEvent::new(Timestamp::new(vec![1]), true, -1, || ());
-            let watermark_event_b: OperatorEvent =
-                OperatorEvent::new(Timestamp::new(vec![1]), true, 1, || ());
+            let watermark_event_a: OperatorEvent = OperatorEvent::new(
+                Timestamp::new(vec![1]),
+                true,
+                -1,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            );
+            let watermark_event_b: OperatorEvent = OperatorEvent::new(
+                Timestamp::new(vec![1]),
+                true,
+                1,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            );
             assert!(
                 watermark_event_a > watermark_event_b,
                 "Watermark B should depend on Watermark A"
             );
 
-            let watermark_event_c: OperatorEvent =
-                OperatorEvent::new(Timestamp::new(vec![0]), true, 0, || ());
+            let watermark_event_c: OperatorEvent = OperatorEvent::new(
+                Timestamp::new(vec![0]),
+                true,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            );
             assert!(
                 watermark_event_a < watermark_event_c,
                 "Watermark A should depend on Watermark C"
@@ -191,8 +262,14 @@ mod test {
                 "Watermark B should depend on Watermark C"
             );
 
-            let watermark_event_d: OperatorEvent =
-                OperatorEvent::new(Timestamp::new(vec![2]), true, 0, || ());
+            let watermark_event_d: OperatorEvent = OperatorEvent::new(
+                Timestamp::new(vec![2]),
+                true,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            );
             assert!(
                 watermark_event_d < watermark_event_a,
                 "Watermark D should depend on Watermark A"
@@ -203,8 +280,14 @@ mod test {
             );
 
             // Priority should not affect message events
-            let message_event_a: OperatorEvent =
-                OperatorEvent::new(Timestamp::new(vec![1]), false, 0, || ());
+            let message_event_a: OperatorEvent = OperatorEvent::new(
+                Timestamp::new(vec![1]),
+                false,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            );
             assert!(
                 watermark_event_a < message_event_a,
                 "Watermark A with timestamp 1 should depend on Message A with timestamp 1"
@@ -214,8 +297,14 @@ mod test {
                 "Watermark B with timestamp 1 should depend on Message A with timestamp 1"
             );
 
-            let message_event_b: OperatorEvent =
-                OperatorEvent::new(Timestamp::new(vec![2]), false, 0, || ());
+            let message_event_b: OperatorEvent = OperatorEvent::new(
+                Timestamp::new(vec![2]),
+                false,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            );
             assert_eq!(
                 watermark_event_a, message_event_b,
                 "Watermark A and Message A should not depend on each other"
@@ -231,10 +320,22 @@ mod test {
     /// and thus can be run concurrently by the executor.
     #[test]
     fn test_message_event_orderings() {
-        let message_event_a: OperatorEvent =
-            OperatorEvent::new(Timestamp::new(vec![1]), false, 0, || ());
-        let message_event_b: OperatorEvent =
-            OperatorEvent::new(Timestamp::new(vec![2]), false, 0, || ());
+        let message_event_a: OperatorEvent = OperatorEvent::new(
+            Timestamp::new(vec![1]),
+            false,
+            0,
+            HashSet::new(),
+            HashSet::new(),
+            || (),
+        );
+        let message_event_b: OperatorEvent = OperatorEvent::new(
+            Timestamp::new(vec![2]),
+            false,
+            0,
+            HashSet::new(),
+            HashSet::new(),
+            || (),
+        );
         assert_eq!(
             message_event_a == message_event_b,
             true,
@@ -257,10 +358,22 @@ mod test {
         // Test that a message with a timestamp less than the watermark ensures that the watermark
         // is dependent on the message.
         {
-            let message_event_a: OperatorEvent =
-                OperatorEvent::new(Timestamp::new(vec![1]), false, 0, || ());
-            let watermark_event_b: OperatorEvent =
-                OperatorEvent::new(Timestamp::new(vec![2]), true, 0, || ());
+            let message_event_a: OperatorEvent = OperatorEvent::new(
+                Timestamp::new(vec![1]),
+                false,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            );
+            let watermark_event_b: OperatorEvent = OperatorEvent::new(
+                Timestamp::new(vec![2]),
+                true,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            );
             assert_eq!(
                 message_event_a == watermark_event_b,
                 false,
@@ -302,10 +415,22 @@ mod test {
         // Test that a message with a timestamp equivalent to the watermark is run before the
         // watermark.
         {
-            let message_event_a: OperatorEvent =
-                OperatorEvent::new(Timestamp::new(vec![1]), false, 0, || ());
-            let watermark_event_b: OperatorEvent =
-                OperatorEvent::new(Timestamp::new(vec![1]), true, 0, || ());
+            let message_event_a: OperatorEvent = OperatorEvent::new(
+                Timestamp::new(vec![1]),
+                false,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            );
+            let watermark_event_b: OperatorEvent = OperatorEvent::new(
+                Timestamp::new(vec![1]),
+                true,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            );
             assert_eq!(
                 message_event_a == watermark_event_b,
                 false,
@@ -347,10 +472,22 @@ mod test {
         // Test that a message with a timestamp greater than a watermark can be run concurrently
         // with a watermark of lesser timestamp.
         {
-            let message_event_a: OperatorEvent =
-                OperatorEvent::new(Timestamp::new(vec![2]), false, 0, || ());
-            let watermark_event_b: OperatorEvent =
-                OperatorEvent::new(Timestamp::new(vec![1]), true, 0, || ());
+            let message_event_a: OperatorEvent = OperatorEvent::new(
+                Timestamp::new(vec![2]),
+                false,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            );
+            let watermark_event_b: OperatorEvent = OperatorEvent::new(
+                Timestamp::new(vec![1]),
+                true,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            );
             assert_eq!(
                 message_event_a == watermark_event_b,
                 true,
