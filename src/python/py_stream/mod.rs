@@ -154,7 +154,162 @@ pub fn add_watermark_callback(
         return Ok(());
     }
 
+    let nine_read = eight_read
+        .borrow_mut()
+        .add_read_stream(&stateful_read_streams[8]);
+
+    if stateful_read_streams.len() == 9 {
+        nine_read.borrow_mut().add_watermark_callback(
+            move |timestamp, _s0, _s1, _s2, _s3, _s4, _s5, _s6, _s7, _s8| {
+                let gil = Python::acquire_gil();
+                let py = gil.python();
+                match callback.call1(py, (timestamp.time.clone(), timestamp.is_top())) {
+                    Ok(_) => (),
+                    Err(e) => e.print(py),
+                };
+            },
+        );
+        return Ok(());
+    }
+
+    let ten_read = nine_read
+        .borrow_mut()
+        .add_read_stream(&stateful_read_streams[9]);
+
+    if stateful_read_streams.len() == 10 {
+        ten_read.borrow_mut().add_watermark_callback(
+            move |timestamp, _s0, _s1, _s2, _s3, _s4, _s5, _s6, _s7, _s8, _s9| {
+                let gil = Python::acquire_gil();
+                let py = gil.python();
+                match callback.call1(py, (timestamp.time.clone(), timestamp.is_top())) {
+                    Ok(_) => (),
+                    Err(e) => e.print(py),
+                };
+            },
+        );
+        return Ok(());
+    }
+
+    let eleven_read = ten_read
+        .borrow_mut()
+        .add_read_stream(&stateful_read_streams[10]);
+
+    if stateful_read_streams.len() == 11 {
+        eleven_read.borrow_mut().add_watermark_callback(
+            move |timestamp, _s0, _s1, _s2, _s3, _s4, _s5, _s6, _s7, _s8, _s9, _s10| {
+                let gil = Python::acquire_gil();
+                let py = gil.python();
+                match callback.call1(py, (timestamp.time.clone(), timestamp.is_top())) {
+                    Ok(_) => (),
+                    Err(e) => e.print(py),
+                };
+            },
+        );
+        return Ok(());
+    }
+
+    let twelve_read = eleven_read
+        .borrow_mut()
+        .add_read_stream(&stateful_read_streams[11]);
+
+    if stateful_read_streams.len() == 12 {
+        twelve_read.borrow_mut().add_watermark_callback(
+            move |timestamp, _s0, _s1, _s2, _s3, _s4, _s5, _s6, _s7, _s8, _s9, _s10, _s11| {
+                let gil = Python::acquire_gil();
+                let py = gil.python();
+                match callback.call1(py, (timestamp.time.clone(), timestamp.is_top())) {
+                    Ok(_) => (),
+                    Err(e) => e.print(py),
+                };
+            },
+        );
+        return Ok(());
+    }
+
+    let thirteen_read = twelve_read
+        .borrow_mut()
+        .add_read_stream(&stateful_read_streams[12]);
+
+    if stateful_read_streams.len() == 13 {
+        thirteen_read.borrow_mut().add_watermark_callback(
+            move |timestamp, _s0, _s1, _s2, _s3, _s4, _s5, _s6, _s7, _s8, _s9, _s10, _s11, _s12| {
+                let gil = Python::acquire_gil();
+                let py = gil.python();
+                match callback.call1(py, (timestamp.time.clone(), timestamp.is_top())) {
+                    Ok(_) => (),
+                    Err(e) => e.print(py),
+                };
+            },
+        );
+        return Ok(());
+    }
+
+    let fourteen_read = thirteen_read
+        .borrow_mut()
+        .add_read_stream(&stateful_read_streams[13]);
+
+    if stateful_read_streams.len() == 14 {
+        fourteen_read.borrow_mut().add_watermark_callback(
+            move |timestamp,
+                  _s0,
+                  _s1,
+                  _s2,
+                  _s3,
+                  _s4,
+                  _s5,
+                  _s6,
+                  _s7,
+                  _s8,
+                  _s9,
+                  _s10,
+                  _s11,
+                  _s12,
+                  _s13| {
+                let gil = Python::acquire_gil();
+                let py = gil.python();
+                match callback.call1(py, (timestamp.time.clone(), timestamp.is_top())) {
+                    Ok(_) => (),
+                    Err(e) => e.print(py),
+                };
+            },
+        );
+        return Ok(());
+    }
+
+    let fifteen_read = fourteen_read
+        .borrow_mut()
+        .add_read_stream(&stateful_read_streams[14]);
+
+    if stateful_read_streams.len() == 15 {
+        fifteen_read.borrow_mut().add_watermark_callback(
+            move |timestamp,
+                  _s0,
+                  _s1,
+                  _s2,
+                  _s3,
+                  _s4,
+                  _s5,
+                  _s6,
+                  _s7,
+                  _s8,
+                  _s9,
+                  _s10,
+                  _s11,
+                  _s12,
+                  _s13,
+                  _s14| {
+                let gil = Python::acquire_gil();
+                let py = gil.python();
+                match callback.call1(py, (timestamp.time.clone(), timestamp.is_top())) {
+                    Ok(_) => (),
+                    Err(e) => e.print(py),
+                };
+            },
+        );
+        return Ok(());
+    }
+
     Err(PyErr::new::<exceptions::TypeError, _>(
-        "Unable to create watermark callback across more than eight read streams",
+        "Unable to create watermark callback across more than fifteen read streams",
     ))
 }
