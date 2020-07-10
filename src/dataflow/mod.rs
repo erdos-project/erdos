@@ -19,6 +19,38 @@ pub use operator::{Operator, OperatorConfig};
 pub use state::State;
 pub use stream::{LoopStream, ReadStream, StatefulReadStream, WriteStream};
 
+/// Adds a watermark callback over a vector a [`ReadStream`]s and
+/// [`WriteStream`]s.
+///
+/// This function is experimental and may be changed in the future.
+pub fn add_watermark_callback_vec<
+    T: Data,
+    U: Data,
+    F: 'static + Fn(&Timestamp, &mut Vec<WriteStream<U>>),
+>(
+    read_streams: Vec<&ReadStream<T>>,
+    write_streams: Vec<&WriteStream<U>>,
+    callback: F,
+    priority: i8,
+) {
+    let read_streams: Vec<StatefulReadStream<T, ()>> = read_streams
+        .iter()
+        .map(|read_stream| read_stream.add_state(()))
+        .collect();
+
+    let bundle = match read_streams.get(0) {
+        Some(rs) => rs,
+        None => return,
+    };
+    #[allow(unused)] // Suppress warnings for generated code.
+    {
+        include!(concat!(
+            env!("OUT_DIR"),
+            "/add_watermark_callback_vec_generated.rs"
+        ));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     // Imports used in tests

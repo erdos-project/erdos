@@ -24,7 +24,7 @@ pub struct InternalStatefulReadStream<D: Data, S: State> {
     /// Callbacks registered on the stream.
     callbacks: Vec<Arc<dyn Fn(&Timestamp, &D, &mut S)>>,
     /// Watermark callbacks registered on the stream.
-    watermark_cbs: Vec<Arc<dyn Fn(&Timestamp, &mut S)>>,
+    watermark_cbs: Vec<(Arc<dyn Fn(&Timestamp, &mut S)>, i8)>,
     /// Vector of stream bundles that must be invoked when this stream receives a message.
     children: RefCell<Vec<Rc<RefCell<dyn MultiStreamEventMaker>>>>,
 }
@@ -55,7 +55,17 @@ impl<D: Data, S: State> InternalStatefulReadStream<D, S> {
     /// Add a callback to be invoked after the stream received, and the operator
     /// processed all the messages with a timestamp.
     pub fn add_watermark_callback<F: 'static + Fn(&Timestamp, &mut S)>(&mut self, callback: F) {
-        self.watermark_cbs.push(Arc::new(callback));
+        self.add_watermark_callback_with_priority(callback, 0);
+    }
+
+    /// Add a callback to be invoked after the stream received, and the operator
+    /// processed all the messages with a timestamp.
+    pub(crate) fn add_watermark_callback_with_priority<F: 'static + Fn(&Timestamp, &mut S)>(
+        &mut self,
+        callback: F,
+        priority: i8,
+    ) {
+        self.watermark_cbs.push((Arc::new(callback), priority));
     }
 
     /// Gets a reference to the stream state.
@@ -111,14 +121,14 @@ impl<D: Data, S: State> EventMakerT for InternalStatefulReadStream<D, S> {
             Message::Watermark(timestamp) => {
                 // Watermark callback
                 let watermark_cbs = self.watermark_cbs.clone();
-                for watermark_cb in watermark_cbs {
+                for (watermark_cb, priority) in watermark_cbs {
                     let cb = Arc::clone(&watermark_cb);
                     let timestamp_copy = timestamp.clone();
                     let mut state_arc = Arc::clone(&self.state);
                     events.push(OperatorEvent::new(
                         timestamp_copy.clone(),
                         true,
-                        0,
+                        priority,
                         HashSet::with_capacity(0),
                         write_ids.clone(),
                         move || {

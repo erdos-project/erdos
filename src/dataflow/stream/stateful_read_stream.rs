@@ -37,6 +37,19 @@ impl<D: Data, T: State> StatefulReadStream<D, T> {
             .add_watermark_callback(callback);
     }
 
+    /// Add a callback to be invoked after the stream received, and the operator
+    /// processed all the messages with a timestamp.
+    #[allow(unused)]
+    pub(crate) fn add_watermark_callback_with_priority<F: 'static + Fn(&Timestamp, &mut T)>(
+        &self,
+        callback: F,
+        priority: i8,
+    ) {
+        self.internal_stream
+            .borrow_mut()
+            .add_watermark_callback_with_priority(callback, priority);
+    }
+
     /// Gets a reference to the stream state.
     pub fn get_state(&self) -> Arc<T> {
         self.internal_stream.borrow_mut().get_state()

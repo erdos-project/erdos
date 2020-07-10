@@ -7,8 +7,9 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use crate::{
     communication::ControlMessage,
     dataflow::{
-        graph::default_graph, stream::InternalReadStream, Operator, OperatorConfig, ReadStream,
-        WriteStream,
+        graph::default_graph,
+        stream::{InternalReadStream, WriteStreamT},
+        Message, Operator, OperatorConfig, ReadStream, WriteStream,
     },
     node::{
         operator_executor::{OperatorExecutor, OperatorExecutorStream, OperatorExecutorStreamT},
@@ -112,6 +113,10 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
                     })
                     .collect();
 
+                if flow_watermarks {
+                    flow_watermarks_py(&py_read_streams, &py_write_streams);
+                }
+
                 // Create operator executor streams from read streams
                 let mut op_ex_streams: Vec<Box<dyn OperatorExecutorStreamT>> = Vec::new();
                 for py_read_stream in py_read_streams.iter() {
@@ -153,10 +158,6 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
                     .err()
                     .map(|e| e.print(py));
                 locals
-                    .set_item("flow_watermarks", flow_watermarks)
-                    .err()
-                    .map(|e| e.print(py));
-                locals
                     .set_item("args", args_arc.clone_ref(py))
                     .err()
                     .map(|e| e.print(py));
@@ -187,9 +188,6 @@ operator._config = config
 trace_logger_name = "{}-profile".format(type(operator) if config.name is None else config.name)
 operator._trace_event_logger = erdos.utils.setup_trace_logging(trace_logger_name, config.profile_file_name)
 operator.__init__(*read_streams, *write_streams, *args, **kwargs)
-
-if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
-   erdos.add_watermark_callback(read_streams, write_streams, erdos._flow_watermark_callback)
 "#,
                     None,
                     Some(&locals),
@@ -324,6 +322,25 @@ if flow_watermarks and len(read_streams) > 0 and len(write_streams) > 0:
     }
 
     Ok(())
+}
+
+fn flow_watermarks_py(read_streams: &Vec<PyReadStream>, write_streams: &Vec<PyWriteStream>) {
+    let read_streams: Vec<&ReadStream<Vec<u8>>> =
+        read_streams.iter().map(|rs| &rs.read_stream).collect();
+    let write_streams: Vec<&WriteStream<Vec<u8>>> =
+        write_streams.iter().map(|ws| &ws.write_stream).collect();
+    crate::dataflow::add_watermark_callback_vec(
+        read_streams,
+        write_streams,
+        |t, write_streams| {
+            for write_stream in write_streams {
+                write_stream
+                    .send(Message::new_watermark(t.clone()))
+                    .expect("Error flowing watermarks for python opreator.");
+            }
+        },
+        127,
+    );
 }
 
 struct PyOperator {

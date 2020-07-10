@@ -22,6 +22,7 @@ pub fn add_watermark_callback(
     read_streams: Vec<&PyReadStream>,
     callback: PyObject,
 ) -> PyResult<()> {
+    // TODO FIX THIS FOR PYTHON
     if read_streams.len() == 1 {
         read_streams[0].add_watermark_callback(callback);
         return Ok(());
