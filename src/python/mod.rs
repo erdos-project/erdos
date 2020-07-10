@@ -316,9 +316,39 @@ operator.__init__(*read_streams, *write_streams, *args, **kwargs)
     #[pyfn(m, "add_watermark_callback")]
     fn add_watermark_callback_py(
         read_streams: Vec<&PyReadStream>,
+        write_streams: Vec<&PyWriteStream>,
         callback: PyObject,
+        priority: i8,
     ) -> PyResult<()> {
-        py_stream::add_watermark_callback(read_streams, callback)
+        if read_streams.len() > 15 {
+            Err(PyErr::new::<exceptions::TypeError, _>(
+                "Unable to create watermark callback across more than fifteen read streams",
+            ))
+        } else if write_streams.len() > 8 {
+            Err(PyErr::new::<exceptions::TypeError, _>(
+                "Unable to create watermark callback across more than eight write streams",
+            ))
+        } else {
+            let read_streams: Vec<&ReadStream<Vec<u8>>> =
+                read_streams.iter().map(|rs| &rs.read_stream).collect();
+            let write_streams: Vec<&WriteStream<Vec<u8>>> =
+                write_streams.iter().map(|ws| &ws.write_stream).collect();
+            crate::dataflow::add_watermark_callback_vec(
+                read_streams,
+                write_streams,
+                move |t, _write_streams| {
+                    let gil = Python::acquire_gil();
+                    let py = gil.python();
+                    let py_msg = PyMessage::from(Message::new_watermark(t.clone()));
+                    match callback.call1(py, (py_msg,)) {
+                        Ok(_) => (),
+                        Err(e) => e.print(py),
+                    };
+                },
+                priority,
+            );
+            Ok(())
+        }
     }
 
     Ok(())

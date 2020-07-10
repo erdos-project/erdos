@@ -177,7 +177,7 @@ def run_async(graph_filename=None, start_port=9000):
     return NodeHandle(py_node_handle, processes)
 
 
-def _add_watermark_callback(read_streams, write_streams, callback):
+def add_watermark_callback(read_streams, write_streams, callback):
     """Adds a watermark callback across several read streams.
 
     Args:
@@ -188,17 +188,15 @@ def _add_watermark_callback(read_streams, write_streams, callback):
         callback (timestamp, list of WriteStream -> None): a low watermark
             callback.
     """
-    _add_watermark_callback(read_streams, write_streams, 0, callback)
-
-
-def _add_watermark_callback(read_streams, write_streams, priority, callback):
-    def internal_watermark_callback(coordinates, is_top):
-        timestamp = Timestamp(coordinates=coordinates, is_top=is_top)
+    def internal_watermark_callback(py_msg):
+        timestamp = Timestamp(coordinates=py_msg.timestamp,
+                              is_top=py_msg.is_top_watermark())
         callback(timestamp, *write_streams)
 
     py_read_streams = [s._py_read_stream for s in read_streams]
-    _internal.add_watermark_callback(py_read_streams, callback,
-                                     internal_watermark_callback)
+    py_write_streams = [s._py_write_stream for s in write_streams]
+    _internal.add_watermark_callback(py_read_streams, py_write_streams,
+                                     internal_watermark_callback, 0)
 
 
 def profile(event_name, operator, event_data=None):
