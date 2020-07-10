@@ -23,9 +23,11 @@ add_write_stream_template = """
 """
 
 add_watermark_callback_template = """
-                    bundle.add_watermark_callback_with_priority(move |t, {states}, {write_streams}| {{
-                        let mut write_streams = vec![{write_streams_cloned}];
-                        callback(t, &mut write_streams);
+                    bundle.add_watermark_callback_with_priority(
+                        move |t, {states}, {write_streams}| {{
+                            let mut write_streams = vec![
+                                {write_streams_cloned}];
+                            callback(t, &mut write_streams);
                     }}, priority);
 """
 
@@ -54,8 +56,8 @@ def make_add_watermark_callback_vec(num_read_streams, num_write_streams):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description=
-        "Generate callback builders for m read streams and n write streams.")
+        description=("Generate callback builders for m read streams and n "
+                     "write streams."))
     parser.add_argument("read_streams",
                         type=int,
                         help="number of read streams")
