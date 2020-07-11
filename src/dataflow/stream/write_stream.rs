@@ -87,12 +87,12 @@ impl<D: Data> WriteStream<D> {
     fn update_watermark(&mut self, msg: &Message<D>) -> Result<(), WriteStreamError> {
         match msg {
             Message::TimestampedData(td) => {
-                if td.timestamp < self.low_watermark {
+                if td.timestamp <= self.low_watermark {
                     return Err(WriteStreamError::TimestampError);
                 }
             }
             Message::Watermark(msg_watermark) => {
-                if msg_watermark < &self.low_watermark {
+                if msg_watermark <= &self.low_watermark {
                     return Err(WriteStreamError::TimestampError);
                 }
                 self.low_watermark = msg_watermark.clone();
