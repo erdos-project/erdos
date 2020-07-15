@@ -1,5 +1,20 @@
 import argparse
 
+error_check_template = """
+    if read_streams.len() > {max_num_read_streams} {{
+        panic!("Attempted to construct callback over more than \\
+            {max_num_read_streams} read streams (provided {{}} \\
+            read streams). To support more read streams, please change the \\
+            ERDOS build parameters in build.rs.", read_streams.len());
+    }}
+    if write_streams.len() > {max_num_write_streams} {{
+        panic!("Attempted to construct callback over more than \\
+            {max_num_write_streams} write streams (provided {{}} \\
+            write streams). To support more write streams, please change the \\
+            ERDOS build parameters in build.rs.", write_streams.len());
+    }}
+"""
+
 add_read_stream_template = """
     let bundle = match read_streams.get({i}) {{
         Some(rs) => bundle.add_read_stream(rs),
@@ -34,6 +49,9 @@ add_watermark_callback_template = """
 
 def make_add_watermark_callback_vec(num_read_streams, num_write_streams):
     result = "{"
+    result += error_check_template.format(
+        max_num_read_streams=num_read_streams,
+        max_num_write_streams=num_write_streams)
     for i in range(1, num_read_streams):
         add_write_streams = ""
         for j in range(num_write_streams):
