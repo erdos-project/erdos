@@ -93,12 +93,12 @@ impl PartialEq for OperatorEvent {
 fn resolve_access_conflicts(x: &OperatorEvent, y: &OperatorEvent) -> Ordering {
     let has_ww_conflicts = !x.write_ids.is_disjoint(&y.write_ids);
     if has_ww_conflicts {
-        match x.priority.cmp(&y.priority) {
+        match x.priority.cmp(&y.priority).reverse() {
             Ordering::Equal => {
                 // Prioritize events with less dependencies
                 let x_num_dependencies = x.read_ids.len() + x.write_ids.len();
                 let y_num_dependencies = y.read_ids.len() + y.write_ids.len();
-                x_num_dependencies.cmp(&y_num_dependencies)
+                x_num_dependencies.cmp(&y_num_dependencies).reverse()
             }
             ord => ord,
         }
@@ -151,24 +151,7 @@ impl Ord for OperatorEvent {
                     }
                 }
             }
-            (false, true) => {
-                // `other` is a watermark, and `self` is a normal message callback.
-                match other.timestamp.cmp(&self.timestamp) {
-                    Ordering::Greater => {
-                        // `other` timestamp is greater than `self`, execute other first.
-                        Ordering::Greater
-                    }
-                    Ordering::Equal => {
-                        // `other` timestamp is equal to `self`, execute other first.
-                        Ordering::Greater
-                    }
-                    Ordering::Less => {
-                        // `other` timestamp is less than `self`, run them in any order.
-                        // Assume state is time-versioned, so dependency issues should not arise.
-                        Ordering::Equal
-                    }
-                }
-            }
+            (false, true) => other.cmp(self).reverse(),
             // Neither of the events are watermark callbacks.
             // If they have no WW, RW, or WR conflicts, they can run concurrently.
             (false, false) => resolve_access_conflicts(&self, other),
@@ -525,5 +508,59 @@ mod test {
                 on Watermark B with timestamp 2."
             );
         }
+    }
+
+    #[test]
+    fn test_resolve_access_conflicts() {
+        let mut write_ids = HashSet::new();
+        write_ids.insert(Uuid::new_deterministic());
+        let event_a = OperatorEvent::new(
+            Timestamp::new(vec![0]),
+            true,
+            0,
+            HashSet::new(),
+            write_ids.clone(),
+            || {},
+        );
+
+        let event_b = OperatorEvent::new(
+            Timestamp::new(vec![0]),
+            true,
+            1,
+            HashSet::new(),
+            write_ids.clone(),
+            || {},
+        );
+        assert!(
+            event_a > event_b,
+            "Should prioritize conflicting evens with higher priority."
+        );
+
+        let mut read_ids = HashSet::new();
+        read_ids.insert(Uuid::new_deterministic());
+        let event_c = OperatorEvent::new(
+            Timestamp::new(vec![0]),
+            true,
+            0,
+            read_ids,
+            write_ids.clone(),
+            || {},
+        );
+        assert!(
+            event_a > event_c,
+            "Should priotize conflicting events with less dependencies."
+        );
+
+        let read_ids = write_ids.clone();
+        let event_d = OperatorEvent::new(
+            Timestamp::new(vec![0]),
+            true,
+            0,
+            read_ids,
+            HashSet::new(),
+            || {},
+        );
+        assert!(event_a > event_d, "Should prioritize writes over reads.");
+        assert!(event_d < event_a, "Should prioritize writes over reads.");
     }
 }
