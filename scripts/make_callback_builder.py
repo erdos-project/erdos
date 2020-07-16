@@ -8,7 +8,7 @@ rust_imports = """// # Callback Builders for Multiple Streams
 // To change callback builders, please edit `scripts/make_callback_builder.py`
 // and use `scripts/make_callback_builder.sh` to generate a new `callback_builder.rs` file.
 
-use std::{{cell::RefCell, rc::Rc}};
+use std::{{cell::RefCell, rc::Rc, collections::HashSet}};
 use std::sync::Arc;
 use std::borrow::Borrow;
 
@@ -19,6 +19,7 @@ use crate::{{
         Data, State, StatefulReadStream, Timestamp, WriteStream,
     }},
     node::operator_event::OperatorEvent,
+    Uuid,
 }};
 
 pub trait MultiStreamEventMaker {{
@@ -100,6 +101,16 @@ def make_write_stream_declarations(num_ws, indent_level=1):
         map(lambda y: "ws{}: WriteStream<W{}>,".format(y, y), range(num_ws)))
 
 
+def make_read_ids(num_rs, indent_level=1):
+    indent = " " * (4 * indent_level)
+    assignment = indent + "let mut read_ids = HashSet::new();\n"
+    inserts = [
+        "read_ids.insert(rs{x}.get_state_id());".format(x=x)
+        for x in range(num_rs)
+    ]
+    return "\n{}".format(indent).join([assignment] + inserts)
+
+
 def make_read_stream_id_assignments(num_rs,
                                     template="rs{x}.get_id()",
                                     indent_level=1):
@@ -142,9 +153,13 @@ def make_received_watermark_assignments(num_rs, indent_level=1):
 
 add_state_template = """
     pub fn add_state<S: State>(&mut self, state: S) -> Rc<RefCell<{name}<{type_params}>>> {{
+        let mut write_ids = HashSet::with_capacity(1);
+        write_ids.insert(Uuid::new_deterministic());
         let result = Rc::new(RefCell::new({name} {{
             children: Vec::new(),
             watermark_callbacks: Vec::new(),
+            read_ids: self.read_ids.clone(),
+            write_ids,
             {read_stream_id_assignments}
             {read_stream_state_assignments}
             {write_stream_assignments}
@@ -178,9 +193,13 @@ def make_add_state(num_rs, num_ws):
 
 add_read_stream_template = """
     pub fn add_read_stream<R{num_rs}: Data, S{num_rs}: 'static + State>(&mut self, read_stream: &StatefulReadStream<R{num_rs}, S{num_rs}>) -> Rc<RefCell<{name}<{type_params}>>> {{
+        let mut read_ids = self.read_ids.clone();
+        read_ids.insert(read_stream.get_state_id());
         let result = Rc::new(RefCell::new({name} {{
             children: Vec::new(),
             watermark_callbacks: Vec::new(),
+            read_ids,
+            write_ids: self.write_ids.clone(),
             {read_stream_id_assignments}
             rs{num_rs}_id: read_stream.get_id(),
             {read_stream_state_assignments}
@@ -224,6 +243,8 @@ add_write_stream_template = """
         let result = Rc::new(RefCell::new({name} {{
             children: Vec::new(),
             watermark_callbacks: Vec::new(),
+            read_ids: self.read_ids.clone(),
+            write_ids: self.write_ids.clone(),
             {read_stream_id_assignments}
             {read_stream_state_assignments}
             {write_stream_assignments}
@@ -266,56 +287,37 @@ make_receive_watermark_template = """
         {set_watermark}
         {current_low_watermark}
 
-        let child_events: Vec<OperatorEvent> = self.children.iter()
-            .map(|child| child.borrow_mut().receive_watermark(stream_id, t.clone()))
-            .flatten()
-            .collect();
         let mut events = Vec::new();
         match (previous_low_watermark_opt, current_low_watermark_opt) {{
             (Some(previous_low_watermark), Some(current_low_watermark)) => {{
-                if previous_low_watermark < current_low_watermark && !(child_events.is_empty() && self.watermark_callbacks.is_empty()) {{
-                    let watermark_callbacks = self.watermark_callbacks.clone();
-                    {clone_state}
-                    {get_states}
-                    {clone_write_streams}
-                    if !watermark_callbacks.is_empty() || !child_events.is_empty() {{
-                        // TODO: fix this when unbundling operator events.
-                        let priority = watermark_callbacks.last().map(|x| x.1);
-                        let priority = std::cmp::max(child_events.iter().map(|event| event.priority).max(), priority).unwrap_or(0);
-                        events.push(OperatorEvent::new(current_low_watermark.clone(), true, priority, move || {{
-                            for (callback, _priority) in watermark_callbacks {{
-                                (callback)({args});
-                            }}
-                            for event in child_events {{
-                                (event.callback)();
-                            }}
-                        }}));
-                   }}
+                if previous_low_watermark < current_low_watermark && !self.watermark_callbacks.is_empty() {{
+                    for (callback, priority) in self.watermark_callbacks.clone() {{
+                        {clone_state}
+                        {get_states}
+                        {clone_write_streams}
+                        let current_low_watermark = current_low_watermark.clone();
+                        events.push(OperatorEvent::new(current_low_watermark.clone(), true, priority,
+                            self.read_ids.clone(), self.write_ids.clone(), move || {{ (callback)({args}); }}));
+                    }}
                }}
             }},
             (None, Some(current_low_watermark)) => {{
-                if !(child_events.is_empty() && self.watermark_callbacks.is_empty()) {{
-                    let watermark_callbacks = self.watermark_callbacks.clone();
-                    {clone_state}
-                    {get_states}
-                    {clone_write_streams}
-                    if !watermark_callbacks.is_empty() || !child_events.is_empty() {{
-                        let priority = watermark_callbacks.last().map(|x| x.1);
-                        let priority = std::cmp::max(child_events.iter().map(|event| event.priority).max(), priority).unwrap_or(0);
-                        events.push(OperatorEvent::new(current_low_watermark.clone(), true, priority, move || {{
-                            for (callback, _priority) in watermark_callbacks {{
-                                (callback)({args});
-                            }}
-                            for event in child_events {{
-                                (event.callback)();
-                            }}
-                        }}));
-                   }}
+                if !self.watermark_callbacks.is_empty() {{
+                    for (callback, priority) in self.watermark_callbacks.clone() {{
+                        {clone_state}
+                        {get_states}
+                        {clone_write_streams}
+                        let current_low_watermark = current_low_watermark.clone();
+                        events.push(OperatorEvent::new(current_low_watermark.clone(), true, priority,
+                            self.read_ids.clone(), self.write_ids.clone(), move || {{ (callback)({args}); }}));
+                    }}
                }}
             }},
             _ => (),
         }}
-
+        events.extend(self.children.iter()
+            .map(|child| child.borrow_mut().receive_watermark(stream_id, t.clone()))
+            .flatten());
         events
     }}
 """
@@ -382,6 +384,8 @@ pub struct {name}<{types}> {{
     children: Vec<Rc<RefCell<dyn MultiStreamEventMaker>>>,
     /// Callbacks and their priorities
     watermark_callbacks: Vec<(Arc<dyn {callback_type}>, i8)>,
+    read_ids: HashSet<Uuid>,
+    write_ids: HashSet<Uuid>,
     {read_stream_id_declarations}
     {read_stream_state_declarations}
     {write_stream_declarations}
@@ -391,9 +395,13 @@ pub struct {name}<{types}> {{
 
 impl<{types}> {name}<{type_params}> {{
     pub fn new<{rs_type_params}>({constructor_args}) -> Self {{
+        {read_ids}
+        let write_ids = HashSet::with_capacity(0);
         Self {{
             children: Vec::new(),
             watermark_callbacks: Vec::new(),
+            read_ids,
+            write_ids,
             {read_stream_id_assignments}
             {read_stream_state_assignments}
             {write_stream_assignments}
@@ -449,6 +457,7 @@ def make_builder(num_rs,
         num_rs, num_ws) if include_add_write_stream and not has_state else ""
     make_events = make_receive_watermark(num_rs, num_ws, has_state)
     constructor_args = make_constructor_args(num_rs, num_ws, has_state)
+    read_ids = make_read_ids(num_rs, 4)
     read_stream_id_assignments = make_read_stream_id_assignments(
         num_rs, "rs{x}.get_id()", 4)
     read_stream_state_assignments = make_read_stream_state_assignments(
@@ -475,6 +484,7 @@ def make_builder(num_rs,
         type_params=type_params,
         has_state=has_state,
         constructor_args=constructor_args,
+        read_ids=read_ids,
         read_stream_id_assignments=read_stream_id_assignments,
         read_stream_state_assignments=read_stream_state_assignments,
         write_stream_assignments=write_stream_assignments,

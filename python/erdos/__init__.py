@@ -188,19 +188,15 @@ def add_watermark_callback(read_streams, write_streams, callback):
         callback (timestamp, list of WriteStream -> None): a low watermark
             callback.
     """
-    def internal_watermark_callback(coordinates, is_top):
-        timestamp = Timestamp(coordinates=coordinates, is_top=is_top)
+    def internal_watermark_callback(py_msg):
+        timestamp = Timestamp(coordinates=py_msg.timestamp,
+                              is_top=py_msg.is_top_watermark())
         callback(timestamp, *write_streams)
 
     py_read_streams = [s._py_read_stream for s in read_streams]
-    _internal.add_watermark_callback(py_read_streams,
-                                     internal_watermark_callback)
-
-
-def _flow_watermark_callback(timestamp, *write_streams):
-    """Flows a watermark to all write streams."""
-    for write_stream in write_streams:
-        write_stream.send(WatermarkMessage(timestamp))
+    py_write_streams = [s._py_write_stream for s in write_streams]
+    _internal.add_watermark_callback(py_read_streams, py_write_streams,
+                                     internal_watermark_callback, 0)
 
 
 def profile(event_name, operator, event_data=None):

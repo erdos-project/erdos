@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{cell::RefCell, collections::HashSet, rc::Rc, sync::Arc};
 
 use crate::{
     communication::{RecvEndpoint, TryRecvError},
@@ -184,10 +184,6 @@ impl<D: Data> EventMakerT for InternalReadStream<D> {
 
     fn make_events(&self, msg: Arc<Message<Self::EventDataType>>) -> Vec<OperatorEvent> {
         let mut events: Vec<OperatorEvent> = Vec::new();
-        let mut child_events: Vec<OperatorEvent> = Vec::new();
-        for child in self.children.iter() {
-            child_events.append(&mut child.borrow_mut().make_events(msg.clone()));
-        }
         match msg.as_ref() {
             Message::TimestampedData(_) => {
                 // Stateless callbacks may run in parallel, so create 1 event for each
@@ -198,34 +194,33 @@ impl<D: Data> EventMakerT for InternalReadStream<D> {
                         msg_arc.timestamp().clone(),
                         false,
                         0,
+                        HashSet::with_capacity(0),
+                        HashSet::with_capacity(0),
                         move || {
                             (callback)(msg_arc.timestamp(), msg_arc.data().unwrap());
                         },
                     ))
                 }
-                // Add child events at the end
-                events.append(&mut child_events);
             }
             Message::Watermark(timestamp) => {
-                // Watermark callbacks must run in deterministic sequential order, so create 1 event for all
-                let mut cbs: Vec<Box<dyn FnOnce()>> = Vec::new();
                 let watermark_cbs = self.watermark_cbs.clone();
                 for watermark_cb in watermark_cbs {
                     let cb = Arc::clone(&watermark_cb);
                     let timestamp_copy = timestamp.clone();
-                    cbs.push(Box::new(move || (cb)(&timestamp_copy)))
-                }
-                for child_event in child_events {
-                    cbs.push(child_event.callback);
-                }
-                if cbs.len() > 0 {
-                    events.push(OperatorEvent::new(timestamp.clone(), true, 0, move || {
-                        for cb in cbs {
-                            (cb)();
-                        }
-                    }))
+                    events.push(OperatorEvent::new(
+                        timestamp.clone(),
+                        true,
+                        0,
+                        HashSet::with_capacity(0),
+                        HashSet::with_capacity(0),
+                        move || (cb)(&timestamp_copy),
+                    ));
                 }
             }
+        }
+
+        for child in self.children.iter() {
+            events.append(&mut child.borrow_mut().make_events(msg.clone()));
         }
         events
     }
