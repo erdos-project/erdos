@@ -40,7 +40,6 @@ git clone https://github.com/erdos-project/erdos.git && cd erdos
 cargo build
 ```
 
-
 ## Python Installation
 
 To develop an ERDOS application in Python, simply run
@@ -67,6 +66,15 @@ build times), run `python3 python/setup.py install`.
 ```console
 python3 python/examples/simple_pipeline.py
 ```
+
+## Build parameters
+
+By default, ERDOS supports up to 20 read streams and 10 write streams in a stream bundle (used to add callbacks across multiple streams; see callback builder in Rust docs for more details).
+Some applications may require bundles that support more read and write streams. This can be configured by setting the `ERDOS_BUNDLE_MAX_READ_STREAMS` and `ERDOS_BUNDLE_MAX_WRITE_STREAMS` environment variables when building.
+
+Building ERDOS for the first time may be slow because these parameters result in generated code which dominates the build time.
+Subsequent builds should be much faster due to caching unless `build.rs` or the code generation scripts are modified.
+In that case, consider setting `ERDOS_BUNDLE_MAX_READ_STREAMS` and `ERDOS_BUNDLE_MAX_WRITE_STREAMS` to speed up builds.
 
 # Writing Applications
 
