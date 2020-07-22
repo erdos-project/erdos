@@ -19,18 +19,17 @@ ENV SHELL /bin/bash
 SHELL ["/bin/bash", "-c"]
 
 # Instal rust.
-RUN sudo apt-get -y install curl clang python3 python3-pip
+RUN sudo apt-get -y install curl clang python3 python3-pip git
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/home/erdos/.cargo/bin:${PATH}"
 RUN rustup default nightly
 
 # Get the erdos directory.
 RUN pip3 install setuptools setuptools-rust
-RUN sudo apt-get -y install git
 RUN mkdir -p /home/erdos/workspace
 RUN cd /home/erdos/workspace && git clone https://github.com/erdos-project/erdos.git
 WORKDIR /home/erdos/workspace/erdos
 RUN cd /home/erdos/workspace/erdos
 RUN cargo build --release
 # Install the python package
-RUN python3 python/setup.py develop --user
+RUN python3 python/setup.py install --user
