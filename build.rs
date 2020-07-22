@@ -34,31 +34,46 @@ where
 
 fn make_callback_builder(max_read_streams: usize, max_write_streams: usize) -> Result<(), String> {
     let out_dir = env::var("OUT_DIR").unwrap();
-    let callback_builder_path = Path::new(&out_dir).join("callback_builder_generated.rs");
+    let out_file_path = Path::new(&out_dir).join("callback_builder_generated.rs");
 
-    let mut callback_builder_script = env::current_dir().unwrap();
-    callback_builder_script.push("scripts");
-    callback_builder_script.push("make_callback_builder.py");
+    let mut script = env::current_dir().unwrap();
+    script.push("scripts");
+    script.push("make_callback_builder.py");
 
-    let callback_builder_file = File::create(callback_builder_path.to_str().unwrap())
-        .map_err(|e| format!("make_callback_builder: {}", e.to_string()))?;
+    let file = File::create(out_file_path.to_str().unwrap()).map_err(|e| {
+        format!(
+            "Error creating file {}: {}",
+            out_file_path.to_str().unwrap(),
+            e.to_string()
+        )
+    })?;
 
     let child = Command::new("python3")
-        .arg(callback_builder_script.to_str().unwrap())
+        .arg(script.to_str().unwrap())
         .args(&[max_read_streams.to_string(), max_write_streams.to_string()])
-        .stdout(Stdio::from(callback_builder_file))
+        .stdout(Stdio::from(file))
         .spawn()
-        .map_err(|e| format!("make_callback_builder: {}", e.to_string()))?;
+        .map_err(|e| {
+            format!(
+                "Error running {}: {}",
+                script.to_str().unwrap(),
+                e.to_string()
+            )
+        })?;
 
-    let output = child
-        .wait_with_output()
-        .map_err(|e| format!("make_callback_builder: {}", e.to_string()))?;
+    let output = child.wait_with_output().map_err(|e| {
+        format!(
+            "Error running {}: {}",
+            script.to_str().unwrap(),
+            e.to_string()
+        )
+    })?;
 
     if !output.status.success() {
         return Err(format!(
-            "make_callback_builder: {}",
-            String::from_utf8(output.stderr)
-                .unwrap_or("failed to run `scripts/make_callback_builder.py`".to_string())
+            "Error running {}: {}",
+            script.to_str().unwrap(),
+            String::from_utf8(output.stderr).unwrap_or("".to_string())
         ));
     }
 
@@ -70,32 +85,46 @@ fn make_add_watermark_callback(
     max_write_streams: usize,
 ) -> Result<(), String> {
     let out_dir = env::var("OUT_DIR").unwrap();
-    let callback_builder_path = Path::new(&out_dir).join("add_watermark_callback_vec_generated.rs");
+    let out_file_path = Path::new(&out_dir).join("add_watermark_callback_vec_generated.rs");
 
     let mut script = env::current_dir().unwrap();
     script.push("scripts");
     script.push("make_add_watermark_callback_vec.py");
 
-    let callback_builder_file = File::create(callback_builder_path.to_str().unwrap())
-        .map_err(|e| format!("make_add_watermark_callback_vec: {}", e.to_string()))?;
+    let file = File::create(out_file_path.to_str().unwrap()).map_err(|e| {
+        format!(
+            "Error creating file {}: {}",
+            out_file_path.to_str().unwrap(),
+            e.to_string()
+        )
+    })?;
 
     let child = Command::new("python3")
         .arg(script.to_str().unwrap())
         .args(&[max_read_streams.to_string(), max_write_streams.to_string()])
-        .stdout(Stdio::from(callback_builder_file))
+        .stdout(Stdio::from(file))
         .spawn()
-        .map_err(|e| format!("make_add_watermark_callback_vec: {}", e.to_string()))?;
+        .map_err(|e| {
+            format!(
+                "Error running {}: {}",
+                script.to_str().unwrap(),
+                e.to_string()
+            )
+        })?;
 
-    let output = child
-        .wait_with_output()
-        .map_err(|e| format!("make_add_watermark_callback_vec: {}", e.to_string()))?;
+    let output = child.wait_with_output().map_err(|e| {
+        format!(
+            "Error running {}: {}",
+            script.to_str().unwrap(),
+            e.to_string()
+        )
+    })?;
 
     if !output.status.success() {
         return Err(format!(
-            "make_callback_builder: {}",
-            String::from_utf8(output.stderr).unwrap_or(
-                "failed to run `scripts/make_add_watermark_callback_vec.py`".to_string()
-            )
+            "Error running {}: {}",
+            script.to_str().unwrap(),
+            String::from_utf8(output.stderr).unwrap_or("".to_string())
         ));
     }
 
@@ -116,7 +145,7 @@ fn main() -> Result<(), String> {
     );
 
     slog::info!(logger, "Generating code for stream bundles.");
-    make_callback_builder(bundle_max_read_streams, bundle_max_write_streams)?;
+    make_callback_builder(&logger, bundle_max_read_streams, bundle_max_write_streams)?;
     slog::info!(logger, "Done generating code for stream bundles.");
 
     slog::info!(
