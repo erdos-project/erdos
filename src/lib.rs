@@ -150,7 +150,6 @@
 
 // Required for specialization.
 #![allow(incomplete_features)]
-
 #![feature(get_mut_unchecked)]
 #![feature(specialization)]
 #![feature(box_into_pin)]
