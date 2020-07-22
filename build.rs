@@ -145,7 +145,7 @@ fn main() -> Result<(), String> {
     );
 
     slog::info!(logger, "Generating code for stream bundles.");
-    make_callback_builder(&logger, bundle_max_read_streams, bundle_max_write_streams)?;
+    make_callback_builder(bundle_max_read_streams, bundle_max_write_streams)?;
     slog::info!(logger, "Done generating code for stream bundles.");
 
     slog::info!(
