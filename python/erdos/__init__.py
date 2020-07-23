@@ -246,6 +246,11 @@ class NodeHandle(object):
         self.py_node_handle = py_node_handle
         self.processes = processes
 
+    def join(self):
+        """Waits until all processes finish."""
+        for p in self.processes:
+            p.join()
+
     def shutdown(self):
         """Shuts down the dataflow."""
         print("shutting down other processes")
