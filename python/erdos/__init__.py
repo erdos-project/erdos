@@ -1,5 +1,6 @@
 import multiprocessing as mp
 import inspect
+import os
 import signal
 import sys
 
@@ -250,7 +251,10 @@ class NodeHandle(object):
         print("shutting down other processes")
         for p in self.processes:
             p.terminate()
-            p.join()
+            p.join(1)
+            if p.is_alive():
+                print("Process did not terminate; sending SIGKILL")
+                os.kill(p.pid, signal.SIGKILL)
         print("shutting down node")
         self.py_node_handle.shutdown_node()
         print("done shutting down")
