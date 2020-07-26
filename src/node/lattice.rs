@@ -308,6 +308,14 @@ impl ExecutionLattice {
                 run_queue.push(RunnableEvent::new(event_ix).with_timestamp(event_timestamp));
             }
         }
+
+        if forest.node_count() > 25 {
+            slog::warn!(
+                crate::get_terminal_logger(),
+                "{} operator events queued in lattice. Increase number of operator executors or decrease incoming \
+                message frequency to reduce load.", forest.node_count()
+            )
+        }
     }
 
     /// Retrieve an event to be executed from the lattice.
