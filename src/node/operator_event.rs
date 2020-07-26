@@ -4,7 +4,7 @@ use crate::{dataflow::Timestamp, Uuid};
 
 /// `OperatorEvent` is a structure that encapsulates a particular invocation of the
 /// callback in response to a message or watermark. These events are processed according to the
-/// partial order defined by the `PartialOrd` trait.
+/// partial order defined by the `PartialOrd` trait, where `x < y` implies `x` *precedes* `y`.
 ///
 /// The event is passed to an instance of
 /// [`OperatorExecutor`](../operator_executor/struct.OperatorExecutor.html)
@@ -90,15 +90,16 @@ impl PartialEq for OperatorEvent {
 }
 
 // TODO: we can allow appends to occur in parallel.
+/// `x < y` implies `x` *precedes* `y`.
 fn resolve_access_conflicts(x: &OperatorEvent, y: &OperatorEvent) -> Ordering {
     let has_ww_conflicts = !x.write_ids.is_disjoint(&y.write_ids);
     if has_ww_conflicts {
-        match x.priority.cmp(&y.priority).reverse() {
+        match x.priority.cmp(&y.priority) {
             Ordering::Equal => {
                 // Prioritize events with less dependencies
                 let x_num_dependencies = x.read_ids.len() + x.write_ids.len();
                 let y_num_dependencies = y.read_ids.len() + y.write_ids.len();
-                x_num_dependencies.cmp(&y_num_dependencies).reverse()
+                x_num_dependencies.cmp(&y_num_dependencies)
             }
             ord => ord,
         }
@@ -109,13 +110,15 @@ fn resolve_access_conflicts(x: &OperatorEvent, y: &OperatorEvent) -> Ordering {
             (true, true) => {
                 panic!("A circular dependency between OperatorEvents should never happen.")
             }
-            (true, false) => Ordering::Less,
-            (false, true) => Ordering::Greater,
-            (false, false) => x.priority.cmp(&y.priority).reverse(),
+            // Prioritize writes.
+            (true, false) => Ordering::Greater,
+            (false, true) => Ordering::Less,
+            (false, false) => x.priority.cmp(&y.priority),
         }
     }
 }
 
+/// Ordering used in the lattice where `self < other` implies `self` *precedes* other.
 impl Ord for OperatorEvent {
     fn cmp(&self, other: &OperatorEvent) -> Ordering {
         match (self.is_watermark_callback, other.is_watermark_callback) {
@@ -124,10 +127,10 @@ impl Ord for OperatorEvent {
                 // should run first. Ties are broken by first by dependencies to ensure
                 // that writes to state occur before reads, and then by priority where a smaller
                 // number is higher priority.
-                match self.timestamp.cmp(&other.timestamp).reverse() {
+                match self.timestamp.cmp(&other.timestamp) {
                     Ordering::Equal => match resolve_access_conflicts(&self, other) {
-                        // Prioritize other
-                        Ordering::Equal => Ordering::Less,
+                        // Prioritize other.
+                        Ordering::Equal => Ordering::Greater,
                         ord => ord,
                     },
                     ord => ord,
@@ -135,14 +138,16 @@ impl Ord for OperatorEvent {
             }
             (true, false) => {
                 // `self` is a watermark, and `other` is a normal message callback.
+                // TODO: can compare dependencies to increase parallelism and order on a more
+                // fine-grained level.
                 match self.timestamp.cmp(&other.timestamp) {
                     Ordering::Greater => {
                         // `self` timestamp is greater than `other`, execute `other` first.
-                        Ordering::Less
+                        Ordering::Greater
                     }
                     Ordering::Equal => {
                         // `self` timestamp is equal to `other`, execute `other` first.
-                        Ordering::Less
+                        Ordering::Greater
                     }
                     Ordering::Less => {
                         // `self` timestamp is less than `other`, run them in any order.
@@ -189,20 +194,9 @@ mod test {
                 HashSet::new(),
                 || (),
             );
-            assert_eq!(
+            assert!(
                 watermark_event_a < watermark_event_b,
-                false,
-                "Watermark A should not depend on Watermark B."
-            );
-            assert_eq!(
-                watermark_event_b < watermark_event_a,
-                true,
-                "Watermark B should depend on Watermark A."
-            );
-            assert_eq!(
-                watermark_event_b == watermark_event_a,
-                false,
-                "Watermark B should not concurrently with Watermark A."
+                "A has a lower timestamp and should precede B."
             );
         }
         // Test that priorities should break ties only for otherwise equal watermark callbacks.
@@ -224,8 +218,8 @@ mod test {
                 || (),
             );
             assert!(
-                watermark_event_a > watermark_event_b,
-                "Watermark B should depend on Watermark A"
+                watermark_event_a < watermark_event_b,
+                "A is higher priority and should precede B."
             );
 
             let watermark_event_c: OperatorEvent = OperatorEvent::new(
@@ -237,12 +231,12 @@ mod test {
                 || (),
             );
             assert!(
-                watermark_event_a < watermark_event_c,
-                "Watermark A should depend on Watermark C"
+                watermark_event_a > watermark_event_c,
+                "C has a smaller timestamp and should precede A."
             );
             assert!(
-                watermark_event_b < watermark_event_c,
-                "Watermark B should depend on Watermark C"
+                watermark_event_b > watermark_event_c,
+                "C has a smaller timestamp and should precede B."
             );
 
             let watermark_event_d: OperatorEvent = OperatorEvent::new(
@@ -254,12 +248,12 @@ mod test {
                 || (),
             );
             assert!(
-                watermark_event_d < watermark_event_a,
-                "Watermark D should depend on Watermark A"
+                watermark_event_a < watermark_event_d,
+                "D has a larger timestamp and should follow A."
             );
             assert!(
-                watermark_event_d < watermark_event_b,
-                "Watermark D should depend on Watermark B"
+                watermark_event_b < watermark_event_d,
+                "D has a larger timestamp and should follow B."
             );
 
             // Priority should not affect message events
@@ -272,12 +266,12 @@ mod test {
                 || (),
             );
             assert!(
-                watermark_event_a < message_event_a,
-                "Watermark A with timestamp 1 should depend on Message A with timestamp 1"
+                message_event_a < watermark_event_a,
+                "Message A should precede Watermark A independent of priority."
             );
             assert!(
-                watermark_event_b < message_event_a,
-                "Watermark B with timestamp 1 should depend on Message A with timestamp 1"
+                message_event_a < watermark_event_b,
+                "Message A should precede Watermark B independent of priority."
             );
 
             let message_event_b: OperatorEvent = OperatorEvent::new(
@@ -290,11 +284,11 @@ mod test {
             );
             assert_eq!(
                 watermark_event_a, message_event_b,
-                "Watermark A and Message A should not depend on each other"
+                "Watermark A and Message B can execute concurrently."
             );
             assert_eq!(
                 watermark_event_b, message_event_b,
-                "Watermark A and Message A should not depend on each other"
+                "Watermark B and Message B can execute concurrently."
             );
         }
     }
@@ -319,20 +313,9 @@ mod test {
             HashSet::new(),
             || (),
         );
-        assert_eq!(
+        assert!(
             message_event_a == message_event_b,
-            true,
-            "Message A and Message B should be able to run concurrently."
-        );
-        assert_eq!(
-            message_event_a < message_event_b,
-            false,
-            "Message A and Message B should not depend on each other."
-        );
-        assert_eq!(
-            message_event_a > message_event_b,
-            false,
-            "Message A and Message B should not depend on each other."
+            "Message A and Message B can run concurrently."
         );
     }
 
@@ -357,41 +340,9 @@ mod test {
                 HashSet::new(),
                 || (),
             );
-            assert_eq!(
-                message_event_a == watermark_event_b,
-                false,
-                "Message A with timestamp 1 and Watermark B\
-                 with timestamp 2 should not be able to run concurrently."
-            );
-            assert_eq!(
-                watermark_event_b == message_event_a,
-                false,
-                "Message A with timestamp 1 and Watermark B\
-                 with timestamp 2 should not be able to run concurrently."
-            );
-            assert_eq!(
+            assert!(
                 message_event_a < watermark_event_b,
-                false,
-                "Message A with timestamp 1 should not depend\
-                on Watermark B with timestamp 2."
-            );
-            assert_eq!(
-                watermark_event_b < message_event_a,
-                true,
-                "Watermark B with timestamp 2 should depend\
-                on Message with timestamp 1"
-            );
-            assert_eq!(
-                message_event_a > watermark_event_b,
-                true,
-                "Watermark B with timestamp 2 should depend\
-                on Message with timestamp 1"
-            );
-            assert_eq!(
-                watermark_event_b > message_event_a,
-                false,
-                "Message A with timestamp 1 should not depend\
-                on Watermark B with timestamp 2."
+                "Message A with timestamp 1 should precede Watermark B with timestamp 2."
             );
         }
 
@@ -414,41 +365,9 @@ mod test {
                 HashSet::new(),
                 || (),
             );
-            assert_eq!(
-                message_event_a == watermark_event_b,
-                false,
-                "Message A with timestamp 1 and Watermark B\
-                 with timestamp 2 should not be able to run concurrently."
-            );
-            assert_eq!(
-                watermark_event_b == message_event_a,
-                false,
-                "Message A with timestamp 1 and Watermark B\
-                 with timestamp 2 should not be able to run concurrently."
-            );
-            assert_eq!(
+            assert!(
                 message_event_a < watermark_event_b,
-                false,
-                "Message A with timestamp 1 should not depend\
-                on Watermark B with timestamp 2."
-            );
-            assert_eq!(
-                watermark_event_b < message_event_a,
-                true,
-                "Watermark B with timestamp 2 should depent\
-                on Message A with timestamp 1"
-            );
-            assert_eq!(
-                message_event_a > watermark_event_b,
-                true,
-                "Watermark B with timestamp 2 should depent\
-                on Message A with timestamp 1"
-            );
-            assert_eq!(
-                watermark_event_b > message_event_a,
-                false,
-                "Message A with timestamp 1 should not depend\
-                on Watermark B with timestamp 2."
+                "Message A with timestamp 1 should precede Watermark B with timestamp 1."
             );
         }
 
@@ -471,41 +390,9 @@ mod test {
                 HashSet::new(),
                 || (),
             );
-            assert_eq!(
+            assert!(
                 message_event_a == watermark_event_b,
-                true,
-                "Message A with timestamp 1 and Watermark B\
-                 with timestamp 2 can run concurrently."
-            );
-            assert_eq!(
-                watermark_event_b == message_event_a,
-                true,
-                "Message A with timestamp 1 and Watermark B\
-                 with timestamp 2 can run concurrently."
-            );
-            assert_eq!(
-                message_event_a < watermark_event_b,
-                false,
-                "Message A with timestamp 1 should not depend\
-                on Watermark B with timestamp 2."
-            );
-            assert_eq!(
-                watermark_event_b < message_event_a,
-                false,
-                "Message A with timestamp 1 should not depend\
-                on Watermark B with timestamp 2."
-            );
-            assert_eq!(
-                message_event_a > watermark_event_b,
-                false,
-                "Message A with timestamp 1 should not depend\
-                on Watermark B with timestamp 2."
-            );
-            assert_eq!(
-                watermark_event_b > message_event_a,
-                false,
-                "Message A with timestamp 1 should not depend\
-                on Watermark B with timestamp 2."
+                "Message A with timestamp 1 and Watermark B with timestamp 2 can run concurrently."
             );
         }
     }
@@ -531,10 +418,7 @@ mod test {
             write_ids.clone(),
             || {},
         );
-        assert!(
-            event_a > event_b,
-            "Should prioritize conflicting evens with higher priority."
-        );
+        assert!(event_a < event_b, "A should precede B due to priority.");
 
         let mut read_ids = HashSet::new();
         read_ids.insert(Uuid::new_deterministic());
@@ -547,8 +431,8 @@ mod test {
             || {},
         );
         assert!(
-            event_a > event_c,
-            "Should priotize conflicting events with less dependencies."
+            event_a < event_c,
+            "A should precede C because A has fewer dependencies."
         );
 
         let read_ids = write_ids.clone();
@@ -560,7 +444,9 @@ mod test {
             HashSet::new(),
             || {},
         );
-        assert!(event_a > event_d, "Should prioritize writes over reads.");
-        assert!(event_d < event_a, "Should prioritize writes over reads.");
+        assert!(
+            event_a < event_d,
+            "A should precede D due to a WR conflict."
+        );
     }
 }
