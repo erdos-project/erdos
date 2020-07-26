@@ -7,6 +7,7 @@ use std::{
 
 use futures::lock::Mutex;
 use petgraph::{
+    dot::{self, Dot},
     stable_graph::{EdgeIndex, NodeIndex, StableGraph},
     visit::DfsPostOrder,
     Direction,
@@ -112,8 +113,9 @@ impl PartialOrd for RunnableEvent {
     }
 }
 
-/// `ExecutionLattice` is a data structure that maintains [`OperatorEvent`]s in a directed
-/// acyclic graph according the partial order defined.
+/// `ExecutionLattice` is a data structure that maintains [`OperatorEvent`]s in a
+/// [dependency graph](https://en.wikipedia.org/wiki/Dependency_graph) according the partial order
+/// defined.
 ///
 /// Events can be added to the lattice using the `add_events` function, and retrieved using the
 /// `get_event` function. The lattice requires a notification of the completion of the event using
@@ -157,7 +159,8 @@ impl PartialOrd for RunnableEvent {
 /// ```
 pub struct ExecutionLattice {
     /// The `forest` is the directed acyclic graph that maintains the dependency graph of the
-    /// events.
+    /// events. The relation A -> B means that A *depends on* B.This dependency also indicates that
+    /// B precedes A (B < A) in the ordering. An event can be executed if it has no outbound edges.
     forest: Arc<Mutex<StableGraph<Option<OperatorEvent>, ()>>>,
     /// The `roots` are the roots of the forest of graphs, have no dependencies and can be run by
     /// the event executors.
@@ -188,90 +191,82 @@ impl ExecutionLattice {
         let mut run_queue = self.run_queue.lock().await;
 
         for event in events {
-            // Iterate through all the roots, and figure out where to add a dependency edge to indicate precedence.
+            // Visits each node in the graph once.
             let mut dfs = DfsPostOrder::empty(&*forest);
-            let mut dependencies: HashSet<NodeIndex<u32>> = HashSet::new();
-            let mut add_edges_to: Vec<NodeIndex<u32>> = Vec::new();
-            let mut add_edges_from: Vec<NodeIndex<u32>> = Vec::new();
-            let mut remove_roots: Vec<RunnableEvent> = Vec::new();
+            // Caches preceding events to avoid adding redundant dependencies.
+            // For example, A -> C is redundant if A -> B -> C.
+            let mut preceding_events: HashSet<NodeIndex<u32>> = HashSet::new();
+            // The added event depends on these nodes.
+            let mut outgoing_edges: Vec<NodeIndex<u32>> = Vec::new();
+            // Other nodes depend on the added event.
+            let mut incoming_edges: Vec<NodeIndex<u32>> = Vec::new();
+            // These nodes are no longer roots after the added event is inserted into the graph.
+            let mut demoted_roots: Vec<RunnableEvent> = Vec::new();
 
-            for root in roots.iter() {
-                // Retrieve the index into the lattice.
-                let root_index: NodeIndex<u32> = root.node_index;
-
-                // This function maintains the stack when iterating over the graph so we do not have to
-                // check the same node in the graph twice.
-                dfs.move_to(root_index);
-
-                // Retrieve the next node in DFS order from the forest.
+            // Iterate through the forest with a DFS from each root to figure out where to add dependency edges.
+            'dfs_roots: for root in roots.iter() {
+                // Begin a DFS at the specified root.
+                dfs.move_to(root.node_index);
                 while let Some(nx) = dfs.next(&*forest) {
-                    // Check if any of the children of the current node in DFS traversal already have a
-                    // dependency on the node we are trying to add.
-                    let mut dependent_child: bool = false;
+                    // If any of the current node's children precede the added event, then the current node also precedes
+                    // the added event. By induction, the root would also precede the added event, so we can move on to the
+                    // next root.
                     for child in forest.neighbors(nx) {
-                        if dependencies.contains(&child) {
-                            dependencies.insert(nx);
-                            dependent_child = true;
-                            break;
+                        if preceding_events.contains(&child) {
+                            preceding_events.insert(nx);
+                            continue 'dfs_roots;
                         }
                     }
 
-                    // If the event we are trying to add has already been added as a dependency of one
-                    // of the children of the DFS node, then move to the next root of the forest.
-                    if dependent_child {
-                        break;
-                    }
-
                     if let Some(node) = forest.node_weight(nx).unwrap().as_ref() {
-                        // If the event we are trying to add is dependent on the DFS node, then
-                        // add an edge from the DFS node to the event to be added.
                         if &event >= node {
-                            // Check if any of the children of the DFS node should be dependent on the
-                            // event we are trying to add.
-                            let mut remove_edges: Vec<NodeIndex<u32>> = Vec::new();
+                            // Check if any of the children of the current node depend on the added event.
+                            // If children depend on the current DFS node and event > node, transfer
+                            // dependencies from the current node to the added event.
+                            let mut possible_transfer_dependencies: Vec<NodeIndex<u32>> =
+                                Vec::new();
                             for child in forest.neighbors(nx) {
                                 let child_node: &OperatorEvent =
                                     forest.node_weight(child).unwrap().as_ref().unwrap();
                                 if child_node < &event {
-                                    // The child has a dependency on the node being added.
+                                    // The child depends on the added event.
                                     // Break the dependency from the DFS node to its child, and add a
                                     // dependency from the node to be added to the child.
-                                    add_edges_to.push(child);
-                                    remove_edges.push(child);
+                                    incoming_edges.push(child);
+                                    possible_transfer_dependencies.push(child);
                                 }
                             }
 
-                            // Add a dependency from the DFS node to the node being added, only if the
-                            // partial order says so.
+                            // If this event depends on the current node, then add an edge from this
+                            // event to the current node.
                             if &event > node {
-                                add_edges_from.push(nx);
-                                for child in remove_edges {
-                                    let edge = forest.find_edge(nx, child).unwrap();
+                                outgoing_edges.push(nx);
+                                for child in possible_transfer_dependencies {
+                                    let edge = forest.find_edge(child, nx).unwrap();
                                     forest.remove_edge(edge);
                                 }
-                                dependencies.insert(nx);
+                                preceding_events.insert(nx);
                             }
                         } else {
-                            // The current event had no dependent children, but the node in DFS is
-                            // dependent on the current event. Usually, this is resolved in a level
-                            // above, but add edges if the node is root.
-                            if forest.neighbors_directed(nx, Direction::Incoming).count() == 0 {
-                                add_edges_to.push(nx);
+                            // The currrent DFS node depends on the added event. Usually, this is resolved
+                            // at a higher DFS level, but add edges if the node is root.
+                            if forest.neighbors_directed(nx, Direction::Outgoing).count() == 0 {
+                                incoming_edges.push(nx);
                                 for n in run_queue.iter() {
                                     if n.node_index.index() == nx.index() {
-                                        remove_roots.push(n.clone());
+                                        demoted_roots.push(n.clone());
                                     }
                                 }
                             }
                         }
                     } else {
                         // Reached a node that is already executing, but hasn't been completed.
-                        // The current node will probably get added as a root. Add dependencies to the
-                        // children, if any.
+                        // The current node will probably get added as a root. Add dependencies
+                        // between children and current event.
                         for child in forest.neighbors(nx) {
                             let child_node = forest.node_weight(child).unwrap().as_ref().unwrap();
                             if child_node > &event {
-                                add_edges_to.push(child);
+                                incoming_edges.push(child);
                             }
                         }
                     }
@@ -282,14 +277,12 @@ impl ExecutionLattice {
             let event_timestamp: Timestamp = event.timestamp.clone();
             let event_ix: NodeIndex<u32> = forest.add_node(Some(event));
 
-            // Add the edges from the inserted event to its dependencies.
-            for child in add_edges_to {
-                forest.add_edge(event_ix, child, ());
+            // Add edges indicating dependencies.
+            for parent in outgoing_edges {
+                forest.add_edge(event_ix, parent, ());
             }
-
-            // Break the edges from the dependency graph.
-            for node in add_edges_from {
-                forest.add_edge(node, event_ix, ());
+            for child in incoming_edges {
+                forest.add_edge(child, event_ix, ());
             }
 
             // Clean up the roots and the run queue, if any.
@@ -298,26 +291,20 @@ impl ExecutionLattice {
             // of the earlier run_queue, clears the run_queue and initializes it afresh with the set
             // difference of the old run_queue and the nodes to remove.
             // Since the invocation of this code is hopefully rare, we can optimize it later.
-            if remove_roots.len() > 0 {
+            if demoted_roots.len() > 0 {
+                roots.retain(|e| !demoted_roots.contains(e));
                 // The run queue needs to be reconstructed.
-                let mut old_run_queue: Vec<RunnableEvent> = Vec::new();
-                for event in run_queue.iter() {
-                    old_run_queue.push(event.clone());
-                }
-                run_queue.clear();
-
-                roots.retain(|e| !remove_roots.contains(e));
-
+                let old_run_queue: Vec<RunnableEvent> = run_queue.drain().collect();
                 for item in old_run_queue {
-                    if !remove_roots.contains(&item) {
+                    if !demoted_roots.contains(&item) {
                         run_queue.push(item);
                     }
                 }
             }
 
-            // If no dependencies of this event, then we can safely create a new root in the forest and
+            // If the added event depends on no others, then we can safely create a new root in the forest and
             // add the event to the run queue.
-            if dependencies.is_empty() {
+            if preceding_events.is_empty() {
                 roots.push(RunnableEvent::new(event_ix).with_timestamp(event_timestamp.clone()));
                 run_queue.push(RunnableEvent::new(event_ix).with_timestamp(event_timestamp));
             }
@@ -368,37 +355,58 @@ impl ExecutionLattice {
 
         // Go over the children of the node, and check which ones have no dependencies on other
         // nodes, and add them to the list of the roots.
-        let mut remove_edges: Vec<NodeIndex<u32>> = Vec::new();
-        let mut root_nodes: Vec<RunnableEvent> = Vec::new();
+        let mut edges_to_remove: Vec<NodeIndex<u32>> = Vec::new();
         for child_id in forest.neighbors(node_id) {
-            // Does this node have any other incoming edge?
+            // Promote child to root if it does not depend on any other events.
             if forest
-                .neighbors_directed(child_id, Direction::Incoming)
+                .neighbors_directed(child_id, Direction::Outgoing)
                 .count()
                 == 1
             {
                 let timestamp: Timestamp = forest[child_id].as_ref().unwrap().timestamp.clone();
-                root_nodes.push(RunnableEvent::new(child_id).with_timestamp(timestamp));
+                let child = RunnableEvent::new(child_id).with_timestamp(timestamp);
+                roots.push(child.clone());
+                run_queue.push(child);
             }
 
             // Remove the edge from the child.
-            remove_edges.push(child_id);
+            edges_to_remove.push(child_id);
         }
 
         // Remove the edges from the forest.
-        for child_id in remove_edges {
-            let edge_id: EdgeIndex<u32> = forest.find_edge(node_id, child_id).unwrap();
+        for child_id in edges_to_remove {
+            let edge_id: EdgeIndex<u32> = forest.find_edge(child_id, node_id).unwrap();
             forest.remove_edge(edge_id);
         }
 
-        // Push the root nodes to the root of the forest, and add them to the run queue.
-        for child in root_nodes {
-            roots.push(child.clone());
-            run_queue.push(child);
-        }
-
-        // Remove the node from the forest.
+        // Remove the completed event from the forest.
         forest.remove_node(node_id);
+    }
+
+    /// Convert graph to string in DOT format.
+    pub async fn to_dot(&self) -> String {
+        // Lock the graph.
+        let forest = self.forest.lock().await;
+        let roots = self.roots.lock().await;
+        let graph = forest.map(
+            |nx, n| {
+                n.as_ref().map_or_else(
+                    || {
+                        roots
+                            .iter()
+                            .filter(|r| r.node_index == nx)
+                            .next()
+                            .map_or_else(|| "Executing".to_string(), |r| format!("Executing {}", r))
+                    },
+                    |x| x.to_string(),
+                )
+            },
+            |_, e| *e,
+        );
+        format!(
+            "{:?}",
+            Dot::with_config(&graph, &[dot::Config::EdgeNoLabel])
+        )
     }
 }
 
