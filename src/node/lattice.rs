@@ -9,7 +9,7 @@ use futures::lock::Mutex;
 use petgraph::{
     dot::{self, Dot},
     stable_graph::{EdgeIndex, NodeIndex, StableGraph},
-    visit::DfsPostOrder,
+    visit::{DfsPostOrder, Reversed},
     Direction,
 };
 
@@ -192,7 +192,7 @@ impl ExecutionLattice {
 
         for event in events {
             // Visits each node in the graph once.
-            let mut dfs = DfsPostOrder::empty(&*forest);
+            let mut dfs = DfsPostOrder::empty(Reversed(&*forest));
             // Caches preceding events to avoid adding redundant dependencies.
             // For example, A -> C is redundant if A -> B -> C.
             let mut preceding_events: HashSet<NodeIndex<u32>> = HashSet::new();
@@ -202,16 +202,15 @@ impl ExecutionLattice {
             let mut incoming_edges: Vec<NodeIndex<u32>> = Vec::new();
             // These nodes are no longer roots after the added event is inserted into the graph.
             let mut demoted_roots: Vec<RunnableEvent> = Vec::new();
-
             // Iterate through the forest with a DFS from each root to figure out where to add dependency edges.
             'dfs_roots: for root in roots.iter() {
                 // Begin a DFS at the specified root.
                 dfs.move_to(root.node_index);
-                while let Some(nx) = dfs.next(&*forest) {
+                while let Some(nx) = dfs.next(Reversed(&*forest)) {
                     // If any of the current node's children precede the added event, then the current node also precedes
                     // the added event. By induction, the root would also precede the added event, so we can move on to the
                     // next root.
-                    for child in forest.neighbors(nx) {
+                    for child in forest.neighbors_directed(nx, Direction::Incoming) {
                         if preceding_events.contains(&child) {
                             preceding_events.insert(nx);
                             continue 'dfs_roots;
@@ -225,10 +224,10 @@ impl ExecutionLattice {
                             // dependencies from the current node to the added event.
                             let mut possible_transfer_dependencies: Vec<NodeIndex<u32>> =
                                 Vec::new();
-                            for child in forest.neighbors(nx) {
+                            for child in forest.neighbors_directed(nx, Direction::Incoming) {
                                 let child_node: &OperatorEvent =
                                     forest.node_weight(child).unwrap().as_ref().unwrap();
-                                if child_node < &event {
+                                if child_node > &event {
                                     // The child depends on the added event.
                                     // Break the dependency from the DFS node to its child, and add a
                                     // dependency from the node to be added to the child.
@@ -263,7 +262,7 @@ impl ExecutionLattice {
                         // Reached a node that is already executing, but hasn't been completed.
                         // The current node will probably get added as a root. Add dependencies
                         // between children and current event.
-                        for child in forest.neighbors(nx) {
+                        for child in forest.neighbors_directed(nx, Direction::Incoming) {
                             let child_node = forest.node_weight(child).unwrap().as_ref().unwrap();
                             if child_node > &event {
                                 incoming_edges.push(child);
@@ -343,10 +342,10 @@ impl ExecutionLattice {
         let mut roots = self.roots.lock().await;
         let mut run_queue = self.run_queue.lock().await;
 
-        let node_id: NodeIndex<u32> = NodeIndex::new(event_id);
+        let node_idx: NodeIndex<u32> = NodeIndex::new(event_id);
 
         // Throw an error if the item was not in the roots.
-        let event = RunnableEvent::new(node_id);
+        let event = RunnableEvent::new(node_idx);
         let event_idx = roots
             .iter()
             .position(|e| e == &event)
@@ -356,7 +355,7 @@ impl ExecutionLattice {
         // Go over the children of the node, and check which ones have no dependencies on other
         // nodes, and add them to the list of the roots.
         let mut edges_to_remove: Vec<NodeIndex<u32>> = Vec::new();
-        for child_id in forest.neighbors(node_id) {
+        for child_id in forest.neighbors_directed(node_idx, Direction::Incoming) {
             // Promote child to root if it does not depend on any other events.
             if forest
                 .neighbors_directed(child_id, Direction::Outgoing)
@@ -375,15 +374,16 @@ impl ExecutionLattice {
 
         // Remove the edges from the forest.
         for child_id in edges_to_remove {
-            let edge_id: EdgeIndex<u32> = forest.find_edge(child_id, node_id).unwrap();
+            let edge_id: EdgeIndex<u32> = forest.find_edge(child_id, node_idx).unwrap();
             forest.remove_edge(edge_id);
         }
 
         // Remove the completed event from the forest.
-        forest.remove_node(node_id);
+        forest.remove_node(node_idx);
     }
 
     /// Convert graph to string in DOT format.
+    #[allow(dead_code)]
     pub async fn to_dot(&self) -> String {
         // Lock the graph.
         let forest = self.forest.lock().await;
