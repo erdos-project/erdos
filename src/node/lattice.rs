@@ -188,7 +188,7 @@ impl ExecutionLattice {
         let mut run_queue = self.run_queue.lock().await;
 
         for event in events {
-            // Iterate through all the roots, and figure out where to add a dependency edge.
+            // Iterate through all the roots, and figure out where to add a dependency edge to indicate precedence.
             let mut dfs = DfsPostOrder::empty(&*forest);
             let mut dependencies: HashSet<NodeIndex<u32>> = HashSet::new();
             let mut add_edges_to: Vec<NodeIndex<u32>> = Vec::new();
@@ -225,7 +225,7 @@ impl ExecutionLattice {
                     if let Some(node) = forest.node_weight(nx).unwrap().as_ref() {
                         // If the event we are trying to add is dependent on the DFS node, then
                         // add an edge from the DFS node to the event to be added.
-                        if &event <= node {
+                        if &event >= node {
                             // Check if any of the children of the DFS node should be dependent on the
                             // event we are trying to add.
                             let mut remove_edges: Vec<NodeIndex<u32>> = Vec::new();
@@ -243,7 +243,7 @@ impl ExecutionLattice {
 
                             // Add a dependency from the DFS node to the node being added, only if the
                             // partial order says so.
-                            if &event < node {
+                            if &event > node {
                                 add_edges_from.push(nx);
                                 for child in remove_edges {
                                     let edge = forest.find_edge(nx, child).unwrap();
@@ -270,7 +270,7 @@ impl ExecutionLattice {
                         // children, if any.
                         for child in forest.neighbors(nx) {
                             let child_node = forest.node_weight(child).unwrap().as_ref().unwrap();
-                            if child_node < &event {
+                            if child_node > &event {
                                 add_edges_to.push(child);
                             }
                         }
@@ -432,11 +432,7 @@ mod test {
 
         // Ensure that only one event is returned by the lattice.
         let next_event = block_on(lattice.get_event());
-        assert_eq!(
-            next_event.is_none(),
-            true,
-            "Expected no event from the lattice"
-        );
+        assert!(next_event.is_none(), "Expected no event from the lattice.");
     }
 
     /// Test that the addition of two messages of the same timestamp leads to no dependencies.
@@ -513,43 +509,32 @@ mod test {
         block_on(lattice.add_events(events));
         // Check that the first event is returned correctly by the lattice.
         let (event, event_id) = block_on(lattice.get_event()).unwrap();
-        assert_eq!(
+        assert!(
             event.timestamp.time[0] == 1 && !event.is_watermark_callback,
-            true,
             "The wrong event was returned by the lattice."
         );
 
         // Check that the first event is returned correctly by the lattice.
         let (event_2, event_id_2) = block_on(lattice.get_event()).unwrap();
-        assert_eq!(
+        assert!(
             event_2.timestamp.time[0] == 1 && !event.is_watermark_callback,
-            true,
             "The wrong event was returned by the lattice."
         );
         let no_event = block_on(lattice.get_event());
-        assert_eq!(
-            no_event.is_none(),
-            true,
-            "Expected no event from the lattice"
-        );
+        assert!(no_event.is_none(), "Expected no event from the lattice.");
 
         // Mark one of the event as completed, and still don't expect an event.
         block_on(lattice.mark_as_completed(event_id));
 
         let no_event_2 = block_on(lattice.get_event());
-        assert_eq!(
-            no_event_2.is_none(),
-            true,
-            "Expected no event from the lattice"
-        );
+        assert!(no_event_2.is_none(), "Expected no event from the lattice.");
 
         // Mark the other as completed and expect a Watermark.
         block_on(lattice.mark_as_completed(event_id_2));
 
         let (event_3, _event_id_3) = block_on(lattice.get_event()).unwrap();
-        assert_eq!(
+        assert!(
             event_3.timestamp.time[0] == 1 && event_3.is_watermark_callback,
-            true,
             "The wrong event was returned by the lattice."
         );
     }
@@ -592,9 +577,8 @@ mod test {
             event.timestamp.time[0], 1,
             "The wrong event was returned by the lattice."
         );
-        assert_eq!(
+        assert!(
             block_on(lattice.get_event()).is_none(),
-            true,
             "The wrong event was returned by the lattice."
         );
         block_on(lattice.mark_as_completed(event_id));
@@ -603,9 +587,8 @@ mod test {
             event_2.timestamp.time[0], 2,
             "The wrong event was returned by the lattice."
         );
-        assert_eq!(
+        assert!(
             block_on(lattice.get_event()).is_none(),
-            true,
             "The wrong event was returned by the lattice."
         );
         block_on(lattice.mark_as_completed(event_id_2));
@@ -614,9 +597,8 @@ mod test {
             event_3.timestamp.time[0], 3,
             "The wrong event was returned by the lattice."
         );
-        assert_eq!(
+        assert!(
             block_on(lattice.get_event()).is_none(),
-            true,
             "The wrong event was returned by the lattice."
         );
     }
@@ -726,70 +708,59 @@ mod test {
         ];
         block_on(lattice.add_events(events));
         let (event, event_id) = block_on(lattice.get_event()).unwrap();
-        assert_eq!(
+        assert!(
             event.timestamp.time[0] == 1 && !event.is_watermark_callback,
-            true,
             "The wrong event was returned by the lattice."
         );
         let (event_2, event_id_2) = block_on(lattice.get_event()).unwrap();
-        assert_eq!(
+        assert!(
             event_2.timestamp.time[0] == 2 && !event_2.is_watermark_callback,
-            true,
             "The wrong event was returned by the lattice."
         );
         let (event_3, event_id_3) = block_on(lattice.get_event()).unwrap();
-        assert_eq!(
+        assert!(
             event_3.timestamp.time[0] == 3 && !event_3.is_watermark_callback,
-            true,
             "The wrong event was returned by the lattice."
         );
-        assert_eq!(
+        assert!(
             block_on(lattice.get_event()).is_none(),
-            true,
             "The wrong event was returned by the lattice."
         );
         block_on(lattice.mark_as_completed(event_id));
         let (event_4, event_id_4) = block_on(lattice.get_event()).unwrap();
-        assert_eq!(
+        assert!(
             event_4.timestamp.time[0] == 1 && event_4.is_watermark_callback,
-            true,
             "The wrong event was returned by the lattice."
         );
-        assert_eq!(
+        assert!(
             block_on(lattice.get_event()).is_none(),
-            true,
             "The wrong event was returned by the lattice."
         );
         block_on(lattice.mark_as_completed(event_id_4));
-        assert_eq!(
+        assert!(
             block_on(lattice.get_event()).is_none(),
-            true,
             "The wrong event was returned by the lattice."
         );
         block_on(lattice.mark_as_completed(event_id_2));
         let (event_5, event_id_5) = block_on(lattice.get_event()).unwrap();
-        assert_eq!(
+        assert!(
             event_5.timestamp.time[0] == 2 && event_5.is_watermark_callback,
-            true,
             "The wrong event was returned by the lattice."
         );
         block_on(lattice.mark_as_completed(event_id_3));
-        assert_eq!(
+        assert!(
             block_on(lattice.get_event()).is_none(),
-            true,
             "The wrong event was returned by the lattice."
         );
         block_on(lattice.mark_as_completed(event_id_5));
         let (event_6, event_id_6) = block_on(lattice.get_event()).unwrap();
-        assert_eq!(
+        assert!(
             event_6.timestamp.time[0] == 3 && event_6.is_watermark_callback,
-            true,
             "The wrong event was returned by the lattice."
         );
         block_on(lattice.mark_as_completed(event_id_6));
-        assert_eq!(
+        assert!(
             block_on(lattice.get_event()).is_none(),
-            true,
             "The wrong event was returned by the lattice."
         );
     }
@@ -830,22 +801,19 @@ mod test {
         block_on(lattice.add_events(events));
 
         let (event, _event_id) = block_on(lattice.get_event()).unwrap();
-        assert_eq!(
+        assert!(
             event.timestamp.time[0] == 1 && event.is_watermark_callback,
-            true,
             "The wrong event was returned by the lattice."
         );
 
         let (event_2, _event_id_2) = block_on(lattice.get_event()).unwrap();
-        assert_eq!(
+        assert!(
             event_2.timestamp.time[0] == 2 && !event_2.is_watermark_callback,
-            true,
             "The wrong event was returned by the lattice."
         );
         let (event_3, _event_id_3) = block_on(lattice.get_event()).unwrap();
-        assert_eq!(
+        assert!(
             event_3.timestamp.time[0] == 3 && !event_3.is_watermark_callback,
-            true,
             "The wrong event was returned by the lattice."
         );
     }
