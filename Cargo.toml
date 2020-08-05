@@ -1,13 +1,13 @@
 [package]
 name = "erdos"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["The ERDOS Team"]
 edition = "2018"
 build = "build.rs"
 default-run = "erdos"
 license = "Apache-2.0"
 readme = "README.md"
-documentation = "https://docs.rs/erdos/0.2.0/erdos/"
+documentation = "https://docs.rs/crate/erdos/"
 repository = "https://github.com/erdos-project/erdos"
 description = """
 ERDOS is a platform for developing self-driving cars and robotics applications.
@@ -15,7 +15,7 @@ ERDOS is a platform for developing self-driving cars and robotics applications.
 keywords = ["data-flow", "robotics", "autonomos", "driving"]
 
 [dependencies]
-abomonation = { git = "https://github.com/erdos-project/abomonation" }
+abomonation = "0.7.3"
 abomonation_derive = "0.5.0"
 async-trait = "0.1.18"
 bincode = "1.2.1"
@@ -35,6 +35,10 @@ tokio = { version = "0.2.11", features = ["sync", "tcp", "io-util", "rt-core", "
 tokio-util = { version = "0.2.0", features = ["codec"] }
 tokio-serde-bincode = "0.2"
 uuid = { version = "0.7", features = ["v4", "v5", "serde"] }
+
+[build-dependencies]
+slog = "2.4.2"
+slog-term = "2.4.2"
 
 [dev-dependencies]
 criterion = "0.3.1"

@@ -1,15 +1,18 @@
-use crate::dataflow::Timestamp;
-use crate::node::operator_event::OperatorEvent;
+use std::{
+    cmp::Ordering,
+    collections::{BinaryHeap, HashSet},
+    fmt,
+    sync::Arc,
+};
+
 use futures::lock::Mutex;
 use petgraph::{
     stable_graph::{EdgeIndex, NodeIndex, StableGraph},
     visit::DfsPostOrder,
     Direction,
 };
-use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashSet};
-use std::fmt;
-use std::sync::Arc;
+
+use crate::{dataflow::Timestamp, node::operator_event::OperatorEvent};
 
 /// `RunnableEvent` is a data structure that is used to represent an event that is ready to be
 /// executed.
@@ -129,8 +132,8 @@ impl PartialOrd for RunnableEvent {
 ///
 ///     // Add two events of timestamp 1 and 2 to the lattice with empty callbacks.
 ///     events = vec![
-///         OperatorEvent::new(Timestamp::new(vec![1]), true, 0, || ())
-///         OperatorEvent::new(Timestamp::new(vec![2]), true, 0, || ())
+///         OperatorEvent::new(Timestamp::new(vec![1]), true, 0, HashSet::new(), HashSet::new(), || ())
+///         OperatorEvent::new(Timestamp::new(vec![2]), true, 0, HashSet::new(), HashSet::new(), || ())
 ///     ];
 ///     lattice.add_events(events).await;
 ///
@@ -410,7 +413,14 @@ mod test {
     #[test]
     fn test_root_addition() {
         let lattice: ExecutionLattice = ExecutionLattice::new();
-        let events = vec![OperatorEvent::new(Timestamp::new(vec![1]), false, 0, || ())];
+        let events = vec![OperatorEvent::new(
+            Timestamp::new(vec![1]),
+            false,
+            0,
+            HashSet::new(),
+            HashSet::new(),
+            || (),
+        )];
         block_on(lattice.add_events(events));
 
         // Ensure that the correct event is returned by the lattice.
@@ -434,8 +444,22 @@ mod test {
     fn test_concurrent_messages() {
         let lattice: ExecutionLattice = ExecutionLattice::new();
         let events = vec![
-            OperatorEvent::new(Timestamp::new(vec![1]), false, 0, || ()),
-            OperatorEvent::new(Timestamp::new(vec![1]), false, 0, || ()),
+            OperatorEvent::new(
+                Timestamp::new(vec![1]),
+                false,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            ),
+            OperatorEvent::new(
+                Timestamp::new(vec![1]),
+                false,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            ),
         ];
         block_on(lattice.add_events(events));
 
@@ -461,9 +485,30 @@ mod test {
     fn test_watermark_post_concurrent_messages() {
         let lattice: ExecutionLattice = ExecutionLattice::new();
         let events = vec![
-            OperatorEvent::new(Timestamp::new(vec![1]), false, 0, || ()),
-            OperatorEvent::new(Timestamp::new(vec![1]), false, 0, || ()),
-            OperatorEvent::new(Timestamp::new(vec![1]), true, 0, || ()),
+            OperatorEvent::new(
+                Timestamp::new(vec![1]),
+                false,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            ),
+            OperatorEvent::new(
+                Timestamp::new(vec![1]),
+                false,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            ),
+            OperatorEvent::new(
+                Timestamp::new(vec![1]),
+                true,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            ),
         ];
         block_on(lattice.add_events(events));
         // Check that the first event is returned correctly by the lattice.
@@ -515,9 +560,30 @@ mod test {
     fn test_unordered_watermark() {
         let lattice: ExecutionLattice = ExecutionLattice::new();
         let events = vec![
-            OperatorEvent::new(Timestamp::new(vec![3]), true, 0, || ()),
-            OperatorEvent::new(Timestamp::new(vec![2]), true, 0, || ()),
-            OperatorEvent::new(Timestamp::new(vec![1]), true, 0, || ()),
+            OperatorEvent::new(
+                Timestamp::new(vec![3]),
+                true,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            ),
+            OperatorEvent::new(
+                Timestamp::new(vec![2]),
+                true,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            ),
+            OperatorEvent::new(
+                Timestamp::new(vec![1]),
+                true,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            ),
         ];
         block_on(lattice.add_events(events));
 
@@ -560,9 +626,30 @@ mod test {
     fn test_concurrent_messages_diff_timestamps() {
         let lattice: ExecutionLattice = ExecutionLattice::new();
         let events = vec![
-            OperatorEvent::new(Timestamp::new(vec![3]), false, 0, || ()),
-            OperatorEvent::new(Timestamp::new(vec![2]), false, 0, || ()),
-            OperatorEvent::new(Timestamp::new(vec![1]), false, 0, || ()),
+            OperatorEvent::new(
+                Timestamp::new(vec![3]),
+                false,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            ),
+            OperatorEvent::new(
+                Timestamp::new(vec![2]),
+                false,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            ),
+            OperatorEvent::new(
+                Timestamp::new(vec![1]),
+                false,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            ),
         ];
         block_on(lattice.add_events(events));
 
@@ -588,12 +675,54 @@ mod test {
     fn test_concurrent_messages_watermarks_diff_timestamps() {
         let lattice: ExecutionLattice = ExecutionLattice::new();
         let events = vec![
-            OperatorEvent::new(Timestamp::new(vec![3]), true, 0, || ()),
-            OperatorEvent::new(Timestamp::new(vec![2]), true, 0, || ()),
-            OperatorEvent::new(Timestamp::new(vec![1]), true, 0, || ()),
-            OperatorEvent::new(Timestamp::new(vec![1]), false, 0, || ()),
-            OperatorEvent::new(Timestamp::new(vec![2]), false, 0, || ()),
-            OperatorEvent::new(Timestamp::new(vec![3]), false, 0, || ()),
+            OperatorEvent::new(
+                Timestamp::new(vec![3]),
+                true,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            ),
+            OperatorEvent::new(
+                Timestamp::new(vec![2]),
+                true,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            ),
+            OperatorEvent::new(
+                Timestamp::new(vec![1]),
+                true,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            ),
+            OperatorEvent::new(
+                Timestamp::new(vec![1]),
+                false,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            ),
+            OperatorEvent::new(
+                Timestamp::new(vec![2]),
+                false,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            ),
+            OperatorEvent::new(
+                Timestamp::new(vec![3]),
+                false,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            ),
         ];
         block_on(lattice.add_events(events));
         let (event, event_id) = block_on(lattice.get_event()).unwrap();
@@ -673,9 +802,30 @@ mod test {
     fn test_ordered_concurrent_execution() {
         let lattice: ExecutionLattice = ExecutionLattice::new();
         let events = vec![
-            OperatorEvent::new(Timestamp::new(vec![2]), false, 0, || ()),
-            OperatorEvent::new(Timestamp::new(vec![1]), true, 0, || ()),
-            OperatorEvent::new(Timestamp::new(vec![3]), false, 0, || ()),
+            OperatorEvent::new(
+                Timestamp::new(vec![2]),
+                false,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            ),
+            OperatorEvent::new(
+                Timestamp::new(vec![1]),
+                true,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            ),
+            OperatorEvent::new(
+                Timestamp::new(vec![3]),
+                false,
+                0,
+                HashSet::new(),
+                HashSet::new(),
+                || (),
+            ),
         ];
         block_on(lattice.add_events(events));
 

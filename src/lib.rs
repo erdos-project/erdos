@@ -148,9 +148,10 @@
 //! turns ERDOS pipelines into
 //! [Kahn process networks](https://en.wikipedia.org/wiki/Kahn_process_networks).
 
+// Required for specialization.
+#![allow(incomplete_features)]
 #![feature(get_mut_unchecked)]
-#![feature(min_specialization)]
-#![feature(rustc_attrs)]
+#![feature(specialization)]
 #![feature(box_into_pin)]
 
 // Re-exports of libraries used in macros.

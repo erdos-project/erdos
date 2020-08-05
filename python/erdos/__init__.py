@@ -1,6 +1,7 @@
 import inspect
 import logging
 import multiprocessing as mp
+import os
 import signal
 import sys
 
@@ -241,32 +242,21 @@ def add_watermark_callback(read_streams: List[erdos.ReadStream],
         callback: The callback to be invoked upon receipt of a 
             :py:class:`.WatermarkMessage` on all the `read_streams`.
     """
-    logger.debug("Adding watermark callback {name} to the input streams: " 
-            "{_input}, and passing the output streams: {_output}".format(
+    logger.debug("Adding watermark callback {name} to the input streams: "
+                 "{_input}, and passing the output streams: {_output}".format(
                      name=callback.__name__,
                      _input=list(map(attrgetter('_name'), read_streams)),
                      _output=list(map(attrgetter('_name'), write_streams))))
 
-    def internal_watermark_callback(coordinates, is_top):
-        timestamp = Timestamp(coordinates=coordinates, is_top=is_top)
+    def internal_watermark_callback(py_msg):
+        timestamp = Timestamp(coordinates=py_msg.timestamp,
+                              is_top=py_msg.is_top_watermark())
         callback(timestamp, *write_streams)
 
-    _internal.add_watermark_callback(
-        list(map(attrgetter('_py_read_stream'), read_streams)),
-        internal_watermark_callback)
-
-
-def _flow_watermark_callback(timestamp, *write_streams):
-    """Flows a watermark to all write streams.
-
-    Args:
-        timestamp (:py:class:`erdos.Timestamp`): The timestamp of the watermark
-            to be sent to downstream operators.
-        write_streams (:py:class:`erdos.WriteStream`): The write streams to
-            send the watermark to.
-    """
-    for write_stream in write_streams:
-        write_stream.send(WatermarkMessage(timestamp))
+    py_read_streams = [s._py_read_stream for s in read_streams]
+    py_write_streams = [s._py_write_stream for s in write_streams]
+    _internal.add_watermark_callback(py_read_streams, py_write_streams,
+                                     internal_watermark_callback, 0)
 
 
 def profile(event_name, operator, event_data=None):
@@ -302,7 +292,7 @@ def profile_method(**decorator_kwargs):
             with erdos.profile(event_name,
                                args[0],
                                event_data={"timestamp": str(timestamp)}):
-                func(*args, **kwargs)
+                return func(*args, **kwargs)
 
         return wrapper
 
