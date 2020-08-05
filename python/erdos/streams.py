@@ -1,9 +1,8 @@
 import pickle
 import logging
 from operator import attrgetter
-from typing import Any, Union, Callable, Sequence
+from typing import Union, Callable
 
-import erdos
 from erdos.message import Message, WatermarkMessage
 from erdos.internal import (PyReadStream, PyWriteStream, PyLoopStream,
                             PyIngestStream, PyExtractStream, PyMessage)
@@ -41,16 +40,16 @@ class ReadStream(object):
     do work on data sent by other operators on a corresponding
     :py:class:`WriteStream`.
 
-    An :py:class:`Operator` can interface with a :py:class:`ReadStream` by 
+    An :py:class:`Operator` can interface with a :py:class:`ReadStream` by
     registering callbacks on the data or watermark received on the stream by
     invoking the :py:func:`add_callback` or :py:func:`add_watermark_callback`
     method respectively.
 
     An :py:class:`Operator` that takes control of its execution using the
-    :py:func:`Operator.run` method can retrieve the messages on a 
-    :py:class:`ReadStream` using the :py:func:`ReadStream.read` or 
+    :py:func:`Operator.run` method can retrieve the messages on a
+    :py:class:`ReadStream` using the :py:func:`ReadStream.read` or
     :py:func:`ReadStream.try_read` methods.
-    
+
     Note:
         No callbacks are invoked if an operator takes control of the execution
         in :py:func:`Operator.run`.
@@ -94,7 +93,7 @@ class ReadStream(object):
         """Adds a callback to the stream.
 
         Args:
-            callback: A callback that takes a message and a sequence of 
+            callback: A callback that takes a message and a sequence of
                 :py:class:`WriteStream` s.
             write_streams: Write streams passed to the callback.
         """
@@ -118,7 +117,7 @@ class ReadStream(object):
         """Adds a watermark callback to the stream.
 
         Args:
-            callback: A callback that takes a message and a sequence of 
+            callback: A callback that takes a message and a sequence of
                 :py:class:`WriteStream` s.
             write_streams: Write streams passed to the callback.
         """
@@ -140,12 +139,12 @@ class ReadStream(object):
 
 
 class WriteStream(object):
-    """ A :py:class:`WriteStream` allows an :py:class:`Operator` to send 
-    messages and watermarks to other operators that connect to the 
+    """ A :py:class:`WriteStream` allows an :py:class:`Operator` to send
+    messages and watermarks to other operators that connect to the
     corresponding :py:class:`ReadStream`.
 
     Note:
-        `_py_write_stream` is set during :py:func:`run`, and should never be 
+        `_py_write_stream` is set during :py:func:`run`, and should never be
         set manually.
     """
     def __init__(self,
@@ -211,11 +210,11 @@ class LoopStream(object):
 class IngestStream(object):
     """An :py:class:`IngestStream` enables drivers to inject data into a
     running ERDOS application.
-    
+
     The driver can initialize a new :py:class:`IngestStream` and connect it to
-    an :py:class:`Operator` through :py:func:`connect`. Similar to a 
-    :py:class:`WriteStream`, an :py:class:`IngestStream` provides a 
-    :py:func:`IngestStream.send` to enable the driver to send data to the 
+    an :py:class:`Operator` through :py:func:`connect`. Similar to a
+    :py:class:`WriteStream`, an :py:class:`IngestStream` provides a
+    :py:func:`IngestStream.send` to enable the driver to send data to the
     operator to which it was connected.
     """
     def __init__(self, _name: Union[str, None] = None):
@@ -239,7 +238,7 @@ class IngestStream(object):
         """Sends a message on the stream.
 
         Args:
-            msg: the message to send. This may be a 
+            msg: the message to send. This may be a
             :py:class:`WatermarkMessage` or a :py:class:`Message`.
         """
         if not isinstance(msg, Message):
@@ -256,14 +255,14 @@ class ExtractStream(object):
     """An :py:class:`ExtractStream` enables drivers to read data from a running
     ERDOS applications.
 
-    The driver can initialize a new :py:class:`ExtractStream` by passing the 
+    The driver can initialize a new :py:class:`ExtractStream` by passing the
     instance of :py:class:`ReadStream` returned by :py:func:`connect`. Similar
-    to a :py:class:`ReadStream`, an :py:class:`ExtractStream` provides 
-    :py:func:`ExtractStream.read` and :py:func:`ExtractStream.try_read` for 
+    to a :py:class:`ReadStream`, an :py:class:`ExtractStream` provides
+    :py:func:`ExtractStream.read` and :py:func:`ExtractStream.try_read` for
     reading data published on the corresponding `read_stream`.
 
     Args:
-        read_stream (:py:class:`ReadStream`): The stream from which to 
+        read_stream (:py:class:`ReadStream`): The stream from which to
             read messages.
     """
     def __init__(self,
