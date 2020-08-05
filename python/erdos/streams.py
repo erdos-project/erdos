@@ -104,7 +104,7 @@ class ReadStream(object):
                      "and passing the output streams: {_output}".format(
                          name=callback.__name__,
                          _input=self._name,
-                         _output=list(map(attrgetter('_name'),
+                         _output=list(map(attrgetter("_name"),
                                           write_streams))))
 
         def internal_callback(serialized):
@@ -128,7 +128,7 @@ class ReadStream(object):
             "{_input}, and passing the output streams: {_output}".format(
                 name=callback.__name__,
                 _input=self._name,
-                _output=list(map(attrgetter('_name'), write_streams))))
+                _output=list(map(attrgetter("_name"), write_streams))))
 
         def internal_watermark_callback(coordinates, is_top):
             timestamp = Timestamp(coordinates=coordinates, is_top=is_top)

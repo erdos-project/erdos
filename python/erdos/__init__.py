@@ -244,8 +244,8 @@ def add_watermark_callback(read_streams: List[erdos.ReadStream],
     logger.debug("Adding watermark callback {name} to the input streams: "
                  "{_input}, and passing the output streams: {_output}".format(
                      name=callback.__name__,
-                     _input=list(map(attrgetter('_name'), read_streams)),
-                     _output=list(map(attrgetter('_name'), write_streams))))
+                     _input=list(map(attrgetter("_name"), read_streams)),
+                     _output=list(map(attrgetter("_name"), write_streams))))
 
     def internal_watermark_callback(py_msg):
         timestamp = Timestamp(coordinates=py_msg.timestamp,
