@@ -233,7 +233,7 @@ def profile_method(**decorator_kwargs):
             with erdos.profile(event_name,
                                args[0],
                                event_data={"timestamp": str(timestamp)}):
-                func(*args, **kwargs)
+                return func(*args, **kwargs)
 
         return wrapper
 
