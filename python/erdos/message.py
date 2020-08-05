@@ -4,7 +4,7 @@ from erdos.timestamp import Timestamp
 
 
 class Message(object):
-    """A :py:class:`Message` allows an :py:class:`Operator` to send timestamped 
+    """A :py:class:`Message` allows an :py:class:`Operator` to send timestamped
     data to other operators via a :py:class:`WriteStream`.
 
     Attributes:
@@ -12,7 +12,7 @@ class Message(object):
         data (Any): The data of the message.
     """
     def __init__(self, timestamp: Timestamp, data: Any):
-        """ Construct a :py:class:`Message` with the given `data` and 
+        """ Construct a :py:class:`Message` with the given `data` and
         `timestamp`.
 
         Args:
@@ -30,7 +30,7 @@ class Message(object):
 
 class WatermarkMessage(Message):
     """A :py:class:`WatermarkMessage` allows an :py:class:`Operator` to convey
-    the completion of all outgoing data for a given timestamp on a 
+    the completion of all outgoing data for a given timestamp on a
     :py:class:`WriteStream`.
 
     Attributes:

@@ -11,10 +11,10 @@ class Operator(object):
     inherited by user-defined operators in order to be run in an ERDOS dataflow
     graph.
 
-    A user-defined operator needs to inherit from :py:class:`Operator` and 
-    implement :py:func:`Operator.__init__` and :py:func:`Operator.connect` in 
-    order to be connected to the dataflow graph. For example, a `MapOperator` 
-    that takes in a single input stream and outputs data on a single output 
+    A user-defined operator needs to inherit from :py:class:`Operator` and
+    implement :py:func:`Operator.__init__` and :py:func:`Operator.connect` in
+    order to be connected to the dataflow graph. For example, a `MapOperator`
+    that takes in a single input stream and outputs data on a single output
     stream can be implemented as follows::
 
         class MapOperator(erdos.Operator):
@@ -27,7 +27,7 @@ class Operator(object):
                 return erdos.WriteStream()
 
     Instead of ERDOS invoking callbacks registered on the read streams, an
-    operator can also take control of the execution by overriding the 
+    operator can also take control of the execution by overriding the
     :py:func:`Operator.run` method as follows::
 
         class MapOperator(erdos.Operator):
@@ -39,13 +39,13 @@ class Operator(object):
         """Instantiates the operator.
 
         ERDOS will pass read streams followed by write streams as arguments,
-        matching the read streams and write streams in 
+        matching the read streams and write streams in
         :py:func:`Operator.connect`.
 
         Invoked automatically during :py:func:`.run`.
 
         Note:
-            An ERDOS operator implementation should not call 
+            An ERDOS operator implementation should not call
             `super().__init__()` because the setup is handled by ERDOS.
         """
         pass
@@ -62,7 +62,7 @@ class Operator(object):
 
     @staticmethod
     def connect(*read_streams):
-        """Connects the operator to its read streams and returns its 
+        """Connects the operator to its read streams and returns its
         write streams. This method should return all the write streams that the
         operator intends to use.
 
@@ -129,11 +129,11 @@ class Operator(object):
 
 class OperatorConfig(object):
     """ An :py:class:`OperatorConfig` allows developers to configure an
-    :py:class:`Operator`. 
+    :py:class:`Operator`.
 
-    An :py:class:`Operator` can query the configuration passed to it by the 
-    driver by accessing the properties in `self.config`. The below example 
-    shows how a `LoggerOperator` can access the log file name passed to the 
+    An :py:class:`Operator` can query the configuration passed to it by the
+    driver by accessing the properties in `self.config`. The below example
+    shows how a `LoggerOperator` can access the log file name passed to the
     operator by the driver::
 
         class LoggerOperator(erdos.Operator):

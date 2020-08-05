@@ -11,7 +11,7 @@ class Timestamp(object):
        is_top (`bool`): Whether this is the highest possible timestamp.
     """
     def __init__(self,
-                 timestamp = None,
+                 timestamp=None,
                  coordinates: Sequence[int] = None,
                  is_top: bool = False):
         self._is_top = is_top

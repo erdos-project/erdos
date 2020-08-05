@@ -1,7 +1,6 @@
 import inspect
 import logging
 import multiprocessing as mp
-import os
 import signal
 import sys
 
@@ -48,23 +47,23 @@ def connect(
     read and write stream dependencies with the internal graph representation.
     It is not sufficient to call :py:func:`Operator.connect` in the driver.
 
-    The `read_streams` are passed to the `connect` function of `op_type` to 
-    retrieve the write streams of the operator. The operator is then 
+    The `read_streams` are passed to the `connect` function of `op_type` to
+    retrieve the write streams of the operator. The operator is then
     initialized with the given `read_streams` and the returned `write_streams`
-    after calling :py:func:`run`: 
+    after calling :py:func:`run`:
         >>> write_streams = op_type.connect(*read_streams)
         >>> op_type(*read_streams, *write_streams, *args, **kwargs)
 
     Args:
-        op_type: The :py:class:`.Operator` that needs to be added to the graph 
+        op_type: The :py:class:`.Operator` that needs to be added to the graph
             with the corresponding `read_streams`.
         config: Configuration details required by the operator.
         read_streams: The streams on which the operator processes data.
         *args: Arguments passed to the operator during initialization.
-        **kwargs: Keyword arguments passed to the operator during 
+        **kwargs: Keyword arguments passed to the operator during
             initialization.
     Returns:
-        A list of :py:class:`.ReadStream` s corresponding to the 
+        A list of :py:class:`.ReadStream` s corresponding to the
         :py:class:`.WriteStream` s returned by the `connect` function of the
         :py:class:`.Operator`.
     """
@@ -100,8 +99,8 @@ def connect(
             py_read_streams.append(stream._py_read_stream)
         else:
             raise TypeError(
-                "Unable to convert {stream} of type {stream_type} to ReadStream"
-                .format(stream=stream, stream_type=type(stream)))
+                "Unable to convert {stream} of type {stream_type} to "
+                "ReadStream".format(stream=stream, stream_type=type(stream)))
 
     internal_streams = _internal.connect(op_type, config, py_read_streams,
                                          args, kwargs, node_id)
@@ -115,7 +114,7 @@ def reset():
     """Create a new dataflow graph.
 
     Note:
-        A call to this function renders the previous dataflow graph unsafe to 
+        A call to this function renders the previous dataflow graph unsafe to
         use.
     """
     logger.info("Resetting the default graph.")
@@ -127,10 +126,10 @@ def reset():
 # TODO (Sukrit) : Should this be called a GraphHandle?
 # What is the significance of the "Node" here?
 class NodeHandle(object):
-    """ A handle to the dataflow graph returned by the :py:func:`run_async` 
+    """ A handle to the dataflow graph returned by the :py:func:`run_async`
     method.
 
-    The handle exposes functions to :py:func:`shutdown` the dataflow, or 
+    The handle exposes functions to :py:func:`shutdown` the dataflow, or
     :py:func:`wait` for its completion.
 
     Note:
@@ -239,7 +238,7 @@ def add_watermark_callback(read_streams: List[erdos.ReadStream],
     Args:
         read_streams: Streams on which the callback is invoked.
         write_streams: Streams on which the callback can send messages.
-        callback: The callback to be invoked upon receipt of a 
+        callback: The callback to be invoked upon receipt of a
             :py:class:`.WatermarkMessage` on all the `read_streams`.
     """
     logger.debug("Adding watermark callback {name} to the input streams: "
