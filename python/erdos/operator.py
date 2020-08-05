@@ -45,8 +45,8 @@ class Operator(object):
         Invoked automatically during :py:func:`.run`.
 
         Note:
-            An ERDOS operator implementation should not call :py:func:`super`
-            because the setup is handled by ERDOS.
+            An ERDOS operator implementation should not call 
+            `super().__init__()` because the setup is handled by ERDOS.
         """
         pass
 

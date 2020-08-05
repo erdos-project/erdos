@@ -178,5 +178,5 @@ epub_exclude_files = ["search.html"]
 # Python methods should be presented in source order
 autodoc_member_order = "bysource"
 
-# Use parameters in Napoleon.
+# Enables automatic type inference from parameters in Napoleon.
 napoleon_use_param = True

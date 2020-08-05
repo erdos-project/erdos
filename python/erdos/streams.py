@@ -57,8 +57,8 @@ class ReadStream(object):
     """
     def __init__(self,
                  _py_read_stream: PyReadStream = None,
-                 _name: str = None,
-                 _id: str = None):
+                 _name: Union[str, None] = None,
+                 _id: Union[str, None] = None):
         logger.debug(
             "Initializing ReadStream with the name: {}, and ID: {}.".format(
                 _name, _id))
@@ -69,19 +69,18 @@ class ReadStream(object):
 
     @property
     def name(self) -> Union[str, None]:
-        """ The name of the stream. (`None` if no name was given.) """
+        """ The name of the stream. `None` if no name was given. """
         return self._name
 
     def is_closed(self) -> bool:
         """Whether a top watermark message has been received."""
         return self._py_read_stream.is_closed()
 
-    # TODO (Sukrit) :: What is the return type of `read`?
-    def read(self) -> Any:
+    def read(self) -> Message:
         """Blocks until a message is read from the stream."""
         return _parse_message(self._py_read_stream.read())
 
-    def try_read(self):
+    def try_read(self) -> Union[Message, None]:
         """Tries to read a mesage from the stream.
 
         Returns None if no messages are available at the moment.
@@ -91,9 +90,7 @@ class ReadStream(object):
             return None
         return _parse_message(internal_msg)
 
-    def add_callback(self,
-                     callback: Callable,
-                     write_streams = None):
+    def add_callback(self, callback: Callable, write_streams=None):
         """Adds a callback to the stream.
 
         Args:
@@ -104,7 +101,7 @@ class ReadStream(object):
         if write_streams is None:
             write_streams = []
 
-        logger.debug("Add callback {name} to the input stream {_input}, "
+        logger.debug("Adding callback {name} to the input stream {_input}, "
                      "and passing the output streams: {_output}".format(
                          name=callback.__name__,
                          _input=self._name,
@@ -117,10 +114,7 @@ class ReadStream(object):
 
         self._py_read_stream.add_callback(internal_callback)
 
-    def add_watermark_callback(
-            self,
-            callback: Callable,
-            write_streams = None):
+    def add_watermark_callback(self, callback: Callable, write_streams=None):
         """Adds a watermark callback to the stream.
 
         Args:
@@ -131,7 +125,7 @@ class ReadStream(object):
         if write_streams is None:
             write_streams = []
         logger.debug(
-            "Add watermark callback {name} to the input stream "
+            "Adding watermark callback {name} to the input stream "
             "{_input}, and passing the output streams: {_output}".format(
                 name=callback.__name__,
                 _input=self._name,
@@ -151,10 +145,13 @@ class WriteStream(object):
     corresponding :py:class:`ReadStream`.
 
     Note:
-        `_py_write_stream` is set during erdos.run(), and should never be set
-        manually.
+        `_py_write_stream` is set during :py:func:`run`, and should never be 
+        set manually.
     """
-    def __init__(self, _py_write_stream=None, _name=None, _id=None):
+    def __init__(self,
+                 _py_write_stream: PyWriteStream = None,
+                 _name: Union[str, None] = None,
+                 _id: Union[str, None] = None):
         self._py_write_stream = PyWriteStream(
         ) if _py_write_stream is None else _py_write_stream
         self._name = _name
@@ -162,7 +159,7 @@ class WriteStream(object):
 
     @property
     def name(self) -> Union[str, None]:
-        """ The name of the stream. (`None` if no name was given.) """
+        """ The name of the stream. `None` if no name was given. """
         return self._name
 
     def is_closed(self) -> bool:
@@ -196,13 +193,13 @@ class LoopStream(object):
 
     Must call `set` on a ReadStream to complete the loop.
     """
-    def __init__(self, _name: str = None):
+    def __init__(self, _name: Union[str, None] = None):
         self._py_loop_stream = PyLoopStream()
         self._name = _name
 
     @property
     def name(self) -> Union[str, None]:
-        """ The name of the stream. (`None` if no name was given.) """
+        """ The name of the stream. `None` if no name was given. """
         return self._name
 
     def set(self, read_stream: ReadStream):
@@ -227,7 +224,7 @@ class IngestStream(object):
 
     @property
     def name(self) -> Union[str, None]:
-        """ The name of the stream. (`None` if no name was given.) """
+        """ The name of the stream. `None` if no name was given. """
         return self._name
 
     def is_closed(self) -> bool:
@@ -242,7 +239,8 @@ class IngestStream(object):
         """Sends a message on the stream.
 
         Args:
-            msg: the message to send. This may be a `Watermark` or a `Message`.
+            msg: the message to send. This may be a 
+            :py:class:`WatermarkMessage` or a :py:class:`Message`.
         """
         if not isinstance(msg, Message):
             raise TypeError("msg must inherent from erdos.Message!")
@@ -282,7 +280,7 @@ class ExtractStream(object):
 
     @property
     def name(self) -> Union[str, None]:
-        """ The name of the stream. (`None` if no name was given). """
+        """ The name of the stream. `None` if no name was given. """
         return self._name
 
     def is_closed(self) -> bool:
@@ -293,11 +291,11 @@ class ExtractStream(object):
         """
         return self._py_extract_stream.is_closed()
 
-    def read(self):
+    def read(self) -> Message:
         """Blocks until a message is read from the stream."""
         return _parse_message(self._py_extract_stream.read())
 
-    def try_read(self):
+    def try_read(self) -> Union[Message, None]:
         """Tries to read a mesage from the stream.
 
         Returns None if no messages are available at the moment.

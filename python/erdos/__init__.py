@@ -1,5 +1,6 @@
-import multiprocessing as mp
 import inspect
+import logging
+import multiprocessing as mp
 import signal
 import sys
 
@@ -21,9 +22,6 @@ _num_py_operators = 0
 # Set the top-level logger for ERDOS logging.
 # Users can change the logging level to the required level by calling setLevel
 # erdos.logger.setLevel(logging.DEBUG)
-import logging
-import sys
-
 FORMAT = "%(asctime)s.%(msecs)03d %(name)s %(levelname)s: %(message)s"
 DATE_FORMAT = "%Y-%m-%d,%H:%M:%S"
 formatter = logging.Formatter(FORMAT, datefmt=DATE_FORMAT)
@@ -45,9 +43,14 @@ def connect(
 ) -> List[ReadStream]:
     """Registers the operator and its connected streams on the dataflow graph.
 
+    This function performs initialization of the operator by registering its
+    read and write stream dependencies with the internal graph representation.
+    It is not sufficient to call :py:func:`Operator.connect` in the driver.
+
     The `read_streams` are passed to the `connect` function of `op_type` to 
     retrieve the write streams of the operator. The operator is then 
-    initialized with the given `read_streams` and the returned `write_streams`: 
+    initialized with the given `read_streams` and the returned `write_streams`
+    after calling :py:func:`run`: 
         >>> write_streams = op_type.connect(*read_streams)
         >>> op_type(*read_streams, *write_streams, *args, **kwargs)
 
@@ -149,6 +152,7 @@ class NodeHandle(object):
         """ Waits for the completion of all the operators in the dataflow """
         for p in self.processes:
             p.join()
+        logger.debug("Finished waiting for the dataflow graph processes.")
 
 
 def run(graph_filename: Optional[str] = None,
@@ -237,8 +241,8 @@ def add_watermark_callback(read_streams: List[erdos.ReadStream],
         callback: The callback to be invoked upon receipt of a 
             :py:class:`.WatermarkMessage` on all the `read_streams`.
     """
-    logger.debug("Add watermark callback {name} to the input streams: {_input}"
-                 ", and passing the output streams: {_output}".format(
+    logger.debug("Adding watermark callback {name} to the input streams: " 
+            "{_input}, and passing the output streams: {_output}".format(
                      name=callback.__name__,
                      _input=list(map(attrgetter('_name'), read_streams)),
                      _output=list(map(attrgetter('_name'), write_streams))))
