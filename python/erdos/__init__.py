@@ -4,6 +4,8 @@ import signal
 import sys
 
 from functools import wraps
+from operator import attrgetter
+from typing import Type, List, Optional, Callable
 
 import erdos.internal as _internal
 from erdos.streams import (ReadStream, WriteStream, LoopStream, IngestStream,
@@ -16,25 +18,51 @@ import erdos.utils
 
 _num_py_operators = 0
 
+# Set the top-level logger for ERDOS logging.
+# Users can change the logging level to the required level by calling setLevel
+# erdos.logger.setLevel(logging.DEBUG)
+import logging
+import sys
 
-def connect(op_type, config, read_streams, *args, **kwargs):
+FORMAT = "%(asctime)s.%(msecs)03d %(name)s %(levelname)s: %(message)s"
+DATE_FORMAT = "%Y-%m-%d,%H:%M:%S"
+formatter = logging.Formatter(FORMAT, datefmt=DATE_FORMAT)
+default_handler = logging.StreamHandler(sys.stderr)
+default_handler.setFormatter(formatter)
+
+logger = logging.getLogger(__name__)
+logger.addHandler(default_handler)
+logger.setLevel(logging.WARNING)
+logger.propagate = False
+
+
+def connect(
+    op_type: Type[Operator],
+    config: OperatorConfig,
+    read_streams: List[ReadStream],
+    *args,
+    **kwargs,
+) -> List[ReadStream]:
     """Registers the operator and its connected streams on the dataflow graph.
 
-    The operator is created as follows:
-    `op_type(*read_streams, *write_streams, *args, **kwargs)`
+    The `read_streams` are passed to the `connect` function of `op_type` to 
+    retrieve the write streams of the operator. The operator is then 
+    initialized with the given `read_streams` and the returned `write_streams`: 
+        >>> write_streams = op_type.connect(*read_streams)
+        >>> op_type(*read_streams, *write_streams, *args, **kwargs)
 
     Args:
-        op_type (type): The operator class. Should inherit from
-            `erdos.Operator`.
-        config (OperatorConfig): Configuration details required by the
-            operator.
-        read_streams: the streams from which the operator processes data.
-        args: arguments passed to the operator.
-        kwargs: keyword arguments passed to the operator.
-
+        op_type: The :py:class:`.Operator` that needs to be added to the graph 
+            with the corresponding `read_streams`.
+        config: Configuration details required by the operator.
+        read_streams: The streams on which the operator processes data.
+        *args: Arguments passed to the operator during initialization.
+        **kwargs: Keyword arguments passed to the operator during 
+            initialization.
     Returns:
-        read_streams (list of ReadStream): ReadStreams corresponding to the
-            WriteStreams returned by the operator's connect.
+        A list of :py:class:`.ReadStream` s corresponding to the 
+        :py:class:`.WriteStream` s returned by the `connect` function of the
+        :py:class:`.Operator`.
     """
     if not issubclass(op_type, Operator):
         raise TypeError("{} must subclass erdos.Operator".format(op_type))
@@ -50,9 +78,15 @@ def connect(op_type, config, read_streams, *args, **kwargs):
     global _num_py_operators
     _num_py_operators += 1
     node_id = _num_py_operators
+    logger.debug("Connecting operator #{num} ({name}) to the graph.".format(
+        num=node_id, name=config.name))
 
     py_read_streams = []
-    for stream in read_streams:
+    op_read_streams = list(
+        inspect.signature(op_type.connect).parameters.keys())
+    for index, stream in enumerate(read_streams):
+        logger.debug("Passing the stream {} to operator {}.".format(
+            op_read_streams[index], config.name))
         if isinstance(stream, LoopStream):
             py_read_streams.append(stream._py_loop_stream.to_py_read_stream())
         elif isinstance(stream, IngestStream):
@@ -61,85 +95,98 @@ def connect(op_type, config, read_streams, *args, **kwargs):
         elif isinstance(stream, ReadStream):
             py_read_streams.append(stream._py_read_stream)
         else:
-            raise TypeError("Unable to convert {stream} to ReadStream".format(
-                stream=stream))
+            raise TypeError(
+                "Unable to convert {stream} of type {stream_type} to ReadStream"
+                .format(stream=stream, stream_type=type(stream)))
 
     internal_streams = _internal.connect(op_type, config, py_read_streams,
                                          args, kwargs, node_id)
+    logger.debug("Converting {} write stream(s) returned by "
+                 "operator {} to read stream(s).".format(
+                     len(internal_streams), config.name))
     return [ReadStream(_py_read_stream=s) for s in internal_streams]
 
 
 def reset():
-    """Resets internal seed and creates a new dataflow graph.
+    """Create a new dataflow graph.
 
-    Note that no streams or operators can be re-used safely.
+    Note:
+        A call to this function renders the previous dataflow graph unsafe to 
+        use.
     """
+    logger.info("Resetting the default graph.")
     global _num_py_operators
     _num_py_operators = 0
     _internal.reset()
 
 
-def run(graph_filename=None, start_port=9000):
+# TODO (Sukrit) : Should this be called a GraphHandle?
+# What is the significance of the "Node" here?
+class NodeHandle(object):
+    """ A handle to the dataflow graph returned by the :py:func:`run_async` 
+    method.
+
+    The handle exposes functions to :py:func:`shutdown` the dataflow, or 
+    :py:func:`wait` for its completion.
+
+    Note:
+        This structure should not be initialized by the users.
+    """
+    def __init__(self, py_node_handle, processes):
+        self.py_node_handle = py_node_handle
+        self.processes = processes
+
+    def shutdown(self):
+        """ Shuts down the dataflow."""
+        logger.info("Shutting down other processes")
+        for p in self.processes:
+            p.terminate()
+            p.join()
+        logger.info("Shutting down node.")
+        self.py_node_handle.shutdown_node()
+
+    def wait(self):
+        """ Waits for the completion of all the operators in the dataflow """
+        for p in self.processes:
+            p.join()
+
+
+def run(graph_filename: Optional[str] = None,
+        start_port: Optional[int] = 9000):
     """Instantiates and runs the dataflow graph.
 
     ERDOS will spawn 1 process for each python operator, and connect them via
     TCP.
 
     Args:
-        graph_filename (str): the filename to which to write the dataflow graph
+        graph_filename: The filename to which to write the dataflow graph
             as a DOT file.
-        start_port (int): the port on which to start. The start port is the
+        start_port: The port on which to start. The start port is the
             lowest port ERDOS will use to establish TCP connections between
             operators.
     """
-    data_addresses = [
-        "127.0.0.1:{port}".format(port=start_port + i)
-        for i in range(_num_py_operators + 1)
-    ]
-    control_addresses = [
-        "127.0.0.1:{port}".format(port=start_port + len(data_addresses) + i)
-        for i in range(_num_py_operators + 1)
-    ]
-
-    def runner(node_id, data_addresses, control_addresses):
-        _internal.run(node_id, data_addresses, control_addresses)
-
-    processes = [
-        mp.Process(target=runner, args=(i, data_addresses, control_addresses))
-        for i in range(1, _num_py_operators + 1)
-    ]
-
-    for p in processes:
-        p.start()
-
-    # Needed to shut down child processes
-    def sigint_handler(sig, frame):
-        for p in processes:
-            p.terminate()
-        sys.exit(0)
-
-    signal.signal(signal.SIGINT, sigint_handler)
-
-    # The driver must always be on node 0 otherwise ingest and extract streams
-    # will break
-    _internal.run_async(0, data_addresses, control_addresses, graph_filename)
-
-    for p in processes:
-        p.join()
+    driver_handle = run_async(graph_filename, start_port)
+    logger.debug("Waiting for the dataflow to complete ...")
+    driver_handle.wait()
 
 
-def run_async(graph_filename=None, start_port=9000):
+def run_async(graph_filename: Optional[str] = None,
+              start_port: Optional[int] = 9000) -> NodeHandle:
     """Instantiates and runs the dataflow graph asynchronously.
 
     ERDOS will spawn 1 process for each python operator, and connect them via
     TCP.
 
     Args:
-        graph_filename (str): the filename to which to write the dataflow graph
+        graph_filename: The filename to which to write the dataflow graph
             as a DOT file.
-        start_port (int): the port on which to start. The start port is the
+        start_port: The port on which to start. The start port is the
             lowest port ERDOS will use to establish TCP connections between
             operators.
+
+    Returns:
+        A :py:class:`.NodeHandle` that allows the driver to interface with the
+        dataflow graph.
     """
     data_addresses = [
         "127.0.0.1:{port}".format(port=start_port + i)
@@ -149,6 +196,8 @@ def run_async(graph_filename=None, start_port=9000):
         "127.0.0.1:{port}".format(port=start_port + len(data_addresses) + i)
         for i in range(_num_py_operators + 1)
     ]
+    logger.debug(
+        "Running the dataflow graph on addresses: {}".format(data_addresses))
 
     def runner(node_id, data_addresses, control_addresses):
         _internal.run(node_id, data_addresses, control_addresses)
@@ -177,28 +226,41 @@ def run_async(graph_filename=None, start_port=9000):
     return NodeHandle(py_node_handle, processes)
 
 
-def add_watermark_callback(read_streams, write_streams, callback):
+def add_watermark_callback(read_streams: List[erdos.ReadStream],
+                           write_streams: List[erdos.WriteStream],
+                           callback: Callable):
     """Adds a watermark callback across several read streams.
 
     Args:
-        read_streams (list of ReadStream): streams on which the callback is
-            invoked.
-        write_streams (list of WriteStream): streams on which the callback
-            can send messages.
-        callback (timestamp, list of WriteStream -> None): a low watermark
-            callback.
+        read_streams: Streams on which the callback is invoked.
+        write_streams: Streams on which the callback can send messages.
+        callback: The callback to be invoked upon receipt of a 
+            :py:class:`.WatermarkMessage` on all the `read_streams`.
     """
+    logger.debug("Add watermark callback {name} to the input streams: {_input}"
+                 ", and passing the output streams: {_output}".format(
+                     name=callback.__name__,
+                     _input=list(map(attrgetter('_name'), read_streams)),
+                     _output=list(map(attrgetter('_name'), write_streams))))
+
     def internal_watermark_callback(coordinates, is_top):
         timestamp = Timestamp(coordinates=coordinates, is_top=is_top)
         callback(timestamp, *write_streams)
 
-    py_read_streams = [s._py_read_stream for s in read_streams]
-    _internal.add_watermark_callback(py_read_streams,
-                                     internal_watermark_callback)
+    _internal.add_watermark_callback(
+        list(map(attrgetter('_py_read_stream'), read_streams)),
+        internal_watermark_callback)
 
 
 def _flow_watermark_callback(timestamp, *write_streams):
-    """Flows a watermark to all write streams."""
+    """Flows a watermark to all write streams.
+
+    Args:
+        timestamp (:py:class:`erdos.Timestamp`): The timestamp of the watermark
+            to be sent to downstream operators.
+        write_streams (:py:class:`erdos.WriteStream`): The write streams to
+            send the watermark to.
+    """
     for write_stream in write_streams:
         write_stream.send(WatermarkMessage(timestamp))
 
@@ -241,23 +303,6 @@ def profile_method(**decorator_kwargs):
         return wrapper
 
     return decorator
-
-
-class NodeHandle(object):
-    """Used to shutdown a dataflow created by `run_async`."""
-    def __init__(self, py_node_handle, processes):
-        self.py_node_handle = py_node_handle
-        self.processes = processes
-
-    def shutdown(self):
-        """Shuts down the dataflow."""
-        print("shutting down other processes")
-        for p in self.processes:
-            p.terminate()
-            p.join()
-        print("shutting down node")
-        self.py_node_handle.shutdown_node()
-        print("done shutting down")
 
 
 __all__ = [
