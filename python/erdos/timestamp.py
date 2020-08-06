@@ -1,13 +1,19 @@
+from typing import Sequence
+
+
 class Timestamp(object):
     """An ERDOS timestamp.
-       The timestamp can consist of one or more coordinates.
+   The timestamp can consist of one or more coordinates.
 
-       Attributes:
-           timestamp (Timestamp): For the copy constructor.
-           coordinates (list of int): An array of coordinates.
-           is_top (bool): Whether this is the highest possible timestamp.
+   Attributes:
+       timestamp (:py:class:`.Timestamp`): For the copy constructor.
+       coordinates (`Sequence[int]`): An array of coordinates.
+       is_top (`bool`): Whether this is the highest possible timestamp.
     """
-    def __init__(self, timestamp=None, coordinates=None, is_top=False):
+    def __init__(self,
+                 timestamp=None,
+                 coordinates: Sequence[int] = None,
+                 is_top: bool = False):
         self._is_top = is_top
         if is_top and coordinates is None:
             coordinates = []

@@ -39,6 +39,7 @@ release = u"0.2.0"
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
+    "sphinx_autodoc_typehints",
 ]
 
 # Enable autodoc without requiring installation of listed modules
@@ -176,3 +177,6 @@ epub_exclude_files = ["search.html"]
 
 # Python methods should be presented in source order
 autodoc_member_order = "bysource"
+
+# Enables automatic type inference from parameters in Napoleon.
+napoleon_use_param = True
