@@ -141,7 +141,6 @@ pub struct OperatorExecutor {
     lattice: Arc<ExecutionLattice>,
     /// Receives control messages regarding the operator.
     control_rx: mpsc::UnboundedReceiver<ControlMessage>,
-    logger: slog::Logger,
 }
 
 impl OperatorExecutor {
@@ -151,7 +150,6 @@ impl OperatorExecutor {
         config: OperatorConfig<U>,
         mut operator_streams: Vec<Box<dyn OperatorExecutorStreamT>>,
         control_rx: mpsc::UnboundedReceiver<ControlMessage>,
-        logger: slog::Logger,
     ) -> Self {
         let streams_closed: HashMap<_, _> = operator_streams
             .iter()
@@ -171,7 +169,6 @@ impl OperatorExecutor {
             streams_closed,
             lattice: Arc::new(ExecutionLattice::new()),
             control_rx,
-            logger,
         }
     }
 
@@ -204,7 +201,7 @@ impl OperatorExecutor {
             .clone()
             .unwrap_or_else(|| format!("{}", self.config.id));
         slog::debug!(
-            self.logger,
+            crate::TERMINAL_LOGGER,
             "Node {}: running operator {}",
             self.config.node_id,
             name
@@ -243,7 +240,7 @@ impl OperatorExecutor {
 
             if self.all_streams_closed() {
                 slog::debug!(
-                    self.logger,
+                    crate::TERMINAL_LOGGER,
                     "Node {}: destroying operator {}",
                     self.config.node_id,
                     name,

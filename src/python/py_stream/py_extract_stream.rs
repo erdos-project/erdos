@@ -12,10 +12,20 @@ pub struct PyExtractStream {
 #[pymethods]
 impl PyExtractStream {
     #[new]
-    fn new(obj: &PyRawObject, py_read_stream: &PyReadStream) {
-        obj.init(Self {
-            extract_stream: ExtractStream::new(0, &py_read_stream.read_stream),
-        });
+    fn new(obj: &PyRawObject, py_read_stream: &PyReadStream, name: Option<String>) {
+        let extract_stream = match name {
+            Some(_name) => Self {
+                extract_stream: ExtractStream::new_with_name(
+                    0,
+                    &py_read_stream.read_stream,
+                    &_name,
+                ),
+            },
+            None => Self {
+                extract_stream: ExtractStream::new(0, &py_read_stream.read_stream),
+            },
+        };
+        obj.init(extract_stream);
     }
 
     fn is_closed(&self) -> bool {
