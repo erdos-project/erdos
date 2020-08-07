@@ -60,7 +60,6 @@ impl PyReadStream {
     fn try_read(&mut self) -> PyResult<Option<PyMessage>> {
         match self.read_stream.try_read() {
             Ok(msg) => Ok(Some(PyMessage::from(msg))),
-            Err(TryReadError::Empty) => Ok(None),
             Err(e) => {
                 let error_str = format!(
                     "Error reading from {} (ID: {})",
@@ -71,6 +70,7 @@ impl PyReadStream {
                     TryReadError::SerializationError => Err(SerializationError::py_err(error_str)),
                     TryReadError::Disconnected => Err(Disconnected::py_err(error_str)),
                     TryReadError::Closed => Err(Closed::py_err(error_str)),
+                    TryReadError::Empty => Ok(None),
                 }
             }
         }

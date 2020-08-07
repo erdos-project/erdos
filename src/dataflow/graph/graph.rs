@@ -144,7 +144,7 @@ impl Graph {
     where
         for<'a> D: Data + Deserialize<'a>,
     {
-        let write_stream = WriteStream::<D>::new_from_id(loop_stream.get_id());
+        let write_stream = WriteStream::<D>::new_with_id(loop_stream.get_id());
         // TODO: clean up this hack
         self.add_operator_stream(OperatorId::nil(), &write_stream);
     }
