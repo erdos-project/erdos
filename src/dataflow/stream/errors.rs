@@ -11,6 +11,8 @@ pub enum ReadError {
     Closed,
 }
 
+// TODO (Sukrit) :: Should we deprecate this? We should have a single ReadError that includes
+// Empty.
 /// Errors raised by calling `try_read` from a `ReadStream`.
 #[derive(Debug, PartialEq)]
 pub enum TryReadError {
