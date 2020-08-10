@@ -180,11 +180,10 @@ class WriteStream(object):
 
         # Raise exception with the name.
         try:
-            self._py_write_stream.send(internal_msg)
+            return self._py_write_stream.send(internal_msg)
         except Exception as e:
             raise Exception("Exception on stream {} ({})".format(
                 self._name, self._id)) from e
-        return self._py_write_stream.send(internal_msg)
 
 
 class LoopStream(object):
