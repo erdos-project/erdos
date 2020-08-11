@@ -100,9 +100,11 @@ class ReadStream(object):
         if write_streams is None:
             write_streams = []
 
+        cb_name = callback.__name__ if "__name__" in dir(callback) else "None"
+
         logger.debug("Adding callback {name} to the input stream {_input}, "
                      "and passing the output streams: {_output}".format(
-                         name=callback.__name__,
+                         name=cb_name,
                          _input=self._name,
                          _output=list(map(attrgetter("_name"),
                                           write_streams))))
@@ -123,10 +125,13 @@ class ReadStream(object):
         """
         if write_streams is None:
             write_streams = []
+
+        cb_name = callback.__name__ if "__name__" in dir(callback) else "None"
+
         logger.debug(
             "Adding watermark callback {name} to the input stream "
             "{_input}, and passing the output streams: {_output}".format(
-                name=callback.__name__,
+                name=cb_name,
                 _input=self._name,
                 _output=list(map(attrgetter("_name"), write_streams))))
 
