@@ -46,6 +46,13 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
         kwargs: PyObject,
         node_id: NodeId,
     ) -> PyResult<Vec<PyReadStream>> {
+        // Retrieve the name of the operator, if it exists.
+        let name: Option<String> = py_config.getattr(py, "name")?.extract(py)?;
+        let op_name = match &name {
+            Some(op_name) => op_name.clone(),
+            None => String::from("None"),
+        };
+
         // Call Operator.connect(*read_streams) to get write streams
         let locals = PyDict::new(py);
         locals.set_item("Operator", py_type.clone_ref(py))?;
@@ -58,17 +65,50 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
         )?;
         let connect_read_streams: Vec<&PyReadStream> = read_streams_obj.extract(py)?;
         let connect_write_streams: Vec<&PyWriteStream> = streams_result.extract()?;
+        slog::debug!(
+            crate::TERMINAL_LOGGER,
+            "The operator {} has received {} read streams, and returned {} write streams.",
+            op_name,
+            connect_read_streams.len(),
+            connect_write_streams.len()
+        );
 
         // Register the operator
         let op_id = crate::OperatorId::new_deterministic();
-        let name: Option<String> = py_config.getattr(py, "name")?.extract(py)?;
+        slog::debug!(
+            crate::TERMINAL_LOGGER,
+            "Assigning ID {} to {}.",
+            op_id,
+            op_name
+        );
         let name_clone = name.clone();
         let flow_watermarks: bool = py_config.getattr(py, "flow_watermarks")?.extract(py)?;
+        if flow_watermarks {
+            slog::debug!(
+                crate::TERMINAL_LOGGER,
+                "The watermarks on the operator {} (ID: {}) will be \
+                automatically sent to the downstream operators.",
+                op_name,
+                op_id
+            );
+        } else {
+            slog::debug!(
+                crate::TERMINAL_LOGGER,
+                "The watermarks on the operator {} (ID: {}) will not be \
+                automatically sent to the downstream operators.",
+                op_name,
+                op_id
+            );
+        }
+
+        // Get the IDs of the read streams.
         let read_stream_ids: Vec<Uuid> = connect_read_streams
             .iter()
             .map(|rs| rs.read_stream.get_id())
             .collect();
         let read_stream_ids_clone = read_stream_ids.clone();
+
+        // Get the IDs of the write streams.
         let write_stream_ids: Vec<Uuid> = connect_write_streams
             .iter()
             .map(|ws| ws.write_stream.get_id())
@@ -87,7 +127,6 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
                   control_receiver: UnboundedReceiver<ControlMessage>| {
                 // Create python streams from endpoints
                 let py_read_streams: Vec<PyReadStream> = read_stream_ids_clone
-                    .clone()
                     .iter()
                     .map(|&id| {
                         let recv_endpoint = channel_manager
@@ -112,7 +151,26 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
                         PyWriteStream::from(WriteStream::from_endpoints(send_endpoints, id))
                     })
                     .collect();
+                slog::debug!(
+                    crate::TERMINAL_LOGGER,
+                    "Finished creating python versions of {} read streams \
+                    and {} write streams for {}.",
+                    py_read_streams.len(),
+                    py_write_streams.len(),
+                    op_name
+                );
 
+                // Create read and write stream IDs in string.
+                let read_stream_uuids: Vec<String> = read_stream_ids_clone
+                    .iter()
+                    .map(|&id| format!("{}", id))
+                    .collect();
+                let write_stream_uuids: Vec<String> = write_stream_ids_clone
+                    .iter()
+                    .map(|&id| format!("{}", id))
+                    .collect();
+
+                // Add the flow watermark callback, if applicable.
                 if flow_watermarks {
                     flow_watermarks_py(&py_read_streams, &py_write_streams);
                 }
@@ -126,6 +184,11 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
                 }
 
                 // Instantiate and run the operator in Python
+                slog::debug!(
+                    crate::TERMINAL_LOGGER,
+                    "Instantiating the operator {}.",
+                    op_name
+                );
                 let gil = Python::acquire_gil();
                 let py = gil.python();
                 let locals = PyDict::new(py);
@@ -146,7 +209,15 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
                     .err()
                     .map(|e| e.print(py));
                 locals
+                    .set_item("read_stream_ids", read_stream_uuids)
+                    .err()
+                    .map(|e| e.print(py));
+                locals
                     .set_item("py_write_streams", py_write_streams)
+                    .err()
+                    .map(|e| e.print(py));
+                locals
+                    .set_item("write_stream_ids", write_stream_uuids)
                     .err()
                     .map(|e| e.print(py));
                 locals
@@ -171,19 +242,31 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
                 let py_result = py.run(
                     r#"
 import uuid
+import inspect
 
 import erdos
 
+# Collect the read streams that need to be sent to the operator.
 read_streams = []
-for i in range(len(py_read_streams)):
-    read_streams.append(erdos.ReadStream(_py_read_stream=py_read_streams[i]))
+read_stream_names = inspect.signature(Operator.connect).parameters.keys()
+for py_read_stream, id, name in zip(py_read_streams, read_stream_ids, read_stream_names):
+    read_stream = erdos.ReadStream(_py_read_stream=py_read_stream, _name=name, _id=uuid.UUID(id))
+    read_streams.append(read_stream)
 
+# Collect the write streams that need to be sent to the operator.
 write_streams = []
-for i in range(len(py_write_streams)):
-    write_streams.append(erdos.WriteStream(_py_write_stream=py_write_streams[i]))
+write_stream_start_index = 1 + len(read_streams)
+write_stream_end_index = write_stream_start_index + len(py_write_streams)
+write_stream_names = list(inspect.signature(Operator.__init__).parameters.keys())[write_stream_start_index:write_stream_end_index]
+for py_write_stream, id, name in zip(py_write_streams, write_stream_ids, write_stream_names):
+    write_stream = erdos.WriteStream(_py_write_stream=py_write_stream, _name=name, _id=uuid.UUID(id))
+    write_streams.append(write_stream)
 
 operator = Operator.__new__(Operator)
+
+# Add ID of the operator to the Python object.
 operator._id = uuid.UUID(op_id)
+
 operator._config = config
 trace_logger_name = "{}-profile".format(type(operator) if config.name is None else config.name)
 operator._trace_event_logger = erdos.utils.setup_trace_logging(trace_logger_name, config.profile_file_name)
@@ -196,10 +279,9 @@ operator.__init__(*read_streams, *write_streams, *args, **kwargs)
                     e.print(py)
                 }
                 // Notify node that operator is done setting up
-                let logger = crate::get_terminal_logger();
                 if let Err(e) = control_sender.send(ControlMessage::OperatorInitialized(op_id)) {
                     slog::error!(
-                        logger,
+                        crate::TERMINAL_LOGGER,
                         "Error sending OperatorInitialized message to control handler: {:?}",
                         e
                     );
@@ -223,7 +305,6 @@ operator.__init__(*read_streams, *write_streams, *args, **kwargs)
                     config,
                     op_ex_streams,
                     control_receiver,
-                    logger,
                 )
             };
 

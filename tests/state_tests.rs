@@ -1,5 +1,3 @@
-use slog;
-
 mod utils;
 
 use erdos::{

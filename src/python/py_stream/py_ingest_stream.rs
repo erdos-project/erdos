@@ -19,10 +19,16 @@ pub struct PyIngestStream {
 #[pymethods]
 impl PyIngestStream {
     #[new]
-    fn new(obj: &PyRawObject, node_id: NodeId) {
-        obj.init(Self {
-            ingest_stream: IngestStream::new(node_id),
-        });
+    fn new(obj: &PyRawObject, node_id: NodeId, name: Option<String>) {
+        let ingest_stream = match name {
+            Some(_name) => Self {
+                ingest_stream: IngestStream::new_with_name(node_id, &_name),
+            },
+            None => Self {
+                ingest_stream: IngestStream::new(node_id),
+            },
+        };
+        obj.init(ingest_stream);
     }
 
     fn is_closed(&self) -> bool {
