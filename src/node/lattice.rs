@@ -162,11 +162,11 @@ pub struct ExecutionLattice {
     /// events. The relation A -> B means that A *depends on* B.This dependency also indicates that
     /// B precedes A (B < A) in the ordering. An event can be executed if it has no outbound edges.
     forest: Arc<Mutex<StableGraph<Option<OperatorEvent>, ()>>>,
-    /// The `roots` are the roots of the forest of graphs, have no dependencies and can be run by
+    /// The `leaves` are the leaves of the forest of graphs, have no dependencies and can be run by
     /// the event executors.
-    roots: Arc<Mutex<Vec<RunnableEvent>>>,
+    leaves: Arc<Mutex<Vec<RunnableEvent>>>,
     /// The `run_queue` is the queue that maintains the events to be executed next. Note that this
-    /// is different from the `roots` because a root is only removed once its marked as complete.
+    /// is different from the `leaves` because a root is only removed once its marked as complete.
     run_queue: Arc<Mutex<BinaryHeap<RunnableEvent>>>,
 }
 
@@ -175,7 +175,7 @@ impl ExecutionLattice {
     pub fn new() -> Self {
         ExecutionLattice {
             forest: Arc::new(Mutex::new(StableGraph::new())),
-            roots: Arc::new(Mutex::new(Vec::new())),
+            leaves: Arc::new(Mutex::new(Vec::new())),
             run_queue: Arc::new(Mutex::new(BinaryHeap::new())),
         }
     }
@@ -187,12 +187,20 @@ impl ExecutionLattice {
     pub async fn add_events(&self, events: Vec<OperatorEvent>) {
         // Take locks over everything.
         let mut forest = self.forest.lock().await;
-        let mut roots = self.roots.lock().await;
+        let mut leaves = self.leaves.lock().await;
         let mut run_queue = self.run_queue.lock().await;
 
+        // If add_events becomes a bottleneck, look into changing the insertion algorithm to perform
+        // only 1 DFS instead of 1 per event. This could lead to more complex code to deal with
+        // dependency interactions among the batch of inserted events.
         for event in events {
-            // Visits each node in the graph once.
-            let mut dfs = DfsPostOrder::empty(Reversed(&*forest));
+            // Begins a DFS from each leaf, traversing the graph in the opposite direction of the edges.
+            // The purpose of this search is to find where new edges representing dependencies must be
+            // added for the new event.
+            // If the DFS becomes a performance bottleneck, consider searching from the roots of the forest
+            // as an optimization under the assumption that newly inserted events will likely depend on blocked
+            // already-inserted events.
+            let mut dfs_from_leaf = DfsPostOrder::empty(Reversed(&*forest));
             // Caches preceding events to avoid adding redundant dependencies.
             // For example, A -> C is redundant if A -> B -> C.
             let mut preceding_events: HashSet<NodeIndex<u32>> = HashSet::new();
@@ -200,20 +208,20 @@ impl ExecutionLattice {
             let mut outgoing_edges: Vec<NodeIndex<u32>> = Vec::new();
             // Other nodes depend on the added event.
             let mut incoming_edges: Vec<NodeIndex<u32>> = Vec::new();
-            // These nodes are no longer roots after the added event is inserted into the graph.
-            let mut demoted_roots: Vec<RunnableEvent> = Vec::new();
+            // These nodes are no longer leaves after the added event is inserted into the graph.
+            let mut demoted_leaves: Vec<RunnableEvent> = Vec::new();
             // Iterate through the forest with a DFS from each root to figure out where to add dependency edges.
-            'dfs_roots: for root in roots.iter() {
+            'dfs_leaves: for root in leaves.iter() {
                 // Begin a DFS at the specified root.
-                dfs.move_to(root.node_index);
-                while let Some(nx) = dfs.next(Reversed(&*forest)) {
+                dfs_from_leaf.move_to(root.node_index);
+                while let Some(nx) = dfs_from_leaf.next(Reversed(&*forest)) {
                     // If any of the current node's children precede the added event, then the current node also precedes
                     // the added event. By induction, the root would also precede the added event, so we can move on to the
                     // next root.
                     for child in forest.neighbors_directed(nx, Direction::Incoming) {
                         if preceding_events.contains(&child) {
                             preceding_events.insert(nx);
-                            continue 'dfs_roots;
+                            continue 'dfs_leaves;
                         }
                     }
 
@@ -253,7 +261,7 @@ impl ExecutionLattice {
                                 incoming_edges.push(nx);
                                 for n in run_queue.iter() {
                                     if n.node_index.index() == nx.index() {
-                                        demoted_roots.push(n.clone());
+                                        demoted_leaves.push(n.clone());
                                     }
                                 }
                             }
@@ -284,18 +292,18 @@ impl ExecutionLattice {
                 forest.add_edge(child, event_ix, ());
             }
 
-            // Clean up the roots and the run queue, if any.
+            // Clean up the leaves and the run queue, if any.
             // TODO (Sukrit) :: BinaryHeap does not provide a way to remove an element that is not at
             // the top of the heap. So, this particularly costly implementation clones the elements out
             // of the earlier run_queue, clears the run_queue and initializes it afresh with the set
             // difference of the old run_queue and the nodes to remove.
             // Since the invocation of this code is hopefully rare, we can optimize it later.
-            if demoted_roots.len() > 0 {
-                roots.retain(|e| !demoted_roots.contains(e));
+            if demoted_leaves.len() > 0 {
+                leaves.retain(|e| !demoted_leaves.contains(e));
                 // The run queue needs to be reconstructed.
                 let old_run_queue: Vec<RunnableEvent> = run_queue.drain().collect();
                 for item in old_run_queue {
-                    if !demoted_roots.contains(&item) {
+                    if !demoted_leaves.contains(&item) {
                         run_queue.push(item);
                     }
                 }
@@ -304,7 +312,7 @@ impl ExecutionLattice {
             // If the added event depends on no others, then we can safely create a new root in the forest and
             // add the event to the run queue.
             if preceding_events.is_empty() {
-                roots.push(RunnableEvent::new(event_ix).with_timestamp(event_timestamp.clone()));
+                leaves.push(RunnableEvent::new(event_ix).with_timestamp(event_timestamp.clone()));
                 run_queue.push(RunnableEvent::new(event_ix).with_timestamp(event_timestamp));
             }
         }
@@ -327,7 +335,7 @@ impl ExecutionLattice {
     pub async fn get_event(&self) -> Option<(OperatorEvent, usize)> {
         // Take locks over everything.
         let mut forest = self.forest.lock().await;
-        let _roots = self.roots.lock().await;
+        let _leaves = self.leaves.lock().await;
         let mut run_queue = self.run_queue.lock().await;
 
         // Retrieve the event
@@ -347,21 +355,21 @@ impl ExecutionLattice {
     pub async fn mark_as_completed(&self, event_id: usize) {
         // Take locks over everything.
         let mut forest = self.forest.lock().await;
-        let mut roots = self.roots.lock().await;
+        let mut leaves = self.leaves.lock().await;
         let mut run_queue = self.run_queue.lock().await;
 
         let node_idx: NodeIndex<u32> = NodeIndex::new(event_id);
 
-        // Throw an error if the item was not in the roots.
+        // Throw an error if the item was not in the leaves.
         let event = RunnableEvent::new(node_idx);
-        let event_idx = roots
+        let event_idx = leaves
             .iter()
             .position(|e| e == &event)
-            .expect("Item must be in the roots of the lattice.");
-        roots.remove(event_idx);
+            .expect("Item must be in the leaves of the lattice.");
+        leaves.remove(event_idx);
 
         // Go over the children of the node, and check which ones have no dependencies on other
-        // nodes, and add them to the list of the roots.
+        // nodes, and add them to the list of the leaves.
         let mut edges_to_remove: Vec<NodeIndex<u32>> = Vec::new();
         for child_id in forest.neighbors_directed(node_idx, Direction::Incoming) {
             // Promote child to root if it does not depend on any other events.
@@ -372,7 +380,7 @@ impl ExecutionLattice {
             {
                 let timestamp: Timestamp = forest[child_id].as_ref().unwrap().timestamp.clone();
                 let child = RunnableEvent::new(child_id).with_timestamp(timestamp);
-                roots.push(child.clone());
+                leaves.push(child.clone());
                 run_queue.push(child);
             }
 
@@ -395,12 +403,12 @@ impl ExecutionLattice {
     pub async fn to_dot(&self) -> String {
         // Lock the graph.
         let forest = self.forest.lock().await;
-        let roots = self.roots.lock().await;
+        let leaves = self.leaves.lock().await;
         let graph = forest.map(
             |nx, n| {
                 n.as_ref().map_or_else(
                     || {
-                        roots
+                        leaves
                             .iter()
                             .filter(|r| r.node_index == nx)
                             .next()
