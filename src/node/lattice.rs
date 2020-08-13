@@ -319,7 +319,7 @@ impl ExecutionLattice {
 
         if forest.node_count() > 100 {
             slog::warn!(
-                crate::get_terminal_logger(),
+                crate::TERMINAL_LOGGER,
                 "{} operator events queued in lattice. Increase number of operator executors or decrease incoming \
                 message frequency to reduce load.", forest.node_count()
             )
