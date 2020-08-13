@@ -166,7 +166,7 @@ pub struct ExecutionLattice {
     /// the event executors.
     leaves: Arc<Mutex<Vec<RunnableEvent>>>,
     /// The `run_queue` is the queue that maintains the events to be executed next. Note that this
-    /// is different from the `leaves` because a root is only removed once its marked as complete.
+    /// is different from the `leaves` because a leaf is only removed once its marked as complete.
     run_queue: Arc<Mutex<BinaryHeap<RunnableEvent>>>,
 }
 
@@ -210,16 +210,16 @@ impl ExecutionLattice {
             let mut incoming_edges: Vec<NodeIndex<u32>> = Vec::new();
             // These nodes are no longer leaves after the added event is inserted into the graph.
             let mut demoted_leaves: Vec<RunnableEvent> = Vec::new();
-            // Iterate through the forest with a DFS from each root to figure out where to add dependency edges.
-            'dfs_leaves: for root in leaves.iter() {
-                // Begin a DFS at the specified root.
-                dfs_from_leaf.move_to(root.node_index);
+            // Iterate through the forest with a DFS from each leaf to figure out where to add dependency edges.
+            'dfs_leaves: for leaf in leaves.iter() {
+                // Begin a reverse DFS from the specified leaf.
+                dfs_from_leaf.move_to(leaf.node_index);
                 while let Some(nx) = dfs_from_leaf.next(Reversed(&*forest)) {
-                    // If any of the current node's children precede the added event, then the current node also precedes
-                    // the added event. By induction, the root would also precede the added event, so we can move on to the
-                    // next root.
-                    for child in forest.neighbors_directed(nx, Direction::Incoming) {
-                        if preceding_events.contains(&child) {
+                    // If any of the current node's parents precede the added event, then the current node also precedes
+                    // the added event. By induction, the leaf would also precede the added event, so we can move on to the
+                    // next leaf.
+                    for parent in forest.neighbors_directed(nx, Direction::Incoming) {
+                        if preceding_events.contains(&parent) {
                             preceding_events.insert(nx);
                             continue 'dfs_leaves;
                         }
@@ -227,20 +227,20 @@ impl ExecutionLattice {
 
                     if let Some(node) = forest.node_weight(nx).unwrap().as_ref() {
                         if &event >= node {
-                            // Check if any of the children of the current node depend on the added event.
-                            // If children depend on the current DFS node and event > node, transfer
+                            // Check if any of the parents of the current node depend on the added event.
+                            // If parents depend on the current DFS node and event > node, transfer
                             // dependencies from the current node to the added event.
                             let mut possible_transfer_dependencies: Vec<NodeIndex<u32>> =
                                 Vec::new();
-                            for child in forest.neighbors_directed(nx, Direction::Incoming) {
-                                let child_node: &OperatorEvent =
-                                    forest.node_weight(child).unwrap().as_ref().unwrap();
-                                if child_node > &event {
-                                    // The child depends on the added event.
-                                    // Break the dependency from the DFS node to its child, and add a
-                                    // dependency from the node to be added to the child.
-                                    incoming_edges.push(child);
-                                    possible_transfer_dependencies.push(child);
+                            for parent in forest.neighbors_directed(nx, Direction::Incoming) {
+                                let parent_node: &OperatorEvent =
+                                    forest.node_weight(parent).unwrap().as_ref().unwrap();
+                                if parent_node > &event {
+                                    // The parent depends on the added event.
+                                    // Break the dependency from the DFS node to its parent, and add a
+                                    // dependency from the node to be added to the parent.
+                                    incoming_edges.push(parent);
+                                    possible_transfer_dependencies.push(parent);
                                 }
                             }
 
@@ -248,15 +248,15 @@ impl ExecutionLattice {
                             // event to the current node.
                             if &event > node {
                                 outgoing_edges.push(nx);
-                                for child in possible_transfer_dependencies {
-                                    let edge = forest.find_edge(child, nx).unwrap();
+                                for parent in possible_transfer_dependencies {
+                                    let edge = forest.find_edge(parent, nx).unwrap();
                                     forest.remove_edge(edge);
                                 }
                                 preceding_events.insert(nx);
                             }
                         } else {
                             // The currrent DFS node depends on the added event. Usually, this is resolved
-                            // at a higher DFS level, but add edges if the node is root.
+                            // at a higher DFS level, but add edges if the node is leaf.
                             if forest.neighbors_directed(nx, Direction::Outgoing).count() == 0 {
                                 incoming_edges.push(nx);
                                 for n in run_queue.iter() {
@@ -268,12 +268,12 @@ impl ExecutionLattice {
                         }
                     } else {
                         // Reached a node that is already executing, but hasn't been completed.
-                        // The current node will probably get added as a root. Add dependencies
-                        // between children and current event.
-                        for child in forest.neighbors_directed(nx, Direction::Incoming) {
-                            let child_node = forest.node_weight(child).unwrap().as_ref().unwrap();
-                            if child_node > &event {
-                                incoming_edges.push(child);
+                        // The current node will probably get added as a leaf. Add dependencies
+                        // between parents and current event.
+                        for parent in forest.neighbors_directed(nx, Direction::Incoming) {
+                            let parent_node = forest.node_weight(parent).unwrap().as_ref().unwrap();
+                            if parent_node > &event {
+                                incoming_edges.push(parent);
                             }
                         }
                     }
@@ -285,11 +285,11 @@ impl ExecutionLattice {
             let event_ix: NodeIndex<u32> = forest.add_node(Some(event));
 
             // Add edges indicating dependencies.
-            for parent in outgoing_edges {
-                forest.add_edge(event_ix, parent, ());
+            for child in outgoing_edges {
+                forest.add_edge(event_ix, child, ());
             }
-            for child in incoming_edges {
-                forest.add_edge(child, event_ix, ());
+            for parent in incoming_edges {
+                forest.add_edge(parent, event_ix, ());
             }
 
             // Clean up the leaves and the run queue, if any.
@@ -309,7 +309,7 @@ impl ExecutionLattice {
                 }
             }
 
-            // If the added event depends on no others, then we can safely create a new root in the forest and
+            // If the added event depends on no others, then we can safely create a new leaf in the forest and
             // add the event to the run queue.
             if preceding_events.is_empty() {
                 leaves.push(RunnableEvent::new(event_ix).with_timestamp(event_timestamp.clone()));
@@ -348,7 +348,7 @@ impl ExecutionLattice {
         }
     }
 
-    /// Mark an event as completed, and break the dependency from this event to its children.
+    /// Mark an event as completed, and break the dependency from this event to its parents.
     ///
     /// `event_id` is the unique identifer returned by the [`ExecutionLattice::get_event`]
     /// invocation.
@@ -368,29 +368,29 @@ impl ExecutionLattice {
             .expect("Item must be in the leaves of the lattice.");
         leaves.remove(event_idx);
 
-        // Go over the children of the node, and check which ones have no dependencies on other
+        // Go over the parents of the node, and check which ones have no dependencies on other
         // nodes, and add them to the list of the leaves.
         let mut edges_to_remove: Vec<NodeIndex<u32>> = Vec::new();
-        for child_id in forest.neighbors_directed(node_idx, Direction::Incoming) {
-            // Promote child to root if it does not depend on any other events.
+        for parent_id in forest.neighbors_directed(node_idx, Direction::Incoming) {
+            // Promote parent to leaf if it does not depend on any other events.
             if forest
-                .neighbors_directed(child_id, Direction::Outgoing)
+                .neighbors_directed(parent_id, Direction::Outgoing)
                 .count()
                 == 1
             {
-                let timestamp: Timestamp = forest[child_id].as_ref().unwrap().timestamp.clone();
-                let child = RunnableEvent::new(child_id).with_timestamp(timestamp);
-                leaves.push(child.clone());
-                run_queue.push(child);
+                let timestamp: Timestamp = forest[parent_id].as_ref().unwrap().timestamp.clone();
+                let parent = RunnableEvent::new(parent_id).with_timestamp(timestamp);
+                leaves.push(parent.clone());
+                run_queue.push(parent);
             }
 
-            // Remove the edge from the child.
-            edges_to_remove.push(child_id);
+            // Remove the edge from the parent.
+            edges_to_remove.push(parent_id);
         }
 
         // Remove the edges from the forest.
-        for child_id in edges_to_remove {
-            let edge_id: EdgeIndex<u32> = forest.find_edge(child_id, node_idx).unwrap();
+        for parent_id in edges_to_remove {
+            let edge_id: EdgeIndex<u32> = forest.find_edge(parent_id, node_idx).unwrap();
             forest.remove_edge(edge_id);
         }
 
@@ -432,10 +432,10 @@ mod test {
     use crate::dataflow::Timestamp;
     use futures::executor::block_on;
 
-    /// Test that a root gets added correctly to an empty lattice and that we can retrieve it from
+    /// Test that a leaf gets added correctly to an empty lattice and that we can retrieve it from
     /// the lattice.
     #[test]
-    fn test_root_addition() {
+    fn test_leaf_addition() {
         let lattice: ExecutionLattice = ExecutionLattice::new();
         let events = vec![OperatorEvent::new(
             Timestamp::new(vec![1]),
