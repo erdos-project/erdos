@@ -114,7 +114,7 @@ impl PartialOrd for RunnableEvent {
 }
 
 /// `ExecutionLattice` is a data structure that maintains [`OperatorEvent`]s in a
-/// [dependency graph](https://en.wikipedia.org/wiki/Dependency_graph) according the partial order
+/// [dependency graph](https://en.wikipedia.org/wiki/Dependency_graph) according to the partial order
 /// defined.
 ///
 /// Events can be added to the lattice using the `add_events` function, and retrieved using the
