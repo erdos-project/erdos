@@ -15,7 +15,8 @@ use crate::{
     dataflow::Data,
 };
 
-/// Trait used to wrap a bunch of SendEndpoints of different types.
+/// Trait used to deserialize a message and send it on a collection of [`SendEndpoint`]s
+/// without exposing the message's type to owner of the [`PusherT`] trait object.
 pub trait PusherT: Send {
     fn as_any(&mut self) -> &mut dyn Any;
     /// To be used to clone a boxed pusher.
@@ -24,13 +25,13 @@ pub trait PusherT: Send {
     fn send_from_bytes(&mut self, buf: BytesMut) -> Result<(), CommunicationError>;
 }
 
-/// Internal structure used to send data to other operators or threads.
+/// Internal structure used to send data on a collection of [`SendEndpoint`]s.
 #[derive(Clone)]
 pub struct Pusher<D: Debug + Clone + Send> {
     endpoints: Vec<SendEndpoint<D>>,
 }
 
-/// Zero-copy implementation of the endpoint.
+/// Zero-copy implementation of the pusher.
 impl<D: 'static + Serializable + Send + Sync + Debug> Pusher<Arc<D>> {
     pub fn new() -> Self {
         Self {
@@ -57,7 +58,7 @@ impl Clone for Box<dyn PusherT> {
     }
 }
 
-/// The `PusherT` trait is implemented only for the `Data` pushers.
+/// The [`PusherT`] trait is implemented only for the [`Data`] pushers.
 impl<D> PusherT for Pusher<Arc<D>>
 where
     for<'de> D: Data + Deserialize<'de>,
@@ -77,9 +78,7 @@ where
                 DeserializedMessage::<D>::Ref(msg) => msg.clone(),
             };
             let msg_arc = Arc::new(msg);
-            for endpoint in self.endpoints.iter_mut() {
-                endpoint.send(Arc::clone(&msg_arc))?;
-            }
+            self.send(msg_arc)?;
         }
         Ok(())
     }

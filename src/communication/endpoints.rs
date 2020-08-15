@@ -9,13 +9,16 @@ use crate::{
 /// Endpoint to be used to send messages between operators.
 #[derive(Clone)]
 pub enum SendEndpoint<D: Clone + Send + Debug> {
-    /// Send messages between operators running in the same process.
+    /// Send messages to an operator running in the same process.
     InterThread(mpsc::UnboundedSender<D>),
-    /// Send messages between operator executors and network threads.
+    /// Send messages to operators running on a different node.
+    /// Data is first sended to [`DataSender`](crate::communication::senders::DataSender)
+    /// which encodes and sends the message on a TCP stream.
     InterProcess(StreamId, mpsc::UnboundedSender<InterProcessMessage>),
 }
 
 /// Zero-copy implementation of the endpoint.
+/// Because we [`Arc`], the message isn't copied when sent between endpoints within the node.
 impl<D: 'static + Serializable + Send + Sync + Debug> SendEndpoint<Arc<D>> {
     pub fn send(&mut self, msg: Arc<D>) -> Result<(), CommunicationError> {
         match self {

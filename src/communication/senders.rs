@@ -19,7 +19,9 @@ use crate::node::NodeId;
 use crate::scheduler::endpoints_manager::ChannelsToSenders;
 
 #[allow(dead_code)]
-/// Listens on a `tokio::sync::mpsc` channel, and sends received messages on the network.
+/// The [`DataSender`] pulls messages from a FIFO inter-thread channel.
+/// The [`DataSender`] services all operators sending messages to a particular
+/// node which may result in congestion.
 pub(crate) struct DataSender {
     /// The id of the node the sink is sending data to.
     node_id: NodeId,
@@ -57,11 +59,11 @@ impl DataSender {
     }
 
     pub(crate) async fn run(&mut self) -> Result<(), CommunicationError> {
-        // Notify `ControlMessageHandler` that sender is initialized.
+        // Notify [`ControlMessageHandler`] that sender is initialized.
         self.control_tx
             .send(ControlMessage::DataSenderInitialized(self.node_id))
             .map_err(CommunicationError::from)?;
-        // TODO: listen on control_rx
+        // TODO: listen on control_rx?
         loop {
             match self.rx.recv().await {
                 Some(msg) => {
