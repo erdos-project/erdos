@@ -207,7 +207,6 @@ impl<D: Data> fmt::Debug for WriteStream<D> {
 }
 
 impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
-    /// Specialized implementation for when the Data does not implement `Abomonation`.
     fn send(&mut self, msg: Message<D>) -> Result<(), WriteStreamError> {
         // Check if the stream was closed before, and return an error.
         if self.stream_closed {

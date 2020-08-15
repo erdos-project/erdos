@@ -29,7 +29,9 @@ pub(crate) struct DataReceiver {
     stream: SplitStream<Framed<TcpStream, MessageCodec>>,
     /// Channel receiver on which new pusher updates are received.
     rx: UnboundedReceiver<(StreamId, Box<dyn PusherT>)>,
-    /// Mapping between stream id to pushers.
+    /// Mapping between stream id to [`PusherT`] trait objects.
+    /// [`PusherT`] trait objects are used to deserialize and send
+    /// messages to operators.
     stream_id_to_pusher: HashMap<StreamId, Box<dyn PusherT>>,
     /// Tokio channel sender to `ControlMessageHandler`.
     control_tx: UnboundedSender<ControlMessage>,
@@ -99,6 +101,7 @@ impl DataReceiver {
         Ok(())
     }
 
+    // TODO: update this method.
     fn update_pushers(&mut self) {
         // Execute while we still have pusher updates.
         while let Ok((stream_id, pusher)) = self.rx.try_recv() {
