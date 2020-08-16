@@ -28,18 +28,18 @@ use super::{
 /// [`MapOperator`](crate::dataflow::operators::MapOperator), and retrieve the mapped values
 /// through an [`ExtractStream`].
 /// ```
-/// use erdos::dataflow::{
-///     stream::{IngestStream, ExtractStream},
-///     operators::MapOperator,
-///     OperatorConfig, Message, Timestamp
-/// };
-/// use erdos::*;
-///
-/// let mut map_config = OperatorConfig::new();
-/// map_config.name("MapOperator").arg(
-///     |data: &u32| -> u64 { (data * 2) as u64 });
-///
-/// // Create an IngestStream. The driver is assigned an ID of 0.
+/// # use erdos::dataflow::{
+/// #    stream::{IngestStream, ExtractStream},
+/// #    operators::MapOperator,
+/// #    OperatorConfig, Message, Timestamp
+/// # };
+/// # use erdos::*;
+/// #
+/// # let map_config = OperatorConfig::new()
+//  #     .name("MapOperator")
+/// #     .arg(|data: &u32| -> u64 { (data * 2) as u64 });
+/// #
+/// // Create an IngestStream which runs on node 0.
 /// let mut ingest_stream = IngestStream::new(0); // or IngestStream::new_with_name(0, "driver")
 ///
 /// // Create an ExtractStream from the ReadStream of the MapOperator.

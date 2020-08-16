@@ -21,7 +21,7 @@ use std::marker::PhantomData;
 /// // Add the mapping function as an argument to the operator via the OperatorConfig.
 /// let map_config = OperatorConfig::new()
 ///     .name("MapOperator")
-///     .arg(|data: &u32| -> u64 { (*data as u64) * 2 });
+///     .arg(|data: &u32| -> u64 { (data * 2) as u64 });
 /// let u64_stream = connect_1_write!(MapOperator<u32, u64>, map_config, u32_stream);
 /// ```
 pub struct MapOperator<D1: Data, D2: Data> {

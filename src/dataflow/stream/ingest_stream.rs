@@ -23,17 +23,17 @@ use super::{errors::WriteStreamError, StreamId, WriteStream, WriteStreamT};
 /// The below example shows how to use a [`MapOperator`](crate::dataflow::operators::MapOperator)
 /// to double an incoming stream of [`u32`] messages, and return them as [`u64`] messages.
 /// ```
-/// use erdos::dataflow::{
-///     stream::IngestStream,
-///     operators::MapOperator,
-///     OperatorConfig, Message, Timestamp
-/// };
-/// use erdos::*;
-///
-/// let mut map_config = OperatorConfig::new();
-/// map_config.name("MapOperator").arg(
-///     |data: &u32| -> u64 { (data * 2) as u64 });
-///
+/// # use erdos::dataflow::{
+/// #    stream::IngestStream,
+/// #    operators::MapOperator,
+/// #    OperatorConfig, Message, Timestamp
+/// # };
+/// # use erdos::*;
+/// #
+/// # let map_config = OperatorConfig::new()
+//  #     .name("MapOperator")
+/// #     .arg(|data: &u32| -> u64 { (data * 2) as u64 });
+/// #
 /// // Create an IngestStream. The driver is assigned an ID of 0.
 /// let mut ingest_stream = IngestStream::new(0); // or IngestStream::new_with_name(0, "driver")
 /// let output_read_stream = connect_1_write!(MapOperator<u32, u64>, map_config, ingest_stream);
