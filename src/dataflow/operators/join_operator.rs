@@ -71,23 +71,27 @@ impl<D: Data> StreamState<D> {
 }
 
 /// An operator that joins two incoming streams of type D1 and D2 into a stream of type D3 using
-/// the closure provided.
+/// the function provided.
 ///
 /// # Example
 /// The below example shows how to use a JoinOperator to sum two streams of incoming u32 messages,
 /// and return them as u64 messages.
 ///
 /// ```
-/// use erdos::dataflow::{stream::IngestStream, operators::JoinOperator, OperatorConfig};
-/// use erdos::*;
-/// let mut config = OperatorConfig::new();
-/// config.name("JoinOperator").arg(
-///     |left_data: Vec<u32>, right_data: Vec<u32>| -> u64 {
+/// # use erdos::dataflow::{stream::IngestStream, operators::JoinOperator, OperatorConfig};
+/// # use erdos::*;
+/// #
+/// # let mut left_u32_stream = IngestStream::new(0);
+/// # let mut right_u32_stream = IngestStream::new(0);
+/// #
+/// // Add the joining function as an argument to the operator via the OperatorConfig.
+/// let join_config = OperatorConfig::new()
+///     .name("JoinOperator")
+///     .arg(|left_data: Vec<u32>, right_data: Vec<u32>| -> u64 {
 ///         (left_data.iter().sum::<u32>() + right_data.iter().sum::<u32>()) as u64
 ///     });
-/// let mut ingest_l = IngestStream::new(0);
-/// let mut ingest_r = IngestStream::new(0);
-/// let output_stream = connect_1_write!(JoinOperator<u32, u32, u64>, config, ingest_l, ingest_r);
+/// let output_stream = connect_1_write!(
+///     JoinOperator<u32, u32, u64>, join_config,left_u32_stream, right_u32_stream);
 /// ```
 pub struct JoinOperator<D1: Data, D2: Data, D3: Data> {
     phantom_data: PhantomData<(D1, D2, D3)>,

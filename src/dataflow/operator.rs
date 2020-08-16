@@ -14,12 +14,29 @@ pub trait Operator {
 
 #[derive(Clone)]
 pub struct OperatorConfig<T: Clone> {
+    /// A human-readable name for the [`Operator`] used in logging.
     pub name: Option<String>,
-    /// A unique identifier for every operator.
+    /// A unique identifier for the [`Operator`].
+    /// ERDOS sets this value when the dataflow graph executes.
+    /// Currently the ID is inaccessible from the driver, but is set when the config
+    /// is passed to the operator.
     pub id: OperatorId,
+    /// A generically typed argument to the operator.
     pub arg: Option<T>,
+    /// Whether the operator should automatically send
+    /// [watermark messages](crate::Message::Watermark) on all
+    /// [`WriteStream`](crate::dataflow::WriteStream)s for timestamp `t` upon
+    /// receiving watermarks with timestamp greater than `t` on all
+    /// [`ReadStream`](crate::dataflow::ReadStream)s.
+    /// Note that watermarks only flow after all watermark callbacks with timestamp
+    /// less than `t` complete. Watermarks flow after [`Operator::run`] finishes
+    /// running. Defaults to `true`.
     pub flow_watermarks: bool,
+    /// The ID of the node on which the operator should run. Defaults to `0`.
     pub node_id: NodeId,
+    /// Number of parallel tasks which process callbacks.
+    /// A higher number may result in more parallelism; however this may be limited
+    /// by dependencies on state and timestamps.
     pub num_event_runners: usize,
 }
 
@@ -35,32 +52,33 @@ impl<T: Clone> OperatorConfig<T> {
         }
     }
 
-    pub fn name(&mut self, name: &str) -> &mut Self {
+    /// Set the [`Operator`]'s name.
+    pub fn name(mut self, name: &str) -> Self {
         self.name = Some(name.to_string());
         self
     }
 
-    pub fn arg(&mut self, arg: T) -> &mut Self {
+    /// Set an argument to be passed to the [`Operator`].
+    pub fn arg(mut self, arg: T) -> Self {
         self.arg = Some(arg);
         self
     }
 
-    /// `flow_watermarks` is true by default.
-    pub fn flow_watermarks(&mut self, flow_watermarks: bool) -> &mut Self {
+    /// Set whether the [`Operator`] should flow watermarks.
+    pub fn flow_watermarks(mut self, flow_watermarks: bool) -> Self {
         self.flow_watermarks = flow_watermarks;
         self
     }
 
-    /// `node_id` is 0 by default.
-    // TODO: replace this with scheduling constraints.
-    pub fn node(&mut self, node_id: NodeId) -> &mut Self {
+    /// Set the node on which the [`Operator`] runs.
+    pub fn node(mut self, node_id: NodeId) -> Self {
         self.node_id = node_id;
         self
     }
 
     /// Sets the maximum number of callbacks the operator can process in parallel
     /// at a time. Defaults to 1.
-    pub fn num_event_runners(&mut self, num_event_runners: usize) -> &mut Self {
+    pub fn num_event_runners(mut self, num_event_runners: usize) -> Self {
         assert!(
             num_event_runners > 0,
             "Operator must have at least 1 thread."
@@ -69,7 +87,7 @@ impl<T: Clone> OperatorConfig<T> {
         self
     }
 
-    /// Loses argument type information in the
+    /// Removes the argument to lose type information. Used in
     /// [`OperatorExecutor`](crate::node::operator_executor::OperatorExecutor).
     pub(crate) fn drop_arg(self) -> OperatorConfig<()> {
         OperatorConfig {

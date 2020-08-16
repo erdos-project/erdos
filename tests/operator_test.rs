@@ -43,11 +43,13 @@ fn test_input_receiver_map() {
     let node = Node::new(config);
 
     let s1 = connect_1_write!(InputGenOp, OperatorConfig::new().name("InputOperator"));
-    let mut map_config = OperatorConfig::new();
-    map_config
-        .name("MapOperator")
-        .arg(|data: &u32| -> u64 { (data * 2) as u64 });
-    let s2 = connect_1_write!(MapOperator<u32, u64>, map_config, s1);
+    let s2 = connect_1_write!(
+        MapOperator<u32, u64>,
+        OperatorConfig::new()
+            .name("MapOperator")
+            .arg(|data: &u32| -> u64 { (data * 2) as u64 }),
+        s1
+    );
     let mut extract_stream = ExtractStream::new(0, &s2);
 
     node.run_async();
@@ -75,18 +77,20 @@ fn test_input_receiver_join() {
     let node = Node::new(config);
 
     let s1 = connect_1_write!(InputGenOp, OperatorConfig::new().name("InputOperator_Left"));
-
     let s2 = connect_1_write!(
         InputGenOp,
         OperatorConfig::new().name("InputOperator_Right")
     );
-    let mut join_config = OperatorConfig::new();
-    join_config
-        .name("JoinOperator")
-        .arg(|left_data: Vec<u32>, right_data: Vec<u32>| -> u64 {
-            (left_data.iter().sum::<u32>() + right_data.iter().sum::<u32>()) as u64
-        });
-    let s3 = connect_1_write!(JoinOperator<u32, u32, u64>, join_config, s1, s2);
+    // Join s1 and s2 by summation and send on s3.
+    let s3 = connect_1_write!(
+        JoinOperator<u32, u32, u64>,
+        OperatorConfig::new()
+            .name("JoinOperator")
+            .arg(|left_data: Vec<u32>, right_data: Vec<u32>| -> u64 {
+                (left_data.iter().sum::<u32>() + right_data.iter().sum::<u32>()) as u64
+            }),
+        s1, s2
+    );
     let mut extract_stream = ExtractStream::new(0, &s3);
 
     node.run_async();
