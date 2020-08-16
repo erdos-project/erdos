@@ -21,12 +21,13 @@ pub struct OperatorConfig<T: Clone> {
     /// Currently the ID is inaccessible from the driver, but is set when the config
     /// is passed to the operator.
     pub id: OperatorId,
-    /// A generically typed argument to the operator.
+    /// A generically typed argument to the [`Operator`].
     pub arg: Option<T>,
-    /// Whether the operator should automatically send
-    /// [watermark messages](crate::Message::Watermark) on all
-    /// [`WriteStream`](crate::dataflow::WriteStream)s for timestamp `t` upon
-    /// receiving watermarks with timestamp greater than `t` on all
+    /// Whether the [`Operator`] should automatically send
+    /// [watermark messages](crate::dataflow::Message::Watermark) on all
+    /// [`WriteStream`](crate::dataflow::WriteStream)s for
+    /// [`Timestamp`](crate::dataflow::Timestamp) `t` upon receiving watermarks with
+    /// [`Timestamp`](crate::dataflow::Timestamp) greater than `t` on all
     /// [`ReadStream`](crate::dataflow::ReadStream)s.
     /// Note that watermarks only flow after all watermark callbacks with timestamp
     /// less than `t` complete. Watermarks flow after [`Operator::run`] finishes
@@ -36,7 +37,7 @@ pub struct OperatorConfig<T: Clone> {
     pub node_id: NodeId,
     /// Number of parallel tasks which process callbacks.
     /// A higher number may result in more parallelism; however this may be limited
-    /// by dependencies on state and timestamps.
+    /// by dependencies on [`State`](crate::dataflow::State) and timestamps.
     pub num_event_runners: usize,
 }
 
