@@ -8,7 +8,7 @@ use std::{
 use futures::lock::Mutex;
 use petgraph::{
     dot::{self, Dot},
-    stable_graph::{EdgeIndex, NodeIndex, StableGraph},
+    stable_graph::{NodeIndex, StableGraph},
     visit::{DfsPostOrder, Reversed},
     Direction,
 };
@@ -119,7 +119,7 @@ impl PartialOrd for RunnableEvent {
 ///
 /// Events can be added to the lattice using the `add_events` function, and retrieved using the
 /// `get_event` function. The lattice requires a notification of the completion of the event using
-/// the `mark_as_compeleted` function in order to unblock dependent events, and make them runnable.
+/// the `mark_as_completed` function in order to unblock dependent events, and make them runnable.
 ///
 /// # Example
 /// The below example shows how to insert events into the Lattice and retrieve runnable events from
@@ -368,34 +368,28 @@ impl ExecutionLattice {
             .expect("Item must be in the leaves of the lattice.");
         leaves.remove(event_idx);
 
-        // Go over the parents of the node, and check which ones have no dependencies on other
-        // nodes, and add them to the list of the leaves.
-        let mut edges_to_remove: Vec<NodeIndex<u32>> = Vec::new();
-        for parent_id in forest.neighbors_directed(node_idx, Direction::Incoming) {
-            // Promote parent to leaf if it does not depend on any other events.
+        // Capture the parents of the node.
+        let parent_ids: Vec<NodeIndex> = forest
+            .neighbors_directed(node_idx, Direction::Incoming)
+            .collect();
+
+        // Remove the node from the graph. This will also remove edges from the parents.
+        forest.remove_node(node_idx);
+
+        // Promote parents to leaves if they have no dependencies, and add their corresponding
+        // events to the run queue.
+        for parent_id in parent_ids {
             if forest
                 .neighbors_directed(parent_id, Direction::Outgoing)
                 .count()
-                == 1
+                == 0
             {
                 let timestamp: Timestamp = forest[parent_id].as_ref().unwrap().timestamp.clone();
                 let parent = RunnableEvent::new(parent_id).with_timestamp(timestamp);
                 leaves.push(parent.clone());
                 run_queue.push(parent);
             }
-
-            // Remove the edge from the parent.
-            edges_to_remove.push(parent_id);
         }
-
-        // Remove the edges from the forest.
-        for parent_id in edges_to_remove {
-            let edge_id: EdgeIndex<u32> = forest.find_edge(parent_id, node_idx).unwrap();
-            forest.remove_edge(edge_id);
-        }
-
-        // Remove the completed event from the forest.
-        forest.remove_node(node_idx);
     }
 
     /// Convert graph to string in DOT format.
