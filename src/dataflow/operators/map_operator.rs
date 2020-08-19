@@ -6,20 +6,23 @@ use serde::Deserialize;
 use std::marker::PhantomData;
 
 /// An operator that maps an incoming stream of type D1 to a stream of type D2 using the provided
-/// closure.
+/// function.
 ///
 /// # Example
 /// The below example shows how to use a MapOperator to double an incoming stream of u32 messages,
 /// and return them as u64 messages.
 ///
 /// ```
-/// use erdos::dataflow::{stream::IngestStream, operators::MapOperator, OperatorConfig};
-/// use erdos::*;
-/// let mut map_config = OperatorConfig::new();
-/// map_config.name("MapOperator").arg(
-///     |data: &u32| -> u64 { (data * 2) as u64 });
-/// let mut ingest_stream = IngestStream::new(0);
-/// let output_read_stream = connect_1_write!(MapOperator<u32, u64>, map_config, ingest_stream);
+/// # use erdos::dataflow::{stream::IngestStream, operators::MapOperator, OperatorConfig};
+/// # use erdos::*;
+/// #
+/// # let mut u32_stream = IngestStream::new(0);
+/// #
+/// // Add the mapping function as an argument to the operator via the OperatorConfig.
+/// let map_config = OperatorConfig::new()
+///     .name("MapOperator")
+///     .arg(|data: &u32| -> u64 { (data * 2) as u64 });
+/// let u64_stream = connect_1_write!(MapOperator<u32, u64>, map_config, u32_stream);
 /// ```
 pub struct MapOperator<D1: Data, D2: Data> {
     phantom_data: PhantomData<(D1, D2)>,
