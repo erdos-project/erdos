@@ -811,56 +811,106 @@ mod test {
         );
     }
 
-    /// Test that the messages are retrieved in the timestamp order.
-    /// Added to address the bug where we would have starvation due to
-    /// watermark messages of earlier timestamps being blocked by non-watermark
-    /// callbacks of newer timestamps.
+    /// Tests that duplicate events do not end up in the lattice's leaves or
+    /// run queue. This can happen if duplicate edges exist in the dependency
+    /// graph.
     #[test]
-    fn test_ordered_concurrent_execution() {
-        let lattice: ExecutionLattice = ExecutionLattice::new();
-        let events = vec![
+    fn test_no_duplicates() {
+        let lattice = ExecutionLattice::new();
+        // Add 2 operators that can run concurrently.
+        let initial_events = vec![
             OperatorEvent::new(
-                Timestamp::new(vec![2]),
+                Timestamp::new(vec![0]),
                 false,
                 0,
                 HashSet::new(),
                 HashSet::new(),
-                || (),
+                || {},
             ),
             OperatorEvent::new(
-                Timestamp::new(vec![1]),
-                true,
-                0,
-                HashSet::new(),
-                HashSet::new(),
-                || (),
-            ),
-            OperatorEvent::new(
-                Timestamp::new(vec![3]),
+                Timestamp::new(vec![0]),
                 false,
                 0,
                 HashSet::new(),
                 HashSet::new(),
-                || (),
+                || {},
             ),
         ];
-        block_on(lattice.add_events(events));
+        block_on(lattice.add_events(initial_events));
 
-        let (event, _event_id) = block_on(lattice.get_event()).unwrap();
-        assert!(
-            event.timestamp.time[0] == 1 && event.is_watermark_callback,
-            "The wrong event was returned by the lattice."
+        // Generate events A and B where B precedes A.
+        let event_a = OperatorEvent::new(
+            Timestamp::new(vec![0]),
+            true,
+            20,
+            HashSet::new(),
+            HashSet::new(),
+            || {},
         );
+        let event_b = OperatorEvent::new(
+            Timestamp::new(vec![0]),
+            true,
+            0,
+            HashSet::new(),
+            HashSet::new(),
+            || {},
+        );
+        assert!(event_a > event_b, "Event B must precede event A.");
 
-        let (event_2, _event_id_2) = block_on(lattice.get_event()).unwrap();
+        // Insert events in reverse order. Due to how the traversal of the
+        // dependency graph is performed, this can result in duplicate edges
+        // when using vectors instead of sets to store an inserted event's
+        // parents and children. Duplicate edges may result in duplicate
+        // attempts to run the same event.
+        block_on(lattice.add_events(vec![event_a]));
+        block_on(lattice.add_events(vec![event_b]));
+        // Dependency graph should be:
+        //        -> C
+        // A -> B
+        //        -> D
+
+        // Run events C and D
+        let (event_1, event_1_id) = block_on(lattice.get_event()).unwrap();
+        let (event_2, event_2_id) = block_on(lattice.get_event()).unwrap();
         assert!(
-            event_2.timestamp.time[0] == 2 && !event_2.is_watermark_callback,
-            "The wrong event was returned by the lattice."
+            !event_1.is_watermark_callback,
+            "Should process events C and D before watermark callbacks."
         );
-        let (event_3, _event_id_3) = block_on(lattice.get_event()).unwrap();
         assert!(
-            event_3.timestamp.time[0] == 3 && !event_3.is_watermark_callback,
-            "The wrong event was returned by the lattice."
+            !event_2.is_watermark_callback,
+            "Should process events C and D before watermark callbacks."
+        );
+        assert!(
+            block_on(lattice.get_event()).is_none(),
+            "No other events should run until C and D complete."
+        );
+        block_on(lattice.mark_as_completed(event_1_id));
+        assert!(
+            block_on(lattice.get_event()).is_none(),
+            "No other events should run until C and D complete."
+        );
+        block_on(lattice.mark_as_completed(event_2_id));
+
+        // Run event B.
+        let (event_b, event_b_id) = block_on(lattice.get_event()).unwrap();
+        assert_eq!(
+            event_b.priority, 0,
+            "Event B should run after events C and D."
+        );
+        assert!(
+            block_on(lattice.get_event()).is_none(),
+            "A should not run until B completes."
+        );
+        block_on(lattice.mark_as_completed(event_b_id));
+
+        // Run event A.
+        let (_event_a, event_a_id) = block_on(lattice.get_event()).unwrap();
+        block_on(lattice.mark_as_completed(event_a_id));
+
+        // No more events should be in the lattice.
+        assert!(
+            block_on(lattice.get_event()).is_none(),
+            "There should be no more events in the lattice."
         );
     }
 }
