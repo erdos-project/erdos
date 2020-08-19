@@ -8,7 +8,7 @@ use std::{
 use futures::lock::Mutex;
 use petgraph::{
     dot::{self, Dot},
-    stable_graph::{NodeIndex, StableGraph},
+    stable_graph::{EdgeIndex, NodeIndex, StableGraph},
     visit::{DfsPostOrder, Reversed},
     Direction,
 };
@@ -193,7 +193,7 @@ impl ExecutionLattice {
         // If add_events becomes a bottleneck, look into changing the insertion algorithm to perform
         // only 1 DFS instead of 1 per event. This could lead to more complex code to deal with
         // dependency interactions among the batch of inserted events.
-        for event in events {
+        for added_event in events {
             // Begins a DFS from each leaf, traversing the graph in the opposite direction of the edges.
             // The purpose of this search is to find where new edges representing dependencies must be
             // added for the new event.
@@ -205,75 +205,98 @@ impl ExecutionLattice {
             // For example, A -> C is redundant if A -> B -> C.
             let mut preceding_events: HashSet<NodeIndex<u32>> = HashSet::new();
             // The added event depends on these nodes.
-            let mut outgoing_edges: Vec<NodeIndex<u32>> = Vec::new();
+            let mut children: Vec<NodeIndex<u32>> = Vec::new();
             // Other nodes depend on the added event.
-            let mut incoming_edges: Vec<NodeIndex<u32>> = Vec::new();
+            let mut parents: Vec<NodeIndex<u32>> = Vec::new();
             // These nodes are no longer leaves after the added event is inserted into the graph.
-            let mut demoted_leaves: Vec<RunnableEvent> = Vec::new();
+            let mut demoted_leaves: Vec<NodeIndex> = Vec::new();
+            // These edges are redundant and must be removed.
+            let mut redundant_edges: Vec<EdgeIndex> = Vec::new();
             // Iterate through the forest with a DFS from each leaf to figure out where to add dependency edges.
             'dfs_leaves: for leaf in leaves.iter() {
-                // Begin a reverse DFS from the specified leaf.
+                // Begin a reverse postorder DFS from the specified leaf.
                 dfs_from_leaf.move_to(leaf.node_index);
-                while let Some(nx) = dfs_from_leaf.next(Reversed(&*forest)) {
-                    // If any of the current node's parents precede the added event, then the current node also precedes
-                    // the added event. By induction, the leaf would also precede the added event, so we can move on to the
-                    // next leaf.
-                    for parent in forest.neighbors_directed(nx, Direction::Incoming) {
+                while let Some(visited_node_idx) = dfs_from_leaf.next(Reversed(&*forest)) {
+                    // If any of the current node's parents already precede the added event, then the current node also
+                    // precedes the added event. Due to the reverse post-order DFS from the leaves, the added event
+                    // must already depend on an ancenstor of the current node so we can skip this node because the
+                    // dependency is already established.
+                    for parent in forest.neighbors_directed(visited_node_idx, Direction::Incoming) {
                         if preceding_events.contains(&parent) {
-                            preceding_events.insert(nx);
+                            preceding_events.insert(visited_node_idx);
                             continue 'dfs_leaves;
                         }
                     }
 
-                    if let Some(node) = forest.node_weight(nx).unwrap().as_ref() {
-                        if &event >= node {
-                            // Check if any of the parents of the current node depend on the added event.
-                            // If parents depend on the current DFS node and event > node, transfer
-                            // dependencies from the current node to the added event.
-                            let mut possible_transfer_dependencies: Vec<NodeIndex<u32>> =
-                                Vec::new();
-                            for parent in forest.neighbors_directed(nx, Direction::Incoming) {
-                                let parent_node: &OperatorEvent =
-                                    forest.node_weight(parent).unwrap().as_ref().unwrap();
-                                if parent_node > &event {
-                                    // The parent depends on the added event.
-                                    // Break the dependency from the DFS node to its parent, and add a
-                                    // dependency from the node to be added to the parent.
-                                    incoming_edges.push(parent);
-                                    possible_transfer_dependencies.push(parent);
-                                }
-                            }
-
-                            // If this event depends on the current node, then add an edge from this
-                            // event to the current node.
-                            if &event > node {
-                                outgoing_edges.push(nx);
-                                for parent in possible_transfer_dependencies {
-                                    let edge = forest.find_edge(parent, nx).unwrap();
-                                    forest.remove_edge(edge);
-                                }
-                                preceding_events.insert(nx);
-                            }
-                        } else {
-                            // The currrent DFS node depends on the added event. Usually, this is resolved
-                            // at a higher DFS level, but add edges if the node is leaf.
-                            if forest.neighbors_directed(nx, Direction::Outgoing).count() == 0 {
-                                incoming_edges.push(nx);
-                                for n in run_queue.iter() {
-                                    if n.node_index.index() == nx.index() {
-                                        demoted_leaves.push(n.clone());
+                    if let Some(visited_event) =
+                        forest.node_weight(visited_node_idx).unwrap().as_ref()
+                    {
+                        match added_event.cmp(visited_event) {
+                            Ordering::Less => {
+                                // The visited event depends on the added event.
+                                // Add a dependency to the added event if the current node is a leaf.
+                                // Otherwise, the dependency is resolved in the current node's descendants.
+                                if forest
+                                    .neighbors_directed(visited_node_idx, Direction::Outgoing)
+                                    .count()
+                                    == 0
+                                {
+                                    parents.push(visited_node_idx);
+                                    for n in run_queue.iter() {
+                                        if n.node_index.index() == visited_node_idx.index() {
+                                            demoted_leaves.push(n.node_index);
+                                        }
                                     }
                                 }
                             }
-                        }
+                            Ordering::Equal => {
+                                // There are no dependencies between current event and added event.
+                                // Add dependencies from the parents of the visited node to the added event.
+                                for parent_idx in
+                                    forest.neighbors_directed(visited_node_idx, Direction::Incoming)
+                                {
+                                    let parent_event =
+                                        forest.node_weight(parent_idx).unwrap().as_ref().unwrap();
+                                    if parent_event > &added_event {
+                                        // The added event precedes the parent, so the parent
+                                        // depends on the added event.
+                                        parents.push(parent_idx);
+                                    }
+                                }
+                            }
+                            Ordering::Greater => {
+                                // The added event depends on the visited event.
+                                children.push(visited_node_idx);
+                                preceding_events.insert(visited_node_idx);
+                                // Add dependencies from the parents of the visited node to the added event.
+                                // Also, note edges that become redundant for removal.
+                                for parent_idx in
+                                    forest.neighbors_directed(visited_node_idx, Direction::Incoming)
+                                {
+                                    let parent_event =
+                                        forest.node_weight(parent_idx).unwrap().as_ref().unwrap();
+                                    if parent_event > &added_event {
+                                        // The added event precedes the parent, so the parent
+                                        // depends on the added event.
+                                        parents.push(parent_idx);
+                                        // Edge from parent to visited node becomes redundant.
+                                        let redundant_edge =
+                                            forest.find_edge(parent_idx, visited_node_idx).unwrap();
+                                        redundant_edges.push(redundant_edge);
+                                    }
+                                }
+                            }
+                        };
                     } else {
                         // Reached a node that is already executing, but hasn't been completed.
                         // The current node will probably get added as a leaf. Add dependencies
                         // between parents and current event.
-                        for parent in forest.neighbors_directed(nx, Direction::Incoming) {
+                        for parent in
+                            forest.neighbors_directed(visited_node_idx, Direction::Incoming)
+                        {
                             let parent_node = forest.node_weight(parent).unwrap().as_ref().unwrap();
-                            if parent_node > &event {
-                                incoming_edges.push(parent);
+                            if parent_node > &added_event {
+                                parents.push(parent);
                             }
                         }
                     }
@@ -281,15 +304,20 @@ impl ExecutionLattice {
             }
 
             // Add the node into the forest.
-            let event_timestamp: Timestamp = event.timestamp.clone();
-            let event_ix: NodeIndex<u32> = forest.add_node(Some(event));
+            let event_timestamp: Timestamp = added_event.timestamp.clone();
+            let event_idx: NodeIndex<u32> = forest.add_node(Some(added_event));
 
             // Add edges indicating dependencies.
-            for child in outgoing_edges {
-                forest.add_edge(event_ix, child, ());
+            for child in children {
+                forest.add_edge(event_idx, child, ());
             }
-            for parent in incoming_edges {
-                forest.add_edge(parent, event_ix, ());
+            for parent in parents {
+                forest.add_edge(parent, event_idx, ());
+            }
+
+            // Remove redundant edges
+            for redundant_edge in redundant_edges {
+                forest.remove_edge(redundant_edge).unwrap();
             }
 
             // Clean up the leaves and the run queue, if any.
@@ -299,12 +327,12 @@ impl ExecutionLattice {
             // difference of the old run_queue and the nodes to remove.
             // Since the invocation of this code is hopefully rare, we can optimize it later.
             if demoted_leaves.len() > 0 {
-                leaves.retain(|e| !demoted_leaves.contains(e));
-                // The run queue needs to be reconstructed.
+                leaves.retain(|event| !demoted_leaves.contains(&event.node_index));
+                // Reconstruct the run queue.
                 let old_run_queue: Vec<RunnableEvent> = run_queue.drain().collect();
-                for item in old_run_queue {
-                    if !demoted_leaves.contains(&item) {
-                        run_queue.push(item);
+                for event in old_run_queue {
+                    if !demoted_leaves.contains(&event.node_index) {
+                        run_queue.push(event);
                     }
                 }
             }
@@ -312,8 +340,8 @@ impl ExecutionLattice {
             // If the added event depends on no others, then we can safely create a new leaf in the forest and
             // add the event to the run queue.
             if preceding_events.is_empty() {
-                leaves.push(RunnableEvent::new(event_ix).with_timestamp(event_timestamp.clone()));
-                run_queue.push(RunnableEvent::new(event_ix).with_timestamp(event_timestamp));
+                leaves.push(RunnableEvent::new(event_idx).with_timestamp(event_timestamp.clone()));
+                run_queue.push(RunnableEvent::new(event_idx).with_timestamp(event_timestamp));
             }
         }
 
