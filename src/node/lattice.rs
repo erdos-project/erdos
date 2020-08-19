@@ -205,9 +205,9 @@ impl ExecutionLattice {
             // For example, A -> C is redundant if A -> B -> C.
             let mut preceding_events: HashSet<NodeIndex<u32>> = HashSet::new();
             // The added event depends on these nodes.
-            let mut children: Vec<NodeIndex<u32>> = Vec::new();
+            let mut children: HashSet<NodeIndex<u32>> = HashSet::new();
             // Other nodes depend on the added event.
-            let mut parents: Vec<NodeIndex<u32>> = Vec::new();
+            let mut parents: HashSet<NodeIndex<u32>> = HashSet::new();
             // These nodes are no longer leaves after the added event is inserted into the graph.
             let mut demoted_leaves: Vec<NodeIndex> = Vec::new();
             // These edges are redundant and must be removed.
@@ -241,7 +241,7 @@ impl ExecutionLattice {
                                     .count()
                                     == 0
                                 {
-                                    parents.push(visited_node_idx);
+                                    parents.insert(visited_node_idx);
                                     for n in run_queue.iter() {
                                         if n.node_index.index() == visited_node_idx.index() {
                                             demoted_leaves.push(n.node_index);
@@ -260,13 +260,13 @@ impl ExecutionLattice {
                                     if parent_event > &added_event {
                                         // The added event precedes the parent, so the parent
                                         // depends on the added event.
-                                        parents.push(parent_idx);
+                                        parents.insert(parent_idx);
                                     }
                                 }
                             }
                             Ordering::Greater => {
                                 // The added event depends on the visited event.
-                                children.push(visited_node_idx);
+                                children.insert(visited_node_idx);
                                 preceding_events.insert(visited_node_idx);
                                 // Add dependencies from the parents of the visited node to the added event.
                                 // Also, note edges that become redundant for removal.
@@ -278,7 +278,7 @@ impl ExecutionLattice {
                                     if parent_event > &added_event {
                                         // The added event precedes the parent, so the parent
                                         // depends on the added event.
-                                        parents.push(parent_idx);
+                                        parents.insert(parent_idx);
                                         // Edge from parent to visited node becomes redundant.
                                         let redundant_edge =
                                             forest.find_edge(parent_idx, visited_node_idx).unwrap();
@@ -296,7 +296,7 @@ impl ExecutionLattice {
                         {
                             let parent_node = forest.node_weight(parent).unwrap().as_ref().unwrap();
                             if parent_node > &added_event {
-                                parents.push(parent);
+                                parents.insert(parent);
                             }
                         }
                     }
