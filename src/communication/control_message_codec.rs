@@ -61,8 +61,7 @@ impl Decoder for ControlMessageCodec {
     }
 }
 
-impl Encoder for ControlMessageCodec {
-    type Item = ControlMessage;
+impl Encoder<ControlMessage> for ControlMessageCodec {
     type Error = CodecError;
 
     fn encode(&mut self, msg: ControlMessage, buf: &mut BytesMut) -> Result<(), CodecError> {
