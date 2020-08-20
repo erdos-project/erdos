@@ -101,8 +101,7 @@ impl Decoder for MessageCodec {
     }
 }
 
-impl Encoder for MessageCodec {
-    type Item = InterProcessMessage;
+impl Encoder<InterProcessMessage> for MessageCodec {
     type Error = CodecError;
 
     /// Encodes a InterProcessMessage into a buffer.
