@@ -5,7 +5,7 @@ ERDOS is a platform for developing self-driving cars and robotics applications.
 [![Crates.io][crates-badge]][crates-url]
 [![Build Status](https://github.com/erdos-project/erdos/workflows/CI/badge.svg)](https://github.com/erdos-project/erdos/actions)
 [![Documentation Status](https://readthedocs.org/projects/erdos/badge/?version=latest)](https://erdos.readthedocs.io/en/latest/?badge=latest)
-[![Documentation](https://docs.rs/erdos/badge.svg)](https://docs.rs/erdos/0.2.0/erdos/)
+[![Documentation](https://docs.rs/erdos/badge.svg)](https://docs.rs/erdos/)
 
 [crates-badge]: https://img.shields.io/crates/v/erdos.svg
 [crates-url]: https://crates.io/crates/erdos
