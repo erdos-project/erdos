@@ -10,24 +10,14 @@ else
     cd /io
 fi
 
-# for PYBIN in /opt/python/{cp35-cp35m,cp36-cp36m,cp37-cp37m,cp38-cp38}/bin; do
-#     export PATH_BACKUP=$PATH
-#     PATH="$PYBIN:$PATH"
-#     # Require wheel==0.31.1 because auditwheel breaks on newer versions
-#     "${PYBIN}/pip" install -U setuptools wheel==0.31.1 setuptools-rust
-#     "${PYBIN}/python" python/setup.py bdist_wheel
-#     PATH=$PATH_BACKUP
-# done
+for PYBIN in /opt/python/{cp35-cp35m,cp36-cp36m,cp37-cp37m,cp38-cp38}/bin; do
+    "${PYBIN}/pip" install -U setuptools wheel setuptools-rust
+    "${PYBIN}/python" python/setup.py bdist_wheel
+done
 
-PYBIN=/opt/python/cp38-cp38/bin
-export PATH_BACKUP=$PATH
-PATH="$PYBIN:$PATH"
-"${PYBIN}/pip" install -U setuptools wheel setuptools-rust
-"${PYBIN}/python" python/setup.py bdist_wheel
-PATH=$PATH_BACKUP
-
-"${PYBIN}/pip" install -U auditwheel # Prevent failure on github-actions
+# Update auditwheel on python3.8 to avoid errors.
+/opt/python/cp38-cp38/bin/pip install -U auditwheel
 
 for whl in dist/*.whl; do
-    auditwheel repair "$whl" -w dist/
+    /opt/python/cp38-cp38/bin/python -m auditwheel repair "$whl" -w dist/
 done

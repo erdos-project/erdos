@@ -1,8 +1,7 @@
 name: Python Wheels
 on:
-  push:
-    branches: [master]
-  pull_request:
+  schedule:
+    - cron: "0 7 * * *" # 12am Pacific Time / 7am UTC
 
 jobs:
   build-wheels:
