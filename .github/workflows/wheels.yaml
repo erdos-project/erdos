@@ -15,6 +15,9 @@ jobs:
         uses: docker://quay.io/pypa/manylinux1_x86_64
         env:
           CARGO_TERM_COLOR: always
+        with:
+          entrypoint: /github/workspace/python/build-wheels.sh
+          args: github-actions
       - name: Upload wheels
         uses: actions/upload-artifact@v2
         with:
