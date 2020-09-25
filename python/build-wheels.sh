@@ -22,12 +22,12 @@ fi
 PYBIN=/opt/python/cp38-cp38/bin
 export PATH_BACKUP=$PATH
 PATH="$PYBIN:$PATH"
-# Require wheel==0.31.1 because auditwheel breaks on newer versions
-"${PYBIN}/pip" install -U setuptools wheel==0.31.1 setuptools-rust
+"${PYBIN}/pip" install -U setuptools wheel setuptools-rust
 "${PYBIN}/python" python/setup.py bdist_wheel
 PATH=$PATH_BACKUP
 
+"${PYBIN}/pip" install -U auditwheel # Prevent failure on github-actions
+
 for whl in dist/*.whl; do
-    pip3 install -U wheel==0.31.1 --user  # Prevent failure on github-actions
     auditwheel repair "$whl" -w dist/
 done
