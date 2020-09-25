@@ -11,14 +11,21 @@ else
 fi
 
 # for PYBIN in /opt/python/{cp35-cp35m,cp36-cp36m,cp37-cp37m,cp38-cp38}/bin; do
-for PYBIN in /opt/python/{cp38-cp38}/bin; do
-    export PATH_BACKUP=$PATH
-    PATH="$PYBIN:$PATH"
-    # Require wheel==0.31.1 because auditwheel breaks on newer versions
-    "${PYBIN}/pip" install -U setuptools wheel==0.31.1 setuptools-rust
-    "${PYBIN}/python" python/setup.py bdist_wheel
-    PATH=$PATH_BACKUP
-done
+#     export PATH_BACKUP=$PATH
+#     PATH="$PYBIN:$PATH"
+#     # Require wheel==0.31.1 because auditwheel breaks on newer versions
+#     "${PYBIN}/pip" install -U setuptools wheel==0.31.1 setuptools-rust
+#     "${PYBIN}/python" python/setup.py bdist_wheel
+#     PATH=$PATH_BACKUP
+# done
+
+PYBIN=/opt/python/cp38-cp38/bin
+export PATH_BACKUP=$PATH
+PATH="$PYBIN:$PATH"
+# Require wheel==0.31.1 because auditwheel breaks on newer versions
+"${PYBIN}/pip" install -U setuptools wheel==0.31.1 setuptools-rust
+"${PYBIN}/python" python/setup.py bdist_wheel
+PATH=$PATH_BACKUP
 
 for whl in dist/*.whl; do
     pip3 install -U wheel==0.31.1 --user  # Prevent failure on github-actions
