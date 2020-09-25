@@ -1,11 +1,13 @@
 #!/bin/bash
 set -ex
 
-curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain nightly -y
-export PATH="$HOME/.cargo/bin:$PATH"
-rustup default nightly-2020-06-22
+if [ "$1" != github-actions ]; then
+    curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain nightly -y
+    export PATH="$HOME/.cargo/bin:$PATH"
+    rustup default nightly-2020-06-22
 
-cd /io
+    cd /io
+fi
 
 for PYBIN in /opt/python/{cp35-cp35m,cp36-cp36m,cp37-cp37m,cp38-cp38}/bin; do
     export PATH_BACKUP=$PATH

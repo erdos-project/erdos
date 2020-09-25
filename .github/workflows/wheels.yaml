@@ -1,0 +1,29 @@
+name: Python Wheels
+on:
+  push:
+    branches: [master]
+    pull_request:
+
+jobs:
+  build-wheels:
+    name: Build Python Wheels
+    runs-on: ubuntu-latest
+    container:
+      image: docker://quay.io/pypa/manylinux1_x86_64
+      env:
+        CARGO_TERM_COLOR: always
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install latest Rust nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          profile: minimal
+          override: true
+          components: rust-src
+      - name: Upload wheels
+        uses: actions/upload-artifact@v2
+        with:
+          name: python-wheels
+          path: dist
