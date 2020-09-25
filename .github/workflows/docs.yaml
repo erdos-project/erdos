@@ -10,10 +10,8 @@ env:
 jobs:
   rustdoc:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v2
-
       - name: Install latest Rust nightly
         uses: actions-rs/toolchain@v1
         with:
@@ -21,32 +19,25 @@ jobs:
           profile: minimal
           override: true
           components: rustfmt, rust-src
-
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
           python-version: 3.6
-
       - name: Install Python dependencies
         run: python -m pip install fire
-
       - name: Build Documentation
         run: cargo doc --all --no-deps
 
   pythondoc:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v2
-
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
           python-version: 3.6
-
       - name: Install Python dependencies
         run: python -m pip install -r doc/requirements-doc.txt
-
       - name: Build Documentation
         run: |
           cd doc
