@@ -1,9 +1,8 @@
 #!/bin/bash
 set -ex
 
-curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain nightly -y
-export PATH="$HOME/.cargo/bin:$PATH"
-rustup default nightly
+curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain nightly --profile minimal -y
+source $HOME/.cargo/env
 
 if [ "$1" == github-actions ]; then
     cd /github/workspace/
