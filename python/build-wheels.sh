@@ -1,11 +1,13 @@
 #!/bin/bash
 set -ex
 
-if [ "$1" != github-actions ]; then
-    curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain nightly -y
-    export PATH="$HOME/.cargo/bin:$PATH"
-    rustup default nightly-2020-06-22
+curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain nightly -y
+export PATH="$HOME/.cargo/bin:$PATH"
+rustup default nightly
 
+if [ "$1" == github-actions ]; then
+    cd /github/workspace/
+else
     cd /io
 fi
 
