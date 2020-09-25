@@ -2,6 +2,7 @@ name: Python Wheels
 on:
   schedule:
     - cron: "0 7 * * *" # 12am Pacific Time / 7am UTC
+  workflow_dispatch:
 
 jobs:
   build-wheels:
