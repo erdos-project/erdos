@@ -10,7 +10,8 @@ else
     cd /io
 fi
 
-for PYBIN in /opt/python/{cp35-cp35m,cp36-cp36m,cp37-cp37m,cp38-cp38}/bin; do
+# for PYBIN in /opt/python/{cp35-cp35m,cp36-cp36m,cp37-cp37m,cp38-cp38}/bin; do
+for PYBIN in /opt/python/{cp38-cp38}/bin; do
     export PATH_BACKUP=$PATH
     PATH="$PYBIN:$PATH"
     # Require wheel==0.31.1 because auditwheel breaks on newer versions
@@ -20,5 +21,6 @@ for PYBIN in /opt/python/{cp35-cp35m,cp36-cp36m,cp37-cp37m,cp38-cp38}/bin; do
 done
 
 for whl in dist/*.whl; do
+    pip3 install -U wheel==0.31.1 --user  # Prevent failure on github-actions
     auditwheel repair "$whl" -w dist/
 done
