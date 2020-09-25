@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ex
 
-curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain nightly-06-22 --profile minimal -y
+curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain nightly-2020-06-22 --profile minimal -y
 source $HOME/.cargo/env
 
 if [ "$1" == github-actions ]; then
