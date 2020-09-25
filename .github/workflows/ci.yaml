@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
 
 env:
@@ -12,33 +12,32 @@ env:
 jobs:
   build-rust:
     name: "Rust Build"
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+      - uses: actions/checkout@v2
 
-    - name: Install latest Rust nightly
-      uses: actions-rs/toolchain@v1
-      with:
+      - name: Install latest Rust nightly
+        uses: actions-rs/toolchain@v1
+        with:
           toolchain: nightly
           profile: minimal
           override: true
           components: rustfmt, rust-src
 
-    - name: Check Rust formatting
-      run: cargo fmt -- --check
+      - name: Check Rust formatting
+        run: cargo fmt -- --check
 
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: 3.6
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.6
 
-    - name: Build
-      run: cargo build --verbose
+      - name: Build
+        run: cargo build --verbose
 
-    - name: Run tests
-      run: cargo test --verbose
+      - name: Run tests
+        run: cargo test --verbose
 
   build-python:
     name: "Python ${{ matrix.python-version }} Build"
@@ -48,7 +47,7 @@ jobs:
     strategy:
       matrix:
         python-version: [3.6, 3.7, 3.8]
-    
+
     steps:
       - uses: actions/checkout@v2
 
@@ -73,9 +72,9 @@ jobs:
       - name: Install latest Rust nightly
         uses: actions-rs/toolchain@v1
         with:
-            toolchain: nightly
-            override: true
-            components: rustfmt
+          toolchain: nightly
+          override: true
+          components: rustfmt
 
       - name: Build
         # Building with develop is faster than with install
