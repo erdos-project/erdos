@@ -1,8 +1,12 @@
 use std::{cell::RefCell, rc::Rc};
 
 use serde::Deserialize;
+use tokio::sync::broadcast;
 
-use crate::dataflow::{Data, Message, State, Timestamp};
+use crate::{
+    dataflow::{Data, Message, State, Timestamp},
+    deadlines::{Notification, Notifier},
+};
 
 use super::{
     errors::{ReadError, TryReadError},
@@ -195,6 +199,12 @@ impl<D: Data> ReadStream<D> {
     /// Returns the Message available on the [`ReadStream`].
     pub fn read(&self) -> Result<Message<D>, ReadError> {
         self.internal_stream.borrow_mut().read()
+    }
+}
+
+impl<D: Data> Notifier for ReadStream<D> {
+    fn subscribe(&self) -> broadcast::Receiver<Notification> {
+        self.internal_stream.borrow().subscribe()
     }
 }
 

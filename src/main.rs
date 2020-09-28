@@ -3,10 +3,40 @@ extern crate erdos;
 
 use erdos::dataflow::{
     operators::{JoinOperator, SourceOperator},
-    OperatorConfig,
+    Data, Operator, OperatorConfig, ReadStream, Timestamp, WriteStream,
 };
+use erdos::deadlines::*;
 use erdos::node::Node;
 use erdos::Configuration;
+
+use std::time::Duration;
+
+struct DeadlineOperator {}
+
+impl DeadlineOperator {
+    pub fn new(
+        config: OperatorConfig<()>,
+        read_stream: ReadStream<usize>,
+        write_stream: WriteStream<usize>,
+    ) -> Self {
+        let mut deadline =
+            TimestampReceivingFrequencyDeadline::new(Duration::from_millis(100), || {
+                slog::error!(
+                    erdos::get_terminal_logger(),
+                    "Missed timestamp receiving frequency deadline!"
+                );
+            });
+        deadline.subscribe(&read_stream).unwrap();
+
+        Self {}
+    }
+
+    fn on_data(t: Timestamp, d: usize) {}
+
+    fn on_watermark(t: Timestamp) {}
+}
+
+impl Operator for DeadlineOperator {}
 
 fn main() {
     let args = erdos::new_app("ERDOS").get_matches();

@@ -183,6 +183,7 @@ mod python;
 #[doc(hidden)]
 pub mod communication;
 pub mod dataflow;
+pub mod deadlines;
 pub mod node;
 #[doc(hidden)]
 pub mod scheduler;

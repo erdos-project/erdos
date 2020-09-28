@@ -1,8 +1,10 @@
-use std::{cell::RefCell, collections::HashSet, rc::Rc, sync::Arc};
+use std::{cell::RefCell, collections::HashSet, rc::Rc, sync::Arc, time::SystemTime};
+use tokio::sync::broadcast;
 
 use crate::{
     communication::{RecvEndpoint, TryRecvError},
     dataflow::{Data, Message, State, Timestamp},
+    deadlines::{Notification, NotificationType, Notifier},
     node::operator_event::OperatorEvent,
 };
 
@@ -27,6 +29,10 @@ pub struct InternalReadStream<D: Data> {
     callbacks: Vec<Arc<dyn Fn(&Timestamp, &D)>>,
     /// A vector of watermark callbacks registered on the stream.
     watermark_cbs: Vec<Arc<dyn Fn(&Timestamp)>>,
+    /// Broadcasts notifications upon message receipt.
+    /// TODO: reimplement this with unbounded channels.
+    /// TODO: currently only works with callbacks (not run).
+    notification_tx: broadcast::Sender<Notification>,
 }
 
 impl<D: Data> InternalReadStream<D> {
@@ -41,6 +47,7 @@ impl<D: Data> InternalReadStream<D> {
             children: Vec::new(),
             callbacks: Vec::new(),
             watermark_cbs: Vec::new(),
+            notification_tx: broadcast::channel(128).0,
         }
     }
 
@@ -53,6 +60,7 @@ impl<D: Data> InternalReadStream<D> {
             children: Vec::new(),
             callbacks: Vec::new(),
             watermark_cbs: Vec::new(),
+            notification_tx: broadcast::channel(128).0,
         }
     }
 
@@ -77,6 +85,7 @@ impl<D: Data> InternalReadStream<D> {
             children: Vec::new(),
             callbacks: Vec::new(),
             watermark_cbs: Vec::new(),
+            notification_tx: broadcast::channel(128).0,
         }
     }
 
@@ -183,6 +192,20 @@ impl<D: Data> EventMakerT for InternalReadStream<D> {
     }
 
     fn make_events(&self, msg: Arc<Message<Self::EventDataType>>) -> Vec<OperatorEvent> {
+        // Notify receipt of message in case of deadlines.
+        let receipt_time = SystemTime::now();
+        let notification_type = match msg.as_ref() {
+            Message::TimestampedData(_) => {
+                NotificationType::ReceivedData(self.id, msg.timestamp().clone())
+            }
+            Message::Watermark(timestamp) => {
+                NotificationType::ReceivedWatermark(self.id, timestamp.clone())
+            }
+        };
+        self.notification_tx
+            .send(Notification::new(receipt_time, notification_type))
+            .unwrap_or(0);
+
         let mut events: Vec<OperatorEvent> = Vec::new();
         match msg.as_ref() {
             Message::TimestampedData(_) => {
@@ -223,5 +246,11 @@ impl<D: Data> EventMakerT for InternalReadStream<D> {
             events.append(&mut child.borrow_mut().make_events(msg.clone()));
         }
         events
+    }
+}
+
+impl<D: Data> Notifier for InternalReadStream<D> {
+    fn subscribe(&self) -> broadcast::Receiver<Notification> {
+        self.notification_tx.subscribe()
     }
 }
