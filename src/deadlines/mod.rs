@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::SystemTime};
+use std::{sync::Arc, time::Instant};
 
 use tokio::sync::broadcast;
 
@@ -8,6 +8,7 @@ mod frequency;
 
 pub use frequency::TimestampReceivingFrequencyDeadline;
 
+#[derive(Clone)]
 pub enum NotificationType {
     ReceivedData(StreamId, Timestamp),
     ReceivedWatermark(StreamId, Timestamp),
@@ -15,13 +16,14 @@ pub enum NotificationType {
     SentWatermark(StreamId, Timestamp),
 }
 
+#[derive(Clone)]
 pub struct Notification {
-    trigger_time: SystemTime,
+    trigger_time: Instant,
     notification_type: NotificationType,
 }
 
 impl Notification {
-    pub fn new(trigger_time: SystemTime, notification_type: NotificationType) -> Self {
+    pub fn new(trigger_time: Instant, notification_type: NotificationType) -> Self {
         Self {
             trigger_time,
             notification_type,
@@ -29,7 +31,7 @@ impl Notification {
     }
 }
 
-pub trait DeadlineGenerator {
+pub trait Deadline {
     /// The start condition.
     /// Decides whether the notification generates a new physical time deadline.
     /// Returns a function to decide whether the deadline is made (end condition),
@@ -38,9 +40,9 @@ pub trait DeadlineGenerator {
         &mut self,
         notification: &Notification,
     ) -> Option<(
-        SystemTime,
-        Arc<dyn FnMut(&Notification) -> bool>,
-        Arc<dyn Fn() -> ()>,
+        Instant,
+        Arc<dyn Send + Sync + FnMut(&Notification) -> bool>,
+        Arc<dyn Send + Sync + Fn() -> ()>,
     )>;
     fn get_start_condition_receivers(&mut self) -> Vec<broadcast::Receiver<Notification>>;
     fn get_end_condition_receivers(&mut self) -> Vec<broadcast::Receiver<Notification>>;

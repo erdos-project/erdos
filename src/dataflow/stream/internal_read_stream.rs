@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashSet, rc::Rc, sync::Arc, time::SystemTime};
+use std::{cell::RefCell, collections::HashSet, rc::Rc, sync::Arc, time::Instant};
 use tokio::sync::broadcast;
 
 use crate::{
@@ -193,7 +193,7 @@ impl<D: Data> EventMakerT for InternalReadStream<D> {
 
     fn make_events(&self, msg: Arc<Message<Self::EventDataType>>) -> Vec<OperatorEvent> {
         // Notify receipt of message in case of deadlines.
-        let receipt_time = SystemTime::now();
+        let receipt_time = Instant::now();
         let notification_type = match msg.as_ref() {
             Message::TimestampedData(_) => {
                 NotificationType::ReceivedData(self.id, msg.timestamp().clone())

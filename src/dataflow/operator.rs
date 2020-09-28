@@ -1,4 +1,6 @@
-use crate::{node::NodeId, OperatorId};
+use std::sync::{Arc, Mutex};
+
+use crate::{deadlines::Deadline, node::NodeId, OperatorId};
 
 /// Trait that must be implemented by any operator.
 pub trait Operator {
@@ -39,6 +41,7 @@ pub struct OperatorConfig<T: Clone> {
     /// A higher number may result in more parallelism; however this may be limited
     /// by dependencies on [`State`](crate::dataflow::State) and timestamps.
     pub num_event_runners: usize,
+    pub(crate) deadlines: Arc<Mutex<Vec<Box<dyn Deadline + Send + Sync>>>>,
 }
 
 impl<T: Clone> OperatorConfig<T> {
@@ -50,6 +53,7 @@ impl<T: Clone> OperatorConfig<T> {
             flow_watermarks: true,
             node_id: 0,
             num_event_runners: 1,
+            deadlines: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -88,6 +92,11 @@ impl<T: Clone> OperatorConfig<T> {
         self
     }
 
+    pub fn add_deadline(&self, deadline: impl 'static + Send + Sync + Deadline) {
+        let mut deadlines = self.deadlines.try_lock().unwrap();
+        deadlines.push(Box::new(deadline));
+    }
+
     /// Removes the argument to lose type information. Used in
     /// [`OperatorExecutor`](crate::node::operator_executor::OperatorExecutor).
     pub(crate) fn drop_arg(self) -> OperatorConfig<()> {
@@ -98,6 +107,7 @@ impl<T: Clone> OperatorConfig<T> {
             flow_watermarks: self.flow_watermarks,
             node_id: self.node_id,
             num_event_runners: self.num_event_runners,
+            deadlines: self.deadlines.clone(),
         }
     }
 }

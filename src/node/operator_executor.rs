@@ -1,5 +1,6 @@
 use std::{
     cell::RefCell,
+    cmp::Reverse,
     collections::HashMap,
     pin::Pin,
     rc::Rc,
@@ -8,13 +9,14 @@ use std::{
         Arc,
     },
     task::{Context, Poll},
+    time::Instant,
 };
 
 use futures::future;
 use tokio::{
     self,
-    stream::{Stream, StreamExt},
-    sync::{mpsc, watch},
+    stream::{Stream, StreamExt, StreamMap},
+    sync::{broadcast, mpsc, watch},
 };
 
 use crate::{
@@ -24,8 +26,10 @@ use crate::{
         stream::{InternalReadStream, StreamId},
         Data, EventMakerT, Message, ReadStream,
     },
+    deadlines::{Deadline, Notification},
     node::lattice::ExecutionLattice,
     node::operator_event::OperatorEvent,
+    Uuid,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -210,6 +214,14 @@ impl OperatorExecutor {
         // Callbacks are not invoked while the operator is running.
         tokio::task::block_in_place(|| self.operator.run());
 
+        let deadline_task_handles: Vec<_> = {
+            let mut deadlines = self.config.deadlines.try_lock().unwrap();
+            deadlines
+                .drain(..)
+                .map(|deadline| tokio::spawn(Self::enforce_deadline(deadline)))
+                .collect()
+        };
+
         if let Some(mut event_stream) = self.event_stream.take() {
             // Launch consumers
             // TODO: use CondVar instead of watch.
@@ -246,6 +258,73 @@ impl OperatorExecutor {
                     name,
                 );
                 self.operator.destroy();
+            }
+        }
+    }
+
+    // Spawn 1 task for each deadline. This is bad.
+    async fn enforce_deadline(mut deadline: Box<dyn Deadline + Send>) {
+        let mut start_condition_stream = StreamMap::new();
+        for (i, rx) in deadline
+            .get_start_condition_receivers()
+            .into_iter()
+            .enumerate()
+        {
+            start_condition_stream.insert(i, rx);
+        }
+
+        let mut end_condition_stream = StreamMap::new();
+        for (i, rx) in deadline
+            .get_end_condition_receivers()
+            .into_iter()
+            .enumerate()
+        {
+            end_condition_stream.insert(i, rx);
+        }
+        end_condition_stream.next().await;
+
+        // Contains handlers.
+        let mut active_deadlines: tokio::time::DelayQueue<(
+            Uuid,
+            Arc<dyn Send + Sync + Fn() -> ()>,
+        )> = tokio::time::DelayQueue::new();
+        // Pairs of (key in active_deadlines, end_condition).
+        let mut end_conditions: Vec<(
+            Uuid,
+            tokio::time::delay_queue::Key,
+            Arc<dyn Send + Sync + FnMut(&Notification) -> bool>,
+        )> = Vec::new();
+        loop {
+            tokio::select! {
+                // Start condition notification.
+                msg = start_condition_stream.next() => {
+                    let notification = msg.unwrap().1.unwrap();
+                    if let Some((instant, end_condition, handler)) = deadline.start_condition(&notification) {
+                        let id = Uuid::new_deterministic();
+                        let key = active_deadlines.insert_at((id, handler), tokio::time::Instant::from_std(instant));
+                        end_conditions.push((id, key, end_condition));
+                    }
+                }
+                // End condition notification.
+                msg = end_condition_stream.next() => {
+                    let notification = msg.unwrap().1.unwrap();
+                    end_conditions = end_conditions.into_iter().filter_map(|(id, key, mut end_condition_arc)| {
+                        let end_condition = Arc::get_mut(&mut end_condition_arc).unwrap();
+                        if end_condition(&notification) {
+                            slog::error!(crate::TERMINAL_LOGGER, "Resolved end condition");
+                            active_deadlines.remove(&key);
+                            None
+                        } else {
+                            Some((id, key, end_condition_arc))
+                        }
+                    }).collect();
+                }
+                // Deadline missed.
+                result = active_deadlines.next(), if !active_deadlines.is_empty() => {
+                    let (id, handler) = result.unwrap().unwrap().into_inner();
+                    handler();
+                    end_conditions.retain(|(other_id, _, _)| &id != other_id);
+                }
             }
         }
     }

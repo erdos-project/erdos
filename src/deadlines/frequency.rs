@@ -1,4 +1,7 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use crate::dataflow::{Data, ReadStream};
 
@@ -7,17 +10,17 @@ use super::*;
 pub struct TimestampReceivingFrequencyDeadline {
     max_received: Timestamp,
     max_period: Duration,
-    handler: Arc<dyn Fn() -> ()>,
+    handler: Arc<dyn Send + Sync + Fn() -> ()>,
     start_condition_receiver: Option<broadcast::Receiver<Notification>>,
     end_condition_receiver: Option<broadcast::Receiver<Notification>>,
 }
 
 impl TimestampReceivingFrequencyDeadline {
-    pub fn new<F: 'static + Fn() -> ()>(max_period: Duration, handler: F) -> Self {
+    pub fn new<F: 'static + Send + Sync + Fn() -> ()>(max_period: Duration, handler: F) -> Self {
         Self {
             max_received: Timestamp::bottom(),
             max_period,
-            handler: Arc::new(handler) as Arc<dyn Fn() -> ()>,
+            handler: Arc::new(handler) as Arc<dyn Send + Sync + Fn() -> ()>,
             start_condition_receiver: None,
             end_condition_receiver: None,
         }
@@ -35,14 +38,14 @@ impl TimestampReceivingFrequencyDeadline {
     }
 }
 
-impl DeadlineGenerator for TimestampReceivingFrequencyDeadline {
+impl Deadline for TimestampReceivingFrequencyDeadline {
     fn start_condition(
         &mut self,
         notification: &Notification,
     ) -> Option<(
-        SystemTime,
-        Arc<dyn FnMut(&Notification) -> bool>,
-        Arc<dyn Fn() -> ()>,
+        Instant,
+        Arc<dyn Send + Sync + FnMut(&Notification) -> bool>,
+        Arc<dyn Send + Sync + Fn() -> ()>,
     )> {
         if let NotificationType::ReceivedWatermark(_, timestamp) = &notification.notification_type {
             if timestamp > &self.max_received {
@@ -62,12 +65,14 @@ impl DeadlineGenerator for TimestampReceivingFrequencyDeadline {
         }
         None
     }
+
     fn get_start_condition_receivers(&mut self) -> Vec<broadcast::Receiver<Notification>> {
         vec![self
             .start_condition_receiver
             .take()
             .expect("Must subscribe deadline to a ReadStream.")]
     }
+
     fn get_end_condition_receivers(&mut self) -> Vec<broadcast::Receiver<Notification>> {
         vec![self
             .end_condition_receiver
