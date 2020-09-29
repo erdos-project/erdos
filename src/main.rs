@@ -30,7 +30,6 @@ impl DeadlineOperator {
                 );
             });
         receiving_deadline.subscribe(&read_stream).unwrap();
-
         // config is more like a context
         config.add_deadline(receiving_deadline);
 
@@ -42,8 +41,17 @@ impl DeadlineOperator {
                 );
             });
         sending_deadline.subscribe(&write_stream).unwrap();
-
         config.add_deadline(sending_deadline);
+
+        let mut output_deadline = TimestampOutputDeadline::new(Duration::from_millis(50), || {
+            slog::error!(
+                erdos::get_terminal_logger(),
+                "Missed timestamp output frequency deadline!"
+            );
+        });
+        output_deadline.add_read_stream(&read_stream);
+        output_deadline.add_write_stream(&write_stream);
+        config.add_deadline(output_deadline);
 
         Self {}
     }
@@ -86,6 +94,7 @@ fn main() {
     );
 
     node.run_async();
+    thread::sleep_ms(10);
 
     println!("Sending 0: deadline should not trigger.");
     ingest_stream
@@ -98,4 +107,20 @@ fn main() {
         .send(Message::Watermark(Timestamp::new(vec![1u64])))
         .unwrap();
     thread::sleep_ms(150);
+
+    // Should make all deadlines.
+    println!("Sending data 2: deadline should not trigger.");
+    ingest_stream
+        .send(Message::new_message(Timestamp::new(vec![2u64]), 0))
+        .unwrap();
+    println!("Sending watermark 2: deadline should not trigger.");
+    ingest_stream
+        .send(Message::new_watermark(Timestamp::new(vec![2u64])))
+        .unwrap();
+    // Should miss output deadline.
+    println!("Sending data 3: deadline should trigger.");
+    ingest_stream
+        .send(Message::new_message(Timestamp::new(vec![3u64]), 0))
+        .unwrap();
+    thread::sleep_ms(75);
 }
