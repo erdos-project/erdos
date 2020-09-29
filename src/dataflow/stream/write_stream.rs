@@ -1,10 +1,12 @@
-use std::{fmt, sync::Arc};
+use std::{fmt, sync::Arc, time::Instant};
 
 use serde::Deserialize;
+use tokio::sync::broadcast;
 
 use crate::{
     communication::{Pusher, SendEndpoint},
     dataflow::{Data, Message, Timestamp},
+    deadlines::{Notification, NotificationType, Notifier},
 };
 
 use super::{errors::WriteStreamError, StreamId, WriteStreamT};
@@ -73,6 +75,10 @@ pub struct WriteStream<D: Data> {
     low_watermark: Timestamp,
     /// Whether the stream is closed.
     stream_closed: bool,
+    /// Broadcasts notifications upon message receipt.
+    /// TODO: reimplement this with unbounded channels.
+    /// TODO: currently only works with callbacks (not run).
+    notification_tx: broadcast::Sender<Notification>,
 }
 
 impl<D: Data> WriteStream<D> {
@@ -112,6 +118,7 @@ impl<D: Data> WriteStream<D> {
             pusher: Some(Pusher::new()),
             low_watermark: Timestamp::new(vec![0]),
             stream_closed: false,
+            notification_tx: broadcast::channel(128).0,
         }
     }
 
@@ -208,6 +215,8 @@ impl<D: Data> fmt::Debug for WriteStream<D> {
 
 impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
     fn send(&mut self, msg: Message<D>) -> Result<(), WriteStreamError> {
+        let send_time = Instant::now();
+
         // Check if the stream was closed before, and return an error.
         if self.stream_closed {
             slog::warn!(
@@ -230,6 +239,24 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
             );
             close_stream = true;
         }
+
+        // Send notification.
+        match &msg {
+            Message::TimestampedData(_) => self
+                .notification_tx
+                .send(Notification::new(
+                    send_time,
+                    NotificationType::SentData(self.id, msg.timestamp().clone()),
+                ))
+                .unwrap_or(0),
+            Message::Watermark(_) => self
+                .notification_tx
+                .send(Notification::new(
+                    send_time,
+                    NotificationType::SentWatermark(self.id, msg.timestamp().clone()),
+                ))
+                .unwrap_or(0),
+        };
 
         // Update the watermark and send the message forward.
         self.update_watermark(&msg)?;
@@ -254,5 +281,11 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
             self.close_stream();
         }
         Ok(())
+    }
+}
+
+impl<D: Data> Notifier for WriteStream<D> {
+    fn subscribe(&self) -> broadcast::Receiver<Notification> {
+        self.notification_tx.subscribe()
     }
 }

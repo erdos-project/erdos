@@ -22,17 +22,28 @@ impl DeadlineOperator {
         read_stream: ReadStream<usize>,
         write_stream: WriteStream<usize>,
     ) -> Self {
-        let mut deadline =
+        let mut receiving_deadline =
             TimestampReceivingFrequencyDeadline::new(Duration::from_millis(100), || {
                 slog::error!(
                     erdos::get_terminal_logger(),
                     "Missed timestamp receiving frequency deadline!"
                 );
             });
-        deadline.subscribe(&read_stream).unwrap();
+        receiving_deadline.subscribe(&read_stream).unwrap();
 
         // config is more like a context
-        config.add_deadline(deadline);
+        config.add_deadline(receiving_deadline);
+
+        let mut sending_deadline =
+            TimestampSendingFrequencyDeadline::new(Duration::from_millis(100), || {
+                slog::error!(
+                    erdos::get_terminal_logger(),
+                    "Missed timestamp sending frequency deadline!"
+                );
+            });
+        sending_deadline.subscribe(&write_stream).unwrap();
+
+        config.add_deadline(sending_deadline);
 
         Self {}
     }

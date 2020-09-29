@@ -6,7 +6,7 @@ use crate::dataflow::{stream::StreamId, Timestamp};
 
 mod frequency;
 
-pub use frequency::TimestampReceivingFrequencyDeadline;
+pub use frequency::*;
 
 #[derive(Clone)]
 pub enum NotificationType {
