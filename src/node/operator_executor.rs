@@ -1,7 +1,8 @@
 use std::{
     cell::RefCell,
-    cmp::Reverse,
     collections::HashMap,
+    fs::{self, OpenOptions},
+    io::prelude::*,
     pin::Pin,
     rc::Rc,
     sync::{
@@ -9,10 +10,11 @@ use std::{
         Arc,
     },
     task::{Context, Poll},
-    time::Instant,
+    time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
 use futures::future;
+use slog::{Drain, Logger};
 use tokio::{
     self,
     stream::{Stream, StreamExt, StreamMap},
@@ -166,6 +168,7 @@ impl OperatorExecutor {
                     Box::pin(StreamExt::merge(x, y.to_pinned_stream()))
                 })
         });
+
         Self {
             operator: Box::new(operator),
             config: config.drop_arg(),
@@ -214,11 +217,23 @@ impl OperatorExecutor {
         // Callbacks are not invoked while the operator is running.
         tokio::task::block_in_place(|| self.operator.run());
 
-        let deadline_task_handles: Vec<_> = {
+        // Deadlines.
+        fs::create_dir("/tmp/erdos").ok();
+        let file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(format!("/tmp/erdos/{}.log", self.config.id))
+            .unwrap();
+        let decorator = slog_term::PlainSyncDecorator::new(file);
+        let drain = slog_term::FullFormat::new(decorator).build().fuse();
+        let file_logger = Logger::root(drain, slog::o!());
+
+        let _deadline_task_handles: Vec<_> = {
             let mut deadlines = self.config.deadlines.try_lock().unwrap();
             deadlines
                 .drain(..)
-                .map(|deadline| tokio::spawn(Self::enforce_deadline(deadline)))
+                .map(|deadline| tokio::spawn(Self::enforce_deadline(deadline, file_logger.clone())))
                 .collect()
         };
 
@@ -263,7 +278,7 @@ impl OperatorExecutor {
     }
 
     // Spawn 1 task for each deadline. This is bad.
-    async fn enforce_deadline(mut deadline: Box<dyn Deadline + Send>) {
+    async fn enforce_deadline(mut deadline: Box<dyn Deadline + Send>, file_logger: Logger) {
         let mut start_condition_stream = StreamMap::new();
         for (i, rx) in deadline
             .get_start_condition_receivers()
@@ -286,7 +301,8 @@ impl OperatorExecutor {
         // Contains handlers.
         let mut active_deadlines: tokio::time::DelayQueue<(
             Uuid,
-            Arc<dyn Send + Sync + Fn() -> ()>,
+            Instant,
+            Arc<dyn Send + Sync + Fn() -> String>,
         )> = tokio::time::DelayQueue::new();
         // Pairs of (key in active_deadlines, end_condition).
         let mut end_conditions: Vec<(
@@ -301,7 +317,7 @@ impl OperatorExecutor {
                     let notification = msg.unwrap().1.unwrap();
                     if let Some((instant, end_condition, handler)) = deadline.start_condition(&notification) {
                         let id = Uuid::new_deterministic();
-                        let key = active_deadlines.insert_at((id, handler), tokio::time::Instant::from_std(instant));
+                        let key = active_deadlines.insert_at((id, instant, handler), tokio::time::Instant::from_std(instant));
                         end_conditions.push((id, key, end_condition));
                     }
                 }
@@ -321,8 +337,16 @@ impl OperatorExecutor {
                 }
                 // Deadline missed.
                 result = active_deadlines.next(), if !active_deadlines.is_empty() => {
-                    let (id, handler) = result.unwrap().unwrap().into_inner();
-                    handler();
+                    let (id, instant, handler) = result.unwrap().unwrap().into_inner();
+                    let mut now_duration = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+                    let now_instant = Instant::now();
+                    let duration_to_deadline = now_instant.duration_since(instant);
+                    let deadline_time = (now_duration - duration_to_deadline).as_secs_f32();
+
+                    slog::warn!(file_logger, "{}: invoking handler for deadline {} @ {}", deadline.description(), deadline_time, now_duration.as_secs_f64());
+                    let info = handler();
+                    now_duration += now_instant.elapsed();
+                    slog::warn!(file_logger, "{}: finished invoking handler for deadline {} @ {}; {}", deadline.description(), deadline_time, now_duration.as_secs_f64(), info);
                     end_conditions.retain(|(other_id, _, _)| &id != other_id);
                 }
             }

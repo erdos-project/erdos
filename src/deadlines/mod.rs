@@ -44,10 +44,13 @@ pub trait Deadline {
     ) -> Option<(
         Instant,
         Arc<dyn Send + Sync + FnMut(&Notification) -> bool>,
-        Arc<dyn Send + Sync + Fn() -> ()>,
+        Arc<dyn Send + Sync + Fn() -> String>,
     )>;
     fn get_start_condition_receivers(&mut self) -> Vec<broadcast::Receiver<Notification>>;
     fn get_end_condition_receivers(&mut self) -> Vec<broadcast::Receiver<Notification>>;
+    fn description(&self) -> &str {
+        "Deadline"
+    }
 }
 
 pub trait Notifier {

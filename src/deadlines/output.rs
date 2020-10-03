@@ -19,6 +19,7 @@ pub struct TimestampOutputDeadline {
     sent_watermarks: Arc<Mutex<HashMap<StreamId, Timestamp>>>,
     max_duration: Duration,
     handler: Arc<dyn Send + Sync + Fn() -> ()>,
+    description: String,
 }
 
 impl TimestampOutputDeadline {
@@ -32,6 +33,7 @@ impl TimestampOutputDeadline {
             sent_watermarks: Arc::new(Mutex::new(HashMap::new())),
             max_duration,
             handler: Arc::new(handler) as Arc<dyn Send + Sync + Fn() -> ()>,
+            description: "TimestampOutputDeadline".to_string(),
         }
     }
 
@@ -39,6 +41,10 @@ impl TimestampOutputDeadline {
         if !self.subscribed_read_streams.contains(&read_stream.get_id()) {
             self.subscribed_read_streams.insert(read_stream.get_id());
             self.start_condition_rx.push(read_stream.subscribe());
+            self.description = format!(
+                "TimestampOutputDeadline on streams {:?} -> {:?}",
+                self.subscribed_read_streams, self.subscribed_write_streams
+            );
         }
     }
 
@@ -70,7 +76,7 @@ impl Deadline for TimestampOutputDeadline {
     ) -> Option<(
         Instant,
         Arc<dyn Send + Sync + FnMut(&Notification) -> bool>,
-        Arc<dyn Send + Sync + Fn() -> ()>,
+        Arc<dyn Send + Sync + Fn() -> String>,
     )> {
         match &notification.notification_type {
             NotificationType::ReceivedData(_, t) | NotificationType::ReceivedWatermark(_, t) => {
@@ -114,8 +120,15 @@ impl Deadline for TimestampOutputDeadline {
                         }
                         false
                     };
+
+                    let user_handler_clone = self.handler.clone();
+                    let timestamp_str = format!("{:?}", t);
+                    let handler = move || {
+                        user_handler_clone();
+                        timestamp_str.clone()
+                    };
                     slog::warn!(crate::TERMINAL_LOGGER, "Start output deadline on {:?}.", t);
-                    return Some((deadline, Arc::new(end_condition), self.handler.clone()));
+                    return Some((deadline, Arc::new(end_condition), Arc::new(handler)));
                 }
             }
             NotificationType::SentWatermark(stream_id, t) => {
@@ -140,5 +153,9 @@ impl Deadline for TimestampOutputDeadline {
 
     fn get_end_condition_receivers(&mut self) -> Vec<broadcast::Receiver<Notification>> {
         self.end_condition_rx.drain(..).collect()
+    }
+
+    fn description(&self) -> &str {
+        &self.description
     }
 }

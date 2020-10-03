@@ -13,6 +13,7 @@ pub struct TimestampReceivingFrequencyDeadline {
     handler: Arc<dyn Send + Sync + Fn() -> ()>,
     start_condition_receiver: Option<broadcast::Receiver<Notification>>,
     end_condition_receiver: Option<broadcast::Receiver<Notification>>,
+    description: String,
 }
 
 impl TimestampReceivingFrequencyDeadline {
@@ -23,6 +24,7 @@ impl TimestampReceivingFrequencyDeadline {
             handler: Arc::new(handler) as Arc<dyn Send + Sync + Fn() -> ()>,
             start_condition_receiver: None,
             end_condition_receiver: None,
+            description: "TimestampReceivingFrequencyDeadline".to_string(),
         }
     }
 
@@ -33,6 +35,10 @@ impl TimestampReceivingFrequencyDeadline {
         } else {
             self.start_condition_receiver = Some(read_stream.subscribe());
             self.end_condition_receiver = Some(read_stream.subscribe());
+            self.description = format!(
+                "TimestampReceivingFrequencyDeadline on stream {}",
+                read_stream.get_id()
+            );
             Ok(())
         }
     }
@@ -45,7 +51,7 @@ impl Deadline for TimestampReceivingFrequencyDeadline {
     ) -> Option<(
         Instant,
         Arc<dyn Send + Sync + FnMut(&Notification) -> bool>,
-        Arc<dyn Send + Sync + Fn() -> ()>,
+        Arc<dyn Send + Sync + Fn() -> String>,
     )> {
         if let NotificationType::ReceivedWatermark(_, timestamp) = &notification.notification_type {
             if timestamp > &self.max_received {
@@ -56,10 +62,18 @@ impl Deadline for TimestampReceivingFrequencyDeadline {
                     NotificationType::ReceivedWatermark(_, t) => t > &timestamp_copy,
                     _ => false,
                 };
+
+                let user_handler_clone = self.handler.clone();
+                let timestamp_str = format!("{:?}", timestamp);
+                let handler = move || {
+                    user_handler_clone();
+                    timestamp_str.clone()
+                };
+
                 return Some((
                     physical_deadline,
                     Arc::new(end_condition),
-                    self.handler.clone(),
+                    Arc::new(handler),
                 ));
             }
         }
@@ -79,6 +93,10 @@ impl Deadline for TimestampReceivingFrequencyDeadline {
             .take()
             .expect("Must subscribe deadline to a ReadStream.")]
     }
+
+    fn description(&self) -> &str {
+        self.description.as_str()
+    }
 }
 
 pub struct TimestampSendingFrequencyDeadline {
@@ -87,6 +105,7 @@ pub struct TimestampSendingFrequencyDeadline {
     handler: Arc<dyn Send + Sync + Fn() -> ()>,
     start_condition_receiver: Option<broadcast::Receiver<Notification>>,
     end_condition_receiver: Option<broadcast::Receiver<Notification>>,
+    description: String,
 }
 
 impl TimestampSendingFrequencyDeadline {
@@ -97,6 +116,7 @@ impl TimestampSendingFrequencyDeadline {
             handler: Arc::new(handler) as Arc<dyn Send + Sync + Fn() -> ()>,
             start_condition_receiver: None,
             end_condition_receiver: None,
+            description: "TimestampSendingFrequencyDeadline".to_string(),
         }
     }
 
@@ -110,6 +130,10 @@ impl TimestampSendingFrequencyDeadline {
         } else {
             self.start_condition_receiver = Some(write_stream.subscribe());
             self.end_condition_receiver = Some(write_stream.subscribe());
+            self.description = format!(
+                "TimestampSendingFrequencyDeadline on stream {}",
+                write_stream.get_id()
+            );
             Ok(())
         }
     }
@@ -122,7 +146,7 @@ impl Deadline for TimestampSendingFrequencyDeadline {
     ) -> Option<(
         Instant,
         Arc<dyn Send + Sync + FnMut(&Notification) -> bool>,
-        Arc<dyn Send + Sync + Fn() -> ()>,
+        Arc<dyn Send + Sync + Fn() -> String>,
     )> {
         if let NotificationType::SentWatermark(_, timestamp) = &notification.notification_type {
             if timestamp > &self.max_sent {
@@ -133,10 +157,18 @@ impl Deadline for TimestampSendingFrequencyDeadline {
                     NotificationType::SentWatermark(_, t) => t > &timestamp_copy,
                     _ => false,
                 };
+
+                let user_handler_clone = self.handler.clone();
+                let timestamp_str = format!("{:?}", timestamp);
+                let handler = move || {
+                    user_handler_clone();
+                    timestamp_str.clone()
+                };
+
                 return Some((
                     physical_deadline,
                     Arc::new(end_condition),
-                    self.handler.clone(),
+                    Arc::new(handler),
                 ));
             }
         }
@@ -155,5 +187,9 @@ impl Deadline for TimestampSendingFrequencyDeadline {
             .end_condition_receiver
             .take()
             .expect("Must subscribe deadline to a ReadStream.")]
+    }
+
+    fn description(&self) -> &str {
+        self.description.as_str()
     }
 }
