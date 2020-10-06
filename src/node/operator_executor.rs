@@ -218,16 +218,20 @@ impl OperatorExecutor {
         tokio::task::block_in_place(|| self.operator.run());
 
         // Deadlines.
-        fs::create_dir("/tmp/erdos").ok();
-        let file = OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(format!("/tmp/erdos/{}.log", self.config.id))
-            .unwrap();
-        let decorator = slog_term::PlainSyncDecorator::new(file);
-        let drain = slog_term::FullFormat::new(decorator).build().fuse();
-        let file_logger = Logger::root(drain, slog::o!());
+        let file_logger = if self.config.logging {
+            fs::create_dir("/tmp/erdos").ok();
+            let file = OpenOptions::new()
+                .create(true)
+                .write(true)
+                .truncate(true)
+                .open(format!("/tmp/erdos/{}.log", self.config.id))
+                .unwrap();
+            let decorator = slog_term::PlainSyncDecorator::new(file);
+            let drain = slog_term::FullFormat::new(decorator).build().fuse();
+            Some(Logger::root(drain, slog::o!()))
+        } else {
+            None
+        };
 
         let _deadline_task_handles: Vec<_> = {
             let mut deadlines = self.config.deadlines.try_lock().unwrap();
@@ -278,7 +282,7 @@ impl OperatorExecutor {
     }
 
     // Spawn 1 task for each deadline. This is bad.
-    async fn enforce_deadline(mut deadline: Box<dyn Deadline + Send>, file_logger: Logger) {
+    async fn enforce_deadline(mut deadline: Box<dyn Deadline + Send>, file_logger: Option<Logger>) {
         let mut start_condition_stream = StreamMap::new();
         for (i, rx) in deadline
             .get_start_condition_receivers()
@@ -343,10 +347,14 @@ impl OperatorExecutor {
                     let duration_to_deadline = now_instant.duration_since(instant);
                     let deadline_time = (now_duration - duration_to_deadline).as_secs_f32();
 
-                    slog::warn!(file_logger, "{}: invoking handler for deadline {} @ {}", deadline.description(), deadline_time, now_duration.as_secs_f64());
+                    if let Some(file_logger) = file_logger.as_ref() {
+                        slog::warn!(file_logger, "{}: invoking handler for deadline {} @ {}", deadline.description(), deadline_time, now_duration.as_secs_f64());
+                    }
                     let info = handler();
                     now_duration += now_instant.elapsed();
-                    slog::warn!(file_logger, "{}: finished invoking handler for deadline {} @ {}; {}", deadline.description(), deadline_time, now_duration.as_secs_f64(), info);
+                    if let Some(file_logger) = file_logger.as_ref() {
+                        slog::warn!(file_logger, "{}: finished invoking handler for deadline {} @ {}; {}", deadline.description(), deadline_time, now_duration.as_secs_f64(), info);
+                    }
                     end_conditions.retain(|(other_id, _, _)| &id != other_id);
                 }
             }

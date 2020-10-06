@@ -41,6 +41,7 @@ pub struct OperatorConfig<T: Clone> {
     /// A higher number may result in more parallelism; however this may be limited
     /// by dependencies on [`State`](crate::dataflow::State) and timestamps.
     pub num_event_runners: usize,
+    pub logging: bool,
     pub(crate) deadlines: Arc<Mutex<Vec<Box<dyn Deadline + Send + Sync>>>>,
 }
 
@@ -53,6 +54,7 @@ impl<T: Clone> OperatorConfig<T> {
             flow_watermarks: true,
             node_id: 0,
             num_event_runners: 1,
+            logging: false,
             deadlines: Arc::new(Mutex::new(Vec::new())),
         }
     }
@@ -92,6 +94,12 @@ impl<T: Clone> OperatorConfig<T> {
         self
     }
 
+    // Enable logging to file upon invocation of deadline handlers.
+    pub fn logging(mut self, logging: bool) -> Self {
+        self.logging = logging;
+        self
+    }
+
     pub fn add_deadline(&self, deadline: impl 'static + Send + Sync + Deadline) {
         let mut deadlines = self.deadlines.try_lock().unwrap();
         deadlines.push(Box::new(deadline));
@@ -106,6 +114,7 @@ impl<T: Clone> OperatorConfig<T> {
             arg: None,
             flow_watermarks: self.flow_watermarks,
             node_id: self.node_id,
+            logging: self.logging,
             num_event_runners: self.num_event_runners,
             deadlines: self.deadlines.clone(),
         }

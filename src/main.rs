@@ -89,7 +89,7 @@ fn main() {
 
     let _s = connect_1_write!(
         DeadlineOperator,
-        OperatorConfig::new().name("DeadlineOperator"),
+        OperatorConfig::new().name("DeadlineOperator").logging(true),
         ingest_stream
     );
 
