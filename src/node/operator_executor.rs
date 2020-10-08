@@ -301,7 +301,6 @@ impl OperatorExecutor {
         {
             end_condition_stream.insert(i, rx);
         }
-        end_condition_stream.next().await;
 
         // Contains handlers.
         let mut active_deadlines: tokio::time::DelayQueue<(
