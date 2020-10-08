@@ -1,7 +1,7 @@
 use std::{
     cell::RefCell,
     collections::HashMap,
-    fs::{self, OpenOptions},
+    fs::{self, File, OpenOptions},
     io::prelude::*,
     pin::Pin,
     rc::Rc,
@@ -18,7 +18,7 @@ use slog::{Drain, Logger};
 use tokio::{
     self,
     stream::{Stream, StreamExt, StreamMap},
-    sync::{broadcast, mpsc, watch},
+    sync::{broadcast, mpsc, watch, Mutex},
 };
 
 use crate::{
@@ -218,17 +218,15 @@ impl OperatorExecutor {
         tokio::task::block_in_place(|| self.operator.run());
 
         // Deadlines.
-        let file_logger = if self.config.logging {
-            fs::create_dir("/tmp/erdos").ok();
-            let file = OpenOptions::new()
-                .create(true)
-                .write(true)
-                .truncate(true)
-                .open(format!("/tmp/erdos/{}.log", self.config.id))
-                .unwrap();
-            let decorator = slog_term::PlainSyncDecorator::new(file);
-            let drain = slog_term::FullFormat::new(decorator).build().fuse();
-            Some(Logger::root(drain, slog::o!()))
+        let file = if self.config.logging {
+            Some(Arc::new(Mutex::new(
+                OpenOptions::new()
+                    .create(true)
+                    .write(true)
+                    .truncate(true)
+                    .open(format!("/tmp/erdos/{}.log", self.config.id))
+                    .unwrap(),
+            )))
         } else {
             None
         };
@@ -237,7 +235,7 @@ impl OperatorExecutor {
             let mut deadlines = self.config.deadlines.try_lock().unwrap();
             deadlines
                 .drain(..)
-                .map(|deadline| tokio::spawn(Self::enforce_deadline(deadline, file_logger.clone())))
+                .map(|deadline| tokio::spawn(Self::enforce_deadline(deadline, file.clone())))
                 .collect()
         };
 
@@ -282,7 +280,10 @@ impl OperatorExecutor {
     }
 
     // Spawn 1 task for each deadline. This is bad.
-    async fn enforce_deadline(mut deadline: Box<dyn Deadline + Send>, file_logger: Option<Logger>) {
+    async fn enforce_deadline(
+        mut deadline: Box<dyn Deadline + Send>,
+        file: Option<Arc<Mutex<File>>>,
+    ) {
         let mut start_condition_stream = StreamMap::new();
         for (i, rx) in deadline
             .get_start_condition_receivers()
@@ -347,13 +348,17 @@ impl OperatorExecutor {
                     let duration_to_deadline = now_instant.duration_since(instant);
                     let deadline_time = (now_duration - duration_to_deadline).as_secs_f32();
 
-                    if let Some(file_logger) = file_logger.as_ref() {
-                        slog::warn!(file_logger, "{}: invoking handler for deadline {} @ {}", deadline.description(), deadline_time, now_duration.as_secs_f64());
+                    if let Some(file) = file.as_ref() {
+                        let mut file = file.lock().await;
+                        writeln!(file, "{}: invoking handler for deadline {} @ {}", deadline.description(), deadline_time, now_duration.as_secs_f64()).unwrap();
+                        file.flush().unwrap();
                     }
                     let info = handler();
                     now_duration += now_instant.elapsed();
-                    if let Some(file_logger) = file_logger.as_ref() {
-                        slog::warn!(file_logger, "{}: finished invoking handler for deadline {} @ {}; {}", deadline.description(), deadline_time, now_duration.as_secs_f64(), info);
+                    if let Some(file) = file.as_ref() {
+                        let mut file = file.lock().await;
+                        writeln!(file, "{}: finished invoking handler for deadline {} @ {}; {}", deadline.description(), deadline_time, now_duration.as_secs_f64(), info).unwrap();
+                        file.flush().unwrap();
                     }
                     end_conditions.retain(|(other_id, _, _)| &id != other_id);
                 }
