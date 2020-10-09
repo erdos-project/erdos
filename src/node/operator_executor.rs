@@ -345,7 +345,7 @@ impl OperatorExecutor {
                     let mut now_duration = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
                     let now_instant = Instant::now();
                     let duration_to_deadline = now_instant.duration_since(instant);
-                    let deadline_time = (now_duration - duration_to_deadline).as_secs_f32();
+                    let deadline_time = now_duration.as_secs_f64() - duration_to_deadline.as_secs_f64();
 
                     if let Some(file) = file.as_ref() {
                         let mut file = file.lock().await;
