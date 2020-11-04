@@ -284,22 +284,22 @@ impl OperatorExecutor {
         mut deadline: Box<dyn Deadline + Send>,
         file: Option<Arc<Mutex<File>>>,
     ) {
-        let mut start_condition_stream = StreamMap::new();
+        let mut start_condition_channels = StreamMap::new();
         for (i, rx) in deadline
             .get_start_condition_receivers()
             .into_iter()
             .enumerate()
         {
-            start_condition_stream.insert(i, rx);
+            start_condition_channels.insert(i, rx);
         }
 
-        let mut end_condition_stream = StreamMap::new();
+        let mut end_condition_channels = StreamMap::new();
         for (i, rx) in deadline
             .get_end_condition_receivers()
             .into_iter()
             .enumerate()
         {
-            end_condition_stream.insert(i, rx);
+            end_condition_channels.insert(i, rx);
         }
 
         // Contains handlers.
@@ -317,7 +317,7 @@ impl OperatorExecutor {
         loop {
             tokio::select! {
                 // Start condition notification.
-                msg = start_condition_stream.next() => {
+                msg = start_condition_channels.next() => {
                     let notification = msg.unwrap().1.unwrap();
                     if let Some((instant, end_condition, handler)) = deadline.start_condition(&notification) {
                         let id = Uuid::new_deterministic();
@@ -326,7 +326,7 @@ impl OperatorExecutor {
                     }
                 }
                 // End condition notification.
-                msg = end_condition_stream.next() => {
+                msg = end_condition_channels.next() => {
                     let notification = msg.unwrap().1.unwrap();
                     end_conditions = end_conditions.into_iter().filter_map(|(id, key, mut end_condition_arc)| {
                         let end_condition = Arc::get_mut(&mut end_condition_arc).unwrap();
