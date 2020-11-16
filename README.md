@@ -120,8 +120,12 @@ messages out of order.
 
 # Getting involved
 
-If you would like to contact us, please send an email to:
-erdos-developers@googlegroups.com, or create an issue on GitHub.
+If you would like to contact us, you can:
+* [Community on Slack](https://forms.gle/KXwSrjM6ZqRi2MT18): Join our community
+on Slack for discussions about development, questions about usage, and feature
+requests.
+* [Github Issues](https://github.com/erdos-project/erdos/issues): For reporting
+bugs.
 
 We always welcome contributions to ERDOS. One way to get started is to
 pick one of the issues tagged with **good first issue** -- these are usually good issues that help you familiarize yourself with the ERDOS
