@@ -1,6 +1,9 @@
 use pyo3::{exceptions, prelude::*};
 
-use crate::{dataflow::stream::{ExtractStream, errors::TryReadError}, python::PyMessage};
+use crate::{
+    dataflow::stream::{errors::TryReadError, ExtractStream},
+    python::PyMessage,
+};
 
 use super::PyReadStream;
 
@@ -52,7 +55,7 @@ impl PyExtractStream {
                 "Unable to to read from stream {}: {:?}",
                 self.extract_stream.get_id(),
                 e
-            )))
+            ))),
         }
     }
 }
