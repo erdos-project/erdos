@@ -291,7 +291,7 @@ impl Node {
         let graph_ref = self
             .dataflow_graph
             .as_ref()
-            .unwrap_or_else(|| panic!("Node {}: dataflow graph must be set."));
+            .unwrap_or_else(|| panic!("Node {}: dataflow graph must be set.", self.id));
         let graph = scheduler::schedule(graph_ref);
         if let Some(filename) = &self.config.graph_filename {
             graph.to_dot(filename.as_str()).map_err(|e| e.to_string())?;
