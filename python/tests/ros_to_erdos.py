@@ -16,8 +16,8 @@ from rospy.exceptions import ROSException, ROSSerializationException
 import erdos
 
 
-ROSTOPIC = "test_erdos_to_ros"
-ROS_NODE_NAME = "erdos_to_ros_node"
+ROSTOPIC = "test_ros_to_erdos"
+ROS_NODE_NAME = "ros_to_erdos_node"
 RECEIVED_MESSAGES = []
 NUM_RECEIVED = Value('i', 0)
 TEST_FAILED = Value('i', 0)
@@ -46,8 +46,8 @@ class RecvOp(erdos.Operator):
 
     def check_recvd_msg(self, recvd_msg):
         print("Received Erdos Message: " + str(recvd_msg) +
-              ". Expected: " + str(self.messages(self.cur_msg)) + ".")
-        if recvd_msg != self.messages(self.cur_msg):
+              ". Expected: " + str(self.messages[self.cur_msg]) + ".")
+        if recvd_msg.data != self.messages[self.cur_msg]:
             TEST_FAILED.value = True
         self.cur_msg += 1
         NUM_RECEIVED.value += 1
@@ -75,7 +75,6 @@ class RosToErdosOp(erdos.Operator):
         self.rostopic = rostopic
         self.node_name = node_name
         self.func = func
-        self.ros_sub = None
         self.coord = 0
 
     @staticmethod
@@ -102,9 +101,11 @@ class RosToErdosOp(erdos.Operator):
 
     def run(self):
         # Initialize a subscriber
-        rospy.init_node(ROS_NODE_NAME, anonymous=True, disable_signals=True)
-        self.ros_sub = rospy.Subscriber(self.rostopic, self.ros_msg_type, self.on_ros_msg)
-        print("got to run")
+        try:
+            rospy.init_node(ROS_NODE_NAME + "_operator", anonymous=True, disable_signals=True)
+        except rospy.exceptions.ROSException as err:
+            print("Rospy operator node already initialized. Skip initialization: " + str(err))
+        rospy.Subscriber(self.rostopic, self.ros_msg_type, self.on_ros_msg)
         rospy.spin()
 
 
@@ -114,6 +115,7 @@ def prep_globs():
 
     NUM_RECEIVED.value = 0
     TEST_FAILED.value = False
+    #erdos.reset()
 
 
 @pytest.mark.parametrize("ros_msgs, ros_msg_type, erdos_msgs, sub_func, topic", [
@@ -136,8 +138,6 @@ def test_int_str(prep_globs, ros_msgs, ros_msg_type, erdos_msgs, sub_func, topic
     """
 
     pub = rospy.Publisher(topic, ros_msg_type, queue_size=10)
-    #rospy.Subscriber(topic, pub_msg_type, lambda msg: print("recvd"))
-    #rospy.init_node(ROS_NODE_NAME, anonymous=True, disable_signals=True)
     (sub_stream, ) = erdos.connect(RosToErdosOp,
                      erdos.OperatorConfig(),
                      [],
@@ -151,11 +151,54 @@ def test_int_str(prep_globs, ros_msgs, ros_msg_type, erdos_msgs, sub_func, topic
                   expected_messages=erdos_msgs)
 
     handle = erdos.run_async()
-    #erdos.reset()
-    time.sleep(15)
+    time.sleep(10)
+    try:
+        rospy.init_node(ROS_NODE_NAME, anonymous=True, disable_signals=True)
+    except rospy.exceptions.ROSException as err:
+        print("Rospy node already initialized. Skip initialization: " + str(err))
     for msg in ros_msgs:
         pub.publish(msg)
+    time.sleep(15)
+    handle.shutdown()
+    assert NUM_RECEIVED.value == len(erdos_msgs)
+    assert not TEST_FAILED.value
+
+'''
+def main():
+    ros_msgs, ros_msg_type, erdos_msgs, sub_func, topic = ([0, 1, 2, 3, 4, 5],
+     Int64,
+     ["Zero", "One", "Two", "Three", "Four", "Five"],
+     lambda msg: ["Zero", "One", "Two", "Three", "Four", "Five"][msg.data],
+     ROSTOPIC + "_1")
+    pub = rospy.Publisher(topic, ros_msg_type, queue_size=10)
+    print(pub.name)
+    #s = rospy.Subscriber(topic, ros_msg_type, lambda x: print(x))
+    #print(s.impl.callbacks)
+    (sub_stream, ) = erdos.connect(RosToErdosOp,
+                     erdos.OperatorConfig(),
+                     [],
+                     ros_msg_type=ros_msg_type,
+                     rostopic=topic,
+                     node_name=ROS_NODE_NAME,
+                     func=sub_func)
+    erdos.connect(RecvOp,
+                  erdos.OperatorConfig(),
+                  [sub_stream],
+                  expected_messages=erdos_msgs)
+    handle = erdos.run_async()
+    #erdos.reset()
+    time.sleep(10)
+    #print(s.impl.callbacks)
+    print("Number of connections: " + str(pub.get_num_connections()))
+    rospy.init_node(ROS_NODE_NAME, anonymous=True, disable_signals=True)
+    for msg in ros_msgs:
+        pub.publish(msg)
+    #rospy.spin()
     time.sleep(10)
     handle.shutdown()
     assert NUM_RECEIVED.value == len(erdos_msgs)
     assert not TEST_FAILED.value
+
+if __name__ == '__main__':
+    main()
+'''
