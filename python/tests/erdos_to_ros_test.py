@@ -145,7 +145,7 @@ def prep_globs():
                              lambda rcvd: rcvd == ["Zero", "One", "Two",
                                                    "Three", "Four",
                                                    "Five"][:len(rcvd)],
-                            ROSTOPIC + "_1"),
+                             ROSTOPIC + "_1"),
                             (pub_helper,
                              sub_helper,
                              [0, 1, 2, 3, 4, 5],
