@@ -42,7 +42,7 @@ class SendOp(erdos.Operator):
 
     def run(self):
         for raw_msg in self.messages:
-            msg = erdos.Message(erdos.Timestamp(coordinates=[self.coord]), 
+            msg = erdos.Message(erdos.Timestamp(coordinates=[self.coord]),
                                 raw_msg)
             print("SendOp: sending {msg}".format(msg=msg))
             self.write_stream.send(msg)
@@ -133,23 +133,23 @@ def prep_globs():
     TEST_FAILED.value = False
 
 
-@pytest.mark.parametrize("pub_func, sub_func, msgs, pub_msg_type, " +
-                         "translator, verifier, topic", [
-    (pub_helper,
-     sub_helper,
-     [0, 1, 2, 3, 4, 5],
-     String,
-     lambda msg: ["Zero", "One", "Two", "Three", "Four", "Five"][msg],
-     lambda received: received == ["Zero", "One", "Two", "Three", \
-                                   "Four", "Five"][:len(received)],
-     ROSTOPIC + "_1"),
-    (pub_helper,
-     sub_helper,
-     [0, 1, 2, 3, 4, 5],
-     String,
-     lambda msg: ["Zero", "One", "Two", "Three", "Four", "Five"][msg],
-     lambda received: False,
-     ROSTOPIC + "_2"),
+@pytest.mark.parametrize("pub_func, sub_func, msgs, pub_msg_type, " + 
+    "translator, verifier, topic", [
+        (pub_helper,
+        sub_helper,
+        [0, 1, 2, 3, 4, 5],
+        String,
+        lambda msg: ["Zero", "One", "Two", "Three", "Four", "Five"][msg],
+        lambda received: received == ["Zero", "One", "Two", "Three",
+                                    "Four", "Five"][:len(received)],
+        ROSTOPIC + "_1"),
+        (pub_helper,
+        sub_helper,
+        [0, 1, 2, 3, 4, 5],
+        String,
+        lambda msg: ["Zero", "One", "Two", "Three", "Four", "Five"][msg],
+        lambda received: False,
+        ROSTOPIC + "_2"),
 ])
 def test_int_str(prep_globs,
                  pub_func,

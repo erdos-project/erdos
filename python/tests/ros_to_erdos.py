@@ -100,7 +100,6 @@ class RosToErdosOp(erdos.Operator):
         self.subscribe_stream.send(erdos_msg)
         self.coord += 1
 
-
     def run(self):
         # Initialize a subscriber
         try:
@@ -119,11 +118,11 @@ def prep_globs():
 
     NUM_RECEIVED.value = 0
     TEST_FAILED.value = False
-    #erdos.reset()
+    # erdos.reset()
 
 
-@pytest.mark.parametrize("ros_msgs, ros_msg_type, erdos_msgs, sub_func, topic",
-[
+@pytest.mark.parametrize("ros_msgs, ros_msg_type, erdos_msgs, " + 
+                         "sub_func, topic", [
     ([0, 1, 2, 3, 4, 5],
      Int64,
      ["Zero", "One", "Two", "Three", "Four", "Five"],
@@ -165,7 +164,7 @@ def test_int_str(prep_globs,
     try:
         rospy.init_node(ROS_NODE_NAME, anonymous=True, disable_signals=True)
     except ROSException as err:
-        print("Rospy node already initialized. Skip initialization: " + 
+        print("Rospy node already initialized. Skip initialization: " +
               str(err))
     for msg in ros_msgs:
         pub.publish(msg)
@@ -176,7 +175,8 @@ def test_int_str(prep_globs,
 
 
 # def main():
-#     ros_msgs, ros_msg_type, erdos_msgs, sub_func, topic = ([0, 1, 2, 3, 4, 5],
+#     ros_msgs, ros_msg_type, erdos_msgs, sub_func, topic = ([0, 1, 2, 3, 
+#      4, 5],
 #      Int64,
 #      ["Zero", "One", "Two", "Three", "Four", "Five"],
 #      lambda msg: ["Zero", "One", "Two", "Three", "Four", "Five"][msg.data],
@@ -212,4 +212,3 @@ def test_int_str(prep_globs,
 
 # if __name__ == '__main__':
 #     main()
-
