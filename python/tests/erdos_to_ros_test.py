@@ -19,8 +19,8 @@ import erdos
 ROSTOPIC = "test_erdos_to_ros"
 ROS_NODE_NAME = "erdos_to_ros_node"
 RECEIVED_MESSAGES = []
-NUM_RECEIVED = Value('i', 0)
-TEST_FAILED = Value('i', 0)
+NUM_RECEIVED = Value("i", 0)
+TEST_FAILED = Value("i", 0)
 
 
 class SendOp(erdos.Operator):
@@ -42,7 +42,8 @@ class SendOp(erdos.Operator):
 
     def run(self):
         for raw_msg in self.messages:
-            msg = erdos.Message(erdos.Timestamp(coordinates=[self.coord]), raw_msg)
+            msg = erdos.Message(erdos.Timestamp(coordinates=[self.coord]), 
+                                raw_msg)
             print("SendOp: sending {msg}".format(msg=msg))
             self.write_stream.send(msg)
             self.coord += 1
@@ -60,9 +61,10 @@ class ErdosToRosOp(erdos.Operator):
         func: Callback function that converts a single ros_msg to an erdos_msg
     """
 
-    def __init__(self, publish_stream, ros_msg_type, rostopic, node_name, func):
+    def __init__(self, publish_stream, ros_msg_type, rostopic, node_name,
+                 func):
         self.logger = erdos.utils.setup_logging(self.config.name,
-                                                 self.config.log_file_name)
+                                                self.config.log_file_name)
         self.publish_stream = publish_stream
         self.publish_stream.add_callback(self.on_erdos_msg)
         self.ros_msg_type = ros_msg_type
@@ -93,16 +95,17 @@ class ErdosToRosOp(erdos.Operator):
             self.logger.debug("Ros publisher was not defined, \
                 possibly because run() was not called: %s", err)
         except (ROSException, ROSSerializationException) as err:
-            self.logger.debug("The erdos msg could not be published to ros: %s", err)
+            self.logger.debug("The erdos msg couldn't publish to ros: %s", err)
 
     def run(self):
         # Initialize a publisher
-        self.ros_pub = rospy.Publisher(self.rostopic, self.ros_msg_type, queue_size=10)
+        self.ros_pub = rospy.Publisher(self.rostopic, self.ros_msg_type,
+                                       queue_size=10)
         rospy.init_node(self.node_name, anonymous=True, disable_signals=True)
 
 
 def pub_helper(msg, translator):
-    """Takes msg, calls the translator function on it, and returns the result."""
+    """Takes msg, calls the translator function on it, and returns result."""
 
     ros_msg = translator(msg.data)
     return ros_msg
@@ -130,13 +133,15 @@ def prep_globs():
     TEST_FAILED.value = False
 
 
-@pytest.mark.parametrize("pub_func, sub_func, msgs, pub_msg_type, translator, verifier, topic", [
+@pytest.mark.parametrize("pub_func, sub_func, msgs, pub_msg_type, " +
+                         "translator, verifier, topic", [
     (pub_helper,
      sub_helper,
      [0, 1, 2, 3, 4, 5],
      String,
      lambda msg: ["Zero", "One", "Two", "Three", "Four", "Five"][msg],
-     lambda received: received == ["Zero", "One", "Two", "Three", "Four", "Five"][:len(received)],
+     lambda received: received == ["Zero", "One", "Two", "Three", \
+                                   "Four", "Five"][:len(received)],
      ROSTOPIC + "_1"),
     (pub_helper,
      sub_helper,
@@ -146,7 +151,14 @@ def prep_globs():
      lambda received: False,
      ROSTOPIC + "_2"),
 ])
-def test_int_str(prep_globs, pub_func, sub_func, msgs, pub_msg_type, translator, verifier, topic):
+def test_int_str(prep_globs,
+                 pub_func,
+                 sub_func,
+                 msgs,
+                 pub_msg_type,
+                 translator,
+                 verifier,
+                 topic):
     """
     Test converting an erdos int to a ros String.
     Test 1 should pass.

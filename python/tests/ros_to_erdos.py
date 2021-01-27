@@ -11,7 +11,7 @@ import pytest
 
 import rospy
 from std_msgs.msg import Int64
-from rospy.exceptions import ROSException, ROSSerializationException
+from rospy.exceptions import ROSException
 
 import erdos
 
@@ -19,8 +19,8 @@ import erdos
 ROSTOPIC = "test_ros_to_erdos"
 ROS_NODE_NAME = "ros_to_erdos_node"
 RECEIVED_MESSAGES = []
-NUM_RECEIVED = Value('i', 0)
-TEST_FAILED = Value('i', 0)
+NUM_RECEIVED = Value("i", 0)
+TEST_FAILED = Value("i", 0)
 
 
 class RecvOp(erdos.Operator):
@@ -67,9 +67,10 @@ class RosToErdosOp(erdos.Operator):
         func: Callback function that converts a single ros_msg to an erdos_msg
     """
 
-    def __init__(self, subscribe_stream, ros_msg_type, rostopic, node_name, func):
+    def __init__(self, subscribe_stream, ros_msg_type, rostopic, node_name,
+                 func):
         self.logger = erdos.utils.setup_logging(self.config.name,
-                                                 self.config.log_file_name)
+                                                self.config.log_file_name)
         self.subscribe_stream = subscribe_stream
         self.ros_msg_type = ros_msg_type
         self.rostopic = rostopic
@@ -94,7 +95,8 @@ class RosToErdosOp(erdos.Operator):
 
         print("Received Ros Message: " + str(ros_msg))
         erdos_msg = self.func(ros_msg)
-        erdos_msg = erdos.Message(erdos.Timestamp(coordinates=[self.coord]), erdos_msg)
+        erdos_msg = erdos.Message(erdos.Timestamp(coordinates=[self.coord]),
+                                  erdos_msg)
         self.subscribe_stream.send(erdos_msg)
         self.coord += 1
 
@@ -102,9 +104,11 @@ class RosToErdosOp(erdos.Operator):
     def run(self):
         # Initialize a subscriber
         try:
-            rospy.init_node(ROS_NODE_NAME + "_operator", anonymous=True, disable_signals=True)
-        except rospy.exceptions.ROSException as err:
-            print("Rospy operator node already initialized. Skip initialization: " + str(err))
+            rospy.init_node(ROS_NODE_NAME + "_operator", anonymous=True,
+                            disable_signals=True)
+        except ROSException as err:
+            print("Rospy operator node already initialized. " +
+                  "Skip initialization: " + str(err))
         rospy.Subscriber(self.rostopic, self.ros_msg_type, self.on_ros_msg)
         rospy.spin()
 
@@ -118,7 +122,8 @@ def prep_globs():
     #erdos.reset()
 
 
-@pytest.mark.parametrize("ros_msgs, ros_msg_type, erdos_msgs, sub_func, topic", [
+@pytest.mark.parametrize("ros_msgs, ros_msg_type, erdos_msgs, sub_func, topic",
+[
     ([0, 1, 2, 3, 4, 5],
      Int64,
      ["Zero", "One", "Two", "Three", "Four", "Five"],
@@ -130,7 +135,12 @@ def prep_globs():
      lambda msg: "",
      ROSTOPIC + "_2"),
 ])
-def test_int_str(prep_globs, ros_msgs, ros_msg_type, erdos_msgs, sub_func, topic):
+def test_int_str(prep_globs,
+                 ros_msgs,
+                 ros_msg_type,
+                 erdos_msgs,
+                 sub_func,
+                 topic):
     """
     Test converting a ros Int64 to an erdos String.
     Test 1 should pass.
@@ -139,12 +149,12 @@ def test_int_str(prep_globs, ros_msgs, ros_msg_type, erdos_msgs, sub_func, topic
 
     pub = rospy.Publisher(topic, ros_msg_type, queue_size=10)
     (sub_stream, ) = erdos.connect(RosToErdosOp,
-                     erdos.OperatorConfig(),
-                     [],
-                     ros_msg_type=ros_msg_type,
-                     rostopic=topic,
-                     node_name=ROS_NODE_NAME,
-                     func=sub_func)
+                                   erdos.OperatorConfig(),
+                                   [],
+                                   ros_msg_type=ros_msg_type,
+                                   rostopic=topic,
+                                   node_name=ROS_NODE_NAME,
+                                   func=sub_func)
     erdos.connect(RecvOp,
                   erdos.OperatorConfig(),
                   [sub_stream],
@@ -154,8 +164,9 @@ def test_int_str(prep_globs, ros_msgs, ros_msg_type, erdos_msgs, sub_func, topic
     time.sleep(10)
     try:
         rospy.init_node(ROS_NODE_NAME, anonymous=True, disable_signals=True)
-    except rospy.exceptions.ROSException as err:
-        print("Rospy node already initialized. Skip initialization: " + str(err))
+    except ROSException as err:
+        print("Rospy node already initialized. Skip initialization: " + 
+              str(err))
     for msg in ros_msgs:
         pub.publish(msg)
     time.sleep(15)
@@ -163,42 +174,42 @@ def test_int_str(prep_globs, ros_msgs, ros_msg_type, erdos_msgs, sub_func, topic
     assert NUM_RECEIVED.value == len(erdos_msgs)
     assert not TEST_FAILED.value
 
-'''
-def main():
-    ros_msgs, ros_msg_type, erdos_msgs, sub_func, topic = ([0, 1, 2, 3, 4, 5],
-     Int64,
-     ["Zero", "One", "Two", "Three", "Four", "Five"],
-     lambda msg: ["Zero", "One", "Two", "Three", "Four", "Five"][msg.data],
-     ROSTOPIC + "_1")
-    pub = rospy.Publisher(topic, ros_msg_type, queue_size=10)
-    print(pub.name)
-    #s = rospy.Subscriber(topic, ros_msg_type, lambda x: print(x))
-    #print(s.impl.callbacks)
-    (sub_stream, ) = erdos.connect(RosToErdosOp,
-                     erdos.OperatorConfig(),
-                     [],
-                     ros_msg_type=ros_msg_type,
-                     rostopic=topic,
-                     node_name=ROS_NODE_NAME,
-                     func=sub_func)
-    erdos.connect(RecvOp,
-                  erdos.OperatorConfig(),
-                  [sub_stream],
-                  expected_messages=erdos_msgs)
-    handle = erdos.run_async()
-    #erdos.reset()
-    time.sleep(10)
-    #print(s.impl.callbacks)
-    print("Number of connections: " + str(pub.get_num_connections()))
-    rospy.init_node(ROS_NODE_NAME, anonymous=True, disable_signals=True)
-    for msg in ros_msgs:
-        pub.publish(msg)
-    #rospy.spin()
-    time.sleep(10)
-    handle.shutdown()
-    assert NUM_RECEIVED.value == len(erdos_msgs)
-    assert not TEST_FAILED.value
 
-if __name__ == '__main__':
-    main()
-'''
+# def main():
+#     ros_msgs, ros_msg_type, erdos_msgs, sub_func, topic = ([0, 1, 2, 3, 4, 5],
+#      Int64,
+#      ["Zero", "One", "Two", "Three", "Four", "Five"],
+#      lambda msg: ["Zero", "One", "Two", "Three", "Four", "Five"][msg.data],
+#      ROSTOPIC + "_1")
+#     pub = rospy.Publisher(topic, ros_msg_type, queue_size=10)
+#     print(pub.name)
+#     #s = rospy.Subscriber(topic, ros_msg_type, lambda x: print(x))
+#     #print(s.impl.callbacks)
+#     (sub_stream, ) = erdos.connect(RosToErdosOp,
+#                      erdos.OperatorConfig(),
+#                      [],
+#                      ros_msg_type=ros_msg_type,
+#                      rostopic=topic,
+#                      node_name=ROS_NODE_NAME,
+#                      func=sub_func)
+#     erdos.connect(RecvOp,
+#                   erdos.OperatorConfig(),
+#                   [sub_stream],
+#                   expected_messages=erdos_msgs)
+#     handle = erdos.run_async()
+#     #erdos.reset()
+#     time.sleep(10)
+#     #print(s.impl.callbacks)
+#     print("Number of connections: " + str(pub.get_num_connections()))
+#     rospy.init_node(ROS_NODE_NAME, anonymous=True, disable_signals=True)
+#     for msg in ros_msgs:
+#         pub.publish(msg)
+#     #rospy.spin()
+#     time.sleep(10)
+#     handle.shutdown()
+#     assert NUM_RECEIVED.value == len(erdos_msgs)
+#     assert not TEST_FAILED.value
+
+# if __name__ == '__main__':
+#     main()
+
