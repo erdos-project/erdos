@@ -121,19 +121,21 @@ def prep_globs():
     # erdos.reset()
 
 
-@pytest.mark.parametrize("ros_msgs, ros_msg_type, erdos_msgs, " + 
-                         "sub_func, topic", [
-    ([0, 1, 2, 3, 4, 5],
-     Int64,
-     ["Zero", "One", "Two", "Three", "Four", "Five"],
-     lambda msg: ["Zero", "One", "Two", "Three", "Four", "Five"][msg.data],
-     ROSTOPIC + "_1"),
-    ([0, 1, 2, 3, 4, 5],
-     Int64,
-     ["Zero", "One", "Two", "Three", "Four", "Five"],
-     lambda msg: "",
-     ROSTOPIC + "_2"),
-])
+@pytest.mark.parametrize("ros_msgs, ros_msg_type, erdos_msgs, " +
+                         "sub_func, topic",
+                         [
+                            ([0, 1, 2, 3, 4, 5],
+                             Int64,
+                             ["Zero", "One", "Two", "Three", "Four", "Five"],
+                             lambda msg: ["Zero", "One", "Two", "Three",
+                                          "Four", "Five"][msg.data],
+                             ROSTOPIC + "_1"),
+                            ([0, 1, 2, 3, 4, 5],
+                             Int64,
+                             ["Zero", "One", "Two", "Three", "Four", "Five"],
+                             lambda msg: "",
+                             ROSTOPIC + "_2"),
+                         ])
 def test_int_str(prep_globs,
                  ros_msgs,
                  ros_msg_type,
@@ -175,7 +177,7 @@ def test_int_str(prep_globs,
 
 
 # def main():
-#     ros_msgs, ros_msg_type, erdos_msgs, sub_func, topic = ([0, 1, 2, 3, 
+#     ros_msgs, ros_msg_type, erdos_msgs, sub_func, topic = ([0, 1, 2, 3,
 #      4, 5],
 #      Int64,
 #      ["Zero", "One", "Two", "Three", "Four", "Five"],
