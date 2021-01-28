@@ -15,7 +15,6 @@ from rospy.exceptions import ROSException
 
 import erdos
 
-
 ROSTOPIC = "test_ros_to_erdos"
 ROS_NODE_NAME = "ros_to_erdos_node"
 RECEIVED_MESSAGES = []
@@ -34,7 +33,6 @@ class RecvOp(erdos.Operator):
         expected_messages: List of Erdos objects that are
             expected to be received from the read stream.
     """
-
     def __init__(self, read_stream, expected_messages):
         self.read_stream = read_stream
         self.read_stream.add_callback(self.check_recvd_msg)
@@ -45,8 +43,8 @@ class RecvOp(erdos.Operator):
         return []
 
     def check_recvd_msg(self, recvd_msg):
-        print("Received Erdos Message: " + str(recvd_msg) +
-              ". Expected: " + str(self.messages[self.cur_msg]) + ".")
+        print("Received Erdos Message: " + str(recvd_msg) + ". Expected: " +
+              str(self.messages[self.cur_msg]) + ".")
         if recvd_msg.data != self.messages[self.cur_msg]:
             TEST_FAILED.value = True
         self.cur_msg += 1
@@ -66,7 +64,6 @@ class RosToErdosOp(erdos.Operator):
         node_name: Ros node name
         func: Callback function that converts a single ros_msg to an erdos_msg
     """
-
     def __init__(self, subscribe_stream, ros_msg_type, rostopic, node_name,
                  func):
         self.logger = erdos.utils.setup_logging(self.config.name,
@@ -103,7 +100,8 @@ class RosToErdosOp(erdos.Operator):
     def run(self):
         # Initialize a subscriber
         try:
-            rospy.init_node(ROS_NODE_NAME + "_operator", anonymous=True,
+            rospy.init_node(ROS_NODE_NAME + "_operator",
+                            anonymous=True,
                             disable_signals=True)
         except ROSException as err:
             print("Rospy operator node already initialized. " +
@@ -120,28 +118,18 @@ def prep_globs():
     TEST_FAILED.value = False
     # erdos.reset()
 
-
-@pytest.mark.parametrize("ros_msgs, ros_msg_type, erdos_msgs, " +
-                         "sub_func, topic",
-                         [
-                            ([0, 1, 2, 3, 4, 5],
-                             Int64,
-                             ["Zero", "One", "Two", "Three", "Four", "Five"],
-                             lambda msg: ["Zero", "One", "Two", "Three",
-                                          "Four", "Five"][msg.data],
-                             ROSTOPIC + "_1"),
-                            ([0, 1, 2, 3, 4, 5],
-                             Int64,
-                             ["Zero", "One", "Two", "Three", "Four", "Five"],
-                             lambda msg: "",
-                             ROSTOPIC + "_2"),
-                         ])
-def test_int_str(prep_globs,
-                 ros_msgs,
-                 ros_msg_type,
-                 erdos_msgs,
-                 sub_func,
-                 topic):
+@pytest.mark.parametrize(
+    "ros_msgs, ros_msg_type, erdos_msgs, " + "sub_func, topic", [
+        ([0, 1, 2, 3, 4, 5
+          ], Int64, ["Zero", "One", "Two", "Three", "Four", "Five"],
+         lambda msg: ["Zero", "One", "Two", "Three", "Four", "Five"][msg.data],
+         ROSTOPIC + "_1"),
+        ([0, 1, 2, 3, 4, 5], Int64, [
+            "Zero", "One", "Two", "Three", "Four", "Five"
+        ], lambda msg: "", ROSTOPIC + "_2"),
+    ])
+def test_int_str(prep_globs, ros_msgs, ros_msg_type, erdos_msgs, sub_func,
+                  topic):
     """
     Test converting a ros Int64 to an erdos String.
     Test 1 should pass.
@@ -150,8 +138,7 @@ def test_int_str(prep_globs,
 
     pub = rospy.Publisher(topic, ros_msg_type, queue_size=10)
     (sub_stream, ) = erdos.connect(RosToErdosOp,
-                                   erdos.OperatorConfig(),
-                                   [],
+                                   erdos.OperatorConfig(), [],
                                    ros_msg_type=ros_msg_type,
                                    rostopic=topic,
                                    node_name=ROS_NODE_NAME,

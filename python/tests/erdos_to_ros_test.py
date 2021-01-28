@@ -15,7 +15,6 @@ from rospy.exceptions import ROSException, ROSSerializationException
 
 import erdos
 
-
 ROSTOPIC = "test_erdos_to_ros"
 ROS_NODE_NAME = "erdos_to_ros_node"
 RECEIVED_MESSAGES = []
@@ -30,7 +29,6 @@ class SendOp(erdos.Operator):
         messages: List of Python primitives or objects that
             are sent as Erdos messages in the write stream.
     """
-
     def __init__(self, write_stream, messages):
         self.write_stream = write_stream
         self.messages = messages
@@ -60,7 +58,6 @@ class ErdosToRosOp(erdos.Operator):
         node_name: Ros node name
         func: Callback function that converts a single ros_msg to an erdos_msg
     """
-
     def __init__(self, publish_stream, ros_msg_type, rostopic, node_name,
                  func):
         self.logger = erdos.utils.setup_logging(self.config.name,
@@ -92,14 +89,16 @@ class ErdosToRosOp(erdos.Operator):
         try:
             self.ros_pub.publish(new_ros_msg)
         except (NameError, AttributeError) as err:
-            self.logger.debug("Ros publisher was not defined, \
+            self.logger.debug(
+                "Ros publisher was not defined, \
                 possibly because run() was not called: %s", err)
         except (ROSException, ROSSerializationException) as err:
             self.logger.debug("The erdos msg couldn't publish to ros: %s", err)
 
     def run(self):
         # Initialize a publisher
-        self.ros_pub = rospy.Publisher(self.rostopic, self.ros_msg_type,
+        self.ros_pub = rospy.Publisher(self.rostopic,
+                                       self.ros_msg_type,
                                        queue_size=10)
         rospy.init_node(self.node_name, anonymous=True, disable_signals=True)
 
@@ -133,36 +132,19 @@ def prep_globs():
     TEST_FAILED.value = False
 
 
-@pytest.mark.parametrize("pub_func, sub_func, msgs, pub_msg_type, " +
-                         "translator, verifier, topic",
-                         [
-                            (pub_helper,
-                             sub_helper,
-                             [0, 1, 2, 3, 4, 5],
-                             String,
-                             lambda msg: ["Zero", "One", "Two", "Three",
-                                          "Four", "Five"][msg],
-                             lambda rcvd: rcvd == ["Zero", "One", "Two",
-                                                   "Three", "Four",
-                                                   "Five"][:len(rcvd)],
-                             ROSTOPIC + "_1"),
-                            (pub_helper,
-                             sub_helper,
-                             [0, 1, 2, 3, 4, 5],
-                             String,
-                             lambda msg: ["Zero", "One", "Two", "Three",
-                                          "Four", "Five"][msg],
-                             lambda received: False,
-                             ROSTOPIC + "_2"),
-                         ])
-def test_int_str(prep_globs,
-                 pub_func,
-                 sub_func,
-                 msgs,
-                 pub_msg_type,
-                 translator,
-                 verifier,
-                 topic):
+@pytest.mark.parametrize(
+    "pub_func, sub_func, msgs, pub_msg_type, " + "translator, verifier, topic",
+    [
+        (pub_helper, sub_helper, [0, 1, 2, 3, 4, 5], String,
+         lambda msg: ["Zero", "One", "Two", "Three", "Four", "Five"][msg],
+         lambda rcvd: rcvd == ["Zero", "One", "Two", "Three", "Four", "Five"
+                               ][:len(rcvd)], ROSTOPIC + "_1"),
+        (pub_helper, sub_helper, [0, 1, 2, 3, 4, 5], String,
+         lambda msg: ["Zero", "One", "Two", "Three", "Four", "Five"][msg],
+         lambda received: False, ROSTOPIC + "_2"),
+    ])
+def test_int_str(prep_globs, pub_func, sub_func, msgs, pub_msg_type,
+                 translator, verifier, topic):
     """
     Test converting an erdos int to a ros String.
     Test 1 should pass.
@@ -170,12 +152,10 @@ def test_int_str(prep_globs,
     """
 
     (count_stream, ) = erdos.connect(SendOp,
-                                     erdos.OperatorConfig(),
-                                     [],
+                                     erdos.OperatorConfig(), [],
                                      messages=msgs)
     erdos.connect(ErdosToRosOp,
-                  erdos.OperatorConfig(),
-                  [count_stream],
+                  erdos.OperatorConfig(), [count_stream],
                   ros_msg_type=pub_msg_type,
                   rostopic=topic,
                   node_name=ROS_NODE_NAME,
