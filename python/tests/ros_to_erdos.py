@@ -145,8 +145,7 @@ def test_int_str(prep_globs, ros_msgs, ros_msg_type, erdos_msgs, sub_func,
                                    node_name=ROS_NODE_NAME,
                                    func=sub_func)
     erdos.connect(RecvOp,
-                  erdos.OperatorConfig(),
-                  [sub_stream],
+                  erdos.OperatorConfig(), [sub_stream],
                   expected_messages=erdos_msgs)
 
     handle = erdos.run_async()
