@@ -118,6 +118,7 @@ def prep_globs():
     TEST_FAILED.value = False
     # erdos.reset()
 
+
 @pytest.mark.parametrize(
     "ros_msgs, ros_msg_type, erdos_msgs, " + "sub_func, topic", [
         ([0, 1, 2, 3, 4, 5
@@ -129,7 +130,7 @@ def prep_globs():
         ], lambda msg: "", ROSTOPIC + "_2"),
     ])
 def test_int_str(prep_globs, ros_msgs, ros_msg_type, erdos_msgs, sub_func,
-                  topic):
+                 topic):
     """
     Test converting a ros Int64 to an erdos String.
     Test 1 should pass.
