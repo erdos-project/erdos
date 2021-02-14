@@ -22,7 +22,7 @@ class JSONDatabase:
         # Open existing db or create new db
         try:
             filepath = os.path.join(os.path.dirname(__file__), self.filename)
-            with open(filepath, 'r') as f:
+            with open(filepath, "r") as f:
                 self.db = json.load(f)
         except Exception:
             self.db = {}
@@ -38,7 +38,7 @@ class JSONDatabase:
         """
         filepath = os.path.join(os.path.dirname(__file__), self.filename)
         # save to file
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             json.dump(self.db, f)
 
     def update(self, key, val):
