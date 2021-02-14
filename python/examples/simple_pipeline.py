@@ -10,9 +10,11 @@ import json
 import copy
 import os
 
+
 class JSONDatabase:
     """
-    Append-Only database with JSON file under the hood. Updates the JSON file on db changes.
+    Append-Only database with JSON file under the hood.
+    Updates the JSON file on db changes.
     """
     def __init__(self, filename, seed_data=None):
         self.filename = filename
@@ -22,22 +24,20 @@ class JSONDatabase:
             filepath = os.path.join(os.path.dirname(__file__), self.filename)
             with open(filepath, 'r') as f:
                 self.db = json.load(f)
-        except:
+        except Exception:
             self.db = {}
-        
         # Add any seeding data that is specified
         if seed_data is not None:
-            self.db = seed_data;
-        
+            self.db = seed_data
         # Publish changes to JSON file
         self.__save()
-    
+
     def __save(self):
         """
         Saves/publishes current database state to json file
         """
         filepath = os.path.join(os.path.dirname(__file__), self.filename)
-         # save to file
+        # save to file
         with open(filepath, 'w') as f:
             json.dump(self.db, f)
 
@@ -50,8 +50,7 @@ class JSONDatabase:
             raise KeyError(f"Key: {key} does not exist in database")
 
         self.db[key] = val
-        self.__save();
-        
+        self.__save()
         return val
 
     def create(self, key, val):
@@ -61,31 +60,27 @@ class JSONDatabase:
         """
         if key in self.db:
             raise KeyError(f"Key: {key} already exists in database")
-    
         self.db[key] = val
-        self.__save();
-
+        self.__save()
         return val
-    
+
     def read(self, key, default=None):
         """
         Returns the document stored under the specified key
         Returns the 'default' parameter if the key is not found.
         """
         data = self.db.get(key, default)
-
         return copy.deepcopy(data) if data is not None else None
-    
+
     def delete(self, key):
         """
         Removes the key-value pair associated with 'key'
         """
         if key not in self.db:
             raise KeyError(f"Key: {key} does not exist in database")
-        
         del self.db[key]
+        self.__save()
 
-        self.__save();
 
 class SendOp(erdos.Operator):
     def __init__(self, write_stream):
@@ -105,15 +100,16 @@ class SendOp(erdos.Operator):
             self.write_stream.send(msg)
             count += 1
             time.sleep(1)
-    
+
     def __checkpoint(self, key, val):
         try:
             self.store.update(key, val)
-        except:
+        except Exception:
             self.store.create(key, val)
-        
+
     def __restore(self, key, default=None):
         return self.store.read(key, default=default)
+
 
 class CallbackOp(erdos.Operator):
     def __init__(self, read_stream):
