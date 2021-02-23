@@ -376,7 +376,7 @@ impl OperatorExecutor {
         // Wait for notification for events added.
         while let Some(control_msg) = notifier_rx.recv().await {
             while let Some((event, event_id)) = lattice.get_event().await {
-                (event.callback)();
+                tokio::task::block_in_place(event.callback);
                 lattice.mark_as_completed(event_id).await;
             }
             if EventRunnerMessage::DestroyOperator == control_msg {
