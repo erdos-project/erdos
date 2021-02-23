@@ -219,6 +219,7 @@ impl OperatorExecutor {
 
         // Deadlines.
         let file = if self.config.logging {
+            fs::create_dir_all("/tmp/erdos").unwrap();
             Some(Arc::new(Mutex::new(
                 OpenOptions::new()
                     .create(true)
