@@ -15,7 +15,7 @@ from rospy.exceptions import ROSException, ROSSerializationException
 
 import erdos
 
-ROSTOPIC = "test_erdos_to_ros"
+ROS_TOPIC = "test_erdos_to_ros"
 ROS_NODE_NAME = "erdos_to_ros_node"
 RECEIVED_MESSAGES = []
 NUM_RECEIVED = Value("i", 0)
@@ -51,23 +51,23 @@ class SendOp(erdos.Operator):
 class ErdosToRosOp(erdos.Operator):
     """Converts Erdos messages to ROS messages.
     Args:
-        publish_stream (:py:class:`erdos.ReadStream`): Stream on which the
+        erdos_stream (:py:class:`erdos.ReadStream`): Stream on which the
             operator receives control commands.
         ros_msg_type: Type used to publish to ros messages
-        rostopic: rostopic to publish messages to
+        ros_topic: ros topic to publish messages to
         node_name: Ros node name
-        func: Callback function that converts a single ros_msg to an erdos_msg
+        conversion_func: Callback fn that converts a ros_msg to an erdos_msg
     """
-    def __init__(self, publish_stream, ros_msg_type, rostopic, node_name,
-                 func):
+    def __init__(self, erdos_stream, ros_msg_type, ros_topic, node_name,
+                 conversion_func):
         self.logger = erdos.utils.setup_logging(self.config.name,
                                                 self.config.log_file_name)
-        self.publish_stream = publish_stream
-        self.publish_stream.add_callback(self.on_erdos_msg)
+        self.erdos_stream = erdos_stream
+        self.erdos_stream.add_callback(self.on_erdos_msg)
         self.ros_msg_type = ros_msg_type
-        self.rostopic = rostopic
+        self.ros_topic = ros_topic
         self.node_name = node_name
-        self.func = func
+        self.conversion_func = conversion_func
         self.ros_pub = None
 
     @staticmethod
@@ -76,7 +76,7 @@ class ErdosToRosOp(erdos.Operator):
 
     def on_erdos_msg(self, msg):
         """
-        Callback for publish_stream that converts
+        Callback for erdos_stream that converts
         erdos messages to ros messages and then
         published them.
 
@@ -84,7 +84,7 @@ class ErdosToRosOp(erdos.Operator):
             to ros message and then published.
         """
 
-        new_ros_msg = self.func(msg)
+        new_ros_msg = self.conversion_func(msg)
         print("Publishing: " + str(new_ros_msg))
         try:
             self.ros_pub.publish(new_ros_msg)
@@ -97,7 +97,7 @@ class ErdosToRosOp(erdos.Operator):
 
     def run(self):
         # Initialize a publisher
-        self.ros_pub = rospy.Publisher(self.rostopic,
+        self.ros_pub = rospy.Publisher(self.ros_topic,
                                        self.ros_msg_type,
                                        queue_size=10)
         rospy.init_node(self.node_name, anonymous=True, disable_signals=True)
@@ -138,10 +138,10 @@ def prep_globs():
         (pub_helper, sub_helper, [0, 1, 2, 3, 4, 5], String,
          lambda msg: ["Zero", "One", "Two", "Three", "Four", "Five"][msg],
          lambda rcvd: rcvd == ["Zero", "One", "Two", "Three", "Four", "Five"
-                               ][:len(rcvd)], ROSTOPIC + "_1"),
+                               ][:len(rcvd)], ROS_TOPIC + "_1"),
         (pub_helper, sub_helper, [0, 1, 2, 3, 4, 5], String,
          lambda msg: ["Zero", "One", "Two", "Three", "Four", "Five"][msg],
-         lambda received: False, ROSTOPIC + "_2"),
+         lambda received: False, ROS_TOPIC + "_2"),
     ])
 def test_int_str(prep_globs, pub_func, sub_func, msgs, pub_msg_type,
                  translator, verifier, topic):
@@ -157,9 +157,9 @@ def test_int_str(prep_globs, pub_func, sub_func, msgs, pub_msg_type,
     erdos.connect(ErdosToRosOp,
                   erdos.OperatorConfig(), [count_stream],
                   ros_msg_type=pub_msg_type,
-                  rostopic=topic,
+                  ros_topic=topic,
                   node_name=ROS_NODE_NAME,
-                  func=lambda msg: pub_func(msg, translator))
+                  conversion_func=lambda msg: pub_func(msg, translator))
     rospy.Subscriber(topic, pub_msg_type, lambda msg: sub_func(msg, verifier))
     handle = erdos.run_async()
     erdos.reset()
