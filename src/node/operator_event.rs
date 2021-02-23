@@ -99,7 +99,19 @@ fn resolve_access_conflicts(x: &OperatorEvent, y: &OperatorEvent) -> Ordering {
                 // Prioritize events with less dependencies
                 let x_num_dependencies = x.read_ids.len() + x.write_ids.len();
                 let y_num_dependencies = y.read_ids.len() + y.write_ids.len();
-                x_num_dependencies.cmp(&y_num_dependencies)
+                match x_num_dependencies.cmp(&y_num_dependencies) {
+                    Ordering::Equal => {
+                        // Break tie by timestamp.
+                        match x.timestamp.cmp(&y.timestamp) {
+                            Ordering::Equal => {
+                                // Prioritize y.
+                                Ordering::Greater
+                            }
+                            ord => ord,
+                        }
+                    }
+                    ord => ord,
+                }
             }
             ord => ord,
         }
@@ -152,7 +164,8 @@ impl Ord for OperatorEvent {
                     Ordering::Less => {
                         // `self` timestamp is less than `other`, run them in any order.
                         // Assume state is time-versioned, so dependency issues should not arise.
-                        Ordering::Equal
+                        // Ordering::Equal
+                        resolve_access_conflicts(&self, other)
                     }
                 }
             }
