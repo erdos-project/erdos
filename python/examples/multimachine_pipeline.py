@@ -57,8 +57,8 @@ class PullOp(erdos.Operator):
 def main():
     """Creates and runs the dataflow graph."""
     (count_stream, ) = erdos.connect(SendOp,
-                                     erdos.OperatorConfig(address=
-                                                          "172.17.0.9"), [])
+                                     erdos.
+                                     OperatorConfig(address="172.17.0.9"), [])
     erdos.connect(CallbackOp,
                   erdos.OperatorConfig(address="172.17.0.10"), [count_stream])
     erdos.connect(PullOp,

@@ -92,8 +92,8 @@ def connect(
             processes_per_address[config._address] = 1
             node_to_address[0] = (config._address, 1)
         processes_per_address[config._address] = \
-        processes_per_address.get(config._address, 0) + 1
-        node_to_address[node_id] = (config._address, 
+            processes_per_address.get(config._address, 0) + 1
+        node_to_address[node_id] = (config._address,
                                     processes_per_address[config._address])
 
     py_read_streams = []
@@ -226,7 +226,7 @@ def run_async(graph_filename: Optional[str] = None,
             for i in range(_num_py_operators + 1)
         ]
         control_addresses = [
-            node_to_address[i][0] + ":{port}".format(port=start_port + 
+            node_to_address[i][0] + ":{port}".format(port=start_port +
                                                      len(data_addresses) +
                                                      node_to_address[i][1])
             for i in range(_num_py_operators + 1)
@@ -240,8 +240,7 @@ def run_async(graph_filename: Optional[str] = None,
     if not multimachine:
         processes = [
             mp.Process(target=runner,
-                       args=(i, data_addresses,
-                       control_addresses))
+                       args=(i, data_addresses, control_addresses))
             for i in range(1, _num_py_operators + 1)
         ]
     else:
@@ -249,8 +248,7 @@ def run_async(graph_filename: Optional[str] = None,
         local_address = socket.gethostbyname(socket.gethostname())
         processes = [
             mp.Process(target=runner,
-                       args=(i, data_addresses,
-                       control_addresses))
+                       args=(i, data_addresses, control_addresses))
             for i in range(1, _num_py_operators + 1)
             if local_address == node_to_address[i][0]
         ]
