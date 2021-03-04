@@ -148,13 +148,13 @@ class OperatorConfig(object):
                  log_file_name: str = None,
                  csv_log_file_name: str = None,
                  profile_file_name: str = None,
-                 addr: str = None):
+                 address: str = None):
         self._name = name
         self._flow_watermarks = flow_watermarks
         self._log_file_name = log_file_name
         self._csv_log_file_name = csv_log_file_name
         self._profile_file_name = profile_file_name
-        self._addr = addr
+        self._address = address
 
     @property
     def name(self):

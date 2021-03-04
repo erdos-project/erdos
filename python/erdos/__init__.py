@@ -18,8 +18,7 @@ from erdos.timestamp import Timestamp
 import erdos.utils
 
 _num_py_operators = 0
-node_addrs = dict()
-num_procs = dict()
+node_to_address = dict()
 
 # Set the top-level logger for ERDOS logging.
 # Users can change the logging level to the required level by calling setLevel
@@ -85,14 +84,17 @@ def connect(
     node_id = _num_py_operators
     logger.debug("Connecting operator #{num} ({name}) to the graph.".format(
         num=node_id, name=config.name))
-    if config._addr != None:
-        global node_addrs
-        global num_procs
-        if len(node_addrs) == 0:
-            num_procs[config._addr] = 1
-            node_addrs[0] = (config._addr, 1)
-        num_procs[config._addr] = num_procs.get(config._addr, 0) + 1
-        node_addrs[node_id] = (config._addr, num_procs[config._addr])
+    if config._address is not None:
+        global node_to_address
+        addresses = list(node_to_address.values())
+        processes_per_address = {a: addresses.count(a) for a in set(addresses)}
+        if len(node_to_address) == 0:
+            processes_per_address[config._address] = 1
+            node_to_address[0] = (config._address, 1)
+        processes_per_address[config._address] = \
+        processes_per_address.get(config._address, 0) + 1
+        node_to_address[node_id] = (config._address, 
+                                    processes_per_address[config._address])
 
     py_read_streams = []
     op_read_streams = list(
@@ -130,10 +132,8 @@ def reset():
     logger.info("Resetting the default graph.")
     global _num_py_operators
     _num_py_operators = 0
-    global node_addrs
-    node_addrs.clear()
-    global num_procs
-    num_procs.clear()
+    global node_to_address
+    node_to_address.clear()
     _internal.reset()
 
 
@@ -206,8 +206,8 @@ def run_async(graph_filename: Optional[str] = None,
         A :py:class:`.NodeHandle` that allows the driver to interface with the
         dataflow graph.
     """
-    global node_addrs
-    multimachine = len(node_addrs) > 0
+    global node_to_address
+    multimachine = len(node_to_address) > 0
 
     if not multimachine:
         data_addresses = [
@@ -215,26 +215,20 @@ def run_async(graph_filename: Optional[str] = None,
             for i in range(_num_py_operators + 1)
         ]
         control_addresses = [
-            "127.0.0.1:{port}".format(port=start_port + len(data_addresses) + i)
+            "127.0.0.1:{port}".format(port=start_port +
+                                      len(data_addresses) + i)
             for i in range(_num_py_operators + 1)
         ]
     else:
-        '''
-        data_addresses = ["127.0.0.1:{port}".format(port=start_port)] + [
-            node_addrs[i][0] + ":{port}".format(port=start_port + node_addrs[i][1])
-            for i in range(1, _num_py_operators + 1)
-        ]
-        control_addresses = ["127.0.0.1:{port}".format(port=start_port + len(data_addresses))] + [
-            node_addrs[i][0] + ":{port}".format(port=start_port + len(data_addresses) + node_addrs[i][1])
-            for i in range(1, _num_py_operators + 1)
-        ]
-        '''
         data_addresses = [
-            node_addrs[i][0] + ":{port}".format(port=start_port + node_addrs[i][1])
+            node_to_address[i][0] + ":{port}".format(port=start_port +
+                                                     node_to_address[i][1])
             for i in range(_num_py_operators + 1)
         ]
         control_addresses = [
-            node_addrs[i][0] + ":{port}".format(port=start_port + len(data_addresses) + node_addrs[i][1])
+            node_to_address[i][0] + ":{port}".format(port=start_port + 
+                                                     len(data_addresses) +
+                                                     node_to_address[i][1])
             for i in range(_num_py_operators + 1)
         ]
     logger.debug(
@@ -245,16 +239,20 @@ def run_async(graph_filename: Optional[str] = None,
 
     if not multimachine:
         processes = [
-            mp.Process(target=runner, args=(i, data_addresses, control_addresses))
+            mp.Process(target=runner,
+                       args=(i, data_addresses,
+                       control_addresses))
             for i in range(1, _num_py_operators + 1)
         ]
     else:
         import socket
-        local_addr = socket.gethostbyname(socket.gethostname())
+        local_address = socket.gethostbyname(socket.gethostname())
         processes = [
-            mp.Process(target=runner, args=(i, data_addresses, control_addresses))
+            mp.Process(target=runner,
+                       args=(i, data_addresses,
+                       control_addresses))
             for i in range(1, _num_py_operators + 1)
-            if local_addr == node_addrs[i][0]
+            if local_address == node_to_address[i][0]
         ]
 
     # Needed to shut down child processes
