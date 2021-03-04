@@ -18,7 +18,7 @@ from std_msgs.msg import String
 import erdos
 
 import sys
-sys.path.insert(0, "../erdos/operators")
+sys.path.insert(0, "../erdos/operators") # noqa: E402
 from ros_operators import ErdosToRosOp
 
 ROS_TOPIC = "test_erdos_to_ros"

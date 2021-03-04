@@ -19,7 +19,7 @@ from rospy.exceptions import ROSException
 import erdos
 
 import sys
-sys.path.insert(0, "../erdos/operators")
+sys.path.insert(0, "../erdos/operators") # noqa: E402
 from ros_operators import RosToErdosOp
 
 ROS_TOPIC = "test_ros_to_erdos"
