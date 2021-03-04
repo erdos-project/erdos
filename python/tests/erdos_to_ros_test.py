@@ -18,8 +18,8 @@ from std_msgs.msg import String
 import erdos
 
 import sys
-from ros_operators import ErdosToRosOp
 sys.path.insert(0, "../erdos/operators")
+from ros_operators import ErdosToRosOp
 
 ROS_TOPIC = "test_erdos_to_ros"
 ROS_NODE_NAME = "erdos_to_ros_node"
