@@ -215,20 +215,18 @@ def run_async(graph_filename: Optional[str] = None,
             for i in range(_num_py_operators + 1)
         ]
         control_addresses = [
-            "127.0.0.1:{port}".format(port=start_port +
-                                      len(data_addresses) + i)
-            for i in range(_num_py_operators + 1)
+            "127.0.0.1:{port}".format(port=start_port + len(data_addresses) +
+                                      i) for i in range(_num_py_operators + 1)
         ]
     else:
         data_addresses = [
-            node_to_address[i][0] + ":{port}".format(port=start_port +
-                                                     node_to_address[i][1])
+            node_to_address[i][0] +
+            ":{port}".format(port=start_port + node_to_address[i][1])
             for i in range(_num_py_operators + 1)
         ]
         control_addresses = [
-            node_to_address[i][0] + ":{port}".format(port=start_port +
-                                                     len(data_addresses) +
-                                                     node_to_address[i][1])
+            node_to_address[i][0] + ":{port}".format(
+                port=start_port + len(data_addresses) + node_to_address[i][1])
             for i in range(_num_py_operators + 1)
         ]
     logger.debug(
