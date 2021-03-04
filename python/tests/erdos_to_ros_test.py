@@ -1,9 +1,16 @@
-"""Sends a erdos message to an operator that converts them
+"""Sends an erdos message to an operator that converts them
 to a ros message and publishes them.
 
 Uses a subscriber to test whether the converting operator
 is successful.
+
+This test requires a ros master node running. Launch one
+with the 'roscore' command before running the test.
 """
+import sys
+sys.path.insert(0, "../erdos/operators")
+
+from ros_operators import ErdosToRosOp
 
 from multiprocessing import Value
 import time
@@ -48,61 +55,6 @@ class SendOp(erdos.Operator):
             time.sleep(0.25)
 
 
-class ErdosToRosOp(erdos.Operator):
-    """Converts Erdos messages to ROS messages.
-    Args:
-        erdos_stream (:py:class:`erdos.ReadStream`): Stream on which the
-            operator receives control commands.
-        ros_msg_type: Type used to publish to ros messages
-        ros_topic: ros topic to publish messages to
-        node_name: Ros node name
-        conversion_func: Callback fn that converts a ros_msg to an erdos_msg
-    """
-    def __init__(self, erdos_stream, ros_msg_type, ros_topic, node_name,
-                 conversion_func):
-        self.logger = erdos.utils.setup_logging(self.config.name,
-                                                self.config.log_file_name)
-        self.erdos_stream = erdos_stream
-        self.erdos_stream.add_callback(self.on_erdos_msg)
-        self.ros_msg_type = ros_msg_type
-        self.ros_topic = ros_topic
-        self.node_name = node_name
-        self.conversion_func = conversion_func
-        self.ros_pub = None
-
-    @staticmethod
-    def connect(read_streams):
-        return []
-
-    def on_erdos_msg(self, msg):
-        """
-        Callback for erdos_stream that converts
-        erdos messages to ros messages and then
-        published them.
-
-        msg: Erdos message that will be converted
-            to ros message and then published.
-        """
-
-        new_ros_msg = self.conversion_func(msg)
-        print("Publishing: " + str(new_ros_msg))
-        try:
-            self.ros_pub.publish(new_ros_msg)
-        except (NameError, AttributeError) as err:
-            self.logger.debug(
-                "Ros publisher was not defined, \
-                possibly because run() was not called: %s", err)
-        except (ROSException, ROSSerializationException) as err:
-            self.logger.debug("The erdos msg couldn't publish to ros: %s", err)
-
-    def run(self):
-        # Initialize a publisher
-        self.ros_pub = rospy.Publisher(self.ros_topic,
-                                       self.ros_msg_type,
-                                       queue_size=10)
-        rospy.init_node(self.node_name, anonymous=True, disable_signals=True)
-
-
 def pub_helper(msg, translator):
     """Takes msg, calls the translator function on it, and returns result."""
 
@@ -133,18 +85,18 @@ def prep_globs():
 
 
 @pytest.mark.parametrize(
-    "pub_func, sub_func, msgs, pub_msg_type, " + "translator, verifier, topic",
-    [
+    "pub_func, sub_func, msgs, pub_msg_type, translator, verifier, topic, " + \
+    "pass_expected", [
         (pub_helper, sub_helper, [0, 1, 2, 3, 4, 5], String,
          lambda msg: ["Zero", "One", "Two", "Three", "Four", "Five"][msg],
          lambda rcvd: rcvd == ["Zero", "One", "Two", "Three", "Four", "Five"
-                               ][:len(rcvd)], ROS_TOPIC + "_1"),
+                               ][:len(rcvd)], ROS_TOPIC + "_1", True),
         (pub_helper, sub_helper, [0, 1, 2, 3, 4, 5], String,
          lambda msg: ["Zero", "One", "Two", "Three", "Four", "Five"][msg],
-         lambda received: False, ROS_TOPIC + "_2"),
+         lambda received: False, ROS_TOPIC + "_2", False),
     ])
 def test_int_str(prep_globs, pub_func, sub_func, msgs, pub_msg_type,
-                 translator, verifier, topic):
+                 translator, verifier, topic, pass_expected):
     """
     Test converting an erdos int to a ros String.
     Test 1 should pass.
@@ -166,4 +118,4 @@ def test_int_str(prep_globs, pub_func, sub_func, msgs, pub_msg_type,
     time.sleep(10)
     handle.shutdown()
     assert NUM_RECEIVED.value == len(msgs)
-    assert not TEST_FAILED.value
+    assert pass_expected == (not TEST_FAILED.value)
