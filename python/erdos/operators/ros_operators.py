@@ -17,8 +17,13 @@ class ErdosToRosOp(erdos.Operator):
         conversion_func: Callback fn that converts a ros_msg to an erdos_msg
         ros_queue_size: Queue size of the ros publisher
     """
-    def __init__(self, erdos_stream, ros_msg_type, ros_topic, node_name,
-                 conversion_func, ros_queue_size=10):
+    def __init__(self,
+                 erdos_stream,
+                 ros_msg_type,
+                 ros_topic,
+                 node_name,
+                 conversion_func,
+                 ros_queue_size=10):
         self.logger = erdos.utils.setup_logging(self.config.name,
                                                 self.config.log_file_name)
         self.erdos_stream = erdos_stream
