@@ -71,13 +71,13 @@ def prep_globs():
 
 @pytest.mark.parametrize(
     "ros_msgs, ros_msg_type, erdos_msgs, sub_func, topic, pass_expected",
-        [([0, 1, 2, 3, 4, 5], Int64, [
-            "Zero", "One", "Two", "Three", "Four", "Five"
-        ], lambda msg: ["Zero", "One", "Two", "Three", "Four", "Five"][msg.data],
-          ROS_TOPIC + "_1", True),
-         ([0, 1, 2, 3, 4, 5], Int64, [
-             "Zero", "One", "Two", "Three", "Four", "Five"
-         ], lambda msg: "", ROS_TOPIC + "_2", False)])
+    [([0, 1, 2, 3, 4, 5], Int64, [
+        "Zero", "One", "Two", "Three", "Four", "Five"
+    ], lambda msg: ["Zero", "One", "Two", "Three", "Four", "Five"][msg.data],
+      ROS_TOPIC + "_1", True),
+     ([0, 1, 2, 3, 4, 5], Int64, [
+         "Zero", "One", "Two", "Three", "Four", "Five"
+     ], lambda msg: "", ROS_TOPIC + "_2", False)])
 def test_int_str(prep_globs, ros_msgs, ros_msg_type, erdos_msgs, sub_func,
                  topic, pass_expected):
     """
