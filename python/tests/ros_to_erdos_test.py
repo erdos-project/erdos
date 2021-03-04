@@ -7,10 +7,6 @@ operator is successful.
 This test requires a ros master node running. Launch one
 with the 'roscore' command before running the test.
 """
-import sys
-sys.path.insert(0, "../erdos/operators")
-
-from ros_operators import RosToErdosOp
 
 from multiprocessing import Value
 import time
@@ -21,6 +17,10 @@ from std_msgs.msg import Int64
 from rospy.exceptions import ROSException
 
 import erdos
+
+import sys
+from ros_operators import ErdosToRosOp
+sys.path.insert(0, "../erdos/operators")
 
 ROS_TOPIC = "test_ros_to_erdos"
 ROS_NODE_NAME = "ros_to_erdos_node"

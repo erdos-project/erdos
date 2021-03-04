@@ -7,10 +7,6 @@ is successful.
 This test requires a ros master node running. Launch one
 with the 'roscore' command before running the test.
 """
-import sys
-sys.path.insert(0, "../erdos/operators")
-
-from ros_operators import ErdosToRosOp
 
 from multiprocessing import Value
 import time
@@ -18,9 +14,12 @@ import pytest
 
 import rospy
 from std_msgs.msg import String
-from rospy.exceptions import ROSException, ROSSerializationException
 
 import erdos
+
+import sys
+from ros_operators import ErdosToRosOp
+sys.path.insert(0, "../erdos/operators")
 
 ROS_TOPIC = "test_erdos_to_ros"
 ROS_NODE_NAME = "erdos_to_ros_node"
@@ -85,7 +84,7 @@ def prep_globs():
 
 
 @pytest.mark.parametrize(
-    "pub_func, sub_func, msgs, pub_msg_type, translator, verifier, topic, " + \
+    "pub_func, sub_func, msgs, pub_msg_type, translator, verifier, topic, " +
     "pass_expected", [
         (pub_helper, sub_helper, [0, 1, 2, 3, 4, 5], String,
          lambda msg: ["Zero", "One", "Two", "Three", "Four", "Five"][msg],

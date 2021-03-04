@@ -115,6 +115,6 @@ class RosToErdosOp(erdos.Operator):
                             disable_signals=True)
         except ROSException as err:
             self.logger.debug("Rospy operator node already initialized. " +
-                  "Skip initialization: " + str(err))
+                              "Skip initialization: " + str(err))
         rospy.Subscriber(self.ros_topic, self.ros_msg_type, self.on_ros_msg)
         rospy.spin()
