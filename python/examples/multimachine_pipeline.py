@@ -61,8 +61,8 @@ def main():
     erdos.connect(CallbackOp, erdos.OperatorConfig(address="172.17.0.10"),
                   [count_stream])
     erdos.connect(PullOp, erdos.OperatorConfig(address="172.17.0.11"),
-                  count_stream])
-    
+                  [count_stream])
+
     erdos.run()
 
 
