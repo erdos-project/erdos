@@ -2,7 +2,6 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use crate::{
     dataflow::{
-        callback_builder::{OneReadOneWrite, TwoReadZeroWrite},
         Data, State, Timestamp,
     },
     Uuid,
@@ -57,37 +56,6 @@ impl<D: Data, T: State> StatefulReadStream<D, T> {
 
     pub(crate) fn get_state_id(&self) -> Uuid {
         self.internal_stream.borrow().get_state_id()
-    }
-
-    /// Extends the stream into a bundle of two stateful streams.
-    pub fn add_read_stream<D1: Data, S1: State>(
-        &self,
-        read_stream: &StatefulReadStream<D1, S1>,
-    ) -> Rc<RefCell<TwoReadZeroWrite<T, S1>>> {
-        let builder = Rc::new(RefCell::new(TwoReadZeroWrite::new(self, read_stream)));
-        self.internal_stream
-            .borrow_mut()
-            .add_child(Rc::clone(&builder));
-        read_stream
-            .internal_stream
-            .borrow_mut()
-            .add_child(Rc::clone(&builder));
-        builder
-    }
-
-    /// Extends the stream into a bundle of a read and write stream.
-    pub fn add_write_stream<W: Data>(
-        &self,
-        write_stream: &WriteStream<W>,
-    ) -> Rc<RefCell<OneReadOneWrite<T, W>>> {
-        let builder = Rc::new(RefCell::new(OneReadOneWrite::new(
-            self,
-            write_stream.clone(),
-        )));
-        self.internal_stream
-            .borrow_mut()
-            .add_child(Rc::clone(&builder));
-        builder
     }
 
     pub fn get_id(&self) -> StreamId {

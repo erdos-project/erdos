@@ -2,7 +2,6 @@ use std::{cell::RefCell, collections::HashSet, rc::Rc, sync::Arc};
 
 use crate::{
     dataflow::{
-        callback_builder::MultiStreamEventMaker,
         state::{AccessContext, ManagedState},
         Data, Message, State, Timestamp,
     },
@@ -25,8 +24,6 @@ pub struct InternalStatefulReadStream<D: Data, S: State> {
     callbacks: Vec<Arc<dyn Fn(&Timestamp, &D, &mut S)>>,
     /// Watermark callbacks registered on the stream.
     watermark_cbs: Vec<(Arc<dyn Fn(&Timestamp, &mut S)>, i8)>,
-    /// Vector of stream bundles that must be invoked when this stream receives a message.
-    children: RefCell<Vec<Rc<RefCell<dyn MultiStreamEventMaker>>>>,
 }
 
 impl<D: Data, S: State> InternalStatefulReadStream<D, S> {
@@ -37,7 +34,6 @@ impl<D: Data, S: State> InternalStatefulReadStream<D, S> {
             state_id: Uuid::new_deterministic(),
             callbacks: Vec::new(),
             watermark_cbs: Vec::new(),
-            children: RefCell::new(Vec::new()),
         }
     }
 
@@ -75,10 +71,6 @@ impl<D: Data, S: State> InternalStatefulReadStream<D, S> {
 
     pub fn get_state_id(&self) -> Uuid {
         self.state_id
-    }
-
-    pub fn add_child<T: 'static + MultiStreamEventMaker>(&self, child: Rc<RefCell<T>>) {
-        self.children.borrow_mut().push(child);
     }
 }
 
@@ -138,11 +130,6 @@ impl<D: Data, S: State> EventMakerT for InternalStatefulReadStream<D, S> {
                             (cb)(&timestamp_copy, state_ref_mut)
                         },
                     ));
-                }
-                // Notify children of watermark and get events
-                for child in self.children.borrow().iter() {
-                    let mut child = child.borrow_mut();
-                    events.extend(child.receive_watermark(self.id, timestamp.clone()));
                 }
             }
         }
