@@ -148,7 +148,7 @@ pub trait OneInTwoOut<S: State, T: Data, U: Data, V: Data> {
 
     fn destroy(&mut self) {}
 
-    fn on_data(ctx: &mut OneInOneOutContext<U>, data: T);
+    fn on_data(ctx: &mut OneInTwoOutContext<U, V>, data: T);
 
     fn on_data_stateful(ctx: &mut StatefulOneInTwoOutContext<S, U, V>, data: T);
 
