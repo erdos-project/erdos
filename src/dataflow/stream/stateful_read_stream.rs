@@ -1,9 +1,7 @@
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use crate::{
-    dataflow::{
-        Data, State, Timestamp,
-    },
+    dataflow::{Data, State, Timestamp},
     Uuid,
 };
 
