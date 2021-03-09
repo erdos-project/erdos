@@ -17,7 +17,7 @@ pub trait Operator {
 }
 
 /*****************************************************************************
- * Source                                                                    *
+ * Source: sends data with type T                                            *
  *****************************************************************************/
 
 pub trait Source<S: State, T: Data> {
@@ -31,7 +31,7 @@ pub trait Source<S: State, T: Data> {
 }
 
 /*****************************************************************************
- * Sink                                                                      *
+ * Sink: receives data with type T                                           *
  *****************************************************************************/
 
 pub trait Sink<S: State, T: Data> {
@@ -59,7 +59,7 @@ pub struct StatefulSinkContext<S: State> {
 }
 
 /*****************************************************************************
- * OneInOneOut                                                               *
+ * OneInOneOut: receives T, sends U                                          *
  *****************************************************************************/
 
 pub trait OneInOneOut<S: State, T: Data, U: Data> {
@@ -90,7 +90,7 @@ pub struct StatefulOneInOneOutContext<S: State, U: Data> {
 }
 
 /*****************************************************************************
- * TwoInOneOut                                                               *
+ * TwoInOneOut: receives T, receives U, sends V                              *
  *****************************************************************************/
 
 pub trait TwoInOneOut<S: State, T: Data, U: Data, V: Data> {
@@ -126,7 +126,7 @@ pub struct StatefulTwoInOneOutContext<S: State, U: Data> {
 }
 
 /*****************************************************************************
- * OneInTwoOut                                                               *
+ * OneInTwoOut: receives T, sends U, sends V                                 *
  *****************************************************************************/
 
 pub trait OneInTwoOut<S: State, T: Data, U: Data, V: Data> {
