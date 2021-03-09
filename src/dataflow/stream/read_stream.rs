@@ -6,7 +6,7 @@ use crate::dataflow::{Data, Message, State, Timestamp};
 
 use super::{
     errors::{ReadError, TryReadError},
-    IngestStream, InternalReadStream, LoopStream, StatefulReadStream, StreamId, WriteStream,
+    IngestStream, InternalReadStream, LoopStream, StreamId, WriteStream,
 };
 
 /// A [`ReadStream`] allows operators to read data from a corresponding [`WriteStream`].
@@ -146,23 +146,6 @@ impl<D: Data> ReadStream<D> {
         self.internal_stream
             .borrow_mut()
             .add_watermark_callback(callback);
-    }
-
-    /// Attaches state to the [`ReadStream`] and returns a [`StatefulReadStream`].
-    ///
-    /// In order to access the registered state in the callbacks, register callbacks on the
-    /// [`StatefulReadStream`].
-    ///
-    /// # Arguments
-    /// * state - The state to be attached to the stream.
-    pub fn add_state<S: State>(&self, state: S) -> StatefulReadStream<D, S> {
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
-            "Registering state on the ReadStream {} (ID: {})",
-            self.get_name(),
-            self.get_id()
-        );
-        StatefulReadStream::from(self.internal_stream.borrow_mut().add_state(state))
     }
 
     /// Get the ID given to the stream by the constructor.

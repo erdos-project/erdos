@@ -8,7 +8,7 @@ use crate::{
 
 use super::{
     errors::{ReadError, TryReadError},
-    EventMakerT, InternalStatefulReadStream, StreamId,
+    EventMakerT, StreamId,
 };
 
 // TODO: split between system read streams and user accessible read streams to avoid Rc<RefCell<...>> in operator
@@ -89,17 +89,6 @@ impl<D: Data> InternalReadStream<D> {
     /// processed all the messages with a timestamp.
     pub fn add_watermark_callback<F: 'static + Fn(&Timestamp)>(&mut self, callback: F) {
         self.watermark_cbs.push(Arc::new(callback));
-    }
-
-    /// Returns a new instance of the stream with state associated to it.
-    pub fn add_state<S: State>(
-        &mut self,
-        state: S,
-    ) -> Rc<RefCell<InternalStatefulReadStream<D, S>>> {
-        let child = Rc::new(RefCell::new(InternalStatefulReadStream::new(self, state)));
-        self.children
-            .push(Rc::clone(&child) as Rc<RefCell<dyn EventMakerT<EventDataType = D>>>);
-        child
     }
 
     pub fn take_endpoint(&mut self) -> Option<RecvEndpoint<Arc<Message<D>>>> {

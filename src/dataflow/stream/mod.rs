@@ -26,10 +26,8 @@ use crate::{
 mod extract_stream;
 mod ingest_stream;
 mod internal_read_stream;
-mod internal_stateful_read_stream;
 mod loop_stream;
 mod read_stream;
-mod stateful_read_stream;
 mod write_stream;
 
 // Public submodules

@@ -14,9 +14,9 @@ pub(crate) use stream::EventMakerT;
 
 // Public exports
 pub use message::{Data, Message, Timestamp, TimestampedData};
-pub use operator::{Operator, OperatorConfig};
+pub use operator::OperatorConfig;
 pub use state::State;
-pub use stream::{LoopStream, ReadStream, StatefulReadStream, WriteStream};
+pub use stream::{LoopStream, ReadStream, WriteStream};
 
 #[cfg(test)]
 mod tests {
