@@ -1,6 +1,7 @@
 use std::{
     cell::RefCell,
     collections::HashMap,
+    future::Future,
     pin::Pin,
     rc::Rc,
     sync::{
@@ -36,6 +37,7 @@ enum EventRunnerMessage {
 
 pub(crate) struct OperatorExecutor<O, S, T, U, V, W>
 where
+    O: Operator<S, T, U, V, W>,
     S: State,
     T: Data,
     U: Data,
@@ -71,5 +73,26 @@ where
         // Await messages.
         // Insert messages into lattice.
         unimplemented!()
+    }
+}
+
+pub(crate) trait OperatorExecutorT {
+    // Returns a future for OperatorExecutor::execute().
+    fn run_operator<'a>(&'a mut self) -> Pin<Box<dyn Future<Output = ()> + 'a>>;
+}
+impl<O, S, T, U, V, W> OperatorExecutorT for OperatorExecutor<O, S, T, U, V, W>
+where
+    O: Operator<S, T, U, V, W>,
+    S: State,
+    T: Data,
+    U: Data,
+    V: Data,
+    W: Data,
+{
+    fn run_operator<'a>(&'a mut self) -> Pin<Box<dyn Future<Output = ()> + 'a>> {
+        // async fn _execute(_self: &mut OperatorExecutor<O, S, T, U, V, W>) {
+        //     _self.execute().await;
+        // }
+        Box::pin(self.execute())
     }
 }
