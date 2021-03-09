@@ -42,10 +42,8 @@ pub use ingest_stream::IngestStream;
 #[doc(hidden)]
 pub use internal_read_stream::InternalReadStream;
 #[doc(hidden)]
-pub use internal_stateful_read_stream::InternalStatefulReadStream;
 pub use loop_stream::LoopStream;
 pub use read_stream::ReadStream;
-pub use stateful_read_stream::StatefulReadStream;
 pub use write_stream::WriteStream;
 
 pub type StreamId = crate::Uuid;

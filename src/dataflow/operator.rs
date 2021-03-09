@@ -1,20 +1,22 @@
 use crate::{
-    dataflow::{Data, ReadStream, State, WriteStream, Timestamp},
+    dataflow::{Data, ReadStream, State, Timestamp, WriteStream},
     node::NodeId,
     OperatorId,
 };
 
-/// Trait that must be implemented by any operator.
-pub trait Operator {
-    /// Implement this method if you want to take control of the execution loop of an
-    /// operator (e.g., pull messages from streams).
-    /// Note: No callbacks are invoked before the completion of this method.
-    fn run(&mut self) {}
+// /// Trait that must be implemented by any operator.
+// pub trait Operator {
+//     /// Implement this method if you want to take control of the execution loop of an
+//     /// operator (e.g., pull messages from streams).
+//     /// Note: No callbacks are invoked before the completion of this method.
+//     fn run(&mut self) {}
 
-    /// Implement this method if you need to do clean-up before the operator completes.
-    /// An operator completes after it has received top watermark on all its read streams.
-    fn destroy(&mut self) {}
-}
+//     /// Implement this method if you need to do clean-up before the operator completes.
+//     /// An operator completes after it has received top watermark on all its read streams.
+//     fn destroy(&mut self) {}
+// }
+
+pub(crate) trait Operator<S: State, T: Data, U: Data, V: Data, W: Data> {}
 
 /*****************************************************************************
  * Source: sends data with type T                                            *
@@ -28,6 +30,14 @@ pub trait Source<S: State, T: Data> {
     fn run(&mut self) {}
 
     fn destroy(&mut self) {}
+}
+
+impl<O, S, T> Operator<S, (), (), T, ()> for O
+where
+    O: Source<S, T>,
+    S: State,
+    T: Data,
+{
 }
 
 /*****************************************************************************

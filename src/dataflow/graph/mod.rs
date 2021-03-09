@@ -3,9 +3,15 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::{
-    communication::ControlMessage, node::operator_executor::OperatorExecutor,
+    communication::ControlMessage, // node::operator_executor::OperatorExecutor,
     scheduler::channel_manager::ChannelManager,
 };
+
+// Dummy struct to make things compile.
+pub struct OperatorExecutor {}
+impl OperatorExecutor {
+    pub async fn execute(&mut self) {}
+}
 
 // Private submodules
 mod edge;
