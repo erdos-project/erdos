@@ -1,4 +1,8 @@
-use crate::{node::NodeId, OperatorId};
+use crate::{
+    dataflow::{Data, ReadStream, State, WriteStream, Timestamp},
+    node::NodeId,
+    OperatorId,
+};
 
 /// Trait that must be implemented by any operator.
 pub trait Operator {
@@ -10,6 +14,148 @@ pub trait Operator {
     /// Implement this method if you need to do clean-up before the operator completes.
     /// An operator completes after it has received top watermark on all its read streams.
     fn destroy(&mut self) {}
+}
+
+/*****************************************************************************
+ * Source                                                                    *
+ *****************************************************************************/
+
+pub trait Source<S: State, T: Data> {
+    fn connect() -> WriteStream<T> {
+        WriteStream::new()
+    }
+
+    fn run(&mut self) {}
+
+    fn destroy(&mut self) {}
+}
+
+/*****************************************************************************
+ * Sink                                                                      *
+ *****************************************************************************/
+
+pub trait Sink<S: State, T: Data> {
+    fn connect(read_stream: &ReadStream<T>) {}
+
+    fn run(&mut self) {}
+
+    fn destroy(&mut self) {}
+
+    fn on_data(ctx: &mut SinkContext, data: T);
+
+    fn on_data_stateful(ctx: &mut StatefulSinkContext<S>, data: T);
+
+    fn on_watermark(ctx: &mut StatefulSinkContext<S>);
+}
+
+pub struct SinkContext {
+    timestamp: Timestamp,
+}
+
+pub struct StatefulSinkContext<S: State> {
+    pub timestamp: Timestamp,
+    // TODO: change this a managed reference.
+    pub state: S,
+}
+
+/*****************************************************************************
+ * OneInOneOut                                                               *
+ *****************************************************************************/
+
+pub trait OneInOneOut<S: State, T: Data, U: Data> {
+    fn connect(read_stream: &ReadStream<T>) -> WriteStream<U> {
+        WriteStream::new()
+    }
+
+    fn run(&mut self) {}
+
+    fn destroy(&mut self) {}
+
+    fn on_data(ctx: &mut OneInOneOutContext<U>, data: T);
+
+    fn on_data_stateful(ctx: &mut StatefulOneInOneOutContext<S, U>, data: T);
+
+    fn on_watermark(ctx: &mut StatefulOneInOneOutContext<S, U>);
+}
+
+pub struct OneInOneOutContext<U: Data> {
+    pub timestamp: Timestamp,
+    pub write_stream: WriteStream<U>,
+}
+
+pub struct StatefulOneInOneOutContext<S: State, U: Data> {
+    pub timestamp: Timestamp,
+    pub write_stream: WriteStream<U>,
+    pub state: S,
+}
+
+/*****************************************************************************
+ * TwoInOneOut                                                               *
+ *****************************************************************************/
+
+pub trait TwoInOneOut<S: State, T: Data, U: Data, V: Data> {
+    fn connect(left_stream: &ReadStream<T>, right_stream: &ReadStream<U>) -> WriteStream<V> {
+        WriteStream::new()
+    }
+
+    fn run(&mut self) {}
+
+    fn destroy(&mut self) {}
+
+    fn on_left_data(ctx: &mut TwoInOneOutContext<U>, data: T);
+
+    fn on_left_data_stateful(ctx: &mut StatefulTwoInOneOutContext<S, V>, data: T);
+
+    fn on_right_data(ctx: &mut TwoInOneOutContext<U>, data: U);
+
+    fn on_right_data_stateful(ctx: &mut StatefulTwoInOneOutContext<S, V>, data: U);
+
+    /// Executes when min(left_watermark, right_watermark) advances.
+    fn on_watermark(ctx: &mut StatefulTwoInOneOutContext<S, V>);
+}
+
+pub struct TwoInOneOutContext<U: Data> {
+    pub timestamp: Timestamp,
+    pub write_stream: WriteStream<U>,
+}
+
+pub struct StatefulTwoInOneOutContext<S: State, U: Data> {
+    pub timestamp: Timestamp,
+    pub write_stream: WriteStream<U>,
+    pub state: S,
+}
+
+/*****************************************************************************
+ * OneInTwoOut                                                               *
+ *****************************************************************************/
+
+pub trait OneInTwoOut<S: State, T: Data, U: Data, V: Data> {
+    fn connect(read_stream: &ReadStream<T>) -> (WriteStream<U>, WriteStream<V>) {
+        (WriteStream::new(), WriteStream::new())
+    }
+
+    fn run(&mut self) {}
+
+    fn destroy(&mut self) {}
+
+    fn on_data(ctx: &mut OneInOneOutContext<U>, data: T);
+
+    fn on_data_stateful(ctx: &mut StatefulOneInTwoOutContext<S, U, V>, data: T);
+
+    fn on_watermark(ctx: &mut StatefulOneInTwoOutContext<S, U, V>);
+}
+
+pub struct OneInTwoOutContext<U: Data, V: Data> {
+    pub timestamp: Timestamp,
+    pub left_write_stream: WriteStream<U>,
+    pub right_write_stream: WriteStream<V>,
+}
+
+pub struct StatefulOneInTwoOutContext<S: State, U: Data, V: Data> {
+    pub timestamp: Timestamp,
+    pub left_write_stream: WriteStream<U>,
+    pub right_write_stream: WriteStream<V>,
+    pub state: S,
 }
 
 #[derive(Clone)]
