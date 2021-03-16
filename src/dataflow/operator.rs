@@ -9,7 +9,10 @@ use crate::{
         Timestamp, WriteStream,
     },
     node::{
-        operator_executor::{OperatorExecutorT, SourceExecutor},
+        operator_executor::{
+            OneInOneOutExecutor, OneInTwoOutExecutor, OperatorExecutorT, SinkExecutor,
+            SourceExecutor, TwoInOneOutExecutor,
+        },
         NodeId,
     },
     scheduler::channel_manager::ChannelManager,
@@ -92,9 +95,9 @@ where
     U: Data + for<'a> Deserialize<'a>,
 {
     /// The default implementation of this function should not be overridden.
-    fn connect<O: OneInOneOut<S, T, U>>(
-        operator_fn: impl Fn() -> O,
-        state_fn: impl Fn() -> S,
+    fn connect<O: 'static + OneInOneOut<S, T, U>>(
+        operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
+        state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
         config: OperatorConfig,
         read_stream: &ReadStream<T>,
     ) -> WriteStream<U> {
@@ -121,10 +124,24 @@ where
                 let write_stream: WriteStream<U> =
                     WriteStream::from_endpoints(send_endpoints, write_stream_id);
 
-                // let operator_executor: OperatorExecutor<O, S, T, (), U, ()> = OperatorExecutor::new(operator_fn, state_fn, Some(read_stream), None, Some(write_stream), None)
-                // let operator_executor
-                unimplemented!()
+                let executor = OneInOneOutExecutor::new(
+                    operator_fn.clone(),
+                    state_fn.clone(),
+                    read_stream,
+                    write_stream,
+                );
+
+                Box::new(executor)
             };
+
+        default_graph::add_operator(
+            config.id,
+            config.name,
+            config.node_id,
+            read_stream_ids,
+            write_stream_ids,
+            op_runner,
+        );
 
         // default_graph::add_operator
         default_graph::add_operator_stream(config.id, &write_stream);
