@@ -10,8 +10,8 @@ use std::{
 use crate::dataflow::Timestamp;
 
 /// Trait that must be implemented by stream state.
-pub trait State: 'static + Clone {}
-impl<T: 'static + Clone> State for T {}
+pub trait State: 'static + Clone + Send {}
+impl<T: 'static + Clone + Send> State for T {}
 
 /// Error thrown upon an invalid attempt to access a portion of the
 /// [`TimeVersionedState`].
@@ -38,20 +38,20 @@ pub(crate) enum AccessContext {
 /// Trait which manages the access context and current timestamp of a state.
 /// This trait is only accessible and implementable from ERDOS to enforce proper
 /// access patterns.
-pub(crate) trait ManagedState {
-    fn set_access_context(&mut self, access_context: AccessContext);
-    fn set_current_time(&mut self, t: Timestamp);
-    /// Garbage collects any state no longer needed up until time t.
-    fn close_time(&mut self, t: &Timestamp) -> Result<(), AccessError>;
-}
+// pub(crate) trait ManagedState {
+//     fn set_access_context(&mut self, access_context: AccessContext);
+//     fn set_current_time(&mut self, t: Timestamp);
+//     /// Garbage collects any state no longer needed up until time t.
+//     fn close_time(&mut self, t: &Timestamp) -> Result<(), AccessError>;
+// }
 
-impl<S: State> ManagedState for S {
-    default fn set_access_context(&mut self, _access_context: AccessContext) {}
-    default fn set_current_time(&mut self, _t: Timestamp) {}
-    default fn close_time(&mut self, _t: &Timestamp) -> Result<(), AccessError> {
-        Ok(())
-    }
-}
+// impl<S: State> ManagedState for S {
+//     default fn set_access_context(&mut self, _access_context: AccessContext) {}
+//     default fn set_current_time(&mut self, _t: Timestamp) {}
+//     default fn close_time(&mut self, _t: &Timestamp) -> Result<(), AccessError> {
+//         Ok(())
+//     }
+// }
 
 /// Ensures that an operator behaves deterministically while allowing as much
 /// parallelism as possible.
@@ -67,323 +67,323 @@ impl<S: State> ManagedState for S {
 ///
 /// For each access pattern, access rules are enforced via the [`AccessContext`].
 /// ERDOS manages transitions between [`AccessContext`]s.
-#[derive(Clone)]
-pub struct TimeVersionedState<S: State + Default, T: Clone> {
-    current_time: Timestamp,
-    // The number of past states to keep.
-    history_size: usize,
-    // Determines access control rules.
-    access_context: AccessContext,
-    // TODO: consider replacing the Vec with some unordered data structure as the ordering of messages
-    // leaks information that may break determinism.
-    message_history: BTreeMap<Timestamp, Vec<T>>,
-    state_history: BTreeMap<Timestamp, S>,
-}
+// #[derive(Clone)]
+// pub struct TimeVersionedState<S: State + Default, T: Clone> {
+//     current_time: Timestamp,
+//     // The number of past states to keep.
+//     history_size: usize,
+//     // Determines access control rules.
+//     access_context: AccessContext,
+//     // TODO: consider replacing the Vec with some unordered data structure as the ordering of messages
+//     // leaks information that may break determinism.
+//     message_history: BTreeMap<Timestamp, Vec<T>>,
+//     state_history: BTreeMap<Timestamp, S>,
+// }
 
-impl<S: State + Default, T: Clone> TimeVersionedState<S, T> {
-    pub fn new() -> Self {
-        Self::new_with_history_size(0)
-    }
+// impl<S: State + Default, T: Clone> TimeVersionedState<S, T> {
+//     pub fn new() -> Self {
+//         Self::new_with_history_size(0)
+//     }
 
-    pub fn new_with_history_size(history_size: usize) -> Self {
-        Self {
-            current_time: Timestamp::bottom(),
-            history_size,
-            access_context: AccessContext::Operator,
-            message_history: BTreeMap::new(),
-            state_history: BTreeMap::new(),
-        }
-    }
+//     pub fn new_with_history_size(history_size: usize) -> Self {
+//         Self {
+//             current_time: Timestamp::bottom(),
+//             history_size,
+//             access_context: AccessContext::Operator,
+//             message_history: BTreeMap::new(),
+//             state_history: BTreeMap::new(),
+//         }
+//     }
 
-    /// Garbage collects state and messages no longer needed after the last watermark callback
-    /// operating over t completes.
-    /// For now, accessible from watermark callbacks. In the future, this method may be made private
-    /// in favor of automatic GC via a lattice/partial ordering over time.
-    pub fn close_time(&mut self, t: &Timestamp) -> Result<(), AccessError> {
-        match self.access_context {
-            AccessContext::Operator => {
-                Err(AccessError("Attempted to close_time from Operator::new"))
-            }
-            AccessContext::Callback => Err(AccessError("Attempted to close_time from a callback")),
-            AccessContext::WatermarkCallback => Ok(()),
-        }?;
-        // Release all states and messages at least as old as history_size timestamps before t.
-        // Clean this up if BTreeMap adds more detailed query methods in future Rust versions.
-        let split_option = if self.history_size == 0 {
-            let mut range = self
-                .state_history
-                .range((Excluded(t.clone()), Unbounded))
-                .map(|x| x.0);
-            range.next()
-        } else {
-            let mut range = self.state_history.range(..=t.clone()).map(|x| x.0);
-            for _ in 0..(self.history_size - 1) {
-                range.next_back();
-            }
-            range.next_back()
-        };
-        if let Some(split_t_ref) = split_option {
-            // Avoid E0502: mutable borrow on state_history while split_t_ref is borrowed
-            // immutably.
-            let split_t = split_t_ref.clone();
-            self.state_history = self.state_history.split_off(&split_t);
-            self.message_history = self.message_history.split_off(&split_t);
-        }
-        Ok(())
-    }
+//     /// Garbage collects state and messages no longer needed after the last watermark callback
+//     /// operating over t completes.
+//     /// For now, accessible from watermark callbacks. In the future, this method may be made private
+//     /// in favor of automatic GC via a lattice/partial ordering over time.
+//     pub fn close_time(&mut self, t: &Timestamp) -> Result<(), AccessError> {
+//         match self.access_context {
+//             AccessContext::Operator => {
+//                 Err(AccessError("Attempted to close_time from Operator::new"))
+//             }
+//             AccessContext::Callback => Err(AccessError("Attempted to close_time from a callback")),
+//             AccessContext::WatermarkCallback => Ok(()),
+//         }?;
+//         // Release all states and messages at least as old as history_size timestamps before t.
+//         // Clean this up if BTreeMap adds more detailed query methods in future Rust versions.
+//         let split_option = if self.history_size == 0 {
+//             let mut range = self
+//                 .state_history
+//                 .range((Excluded(t.clone()), Unbounded))
+//                 .map(|x| x.0);
+//             range.next()
+//         } else {
+//             let mut range = self.state_history.range(..=t.clone()).map(|x| x.0);
+//             for _ in 0..(self.history_size - 1) {
+//                 range.next_back();
+//             }
+//             range.next_back()
+//         };
+//         if let Some(split_t_ref) = split_option {
+//             // Avoid E0502: mutable borrow on state_history while split_t_ref is borrowed
+//             // immutably.
+//             let split_t = split_t_ref.clone();
+//             self.state_history = self.state_history.split_off(&split_t);
+//             self.message_history = self.message_history.split_off(&split_t);
+//         }
+//         Ok(())
+//     }
 
-    pub fn history_size(&self) -> usize {
-        self.history_size
-    }
+//     pub fn history_size(&self) -> usize {
+//         self.history_size
+//     }
 
-    /// Sets the number of past states available.
-    /// Only accessible from `Operator::new`.
-    pub fn set_history_size(&mut self, history_size: usize) -> Result<(), AccessError> {
-        match self.access_context {
-            AccessContext::Operator => {
-                self.history_size = history_size;
-                Ok(())
-            }
-            AccessContext::Callback => {
-                Err(AccessError("Attempted to set_history_size from callback"))
-            }
-            AccessContext::WatermarkCallback => Err(AccessError(
-                "Attempted to set_history_size from watermark callback",
-            )),
-        }
-    }
+//     /// Sets the number of past states available.
+//     /// Only accessible from `Operator::new`.
+//     pub fn set_history_size(&mut self, history_size: usize) -> Result<(), AccessError> {
+//         match self.access_context {
+//             AccessContext::Operator => {
+//                 self.history_size = history_size;
+//                 Ok(())
+//             }
+//             AccessContext::Callback => {
+//                 Err(AccessError("Attempted to set_history_size from callback"))
+//             }
+//             AccessContext::WatermarkCallback => Err(AccessError(
+//                 "Attempted to set_history_size from watermark callback",
+//             )),
+//         }
+//     }
 
-    /// Sets the initial state stored for `Timestamp::bottom`.
-    /// Only accessible from `Operator::new`.
-    pub fn set_initial_state(&mut self, initial_state: S) -> Result<(), AccessError> {
-        match self.access_context {
-            AccessContext::Operator => {
-                self.message_history.insert(Timestamp::bottom(), Vec::new());
-                self.state_history
-                    .insert(Timestamp::bottom(), initial_state);
-                Ok(())
-            }
-            AccessContext::Callback => {
-                Err(AccessError("Attempted to set_initial_state from callback"))
-            }
-            AccessContext::WatermarkCallback => Err(AccessError(
-                "Attempted to set_initial_state from watermark callback",
-            )),
-        }
-    }
+//     /// Sets the initial state stored for `Timestamp::bottom`.
+//     /// Only accessible from `Operator::new`.
+//     pub fn set_initial_state(&mut self, initial_state: S) -> Result<(), AccessError> {
+//         match self.access_context {
+//             AccessContext::Operator => {
+//                 self.message_history.insert(Timestamp::bottom(), Vec::new());
+//                 self.state_history
+//                     .insert(Timestamp::bottom(), initial_state);
+//                 Ok(())
+//             }
+//             AccessContext::Callback => {
+//                 Err(AccessError("Attempted to set_initial_state from callback"))
+//             }
+//             AccessContext::WatermarkCallback => Err(AccessError(
+//                 "Attempted to set_initial_state from watermark callback",
+//             )),
+//         }
+//     }
 
-    /// Appends a message to the message history.
-    /// Only accessible from regular callbacks.
-    pub fn append(&mut self, data: T) -> Result<(), AccessError> {
-        match self.access_context {
-            AccessContext::Operator => Err(AccessError("Attempted to append from Operator::new")),
-            AccessContext::Callback => {
-                self.message_history
-                    .get_mut(&self.current_time)
-                    .expect(&format!(
-                        "ERDOS internal error: message history vector not initialized for {:?}.",
-                        self.current_time
-                    ))
-                    .push(data);
-                Ok(())
-            }
-            AccessContext::WatermarkCallback => {
-                Err(AccessError("Attempted to append from a watermark callback"))
-            }
-        }
-    }
+//     /// Appends a message to the message history.
+//     /// Only accessible from regular callbacks.
+//     pub fn append(&mut self, data: T) -> Result<(), AccessError> {
+//         match self.access_context {
+//             AccessContext::Operator => Err(AccessError("Attempted to append from Operator::new")),
+//             AccessContext::Callback => {
+//                 self.message_history
+//                     .get_mut(&self.current_time)
+//                     .expect(&format!(
+//                         "ERDOS internal error: message history vector not initialized for {:?}.",
+//                         self.current_time
+//                     ))
+//                     .push(data);
+//                 Ok(())
+//             }
+//             AccessContext::WatermarkCallback => {
+//                 Err(AccessError("Attempted to append from a watermark callback"))
+//             }
+//         }
+//     }
 
-    /// Gets the message history for the provided time.
-    /// Only accessible from watermark callbacks.
-    pub fn get_messages(&self, t: &Timestamp) -> Result<Option<&Vec<T>>, AccessError> {
-        match self.access_context {
-            AccessContext::Operator => {
-                Err(AccessError("Attempted to get_messages from Operator::new"))
-            }
-            AccessContext::WatermarkCallback => {
-                if t <= &self.current_time {
-                    let mut iter = self
-                        .message_history
-                        .range(t.clone()..self.current_time.clone());
-                    if let Some((oldest_allowed_t, _)) = iter.nth_back(self.history_size()) {
-                        if oldest_allowed_t <= t {
-                            Ok(self.message_history.get(t))
-                        } else {
-                            Ok(None)
-                        }
-                    } else {
-                        Ok(self.message_history.get(t))
-                    }
-                } else {
-                    Ok(None)
-                }
-            }
-            AccessContext::Callback => Err(AccessError(
-                "Attempted to get_messages from a non-watermark callback",
-            )),
-        }
-    }
+//     /// Gets the message history for the provided time.
+//     /// Only accessible from watermark callbacks.
+//     pub fn get_messages(&self, t: &Timestamp) -> Result<Option<&Vec<T>>, AccessError> {
+//         match self.access_context {
+//             AccessContext::Operator => {
+//                 Err(AccessError("Attempted to get_messages from Operator::new"))
+//             }
+//             AccessContext::WatermarkCallback => {
+//                 if t <= &self.current_time {
+//                     let mut iter = self
+//                         .message_history
+//                         .range(t.clone()..self.current_time.clone());
+//                     if let Some((oldest_allowed_t, _)) = iter.nth_back(self.history_size()) {
+//                         if oldest_allowed_t <= t {
+//                             Ok(self.message_history.get(t))
+//                         } else {
+//                             Ok(None)
+//                         }
+//                     } else {
+//                         Ok(self.message_history.get(t))
+//                     }
+//                 } else {
+//                     Ok(None)
+//                 }
+//             }
+//             AccessContext::Callback => Err(AccessError(
+//                 "Attempted to get_messages from a non-watermark callback",
+//             )),
+//         }
+//     }
 
-    /// Gets the message history for the current time.
-    /// Only accessible from watermark callbacks.
-    pub fn get_current_messages(&self) -> Result<&Vec<T>, AccessError> {
-        match self.access_context {
-            AccessContext::Operator => Err(AccessError(
-                "Attempted to get_current_messages from Operator::new",
-            )),
-            AccessContext::WatermarkCallback => Ok(self
-                .message_history
-                .get(&self.current_time)
-                .unwrap_or_else(|| {
-                    panic!(
-                        "ERDOS internal error: message history not initialized for {:?}",
-                        self.current_time
-                    )
-                })),
-            AccessContext::Callback => Err(AccessError(
-                "Attempted to get_current_messages from a non-watermark callback",
-            )),
-        }
-    }
+//     /// Gets the message history for the current time.
+//     /// Only accessible from watermark callbacks.
+//     pub fn get_current_messages(&self) -> Result<&Vec<T>, AccessError> {
+//         match self.access_context {
+//             AccessContext::Operator => Err(AccessError(
+//                 "Attempted to get_current_messages from Operator::new",
+//             )),
+//             AccessContext::WatermarkCallback => Ok(self
+//                 .message_history
+//                 .get(&self.current_time)
+//                 .unwrap_or_else(|| {
+//                     panic!(
+//                         "ERDOS internal error: message history not initialized for {:?}",
+//                         self.current_time
+//                     )
+//                 })),
+//             AccessContext::Callback => Err(AccessError(
+//                 "Attempted to get_current_messages from a non-watermark callback",
+//             )),
+//         }
+//     }
 
-    /// Iterates over all possible states accessible for the current time in reverse chronological
-    /// order.
-    /// Only accessible from watermark callbacks.
-    pub fn iter_messages(
-        &self,
-    ) -> Result<impl Iterator<Item = (&Timestamp, &Vec<T>)>, AccessError> {
-        match self.access_context {
-            AccessContext::Operator => {
-                Err(AccessError("Attempted to iter_states from Operator::new"))
-            }
-            AccessContext::Callback => Err(AccessError(
-                "Attempted to iter_states from a non-watermark callback",
-            )),
-            AccessContext::WatermarkCallback => Ok(self
-                .message_history
-                .range(..=self.current_time.clone())
-                .rev()
-                .enumerate()
-                .filter(move |x| x.0 <= self.history_size)
-                .map(|x| x.1)),
-        }
-    }
+//     /// Iterates over all possible states accessible for the current time in reverse chronological
+//     /// order.
+//     /// Only accessible from watermark callbacks.
+//     pub fn iter_messages(
+//         &self,
+//     ) -> Result<impl Iterator<Item = (&Timestamp, &Vec<T>)>, AccessError> {
+//         match self.access_context {
+//             AccessContext::Operator => {
+//                 Err(AccessError("Attempted to iter_states from Operator::new"))
+//             }
+//             AccessContext::Callback => Err(AccessError(
+//                 "Attempted to iter_states from a non-watermark callback",
+//             )),
+//             AccessContext::WatermarkCallback => Ok(self
+//                 .message_history
+//                 .range(..=self.current_time.clone())
+//                 .rev()
+//                 .enumerate()
+//                 .filter(move |x| x.0 <= self.history_size)
+//                 .map(|x| x.1)),
+//         }
+//     }
 
-    /// Gets an immutable reference to the state at the provied timestamp.
-    /// Only accessible from watermark callbacks.
-    pub fn get_state(&self, t: &Timestamp) -> Result<Option<&S>, AccessError> {
-        match self.access_context {
-            AccessContext::Operator => {
-                Err(AccessError("Attempted to get_state from Operator::new"))
-            }
-            AccessContext::WatermarkCallback => {
-                if t <= &self.current_time {
-                    let mut iter = self
-                        .state_history
-                        .range(t.clone()..self.current_time.clone());
-                    if let Some((oldest_allowed_t, _)) = iter.nth_back(self.history_size()) {
-                        if oldest_allowed_t <= t {
-                            Ok(self.state_history.get(t))
-                        } else {
-                            Ok(None)
-                        }
-                    } else {
-                        Ok(self.state_history.get(t))
-                    }
-                } else {
-                    Ok(None)
-                }
-            }
-            AccessContext::Callback => Err(AccessError(
-                "Attempted to get_state from a non-watermark callback",
-            )),
-        }
-    }
+//     /// Gets an immutable reference to the state at the provied timestamp.
+//     /// Only accessible from watermark callbacks.
+//     pub fn get_state(&self, t: &Timestamp) -> Result<Option<&S>, AccessError> {
+//         match self.access_context {
+//             AccessContext::Operator => {
+//                 Err(AccessError("Attempted to get_state from Operator::new"))
+//             }
+//             AccessContext::WatermarkCallback => {
+//                 if t <= &self.current_time {
+//                     let mut iter = self
+//                         .state_history
+//                         .range(t.clone()..self.current_time.clone());
+//                     if let Some((oldest_allowed_t, _)) = iter.nth_back(self.history_size()) {
+//                         if oldest_allowed_t <= t {
+//                             Ok(self.state_history.get(t))
+//                         } else {
+//                             Ok(None)
+//                         }
+//                     } else {
+//                         Ok(self.state_history.get(t))
+//                     }
+//                 } else {
+//                     Ok(None)
+//                 }
+//             }
+//             AccessContext::Callback => Err(AccessError(
+//                 "Attempted to get_state from a non-watermark callback",
+//             )),
+//         }
+//     }
 
-    /// Gets an immutable reference to the state for the current timestamp.
-    /// Only accessible from watermark callbacks.
-    pub fn get_current_state(&self) -> Result<&S, AccessError> {
-        match self.access_context {
-            AccessContext::Operator => Err(AccessError(
-                "Attempted to get_current_state from Operator::new",
-            )),
-            AccessContext::WatermarkCallback => Ok(self
-                .state_history
-                .get(&self.current_time)
-                .unwrap_or_else(|| {
-                    panic!(
-                        "ERDOS interal error: state not initialized or {:?} (current timestamp).",
-                        self.current_time
-                    )
-                })),
-            AccessContext::Callback => Err(AccessError(
-                "Attempted to get_current_state from a non-watermark callback",
-            )),
-        }
-    }
+//     /// Gets an immutable reference to the state for the current timestamp.
+//     /// Only accessible from watermark callbacks.
+//     pub fn get_current_state(&self) -> Result<&S, AccessError> {
+//         match self.access_context {
+//             AccessContext::Operator => Err(AccessError(
+//                 "Attempted to get_current_state from Operator::new",
+//             )),
+//             AccessContext::WatermarkCallback => Ok(self
+//                 .state_history
+//                 .get(&self.current_time)
+//                 .unwrap_or_else(|| {
+//                     panic!(
+//                         "ERDOS interal error: state not initialized or {:?} (current timestamp).",
+//                         self.current_time
+//                     )
+//                 })),
+//             AccessContext::Callback => Err(AccessError(
+//                 "Attempted to get_current_state from a non-watermark callback",
+//             )),
+//         }
+//     }
 
-    /// Gets a mutable reference to the state for the current timestamp.
-    /// Only accessible from watermark callbacks.
-    pub fn get_current_state_mut(&mut self) -> Result<&mut S, AccessError> {
-        match self.access_context {
-            AccessContext::Operator => Err(AccessError(
-                "Attempted to get_current_state_mut from Operator::new",
-            )),
-            AccessContext::WatermarkCallback => Ok(self
-                .state_history
-                .get_mut(&self.current_time)
-                .expect(&format!(
-                    "ERDOS interal error: state not initialized or {:?} (current timestamp).",
-                    self.current_time
-                ))),
-            AccessContext::Callback => Err(AccessError(
-                "Attempted to get_current_state_mut from a non-watermark callback",
-            )),
-        }
-    }
+//     /// Gets a mutable reference to the state for the current timestamp.
+//     /// Only accessible from watermark callbacks.
+//     pub fn get_current_state_mut(&mut self) -> Result<&mut S, AccessError> {
+//         match self.access_context {
+//             AccessContext::Operator => Err(AccessError(
+//                 "Attempted to get_current_state_mut from Operator::new",
+//             )),
+//             AccessContext::WatermarkCallback => Ok(self
+//                 .state_history
+//                 .get_mut(&self.current_time)
+//                 .expect(&format!(
+//                     "ERDOS interal error: state not initialized or {:?} (current timestamp).",
+//                     self.current_time
+//                 ))),
+//             AccessContext::Callback => Err(AccessError(
+//                 "Attempted to get_current_state_mut from a non-watermark callback",
+//             )),
+//         }
+//     }
 
-    /// Iterates over all possible states accessible for the current time in reverse chronological
-    /// order.
-    /// Only accessible from watermark callbacks.
-    pub fn iter_states(&self) -> Result<impl Iterator<Item = (&Timestamp, &S)>, AccessError> {
-        match self.access_context {
-            AccessContext::Operator => {
-                Err(AccessError("Attempted to iter_states from Operator::new"))
-            }
-            AccessContext::Callback => Err(AccessError(
-                "Attempted to iter_states from a non-watermark callback",
-            )),
-            AccessContext::WatermarkCallback => Ok(self
-                .state_history
-                .range(..=self.current_time.clone())
-                .rev()
-                .enumerate()
-                .filter(move |x| x.0 <= self.history_size)
-                .map(|x| x.1)),
-        }
-    }
-}
+//     /// Iterates over all possible states accessible for the current time in reverse chronological
+//     /// order.
+//     /// Only accessible from watermark callbacks.
+//     pub fn iter_states(&self) -> Result<impl Iterator<Item = (&Timestamp, &S)>, AccessError> {
+//         match self.access_context {
+//             AccessContext::Operator => {
+//                 Err(AccessError("Attempted to iter_states from Operator::new"))
+//             }
+//             AccessContext::Callback => Err(AccessError(
+//                 "Attempted to iter_states from a non-watermark callback",
+//             )),
+//             AccessContext::WatermarkCallback => Ok(self
+//                 .state_history
+//                 .range(..=self.current_time.clone())
+//                 .rev()
+//                 .enumerate()
+//                 .filter(move |x| x.0 <= self.history_size)
+//                 .map(|x| x.1)),
+//         }
+//     }
+// }
 
-impl<S: State + Default, T: Clone> ManagedState for TimeVersionedState<S, T> {
-    fn set_access_context(&mut self, access_context: AccessContext) {
-        self.access_context = access_context;
-    }
+// impl<S: State + Default, T: Clone> ManagedState for TimeVersionedState<S, T> {
+//     fn set_access_context(&mut self, access_context: AccessContext) {
+//         self.access_context = access_context;
+//     }
 
-    /// Updates access rules and initializes state and message history for current time.
-    fn set_current_time(&mut self, t: Timestamp) {
-        self.current_time = t;
-        self.message_history
-            .entry(self.current_time.clone())
-            .or_default();
-        self.state_history
-            .entry(self.current_time.clone())
-            .or_default();
-    }
+//     /// Updates access rules and initializes state and message history for current time.
+//     fn set_current_time(&mut self, t: Timestamp) {
+//         self.current_time = t;
+//         self.message_history
+//             .entry(self.current_time.clone())
+//             .or_default();
+//         self.state_history
+//             .entry(self.current_time.clone())
+//             .or_default();
+//     }
 
-    fn close_time(&mut self, t: &Timestamp) -> Result<(), AccessError> {
-        self.close_time(t)
-    }
-}
+//     fn close_time(&mut self, t: &Timestamp) -> Result<(), AccessError> {
+//         self.close_time(t)
+//     }
+// }
 
 #[cfg(test)]
 mod tests {

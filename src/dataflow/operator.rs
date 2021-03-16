@@ -1,6 +1,18 @@
+use std::sync::{Arc, Mutex};
+
+use serde::Deserialize;
+
 use crate::{
-    dataflow::{Data, ReadStream, State, Timestamp, WriteStream},
-    node::NodeId,
+    communication::RecvEndpoint,
+    dataflow::{
+        graph::default_graph, stream::InternalReadStream, Data, Message, ReadStream, State,
+        Timestamp, WriteStream,
+    },
+    node::{
+        operator_executor::{OperatorExecutorT, SourceExecutor},
+        NodeId,
+    },
+    scheduler::channel_manager::ChannelManager,
     OperatorId,
 };
 
@@ -16,13 +28,14 @@ use crate::{
 //     fn destroy(&mut self) {}
 // }
 
-pub(crate) trait Operator<S: State, T: Data, U: Data, V: Data, W: Data> {}
+// pub(crate) trait Operator<S: State, T: Data, U: Data, V: Data, W: Data> {}
+// Doesn't work due to conflicting implementations.
 
 /*****************************************************************************
  * Source: sends data with type T                                            *
  *****************************************************************************/
 
-pub trait Source<S: State, T: Data> {
+pub trait Source<S: State, T: Data>: Send {
     fn connect() -> WriteStream<T> {
         WriteStream::new()
     }
@@ -32,19 +45,19 @@ pub trait Source<S: State, T: Data> {
     fn destroy(&mut self) {}
 }
 
-impl<O, S, T> Operator<S, (), (), T, ()> for O
-where
-    O: Source<S, T>,
-    S: State,
-    T: Data,
-{
-}
+// impl<O, S, T> Operator<S, (), (), T, ()> for O
+// where
+//     O: Source<S, T>,
+//     S: State,
+//     T: Data,
+// {
+// }
 
 /*****************************************************************************
  * Sink: receives data with type T                                           *
  *****************************************************************************/
 
-pub trait Sink<S: State, T: Data> {
+pub trait Sink<S: State, T: Data>: Send {
     fn connect(read_stream: &ReadStream<T>) {}
 
     fn run(&mut self) {}
@@ -72,9 +85,51 @@ pub struct StatefulSinkContext<S: State> {
  * OneInOneOut: receives T, sends U                                          *
  *****************************************************************************/
 
-pub trait OneInOneOut<S: State, T: Data, U: Data> {
-    fn connect(read_stream: &ReadStream<T>) -> WriteStream<U> {
-        WriteStream::new()
+pub trait OneInOneOut<S, T, U>: Send
+where
+    S: State,
+    T: Data + for<'a> Deserialize<'a>,
+    U: Data + for<'a> Deserialize<'a>,
+{
+    /// The default implementation of this function should not be overridden.
+    fn connect<O: OneInOneOut<S, T, U>>(
+        operator_fn: impl Fn() -> O,
+        state_fn: impl Fn() -> S,
+        config: OperatorConfig,
+        read_stream: &ReadStream<T>,
+    ) -> WriteStream<U> {
+        let write_stream = WriteStream::new();
+
+        let read_stream_ids = vec![read_stream.get_id()];
+        let write_stream_ids = vec![write_stream.get_id()];
+
+        let read_stream_ids_copy = read_stream_ids.clone();
+        let write_stream_ids_copy = write_stream_ids.clone();
+        let op_runner =
+            move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
+                let mut channel_manager = channel_manager.lock().unwrap();
+
+                // Setup read stream.
+                let read_stream_id = read_stream_ids_copy[0];
+                let recv_endpoint = channel_manager.take_recv_endpoint(read_stream_id).unwrap();
+                let read_stream: ReadStream<T> = ReadStream::from(
+                    InternalReadStream::from_endpoint(recv_endpoint, read_stream_id),
+                );
+                // Setup write stream.
+                let write_stream_id = write_stream_ids_copy[0];
+                let send_endpoints = channel_manager.get_send_endpoints(write_stream_id).unwrap();
+                let write_stream: WriteStream<U> =
+                    WriteStream::from_endpoints(send_endpoints, write_stream_id);
+
+                // let operator_executor: OperatorExecutor<O, S, T, (), U, ()> = OperatorExecutor::new(operator_fn, state_fn, Some(read_stream), None, Some(write_stream), None)
+                // let operator_executor
+                unimplemented!()
+            };
+
+        // default_graph::add_operator
+        default_graph::add_operator_stream(config.id, &write_stream);
+
+        write_stream
     }
 
     fn run(&mut self) {}
@@ -103,7 +158,7 @@ pub struct StatefulOneInOneOutContext<S: State, U: Data> {
  * TwoInOneOut: receives T, receives U, sends V                              *
  *****************************************************************************/
 
-pub trait TwoInOneOut<S: State, T: Data, U: Data, V: Data> {
+pub trait TwoInOneOut<S: State, T: Data, U: Data, V: Data>: Send {
     fn connect(left_stream: &ReadStream<T>, right_stream: &ReadStream<U>) -> WriteStream<V> {
         WriteStream::new()
     }
@@ -139,7 +194,7 @@ pub struct StatefulTwoInOneOutContext<S: State, U: Data> {
  * OneInTwoOut: receives T, sends U, sends V                                 *
  *****************************************************************************/
 
-pub trait OneInTwoOut<S: State, T: Data, U: Data, V: Data> {
+pub trait OneInTwoOut<S: State, T: Data, U: Data, V: Data>: Send {
     fn connect(read_stream: &ReadStream<T>) -> (WriteStream<U>, WriteStream<V>) {
         (WriteStream::new(), WriteStream::new())
     }
@@ -169,7 +224,7 @@ pub struct StatefulOneInTwoOutContext<S: State, U: Data, V: Data> {
 }
 
 #[derive(Clone)]
-pub struct OperatorConfig<T: Clone> {
+pub struct OperatorConfig {
     /// A human-readable name for the [`Operator`] used in logging.
     pub name: Option<String>,
     /// A unique identifier for the [`Operator`].
@@ -177,8 +232,6 @@ pub struct OperatorConfig<T: Clone> {
     /// Currently the ID is inaccessible from the driver, but is set when the config
     /// is passed to the operator.
     pub id: OperatorId,
-    /// A generically typed argument to the [`Operator`].
-    pub arg: Option<T>,
     /// Whether the [`Operator`] should automatically send
     /// [watermark messages](crate::dataflow::Message::Watermark) on all
     /// [`WriteStream`](crate::dataflow::WriteStream)s for
@@ -197,12 +250,11 @@ pub struct OperatorConfig<T: Clone> {
     pub num_event_runners: usize,
 }
 
-impl<T: Clone> OperatorConfig<T> {
+impl OperatorConfig {
     pub fn new() -> Self {
         Self {
             id: OperatorId::nil(),
             name: None,
-            arg: None,
             flow_watermarks: true,
             node_id: 0,
             num_event_runners: 1,
@@ -212,12 +264,6 @@ impl<T: Clone> OperatorConfig<T> {
     /// Set the [`Operator`]'s name.
     pub fn name(mut self, name: &str) -> Self {
         self.name = Some(name.to_string());
-        self
-    }
-
-    /// Set an argument to be passed to the [`Operator`].
-    pub fn arg(mut self, arg: T) -> Self {
-        self.arg = Some(arg);
         self
     }
 
@@ -242,18 +288,5 @@ impl<T: Clone> OperatorConfig<T> {
         );
         self.num_event_runners = num_event_runners;
         self
-    }
-
-    /// Removes the argument to lose type information. Used in
-    /// [`OperatorExecutor`](crate::node::operator_executor::OperatorExecutor).
-    pub(crate) fn drop_arg(self) -> OperatorConfig<()> {
-        OperatorConfig {
-            id: self.id,
-            name: self.name,
-            arg: None,
-            flow_watermarks: self.flow_watermarks,
-            node_id: self.node_id,
-            num_event_runners: self.num_event_runners,
-        }
     }
 }

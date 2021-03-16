@@ -62,7 +62,7 @@ macro_rules! make_operator_executor {
         )*
         // After: $rs is an identifier pointing to a read stream's StreamId
         // $ws is an identifier pointing to a write stream's StreamId
-        move |channel_manager: Arc<Mutex<ChannelManager>>, control_sender: UnboundedSender<ControlMessage>, mut control_receiver: UnboundedReceiver<ControlMessage>| {
+        move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<impl OperatorExecutorT> {
             let mut op_ex_streams: Vec<Box<dyn OperatorExecutorStreamT>> = Vec::new();
             // Before: $rs is an identifier pointing to a read stream's StreamId
             // $ws is an identifier pointing to a write stream's StreamId
@@ -124,10 +124,8 @@ macro_rules! imports {
             communication::ControlMessage,
             dataflow::graph::default_graph,
             dataflow::stream::{InternalReadStream, WriteStreamT},
-            dataflow::{Message, Operator, ReadStream, WriteStream},
-            node::operator_executor::{
-                OperatorExecutor, OperatorExecutorStream, OperatorExecutorStreamT,
-            },
+            dataflow::{Message, ReadStream, WriteStream},
+            node::{OperatorExecutor, OperatorExecutorT},
             scheduler::channel_manager::ChannelManager,
             OperatorId,
         };

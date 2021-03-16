@@ -335,8 +335,7 @@ impl Node {
             channels_to_operators.insert(operator_info.id, tx);
             // Launch the operator as a separate async task.
             let join_handle = tokio::spawn(async move {
-                let mut operator_executor =
-                    (operator_info.runner)(channel_manager_copy, operator_tx_copy, rx);
+                let mut operator_executor = (operator_info.runner)(channel_manager_copy);
                 operator_executor.execute().await;
             });
             join_handles.push(join_handle);

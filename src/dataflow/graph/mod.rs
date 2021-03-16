@@ -3,15 +3,9 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::{
-    communication::ControlMessage, // node::operator_executor::OperatorExecutor,
+    communication::ControlMessage, node::operator_executor::OperatorExecutorT,
     scheduler::channel_manager::ChannelManager,
 };
-
-// Dummy struct to make things compile.
-pub struct OperatorExecutor {}
-impl OperatorExecutor {
-    pub async fn execute(&mut self) {}
-}
 
 // Private submodules
 mod edge;
@@ -29,25 +23,14 @@ pub(crate) use vertex::{DriverMetadata, OperatorMetadata, Vertex};
 pub use graph::Graph;
 
 pub trait OperatorRunner:
-    'static
-    + (Fn(
-        Arc<Mutex<ChannelManager>>,
-        UnboundedSender<ControlMessage>,
-        UnboundedReceiver<ControlMessage>,
-    ) -> OperatorExecutor)
-    + Sync
-    + Send
+    'static + (Fn(Arc<Mutex<ChannelManager>>) -> Box<dyn OperatorExecutorT>) + Sync + Send
 {
     fn box_clone(&self) -> Box<dyn OperatorRunner>;
 }
 
 impl<
         T: 'static
-            + (Fn(
-                Arc<Mutex<ChannelManager>>,
-                UnboundedSender<ControlMessage>,
-                UnboundedReceiver<ControlMessage>,
-            ) -> OperatorExecutor)
+            + (Fn(Arc<Mutex<ChannelManager>>) -> Box<dyn OperatorExecutorT>)
             + Sync
             + Send
             + Clone,

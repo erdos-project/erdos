@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 /// Trait for valid message data. The data must be clonable, sendable between threads and
 /// serializable.
+// TODO: somehow add the deserialize requirement.
 pub trait Data: 'static + Clone + Send + Sync + Debug + Serialize {}
 /// Any type that is clonable, sendable, and can be serialized and dereserialized implements `Data`.
 impl<T> Data for T where

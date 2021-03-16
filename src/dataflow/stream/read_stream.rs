@@ -239,3 +239,5 @@ impl<D: Data> From<&ReadStream<D>> for Rc<RefCell<InternalReadStream<D>>> {
         Rc::clone(&read_stream.internal_stream)
     }
 }
+
+unsafe impl<T: Data> Send for ReadStream<T> {}
