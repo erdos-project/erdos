@@ -10,8 +10,8 @@ use std::{
 use crate::dataflow::Timestamp;
 
 /// Trait that must be implemented by stream state.
-pub trait State: 'static + Clone + Send {}
-impl<T: 'static + Clone + Send> State for T {}
+pub trait State: 'static + Clone + Send + Sync {}
+impl<T: 'static + Clone + Send + Sync> State for T {}
 
 /// Error thrown upon an invalid attempt to access a portion of the
 /// [`TimeVersionedState`].

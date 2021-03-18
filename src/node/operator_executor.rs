@@ -1,14 +1,15 @@
 use std::{
     cell::RefCell,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     future::Future,
     pin::Pin,
     rc::Rc,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
+        Arc,
     },
     task::{Context, Poll},
+    time::Duration,
 };
 
 use futures::future;
@@ -16,7 +17,7 @@ use serde::Deserialize;
 use tokio::{
     self,
     stream::{Stream, StreamExt},
-    sync::{mpsc, watch},
+    sync::{mpsc, watch, Mutex},
 };
 
 use crate::{
@@ -24,15 +25,43 @@ use crate::{
     dataflow::{
         operator::{
             OneInOneOut, OneInOneOutContext, OneInTwoOut, OneInTwoOutContext, OperatorConfig, Sink,
-            SinkContext, Source, TwoInOneOut, TwoInOneOutContext,
+            SinkContext, Source, StatefulOneInOneOutContext, TwoInOneOut, TwoInOneOutContext,
         },
-        stream::{InternalReadStream, StreamId},
-        Data, EventMakerT, Message, ReadStream, State, WriteStream,
+        stream::StreamId,
+        stream::WriteStreamT,
+        Data, EventMakerT, Message, ReadStream, State, Timestamp, WriteStream,
     },
     node::lattice::ExecutionLattice,
     node::operator_event::OperatorEvent,
     scheduler::channel_manager::ChannelManager,
 };
+
+#[derive(Clone, Debug, PartialEq)]
+enum EventRunnerMessage {
+    AddedEvents,
+    DestroyOperator,
+}
+
+// TODO: can optimized.
+// Maybe there should be a node-wide pool of threads that run events...
+/// An `event_runner` invocation is in charge of executing callbacks associated with an event.
+/// Upon receipt of an `AddedEvents` notification, it queries the lattice for events that are
+/// ready to run, executes them, and notifies the lattice of their completion.
+async fn event_runner(
+    lattice: Arc<ExecutionLattice>,
+    mut notifier_rx: watch::Receiver<EventRunnerMessage>,
+) {
+    // Wait for notification for events added.
+    while let Some(control_msg) = notifier_rx.recv().await {
+        while let Some((event, event_id)) = lattice.get_event().await {
+            (event.callback)();
+            lattice.mark_as_completed(event_id).await;
+        }
+        if EventRunnerMessage::DestroyOperator == control_msg {
+            break;
+        }
+    }
+}
 
 // TODO: use indirection to make this private.
 pub trait OperatorExecutorT: Send {
@@ -46,6 +75,7 @@ where
     S: State,
     T: Data + for<'a> Deserialize<'a>,
 {
+    config: OperatorConfig,
     operator: O,
     state: S,
     write_stream: WriteStream<T>,
@@ -58,11 +88,13 @@ where
     T: Data + for<'a> Deserialize<'a>,
 {
     pub fn new(
+        config: OperatorConfig,
         operator_fn: impl Fn() -> O + Send,
         state_fn: impl Fn() -> S + Send,
         write_stream: WriteStream<T>,
     ) -> Self {
         Self {
+            config,
             operator: operator_fn(),
             state: state_fn(),
             write_stream,
@@ -70,7 +102,26 @@ where
     }
 
     pub async fn execute(&mut self) {
-        unimplemented!()
+        // TODO: replace this with a synchronization step
+        // that ensures all operators are ready to run.
+        tokio::time::delay_for(Duration::from_secs(1)).await;
+
+        slog::debug!(
+            crate::TERMINAL_LOGGER,
+            "Node {}: running operator {}",
+            self.config.node_id,
+            self.config.get_name()
+        );
+
+        tokio::task::block_in_place(|| self.operator.run(&mut self.write_stream));
+        tokio::task::block_in_place(|| self.operator.destroy());
+
+        // Close the stream.
+        if !self.write_stream.is_closed() {
+            self.write_stream
+                .send(Message::new_watermark(Timestamp::top()))
+                .unwrap();
+        }
     }
 }
 
@@ -91,6 +142,7 @@ where
     S: State,
     T: Data + for<'a> Deserialize<'a>,
 {
+    config: OperatorConfig,
     operator: O,
     state: S,
     read_stream: ReadStream<T>,
@@ -103,11 +155,13 @@ where
     T: Data + for<'a> Deserialize<'a>,
 {
     pub fn new(
+        config: OperatorConfig,
         operator_fn: impl Fn() -> O + Send,
         state_fn: impl Fn() -> S + Send,
         read_stream: ReadStream<T>,
     ) -> Self {
         Self {
+            config,
             operator: operator_fn(),
             state: state_fn(),
             read_stream,
@@ -137,8 +191,9 @@ where
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
+    config: OperatorConfig,
     operator: O,
-    state: S,
+    state: Arc<Mutex<S>>,
     read_stream: ReadStream<T>,
     write_stream: WriteStream<U>,
 }
@@ -151,21 +206,151 @@ where
     U: Data + for<'a> Deserialize<'a>,
 {
     pub fn new(
+        config: OperatorConfig,
         operator_fn: impl Fn() -> O + Send,
         state_fn: impl Fn() -> S + Send,
         read_stream: ReadStream<T>,
         write_stream: WriteStream<U>,
     ) -> Self {
         Self {
+            config,
             operator: operator_fn(),
-            state: state_fn(),
+            state: Arc::new(Mutex::new(state_fn())),
             read_stream,
             write_stream,
         }
     }
 
     pub async fn execute(&mut self) {
-        unimplemented!()
+        // TODO: replace this with a synchronization step
+        // that ensures all operators are ready to run.
+        tokio::time::delay_for(Duration::from_secs(1)).await;
+
+        slog::debug!(
+            crate::TERMINAL_LOGGER,
+            "Node {}: running operator {}",
+            self.config.node_id,
+            self.config.get_name()
+        );
+
+        tokio::task::block_in_place(|| {
+            self.operator
+                .run(&mut self.read_stream, &mut self.write_stream)
+        });
+
+        // Set up lattice and event runners.
+        let lattice = Arc::new(ExecutionLattice::new());
+        let (notifier_tx, notifier_rx) = watch::channel(EventRunnerMessage::AddedEvents);
+        let mut event_runner_handles = Vec::new();
+        for _ in 0..self.config.num_event_runners {
+            let event_runner_fut =
+                tokio::task::spawn(event_runner(Arc::clone(&lattice), notifier_rx.clone()));
+            event_runner_handles.push(event_runner_fut);
+        }
+
+        // Get messages and insert events into lattice.
+        let mut read_ids = HashSet::new();
+        read_ids.insert(self.read_stream.id());
+        let mut write_ids = HashSet::new();
+        write_ids.insert(self.write_stream.id());
+        while let Ok(msg) = self.read_stream.async_read().await {
+            // TODO: optimize so that stateful callbacks not invoked if not needed.
+            let events = match msg.data() {
+                // Data message
+                Some(data) => {
+                    // Stateless callback.
+                    let msg_ref = Arc::clone(&msg);
+                    let mut ctx = OneInOneOutContext {
+                        timestamp: msg.timestamp().clone(),
+                        write_stream: self.write_stream.clone(),
+                    };
+                    let data_event = OperatorEvent::new(
+                        msg.timestamp().clone(),
+                        false,
+                        0,
+                        read_ids.clone(),
+                        write_ids.clone(),
+                        move || O::on_data(&mut ctx, msg_ref.data().unwrap()),
+                    );
+
+                    // Stateful callback
+                    let msg_ref = Arc::clone(&msg);
+                    let mut ctx = StatefulOneInOneOutContext {
+                        timestamp: msg.timestamp().clone(),
+                        write_stream: self.write_stream.clone(),
+                        state: Arc::clone(&self.state),
+                    };
+                    let stateful_data_event = OperatorEvent::new(
+                        msg.timestamp().clone(),
+                        false,
+                        0,
+                        read_ids.clone(),
+                        write_ids.clone(),
+                        move || O::on_data_stateful(&mut ctx, msg_ref.data().unwrap()),
+                    );
+
+                    vec![data_event, stateful_data_event]
+                }
+                // Watermark
+                None => {
+                    let mut ctx = StatefulOneInOneOutContext {
+                        timestamp: msg.timestamp().clone(),
+                        write_stream: self.write_stream.clone(),
+                        state: Arc::clone(&self.state),
+                    };
+                    let stateful_data_event = OperatorEvent::new(
+                        msg.timestamp().clone(),
+                        true,
+                        0,
+                        read_ids.clone(),
+                        write_ids.clone(),
+                        move || O::on_watermark(&mut ctx),
+                    );
+
+                    if self.config.flow_watermarks {
+                        let timestamp = msg.timestamp().clone();
+                        let mut write_stream_copy = self.write_stream.clone();
+                        let flow_watermark_event = OperatorEvent::new(
+                            msg.timestamp().clone(),
+                            true,
+                            127,
+                            read_ids.clone(),
+                            write_ids.clone(),
+                            move || {
+                                write_stream_copy
+                                    .send(Message::new_watermark(timestamp))
+                                    .ok();
+                            },
+                        );
+                        vec![stateful_data_event, flow_watermark_event]
+                    } else {
+                        vec![stateful_data_event]
+                    }
+                }
+            };
+
+            lattice.add_events(events).await;
+            notifier_tx
+                .broadcast(EventRunnerMessage::AddedEvents)
+                .unwrap();
+        }
+
+        // Wait for event runners to finish.
+        notifier_tx
+            .broadcast(EventRunnerMessage::DestroyOperator)
+            .unwrap();
+        // Handle errors?
+        future::join_all(event_runner_handles).await;
+
+        tokio::task::block_in_place(|| self.operator.destroy());
+
+        // Close the stream.
+        // TODO: check that the top watermark hasn't already been sent.
+        if !self.write_stream.is_closed() {
+            self.write_stream
+                .send(Message::new_watermark(Timestamp::top()))
+                .unwrap();
+        }
     }
 }
 
@@ -189,6 +374,7 @@ where
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
 {
+    config: OperatorConfig,
     operator: O,
     state: S,
     left_read_stream: ReadStream<T>,
@@ -205,6 +391,7 @@ where
     V: Data + for<'a> Deserialize<'a>,
 {
     pub fn new(
+        config: OperatorConfig,
         operator_fn: impl Fn() -> O + Send,
         state_fn: impl Fn() -> S + Send,
         left_read_stream: ReadStream<T>,
@@ -212,6 +399,7 @@ where
         write_stream: WriteStream<V>,
     ) -> Self {
         Self {
+            config,
             operator: operator_fn(),
             state: state_fn(),
             left_read_stream,
@@ -246,6 +434,7 @@ where
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
 {
+    config: OperatorConfig,
     operator: O,
     state: S,
     read_stream: ReadStream<T>,
@@ -262,6 +451,7 @@ where
     V: Data + for<'a> Deserialize<'a>,
 {
     pub fn new(
+        config: OperatorConfig,
         operator_fn: impl Fn() -> O + Send,
         state_fn: impl Fn() -> S + Send,
         read_stream: ReadStream<T>,
@@ -269,6 +459,7 @@ where
         right_write_stream: WriteStream<V>,
     ) -> Self {
         Self {
+            config,
             operator: operator_fn(),
             state: state_fn(),
             read_stream,

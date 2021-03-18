@@ -11,7 +11,7 @@ pub mod channel_manager;
 pub(crate) fn schedule(graph: &Graph) -> Graph {
     let mut scheduled_graph = graph.clone();
     for stream in scheduled_graph.get_streams_ref_mut() {
-        let source_node_id = match stream.get_source() {
+        let source_node_id = match stream.source() {
             Vertex::Driver(node_id) => node_id,
             Vertex::Operator(operator_id) => graph.get_operator(operator_id).unwrap().node_id,
         };

@@ -1,12 +1,15 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use serde::Deserialize;
 
-use crate::dataflow::{Data, Message, State, Timestamp};
+use crate::{
+    communication::{RecvEndpoint, TryRecvError},
+    dataflow::{Data, Message, State, Timestamp},
+};
 
 use super::{
     errors::{ReadError, TryReadError},
-    IngestStream, InternalReadStream, LoopStream, StreamId, WriteStream,
+    IngestStream, LoopStream, StreamId, WriteStream,
 };
 
 /// A [`ReadStream`] allows operators to read data from a corresponding [`WriteStream`].
@@ -83,10 +86,15 @@ use super::{
 /// The examples in [`ExtractStream`](crate::dataflow::stream::ExtractStream) show how to use a
 /// [`ReadStream`] returned by an [`Operator`](crate::dataflow::operator::Operator) to read data in
 /// the driver.
-#[derive(Clone, Default)]
 pub struct ReadStream<D: Data> {
-    /// Stores information and internal information about the stream
-    internal_stream: Rc<RefCell<InternalReadStream<D>>>,
+    /// The id of the stream.
+    id: StreamId,
+    /// User-defined stream name.
+    name: String,
+    /// Whether the stream is closed.
+    is_closed: bool,
+    /// The endpoint on which the stream receives data.
+    recv_endpoint: Option<RecvEndpoint<Arc<Message<D>>>>,
 }
 
 impl<D: Data> ReadStream<D> {
@@ -94,9 +102,8 @@ impl<D: Data> ReadStream<D> {
     /// Note that ERDOS automatically converts the [`WriteStream`]s returned by an
     /// [`Operator`](crate::dataflow::operator::Operator) to a corresponding [`ReadStream`].
     pub fn new() -> Self {
-        Self {
-            internal_stream: Rc::new(RefCell::new(InternalReadStream::new())),
-        }
+        let id = StreamId::new_deterministic();
+        Self::new_internal(id, &id.to_string(), None)
     }
 
     /// Returns a new instance of the [`ReadStream`] with the given name..
@@ -105,94 +112,123 @@ impl<D: Data> ReadStream<D> {
     ///
     /// # Arguments
     /// * name - The name of the stream.
-    pub fn new_with_name(name: String) -> Self {
+    pub fn new_with_name(name: &str) -> Self {
+        Self::new_internal(StreamId::new_deterministic(), name, None)
+    }
+
+    pub(crate) fn new_internal(
+        id: StreamId,
+        name: &str,
+        recv_endpoint: Option<RecvEndpoint<Arc<Message<D>>>>,
+    ) -> Self {
         Self {
-            internal_stream: Rc::new(RefCell::new(InternalReadStream::new_with_id_name(
-                StreamId::new_deterministic(),
-                &name,
-            ))),
+            id,
+            name: name.to_string(),
+            is_closed: false,
+            recv_endpoint,
         }
     }
 
-    /// Request a callback on the receipt of a
-    /// [`TimestampedData`](crate::dataflow::message::Message::TimestampedData) message on the
-    /// stream.
-    ///
-    /// # Arguments
-    /// * callback - The callback to be invoked when a message is received.
-    pub fn add_callback<F: 'static + Fn(&Timestamp, &D)>(&self, callback: F) {
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
-            "Registering a message callback on the ReadStream {} (ID: {})",
-            self.get_name(),
-            self.get_id()
-        );
-        self.internal_stream.borrow_mut().add_callback(callback);
-    }
-
-    /// Request a callback on the receipt of a
-    /// [`Watermark`](crate::dataflow::message::Message::Watermark) message on the
-    /// stream.
-    ///
-    /// # Arguments
-    /// * callback - The callback to be invoked when a watermark is received.
-    pub fn add_watermark_callback<F: 'static + Fn(&Timestamp)>(&self, callback: F) {
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
-            "Registering a watermark callback on the ReadStream {} (ID: {})",
-            self.get_name(),
-            self.get_id()
-        );
-        self.internal_stream
-            .borrow_mut()
-            .add_watermark_callback(callback);
-    }
-
     /// Get the ID given to the stream by the constructor.
-    pub fn get_id(&self) -> StreamId {
-        self.internal_stream.borrow().get_id()
+    pub fn id(&self) -> StreamId {
+        self.id
     }
 
     /// Get the name of the stream.
-    /// Returns a [`str`] version of the ID if the stream was not constructed with
+    /// Returns a [`String`] version of the ID if the stream was not constructed with
     /// [`new_with_name`](ReadStream::new_with_name).
-    pub fn get_name(&self) -> String {
-        self.internal_stream.borrow().get_name().to_string()
+    pub fn name(&self) -> &str {
+        self.name.as_str()
     }
 
     /// Returns `true` if a top watermark message was sent or the [`ReadStream`] failed to set up.
     pub fn is_closed(&self) -> bool {
-        self.internal_stream.borrow().is_closed()
+        self.is_closed
     }
 
     /// Non-blocking read from the [`ReadStream`].
     ///
     /// Returns the Message available on the [`ReadStream`], or an [`Empty`](TryReadError::Empty)
     /// if no message is available.
-    pub fn try_read(&self) -> Result<Message<D>, TryReadError> {
-        self.internal_stream.borrow_mut().try_read()
+    pub fn try_read(&mut self) -> Result<Message<D>, TryReadError> {
+        if self.is_closed {
+            return Err(TryReadError::Closed);
+        }
+        let result = self
+            .recv_endpoint
+            .as_mut()
+            .map_or(Err(TryReadError::Disconnected), |rx| {
+                rx.try_read()
+                    .map(|msg| Message::clone(&msg))
+                    .map_err(TryReadError::from)
+            });
+        if result
+            .as_ref()
+            .map(Message::is_top_watermark)
+            .unwrap_or(false)
+        {
+            self.is_closed = true;
+            self.recv_endpoint = None;
+        }
+        result
     }
 
     /// Blocking read from the [`ReadStream`].
     ///
     /// Returns the Message available on the [`ReadStream`].
-    pub fn read(&self) -> Result<Message<D>, ReadError> {
-        self.internal_stream.borrow_mut().read()
+    pub fn read(&mut self) -> Result<Message<D>, ReadError> {
+        if self.is_closed {
+            return Err(ReadError::Closed);
+        }
+        // Poll for the next message
+        // TODO: call async_read and use some kind of runtime.
+        let result = self
+            .recv_endpoint
+            .as_mut()
+            .map_or(Err(ReadError::Disconnected), |rx| loop {
+                match rx.try_read() {
+                    Ok(msg) => {
+                        break Ok(Message::clone(&msg));
+                    }
+                    Err(TryRecvError::Empty) => (),
+                    Err(TryRecvError::Disconnected) => {
+                        break Err(ReadError::Disconnected);
+                    }
+                    Err(TryRecvError::BincodeError(_)) => {
+                        break Err(ReadError::SerializationError);
+                    }
+                }
+            });
+        if result
+            .as_ref()
+            .map(Message::is_top_watermark)
+            .unwrap_or(false)
+        {
+            self.is_closed = true;
+            self.recv_endpoint = None;
+        }
+        result
     }
-}
 
-impl<D: Data> From<&ReadStream<D>> for ReadStream<D> {
-    fn from(read_stream: &ReadStream<D>) -> Self {
-        read_stream.clone()
+    pub(crate) async fn async_read(&mut self) -> Result<Arc<Message<D>>, ReadError> {
+        if self.is_closed {
+            return Err(ReadError::Closed);
+        }
+        // Poll for the next message
+        match self.recv_endpoint.as_mut() {
+            Some(endpoint) => match endpoint.read().await {
+                Ok(msg) => Ok(msg),
+                // TODO: better error handling.
+                _ => Err(ReadError::Disconnected),
+            },
+            None => Err(ReadError::Disconnected),
+        }
     }
 }
 
 impl<D: Data> From<&WriteStream<D>> for ReadStream<D> {
     fn from(write_stream: &WriteStream<D>) -> Self {
-        Self::from(InternalReadStream::new_with_id_name(
-            write_stream.get_id(),
-            write_stream.get_name(),
-        ))
+        Self::new_internal(write_stream.id(), write_stream.name(), None)
     }
 }
 
@@ -201,10 +237,7 @@ where
     for<'a> D: Data + Deserialize<'a>,
 {
     fn from(loop_stream: &LoopStream<D>) -> Self {
-        Self::from(InternalReadStream::new_with_id_name(
-            loop_stream.get_id(),
-            loop_stream.get_name(),
-        ))
+        Self::new_internal(loop_stream.id(), loop_stream.name(), None)
     }
 }
 
@@ -213,31 +246,9 @@ where
     for<'a> D: Data + Deserialize<'a>,
 {
     fn from(ingest_stream: &IngestStream<D>) -> Self {
-        Self::from(InternalReadStream::new_with_id_name(
-            ingest_stream.get_id(),
-            ingest_stream.get_name(),
-        ))
-    }
-}
-
-impl<D: Data> From<InternalReadStream<D>> for ReadStream<D> {
-    fn from(internal_stream: InternalReadStream<D>) -> Self {
-        Self {
-            internal_stream: Rc::new(RefCell::new(internal_stream)),
-        }
-    }
-}
-
-impl<D: Data> From<Rc<RefCell<InternalReadStream<D>>>> for ReadStream<D> {
-    fn from(internal_stream: Rc<RefCell<InternalReadStream<D>>>) -> Self {
-        Self { internal_stream }
-    }
-}
-
-impl<D: Data> From<&ReadStream<D>> for Rc<RefCell<InternalReadStream<D>>> {
-    fn from(read_stream: &ReadStream<D>) -> Self {
-        Rc::clone(&read_stream.internal_stream)
+        Self::new_internal(ingest_stream.id(), ingest_stream.name(), None)
     }
 }
 
 unsafe impl<T: Data> Send for ReadStream<T> {}
+unsafe impl<T: Data> Sync for ReadStream<T> {}

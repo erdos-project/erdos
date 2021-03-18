@@ -1,4 +1,5 @@
 use std::{
+    borrow::BorrowMut,
     sync::{Arc, Mutex},
     thread,
     time::Duration,
@@ -14,7 +15,7 @@ use crate::{
 
 use super::{
     errors::{ReadError, TryReadError},
-    InternalReadStream, ReadStream, StreamId,
+    ReadStream, StreamId,
 };
 
 /// An [`ExtractStream`] enables drivers to read data from a running ERDOS application.
@@ -95,8 +96,8 @@ where
             crate::TERMINAL_LOGGER,
             "Initializing an ExtractStream on the node {} with the ReadStream {} (ID: {})",
             node_id,
-            read_stream.get_name(),
-            read_stream.get_id(),
+            read_stream.name(),
+            read_stream.id(),
         );
         ExtractStream::new_internal(node_id, read_stream, None)
     }
@@ -114,8 +115,8 @@ where
             "Initializing an ExtractStream {} on the node {} with the ReadStream {} (ID: {})",
             name,
             node_id,
-            read_stream.get_name(),
-            read_stream.get_id(),
+            read_stream.name(),
+            read_stream.id(),
         );
         ExtractStream::new_internal(node_id, read_stream, Some(name.to_string()))
     }
@@ -123,7 +124,7 @@ where
     /// Creates the appropriate channels for the [`ExtractStream`] and adds it to the dataflow.
     fn new_internal(node_id: NodeId, read_stream: &ReadStream<D>, name: Option<String>) -> Self {
         // Generate an ID, and use it as the name if no name was provided.
-        let id = read_stream.get_id();
+        let id = read_stream.id();
         let stream_name = match name {
             None => id.to_string(),
             Some(s) => s,
@@ -152,19 +153,19 @@ where
     }
 
     /// Get the ID given to the stream by the constructor.
-    pub fn get_id(&self) -> StreamId {
+    pub fn id(&self) -> StreamId {
         self.id
     }
 
     /// Get the name of the stream.
     /// Returns a [`str`] version of the ID if the stream was not constructed with
     /// [`new_with_name`](ExtractStream::new_with_name).
-    pub fn get_name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name[..]
     }
 
     /// Get the ID of the node where the stream originated from. (Typically 0 for driver nodes.)
-    pub fn get_node_id(&self) -> NodeId {
+    pub fn node_id(&self) -> NodeId {
         self.node_id
     }
 
@@ -182,17 +183,16 @@ where
     /// Returns the Message available on the [`ReadStream`], or an [`Empty`](TryReadError::Empty)
     /// if no message is available.
     pub fn try_read(&mut self) -> Result<Message<D>, TryReadError> {
-        if let Some(read_stream) = &self.read_stream_option {
+        if let Some(read_stream) = self.read_stream_option.borrow_mut() {
             read_stream.try_read()
         } else {
             // Try to setup read stream
             if let Some(channel_manager) = &*self.channel_manager_option.lock().unwrap() {
                 match channel_manager.lock().unwrap().take_recv_endpoint(self.id) {
                     Ok(recv_endpoint) => {
-                        let read_stream = ReadStream::from(InternalReadStream::from_endpoint(
-                            recv_endpoint,
-                            self.id,
-                        ));
+                        let mut read_stream =
+                            ReadStream::new_internal(self.id, &self.name, Some(recv_endpoint));
+
                         let result = read_stream.try_read();
                         self.read_stream_option.replace(read_stream);
                         return result;
@@ -201,8 +201,8 @@ where
                         crate::TERMINAL_LOGGER,
                         "ExtractStream {} (ID: {}): error getting endpoint from \
                         channel manager \"{}\"",
-                        self.get_name(),
-                        self.get_id(),
+                        self.name(),
+                        self.id(),
                         msg
                     ),
                 }
@@ -218,12 +218,14 @@ where
         loop {
             let result = self.try_read();
             if self.read_stream_option.is_some() {
-                break match result {
-                    Ok(msg) => Ok(msg),
-                    Err(TryReadError::Disconnected) => Err(ReadError::Disconnected),
-                    Err(TryReadError::Empty) => self.read_stream_option.as_ref().unwrap().read(),
-                    Err(TryReadError::SerializationError) => Err(ReadError::SerializationError),
-                    Err(TryReadError::Closed) => Err(ReadError::Closed),
+                match result {
+                    Ok(msg) => return Ok(msg),
+                    Err(TryReadError::Disconnected) => return Err(ReadError::Disconnected),
+                    Err(TryReadError::Empty) => (),
+                    Err(TryReadError::SerializationError) => {
+                        return Err(ReadError::SerializationError)
+                    }
+                    Err(TryReadError::Closed) => return Err(ReadError::Closed),
                 };
             } else {
                 thread::sleep(Duration::from_millis(100));

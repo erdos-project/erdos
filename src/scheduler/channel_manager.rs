@@ -8,7 +8,7 @@ use crate::{
     dataflow::{
         graph::{Channel, Graph, Vertex},
         stream::StreamId,
-        Data, Message,
+        Data, Message, ReadStream, WriteStream,
     },
     node::NodeId,
     scheduler::endpoints_manager::{ChannelsToReceivers, ChannelsToSenders},
@@ -169,10 +169,10 @@ impl ChannelManager {
 
         let node_vertices = graph.get_vertices_on(node_id);
         for stream_metadata in graph.get_streams() {
-            if node_vertices.contains(&stream_metadata.get_source()) {
+            if node_vertices.contains(&stream_metadata.source()) {
                 let stream_endpoint_t = channel_manager
                     .stream_entries
-                    .entry(stream_metadata.get_id())
+                    .entry(stream_metadata.id())
                     .or_insert_with(|| stream_metadata.to_stream_endpoints_t());
                 for channel in stream_metadata.get_channels() {
                     match channel {
@@ -203,7 +203,7 @@ impl ChannelManager {
                         if node_vertices.contains(&channel_metadata.sink) {
                             let stream_endpoint_t = channel_manager
                                 .stream_entries
-                                .entry(stream_metadata.get_id())
+                                .entry(stream_metadata.id())
                                 .or_insert_with(|| stream_metadata.to_stream_endpoints_t());
                             stream_endpoint_t
                                 .add_inter_node_recv_endpoint(&mut receiver_pushers)
@@ -284,5 +284,23 @@ impl ChannelManager {
         } else {
             Err(format!("No recv endpoints found with ID {}", stream_id))
         }
+    }
+
+    /// This function can only be called once successfully.
+    pub fn take_read_stream<D>(&mut self, stream_id: StreamId) -> Result<ReadStream<D>, String>
+    where
+        D: Data + for<'a> Deserialize<'a>,
+    {
+        self.take_recv_endpoint(stream_id).map(|endpoint| {
+            ReadStream::new_internal(stream_id, &stream_id.to_string(), Some(endpoint))
+        })
+    }
+
+    pub fn get_write_stream<D>(&mut self, stream_id: StreamId) -> Result<WriteStream<D>, String>
+    where
+        D: Data + for<'a> Deserialize<'a>,
+    {
+        self.get_send_endpoints(stream_id)
+            .map(|endpoints| WriteStream::from_endpoints(endpoints, stream_id))
     }
 }

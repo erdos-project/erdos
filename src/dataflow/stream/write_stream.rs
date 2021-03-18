@@ -124,14 +124,14 @@ impl<D: Data> WriteStream<D> {
     }
 
     /// Get the ID given to the stream by the constructor
-    pub fn get_id(&self) -> StreamId {
+    pub fn id(&self) -> StreamId {
         self.id
     }
 
     /// Get the name of the stream.
     /// Returns a [`str`] version of the ID if the stream was not constructed with
     /// [`new_with_name`](IngestStream::new_with_name).
-    pub fn get_name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name[..]
     }
 
@@ -153,8 +153,8 @@ impl<D: Data> WriteStream<D> {
         slog::debug!(
             crate::TERMINAL_LOGGER,
             "Closing write stream {} (ID: {})",
-            self.get_name(),
-            self.get_id()
+            self.name(),
+            self.id()
         );
         self.stream_closed = true;
         self.pusher = None;
@@ -178,8 +178,8 @@ impl<D: Data> WriteStream<D> {
                 slog::debug!(
                     crate::TERMINAL_LOGGER,
                     "Updating watermark on WriteStream {} (ID: {}) from {:?} to {:?}",
-                    self.get_name(),
-                    self.get_id(),
+                    self.name(),
+                    self.id(),
                     self.low_watermark,
                     msg_watermark
                 );
@@ -213,8 +213,8 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
             slog::warn!(
                 crate::TERMINAL_LOGGER,
                 "Trying to send messages on a closed WriteStream {} (ID: {})",
-                self.get_name(),
-                self.get_id(),
+                self.name(),
+                self.id(),
             );
             return Err(WriteStreamError::Closed);
         }
@@ -225,8 +225,8 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
             slog::debug!(
                 crate::TERMINAL_LOGGER,
                 "Sending top watermark on the stream {} (ID: {}).",
-                self.get_name(),
-                self.get_id()
+                self.name(),
+                self.id()
             );
             close_stream = true;
         }
@@ -242,8 +242,8 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
                     crate::TERMINAL_LOGGER,
                     "No Pusher was found for the WriteStream {} (ID: {}). \
                              Skipping message sending.",
-                    self.get_name(),
-                    self.get_id()
+                    self.name(),
+                    self.id()
                 );
                 ()
             }

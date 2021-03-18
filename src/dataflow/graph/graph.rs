@@ -67,8 +67,8 @@ impl Graph {
         for read_stream_id in &read_stream_ids {
             if let Some(stream) = self.streams.get_mut(read_stream_id) {
                 stream.add_channel(Channel::Unscheduled(ChannelMetadata::new(
-                    stream.get_id(),
-                    stream.get_source(),
+                    stream.id(),
+                    stream.source(),
                     Vertex::Operator(id),
                 )));
             }
@@ -84,7 +84,7 @@ impl Graph {
     where
         for<'a> D: Data + Deserialize<'a>,
     {
-        let stream_id = write_stream.get_id();
+        let stream_id = write_stream.id();
         let mut stream_metadata =
             StreamMetadata::new::<D>(stream_id, Vertex::Operator(operator_id));
         self.add_channels(&mut stream_metadata);
@@ -98,12 +98,12 @@ impl Graph {
     ) where
         for<'a> D: Data + Deserialize<'a>,
     {
-        let stream_id = ingest_stream.get_id();
-        let node_id = ingest_stream.get_node_id();
+        let stream_id = ingest_stream.id();
+        let node_id = ingest_stream.node_id();
         // Add stream to driver
         let driver = self
             .drivers
-            .entry(ingest_stream.get_node_id())
+            .entry(ingest_stream.node_id())
             .or_insert_with(|| DriverMetadata::new(node_id));
         driver.add_ingest_stream(stream_id, setup_hook);
         // Add stream to graph
@@ -119,19 +119,19 @@ impl Graph {
     ) where
         for<'a> D: Data + Deserialize<'a>,
     {
-        let stream_id = extract_stream.get_id();
-        let node_id = extract_stream.get_node_id();
+        let stream_id = extract_stream.id();
+        let node_id = extract_stream.node_id();
         // Add stream to driver
         let driver = self
             .drivers
-            .entry(extract_stream.get_node_id())
+            .entry(extract_stream.node_id())
             .or_insert_with(|| DriverMetadata::new(node_id));
         driver.add_extract_stream(stream_id, setup_hook);
         // Add channel to stream
         if let Some(stream_metadata) = self.streams.get_mut(&stream_id) {
             let channel = Channel::Unscheduled(ChannelMetadata::new(
                 stream_id,
-                stream_metadata.get_source(),
+                stream_metadata.source(),
                 Vertex::Driver(node_id),
             ));
             stream_metadata.add_channel(channel);
@@ -144,7 +144,7 @@ impl Graph {
     where
         for<'a> D: Data + Deserialize<'a>,
     {
-        let write_stream = WriteStream::<D>::new_with_id(loop_stream.get_id());
+        let write_stream = WriteStream::<D>::new_with_id(loop_stream.id());
         // TODO: clean up this hack
         self.add_operator_stream(OperatorId::nil(), &write_stream);
     }
@@ -178,7 +178,7 @@ impl Graph {
                             Channel::Unscheduled(cm) => cm,
                         };
                         channel_metadata.stream_id = to_id;
-                        channel_metadata.source = to_stream.get_source();
+                        channel_metadata.source = to_stream.source();
                         to_stream.add_channel(Channel::Unscheduled(channel_metadata));
                     }
                 }
@@ -190,8 +190,8 @@ impl Graph {
 
     /// Adds channels to the StreamMetadata based on the graph
     fn add_channels(&self, stream_metadata: &mut StreamMetadata) {
-        let stream_id = stream_metadata.get_id();
-        let source = stream_metadata.get_source();
+        let stream_id = stream_metadata.id();
+        let source = stream_metadata.source();
         // Add channels to operators
         for operator in self.operators.values() {
             for _ in operator
@@ -296,7 +296,7 @@ impl Graph {
         // Channels
         writeln!(file, "   // Declare channels")?;
         for stream in self.streams.values() {
-            let from = match stream.get_source() {
+            let from = match stream.source() {
                 Vertex::Driver(node_id) => format!("{}", node_id),
                 Vertex::Operator(op_id) => format!("{}", op_id),
             };
@@ -313,7 +313,7 @@ impl Graph {
                     "   \"{from}\" -> \"{to}\" [label=\"{stream_id}\"];",
                     from = from,
                     to = to,
-                    stream_id = stream.get_id()
+                    stream_id = stream.id()
                 )?;
             }
         }

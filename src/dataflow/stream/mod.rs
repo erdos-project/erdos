@@ -25,7 +25,6 @@ use crate::{
 // Private submodules
 mod extract_stream;
 mod ingest_stream;
-mod internal_read_stream;
 mod loop_stream;
 mod read_stream;
 mod write_stream;
@@ -39,8 +38,6 @@ use errors::WriteStreamError;
 // Public exports
 pub use extract_stream::ExtractStream;
 pub use ingest_stream::IngestStream;
-#[doc(hidden)]
-pub use internal_read_stream::InternalReadStream;
 #[doc(hidden)]
 pub use loop_stream::LoopStream;
 pub use read_stream::ReadStream;

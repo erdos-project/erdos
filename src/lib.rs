@@ -174,8 +174,6 @@ use uuid;
 
 // Private submodules
 mod configuration;
-#[macro_use]
-mod connect;
 #[cfg(feature = "python")]
 mod python;
 

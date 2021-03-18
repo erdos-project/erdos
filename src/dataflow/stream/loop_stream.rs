@@ -47,15 +47,15 @@ where
         loop_stream
     }
 
-    pub fn get_id(&self) -> StreamId {
+    pub fn id(&self) -> StreamId {
         self.id
     }
 
-    pub fn get_name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name[..]
     }
 
     pub fn set(&self, stream: &ReadStream<D>) {
-        default_graph::add_stream_alias(self.id, stream.get_id()).unwrap();
+        default_graph::add_stream_alias(self.id, stream.id()).unwrap();
     }
 }

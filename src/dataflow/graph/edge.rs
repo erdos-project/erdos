@@ -62,8 +62,8 @@ where
 }
 
 pub trait StreamMetadataT: Send {
-    fn get_id(&self) -> StreamId;
-    fn get_source(&self) -> Vertex;
+    fn id(&self) -> StreamId;
+    fn source(&self) -> Vertex;
     fn box_clone(&self) -> Box<dyn StreamMetadataT>;
     fn to_stream_endpoints_t(&self) -> Box<dyn StreamEndpointsT>;
     fn add_channel(&mut self, channel: Channel);
@@ -75,11 +75,11 @@ impl<D> StreamMetadataT for TypedStreamMetadata<D>
 where
     for<'a> D: Data + Deserialize<'a>,
 {
-    fn get_id(&self) -> StreamId {
+    fn id(&self) -> StreamId {
         self.id
     }
 
-    fn get_source(&self) -> Vertex {
+    fn source(&self) -> Vertex {
         self.source.clone()
     }
 
@@ -118,12 +118,12 @@ impl StreamMetadata {
         }
     }
 
-    pub fn get_id(&self) -> StreamId {
-        self.stream_metadata_t.get_id()
+    pub fn id(&self) -> StreamId {
+        self.stream_metadata_t.id()
     }
 
-    pub fn get_source(&self) -> Vertex {
-        self.stream_metadata_t.get_source()
+    pub fn source(&self) -> Vertex {
+        self.stream_metadata_t.source()
     }
 
     pub fn to_stream_endpoints_t(&self) -> Box<dyn StreamEndpointsT> {

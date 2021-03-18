@@ -306,6 +306,12 @@ impl Node {
         .await;
         // Execute operators scheduled on the current node.
         let channel_manager = Arc::new(std::sync::Mutex::new(channel_manager));
+        let num_operators = graph.get_operators().len();
+        slog::debug!(
+            crate::TERMINAL_LOGGER,
+            "There are {} operators total",
+            num_operators
+        );
         let local_operators: Vec<_> = graph
             .get_operators()
             .into_iter()
@@ -316,6 +322,11 @@ impl Node {
         let mut channels_to_operators = HashMap::new();
 
         let num_local_operators = local_operators.len();
+        slog::debug!(
+            crate::TERMINAL_LOGGER,
+            "{} local operators",
+            num_local_operators
+        );
 
         let mut join_handles = Vec::with_capacity(num_local_operators);
         for operator_info in local_operators {
