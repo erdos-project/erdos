@@ -107,7 +107,7 @@ fn main() {
     let mut node = Node::new(Configuration::from_args(&args));
 
     let source_config = OperatorConfig::new().name("SourceOperator");
-    let source_stream = SourceOperator::connect(SourceOperator::new, || {}, source_config);
+    let source_stream = erdos::connect_source(SourceOperator::new, || {}, source_config);
     // TODO: clean up API weirdness.
     // * Add a new abstract stream type.
     // * Look into removing connect from trait.
@@ -115,11 +115,12 @@ fn main() {
 
     let square_config = OperatorConfig::new().name("SquareOperator");
     let square_stream =
-        SquareOperator::connect(SquareOperator::new, || {}, square_config, &source_stream);
+        erdos::connect_one_in_one_out(SquareOperator::new, || {}, square_config, &source_stream);
     let square_stream = ReadStream::from(&square_stream);
 
     let sum_config = OperatorConfig::new().name("SumOperator");
-    let sum_stream = SumOperator::connect(SumOperator::new, || 0, sum_config, &square_stream);
+    let sum_stream =
+        erdos::connect_one_in_one_out(SumOperator::new, || 0, sum_config, &square_stream);
 
     // let s1 = connect_1_write!(
     //     SourceOperator,

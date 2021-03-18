@@ -2,6 +2,7 @@
 
 // Public submodules
 #[doc(hidden)]
+pub mod connect;
 pub mod graph;
 pub mod message;
 pub mod operator;
@@ -27,9 +28,7 @@ mod tests {
     use crate::communication::SendEndpoint;
     use crate::dataflow::{
         callback_builder::MultiStreamEventMaker,
-        stream::{
-            EventMakerT, InternalReadStream, ReadStream, StreamId, WriteStream, WriteStreamT,
-        },
+        stream::{EventMakerT, ReadStream, StreamId, WriteStream, WriteStreamT},
         Message, Timestamp, TimestampedData,
     };
 

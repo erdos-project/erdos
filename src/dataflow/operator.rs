@@ -26,49 +26,6 @@ where
     S: State,
     T: Data + for<'a> Deserialize<'a>,
 {
-    fn connect<O: 'static + Source<S, T>>(
-        operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
-        state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
-        mut config: OperatorConfig,
-    ) -> WriteStream<T> {
-        config.id = OperatorId::new_deterministic();
-        let write_stream = WriteStream::new();
-
-        let write_stream_ids = vec![write_stream.id()];
-
-        let write_stream_ids_copy = write_stream_ids.clone();
-        let config_copy = config.clone();
-        let op_runner =
-            move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
-                let mut channel_manager = channel_manager.lock().unwrap();
-
-                let write_stream = channel_manager
-                    .get_write_stream(write_stream_ids_copy[0])
-                    .unwrap();
-
-                let executor = SourceExecutor::new(
-                    config_copy.clone(),
-                    operator_fn.clone(),
-                    state_fn.clone(),
-                    write_stream,
-                );
-
-                Box::new(executor)
-            };
-
-        default_graph::add_operator(
-            config.id,
-            config.name,
-            config.node_id,
-            Vec::new(),
-            write_stream_ids,
-            op_runner,
-        );
-        default_graph::add_operator_stream(config.id, &write_stream);
-
-        write_stream
-    }
-
     fn run(&mut self, write_stream: &mut WriteStream<T>) {}
 
     fn destroy(&mut self) {}
@@ -79,8 +36,6 @@ where
  *****************************************************************************/
 
 pub trait Sink<S: State, T: Data>: Send {
-    fn connect(read_stream: &ReadStream<T>) {}
-
     fn run(&mut self) {}
 
     fn destroy(&mut self) {}
@@ -112,57 +67,6 @@ where
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
-    /// The default implementation of this function should not be overridden.
-    fn connect<O: 'static + OneInOneOut<S, T, U>>(
-        operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
-        state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
-        mut config: OperatorConfig,
-        read_stream: &ReadStream<T>,
-    ) -> WriteStream<U> {
-        config.id = OperatorId::new_deterministic();
-        let write_stream = WriteStream::new();
-
-        let read_stream_ids = vec![read_stream.id()];
-        let write_stream_ids = vec![write_stream.id()];
-
-        let read_stream_ids_copy = read_stream_ids.clone();
-        let write_stream_ids_copy = write_stream_ids.clone();
-        let config_copy = config.clone();
-        let op_runner =
-            move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
-                let mut channel_manager = channel_manager.lock().unwrap();
-
-                let read_stream = channel_manager
-                    .take_read_stream(read_stream_ids_copy[0])
-                    .unwrap();
-                let write_stream = channel_manager
-                    .get_write_stream(write_stream_ids_copy[0])
-                    .unwrap();
-
-                let executor = OneInOneOutExecutor::new(
-                    config_copy.clone(),
-                    operator_fn.clone(),
-                    state_fn.clone(),
-                    read_stream,
-                    write_stream,
-                );
-
-                Box::new(executor)
-            };
-
-        default_graph::add_operator(
-            config.id,
-            config.name,
-            config.node_id,
-            read_stream_ids,
-            write_stream_ids,
-            op_runner,
-        );
-        default_graph::add_operator_stream(config.id, &write_stream);
-
-        write_stream
-    }
-
     fn run(&mut self, read_stream: &mut ReadStream<T>, write_stream: &mut WriteStream<U>) {}
 
     fn destroy(&mut self) {}
@@ -191,10 +95,6 @@ pub struct StatefulOneInOneOutContext<S: State, U: Data> {
  *****************************************************************************/
 
 pub trait TwoInOneOut<S: State, T: Data, U: Data, V: Data>: Send {
-    fn connect(left_stream: &ReadStream<T>, right_stream: &ReadStream<U>) -> WriteStream<V> {
-        WriteStream::new()
-    }
-
     fn run(&mut self) {}
 
     fn destroy(&mut self) {}
@@ -227,10 +127,6 @@ pub struct StatefulTwoInOneOutContext<S: State, U: Data> {
  *****************************************************************************/
 
 pub trait OneInTwoOut<S: State, T: Data, U: Data, V: Data>: Send {
-    fn connect(read_stream: &ReadStream<T>) -> (WriteStream<U>, WriteStream<V>) {
-        (WriteStream::new(), WriteStream::new())
-    }
-
     fn run(&mut self) {}
 
     fn destroy(&mut self) {}

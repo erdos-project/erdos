@@ -187,7 +187,7 @@ pub mod scheduler;
 
 // Public exports
 pub use configuration::Configuration;
-pub use dataflow::OperatorConfig;
+pub use dataflow::{connect::*, OperatorConfig};
 
 /// A unique identifier for an operator.
 pub type OperatorId = Uuid;
