@@ -36,7 +36,7 @@ where
  *****************************************************************************/
 
 pub trait Sink<S: State, T: Data>: Send {
-    fn run(&mut self) {}
+    fn run(&mut self, read_stream: &mut ReadStream<T>) {}
 
     fn destroy(&mut self) {}
 
@@ -48,13 +48,13 @@ pub trait Sink<S: State, T: Data>: Send {
 }
 
 pub struct SinkContext {
-    timestamp: Timestamp,
+    pub timestamp: Timestamp,
 }
 
 pub struct StatefulSinkContext<S: State> {
     pub timestamp: Timestamp,
-    // TODO: change this a managed reference.
-    pub state: S,
+    // Hacky...
+    pub state: Arc<tokio::sync::Mutex<S>>,
 }
 
 /*****************************************************************************

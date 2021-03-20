@@ -77,7 +77,38 @@ pub fn connect_sink<O, S, T>(
     S: State,
     T: Data + for<'a> Deserialize<'a>,
 {
-    unimplemented!()
+    config.id = OperatorId::new_deterministic();
+
+    let read_stream_ids = vec![read_stream.id()];
+
+    let read_stream_ids_copy = read_stream_ids.clone();
+    let config_copy = config.clone();
+    let op_runner =
+        move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
+            let mut channel_manager = channel_manager.lock().unwrap();
+
+            let read_stream = channel_manager
+                .take_read_stream(read_stream_ids_copy[0])
+                .unwrap();
+
+            let executor = SinkExecutor::new(
+                config_copy.clone(),
+                operator_fn.clone(),
+                state_fn.clone(),
+                read_stream,
+            );
+
+            Box::new(executor)
+        };
+
+    default_graph::add_operator(
+        config.id,
+        config.name,
+        config.node_id,
+        read_stream_ids,
+        vec![],
+        op_runner,
+    );
 }
 
 pub fn connect_one_in_one_out<O, S, T, U>(

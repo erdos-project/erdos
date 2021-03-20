@@ -25,7 +25,8 @@ use crate::{
     dataflow::{
         operator::{
             OneInOneOut, OneInOneOutContext, OneInTwoOut, OneInTwoOutContext, OperatorConfig, Sink,
-            SinkContext, Source, StatefulOneInOneOutContext, TwoInOneOut, TwoInOneOutContext,
+            SinkContext, Source, StatefulOneInOneOutContext, StatefulSinkContext, TwoInOneOut,
+            TwoInOneOutContext,
         },
         stream::StreamId,
         stream::WriteStreamT,
@@ -144,7 +145,7 @@ where
 {
     config: OperatorConfig,
     operator: O,
-    state: S,
+    state: Arc<Mutex<S>>,
     read_stream: ReadStream<T>,
 }
 
@@ -163,13 +164,106 @@ where
         Self {
             config,
             operator: operator_fn(),
-            state: state_fn(),
+            state: Arc::new(Mutex::new(state_fn())),
             read_stream,
         }
     }
 
     pub async fn execute(&mut self) {
-        unimplemented!()
+        // TODO: replace this with a synchronization step
+        // that ensures all operators are ready to run.
+        tokio::time::delay_for(Duration::from_secs(1)).await;
+
+        slog::debug!(
+            crate::TERMINAL_LOGGER,
+            "Node {}: running operator {}",
+            self.config.node_id,
+            self.config.get_name()
+        );
+
+        tokio::task::block_in_place(|| self.operator.run(&mut self.read_stream));
+
+        // Set up lattice and event runners.
+        let lattice = Arc::new(ExecutionLattice::new());
+        let (notifier_tx, notifier_rx) = watch::channel(EventRunnerMessage::AddedEvents);
+        let mut event_runner_handles = Vec::new();
+        for _ in 0..self.config.num_event_runners {
+            let event_runner_fut =
+                tokio::task::spawn(event_runner(Arc::clone(&lattice), notifier_rx.clone()));
+            event_runner_handles.push(event_runner_fut);
+        }
+
+        // Get messages and insert events into lattice.
+        let mut read_ids = HashSet::new();
+        read_ids.insert(self.read_stream.id());
+        while let Ok(msg) = self.read_stream.async_read().await {
+            // TODO: optimize so that stateful callbacks not invoked if not needed.
+            let events = match msg.data() {
+                // Data message
+                Some(_) => {
+                    // Stateless callback.
+                    let msg_ref = Arc::clone(&msg);
+                    let mut ctx = SinkContext {
+                        timestamp: msg.timestamp().clone(),
+                    };
+                    let data_event = OperatorEvent::new(
+                        msg.timestamp().clone(),
+                        false,
+                        0,
+                        HashSet::new(), // Used to manage state in lattice, should be cleaned up.
+                        HashSet::new(), // Used to manage state in lattice, should be cleaned up.
+                        move || O::on_data(&mut ctx, msg_ref.data().unwrap()),
+                    );
+
+                    // Stateful callback
+                    let msg_ref = Arc::clone(&msg);
+                    let mut ctx = StatefulSinkContext {
+                        timestamp: msg.timestamp().clone(),
+                        state: Arc::clone(&self.state),
+                    };
+                    let stateful_data_event = OperatorEvent::new(
+                        msg.timestamp().clone(),
+                        false,
+                        0,
+                        read_ids.clone(),
+                        HashSet::new(),
+                        move || O::on_data_stateful(&mut ctx, msg_ref.data().unwrap()),
+                    );
+
+                    vec![data_event, stateful_data_event]
+                }
+                // Watermark
+                None => {
+                    let mut ctx = StatefulSinkContext {
+                        timestamp: msg.timestamp().clone(),
+                        state: Arc::clone(&self.state),
+                    };
+                    let watermark_event = OperatorEvent::new(
+                        msg.timestamp().clone(),
+                        true,
+                        0,
+                        read_ids.clone(),
+                        HashSet::new(),
+                        move || O::on_watermark(&mut ctx),
+                    );
+                    vec![watermark_event]
+                }
+            };
+
+            lattice.add_events(events).await;
+            notifier_tx
+                .broadcast(EventRunnerMessage::AddedEvents)
+                .unwrap();
+        }
+
+        // Wait for event runners to finish.
+        notifier_tx
+            .broadcast(EventRunnerMessage::DestroyOperator)
+            .unwrap();
+        // Handle errors?
+        future::join_all(event_runner_handles).await;
+
+        tokio::task::block_in_place(|| self.operator.destroy());
     }
 }
 
@@ -257,7 +351,7 @@ where
             // TODO: optimize so that stateful callbacks not invoked if not needed.
             let events = match msg.data() {
                 // Data message
-                Some(data) => {
+                Some(_) => {
                     // Stateless callback.
                     let msg_ref = Arc::clone(&msg);
                     let mut ctx = OneInOneOutContext {
@@ -268,8 +362,8 @@ where
                         msg.timestamp().clone(),
                         false,
                         0,
-                        read_ids.clone(),
-                        write_ids.clone(),
+                        HashSet::new(), // Used to manage state in lattice, should be cleaned up.
+                        HashSet::new(), // Used to manage state in lattice, should be cleaned up.
                         move || O::on_data(&mut ctx, msg_ref.data().unwrap()),
                     );
 
@@ -298,7 +392,7 @@ where
                         write_stream: self.write_stream.clone(),
                         state: Arc::clone(&self.state),
                     };
-                    let stateful_data_event = OperatorEvent::new(
+                    let watermark_event = OperatorEvent::new(
                         msg.timestamp().clone(),
                         true,
                         0,
@@ -322,9 +416,9 @@ where
                                     .ok();
                             },
                         );
-                        vec![stateful_data_event, flow_watermark_event]
+                        vec![watermark_event, flow_watermark_event]
                     } else {
-                        vec![stateful_data_event]
+                        vec![watermark_event]
                     }
                 }
             };

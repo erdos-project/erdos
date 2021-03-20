@@ -102,6 +102,51 @@ impl OneInOneOut<usize, usize, usize> for SumOperator {
     fn on_watermark(ctx: &mut StatefulOneInOneOutContext<usize, usize>) {}
 }
 
+struct SinkOperator {}
+
+impl SinkOperator {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Sink<(usize, usize), usize> for SinkOperator {
+    fn on_data(ctx: &mut SinkContext, data: &usize) {
+        slog::info!(
+            erdos::get_terminal_logger(),
+            "SinkOperator @ {:?}: received {}",
+            ctx.timestamp,
+            data
+        )
+    }
+
+    fn on_data_stateful(ctx: &mut StatefulSinkContext<(usize, usize)>, _data: &usize) {
+        // State := number of messages and watermarks received.
+        let mut state = ctx.state.try_lock().unwrap();
+        state.0 += 1;
+        slog::info!(
+            erdos::get_terminal_logger(),
+            "SinkOperator @ {:?}: received {} data messages, {} watermarks",
+            ctx.timestamp,
+            state.0,
+            state.1,
+        )
+    }
+
+    fn on_watermark(ctx: &mut StatefulSinkContext<(usize, usize)>) {
+        // State := number of messages and watermarks received.
+        let mut state = ctx.state.try_lock().unwrap();
+        state.1 += 1;
+        slog::info!(
+            erdos::get_terminal_logger(),
+            "SinkOperator @ {:?}: received {} data messages, {} watermarks",
+            ctx.timestamp,
+            state.0,
+            state.1,
+        )
+    }
+}
+
 fn main() {
     let args = erdos::new_app("ERDOS").get_matches();
     let mut node = Node::new(Configuration::from_args(&args));
@@ -122,20 +167,9 @@ fn main() {
     let sum_stream =
         erdos::connect_one_in_one_out(SumOperator::new, || 0, sum_config, &square_stream);
 
-    // let s1 = connect_1_write!(
-    //     SourceOperator,
-    //     OperatorConfig::new().name("SourceOperator1")
-    // );
-    // let s2 = connect_1_write!(
-    //     SourceOperator,
-    //     OperatorConfig::new().name("SourceOperator2")
-    // );
-    // let _s3 = connect_1_write!(JoinOperator<usize, usize, usize>, OperatorConfig::new().name("JoinOperator").arg(
-    //     |left: Vec<usize>, right: Vec<usize>| -> usize {
-    //         let left_sum: usize = left.iter().sum();
-    //         let right_sum: usize = right.iter().sum();
-    //         left_sum + right_sum
-    //     }), s1, s2);
+    let sum_stream = ReadStream::from(&sum_stream);
+    let sink_config = OperatorConfig::new().name("SinkOperator");
+    erdos::connect_sink(SinkOperator::new, || (0, 0), sink_config, &sum_stream);
 
     node.run();
 }
