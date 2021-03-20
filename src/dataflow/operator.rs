@@ -1,7 +1,8 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use futures::channel;
 use serde::Deserialize;
+use tokio::sync::Mutex;
 
 use crate::{
     communication::RecvEndpoint,
@@ -54,7 +55,7 @@ pub struct SinkContext {
 pub struct StatefulSinkContext<S: State> {
     pub timestamp: Timestamp,
     // Hacky...
-    pub state: Arc<tokio::sync::Mutex<S>>,
+    pub state: Arc<Mutex<S>>,
 }
 
 /*****************************************************************************
@@ -83,27 +84,43 @@ pub struct OneInOneOutContext<U: Data> {
     pub write_stream: WriteStream<U>,
 }
 
-pub struct StatefulOneInOneOutContext<S: State, U: Data> {
+pub struct StatefulOneInOneOutContext<S, V>
+where
+    S: State,
+    V: Data + for<'a> Deserialize<'a>,
+{
     pub timestamp: Timestamp,
-    pub write_stream: WriteStream<U>,
+    pub write_stream: WriteStream<V>,
     // Hacky...
-    pub state: Arc<tokio::sync::Mutex<S>>,
+    pub state: Arc<Mutex<S>>,
 }
 
 /*****************************************************************************
  * TwoInOneOut: receives T, receives U, sends V                              *
  *****************************************************************************/
 
-pub trait TwoInOneOut<S: State, T: Data, U: Data, V: Data>: Send {
-    fn run(&mut self) {}
+pub trait TwoInOneOut<S, T, U, V>: Send
+where
+    S: State,
+    T: Data + for<'a> Deserialize<'a>,
+    U: Data + for<'a> Deserialize<'a>,
+    V: Data + for<'a> Deserialize<'a>,
+{
+    fn run(
+        &mut self,
+        left_read_stream: &mut ReadStream<T>,
+        right_read_stream: &mut ReadStream<U>,
+        write_stream: &mut WriteStream<V>,
+    ) {
+    }
 
     fn destroy(&mut self) {}
 
-    fn on_left_data(ctx: &mut TwoInOneOutContext<U>, data: &T);
+    fn on_left_data(ctx: &mut TwoInOneOutContext<V>, data: &T);
 
     fn on_left_data_stateful(ctx: &mut StatefulTwoInOneOutContext<S, V>, data: &T);
 
-    fn on_right_data(ctx: &mut TwoInOneOutContext<U>, data: &U);
+    fn on_right_data(ctx: &mut TwoInOneOutContext<V>, data: &U);
 
     fn on_right_data_stateful(ctx: &mut StatefulTwoInOneOutContext<S, V>, data: &U);
 
@@ -119,7 +136,7 @@ pub struct TwoInOneOutContext<U: Data> {
 pub struct StatefulTwoInOneOutContext<S: State, U: Data> {
     pub timestamp: Timestamp,
     pub write_stream: WriteStream<U>,
-    pub state: S,
+    pub state: Arc<Mutex<S>>,
 }
 
 /*****************************************************************************

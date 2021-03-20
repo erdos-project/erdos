@@ -1,13 +1,13 @@
 #[macro_use]
 extern crate erdos;
 
-use std::usize;
+use std::{thread, time::Duration};
 
 use erdos::dataflow::stream::WriteStreamT;
 use erdos::dataflow::*;
 use erdos::node::Node;
 use erdos::Configuration;
-use erdos::{dataflow::operator::*, get_terminal_logger};
+use erdos::{connect_two_in_one_out, dataflow::operator::*};
 
 struct SourceOperator {}
 
@@ -29,6 +29,7 @@ impl Source<(), usize> for SourceOperator {
             write_stream
                 .send(Message::new_watermark(timestamp))
                 .unwrap();
+            thread::sleep(Duration::from_millis(100));
         }
     }
 
@@ -147,6 +148,57 @@ impl Sink<(usize, usize), usize> for SinkOperator {
     }
 }
 
+struct JoinSumOperator {}
+
+impl JoinSumOperator {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl TwoInOneOut<usize, usize, usize, usize> for JoinSumOperator {
+    fn on_left_data(_ctx: &mut TwoInOneOutContext<usize>, _data: &usize) {}
+
+    fn on_left_data_stateful(ctx: &mut StatefulTwoInOneOutContext<usize, usize>, data: &usize) {
+        let mut state = ctx.state.try_lock().unwrap();
+        *state += data;
+        slog::info!(
+            erdos::get_terminal_logger(),
+            "JoinSumOperator @ {:?}: received {} on left stream, sum is {}",
+            ctx.timestamp,
+            data,
+            state,
+        );
+    }
+
+    fn on_right_data(_ctx: &mut TwoInOneOutContext<usize>, _data: &usize) {}
+
+    fn on_right_data_stateful(ctx: &mut StatefulTwoInOneOutContext<usize, usize>, data: &usize) {
+        let mut state = ctx.state.try_lock().unwrap();
+        *state += data;
+        slog::info!(
+            erdos::get_terminal_logger(),
+            "JoinSumOperator @ {:?}: received {} on right stream, sum is {}",
+            ctx.timestamp,
+            data,
+            state,
+        );
+    }
+
+    fn on_watermark(ctx: &mut StatefulTwoInOneOutContext<usize, usize>) {
+        let state = ctx.state.try_lock().unwrap();
+        slog::info!(
+            erdos::get_terminal_logger(),
+            "JoinSumOperator @ {:?}: received watermark, sending sum of {}",
+            ctx.timestamp,
+            state,
+        );
+        ctx.write_stream
+            .send(Message::new_message(ctx.timestamp.clone(), *state))
+            .unwrap();
+    }
+}
+
 fn main() {
     let args = erdos::new_app("ERDOS").get_matches();
     let mut node = Node::new(Configuration::from_args(&args));
@@ -170,6 +222,15 @@ fn main() {
     let sum_stream = ReadStream::from(&sum_stream);
     let sink_config = OperatorConfig::new().name("SinkOperator");
     erdos::connect_sink(SinkOperator::new, || (0, 0), sink_config, &sum_stream);
+
+    let join_sum_config = OperatorConfig::new().name("JoinSumOperator");
+    let join_stream = erdos::connect_two_in_one_out(
+        JoinSumOperator::new,
+        || 0,
+        join_sum_config,
+        &source_stream,
+        &sum_stream,
+    );
 
     node.run();
 }
