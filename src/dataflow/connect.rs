@@ -242,5 +242,52 @@ where
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
 {
-    unimplemented!()
+    config.id = OperatorId::new_deterministic();
+    let left_write_stream = WriteStream::new();
+    let right_write_stream = WriteStream::new();
+
+    let read_stream_ids = vec![read_stream.id()];
+    let write_stream_ids = vec![left_write_stream.id(), right_write_stream.id()];
+
+    let read_stream_ids_copy = read_stream_ids.clone();
+    let write_stream_ids_copy = write_stream_ids.clone();
+    let config_copy = config.clone();
+    let op_runner =
+        move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
+            let mut channel_manager = channel_manager.lock().unwrap();
+
+            let read_stream = channel_manager
+                .take_read_stream(read_stream_ids_copy[0])
+                .unwrap();
+            let left_write_stream = channel_manager
+                .get_write_stream(write_stream_ids_copy[0])
+                .unwrap();
+            let right_write_stream = channel_manager
+                .get_write_stream(write_stream_ids_copy[0])
+                .unwrap();
+
+            let executor = OneInTwoOutExecutor::new(
+                config_copy.clone(),
+                operator_fn.clone(),
+                state_fn.clone(),
+                read_stream,
+                left_write_stream,
+                right_write_stream,
+            );
+
+            Box::new(executor)
+        };
+
+    default_graph::add_operator(
+        config.id,
+        config.name,
+        config.node_id,
+        read_stream_ids,
+        write_stream_ids,
+        op_runner,
+    );
+    default_graph::add_operator_stream(config.id, &left_write_stream);
+    default_graph::add_operator_stream(config.id, &right_write_stream);
+
+    (left_write_stream, right_write_stream)
 }

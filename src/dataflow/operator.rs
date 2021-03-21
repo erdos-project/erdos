@@ -144,7 +144,13 @@ pub struct StatefulTwoInOneOutContext<S: State, U: Data> {
  *****************************************************************************/
 
 pub trait OneInTwoOut<S: State, T: Data, U: Data, V: Data>: Send {
-    fn run(&mut self) {}
+    fn run(
+        &mut self,
+        read_stream: &mut ReadStream<T>,
+        left_write_stream: &mut WriteStream<U>,
+        right_write_stream: &mut WriteStream<V>,
+    ) {
+    }
 
     fn destroy(&mut self) {}
 
@@ -165,7 +171,7 @@ pub struct StatefulOneInTwoOutContext<S: State, U: Data, V: Data> {
     pub timestamp: Timestamp,
     pub left_write_stream: WriteStream<U>,
     pub right_write_stream: WriteStream<V>,
-    pub state: S,
+    pub state: Arc<Mutex<S>>,
 }
 
 #[derive(Clone)]

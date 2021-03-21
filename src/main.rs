@@ -3,11 +3,11 @@ extern crate erdos;
 
 use std::{thread, time::Duration};
 
+use erdos::dataflow::operator::*;
 use erdos::dataflow::stream::WriteStreamT;
 use erdos::dataflow::*;
 use erdos::node::Node;
 use erdos::Configuration;
-use erdos::{connect_two_in_one_out, dataflow::operator::*};
 
 struct SourceOperator {}
 
@@ -199,6 +199,44 @@ impl TwoInOneOut<usize, usize, usize, usize> for JoinSumOperator {
     }
 }
 
+struct EvenOddOperator {}
+
+impl EvenOddOperator {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl OneInTwoOut<(), usize, usize, usize> for EvenOddOperator {
+    fn on_data(ctx: &mut OneInTwoOutContext<usize, usize>, data: &usize) {
+        if data % 2 == 0 {
+            slog::info!(
+                erdos::get_terminal_logger(),
+                "EvenOddOperator @ {:?}: sending even number {} on left stream",
+                ctx.timestamp,
+                data,
+            );
+            ctx.left_write_stream
+                .send(Message::new_message(ctx.timestamp.clone(), *data))
+                .unwrap();
+        } else {
+            slog::info!(
+                erdos::get_terminal_logger(),
+                "EvenOddOperator @ {:?}: sending odd number {} on right stream",
+                ctx.timestamp,
+                data,
+            );
+            ctx.right_write_stream
+                .send(Message::new_message(ctx.timestamp.clone(), *data))
+                .unwrap();
+        }
+    }
+
+    fn on_data_stateful(ctx: &mut StatefulOneInTwoOutContext<(), usize, usize>, data: &usize) {}
+
+    fn on_watermark(ctx: &mut StatefulOneInTwoOutContext<(), usize, usize>) {}
+}
+
 fn main() {
     let args = erdos::new_app("ERDOS").get_matches();
     let mut node = Node::new(Configuration::from_args(&args));
@@ -231,6 +269,10 @@ fn main() {
         &source_stream,
         &sum_stream,
     );
+
+    let even_odd_config = OperatorConfig::new().name("EvenOddOperator");
+    let (even_stream, odd_stream) =
+        erdos::connect_one_in_two_out(EvenOddOperator::new, || {}, even_odd_config, &source_stream);
 
     node.run();
 }
