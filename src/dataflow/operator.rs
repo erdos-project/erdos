@@ -36,7 +36,7 @@ where
  * Sink: receives data with type T                                           *
  *****************************************************************************/
 
-pub trait Sink<S: State, T: Data>: Send {
+pub trait Sink<S: State, T: Data>: Send + Sync {
     fn run(&mut self, read_stream: &mut ReadStream<T>) {}
 
     fn destroy(&mut self) {}

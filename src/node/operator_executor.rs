@@ -3,6 +3,7 @@ use std::{
     cmp,
     collections::{HashMap, HashSet},
     future::Future,
+    marker::PhantomData,
     pin::Pin,
     rc::Rc,
     sync::{
@@ -71,6 +72,108 @@ pub trait OperatorExecutorT: Send {
     fn execute<'a>(&'a mut self) -> Pin<Box<dyn Future<Output = ()> + 'a + Send>>;
 }
 
+pub trait MessageProcessorT<T>: Send + Sync
+where
+    T: Data + for<'a> Deserialize<'a>,
+{
+    // Generates an OperatorEvent for a stateless callback.
+    fn stateless_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent;
+
+    // Generates an OperatorEvent for a stateful callback.
+    fn stateful_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent;
+
+    // Generates an OperatorEvent for a watermark callback.
+    fn watermark_cb_event(&self, timestamp: &Timestamp) -> OperatorEvent;
+}
+
+pub struct OperatorExecutorHelper<T> {
+    lattice: Arc<ExecutionLattice>,
+    event_runner_handles: Option<Vec<tokio::task::JoinHandle<()>>>,
+    phantom: PhantomData<T>,
+}
+
+impl<T> OperatorExecutorHelper<T>
+where
+    T: Data + for<'a> Deserialize<'a>,
+{
+    fn new() -> Self {
+        OperatorExecutorHelper {
+            lattice: Arc::new(ExecutionLattice::new()),
+            event_runner_handles: None,
+            phantom: PhantomData,
+        }
+    }
+
+    async fn synchronize(&self) {
+        // TODO: replace this with a synchronization step
+        // that ensures all operators are ready to run.
+        tokio::time::delay_for(Duration::from_secs(1)).await;
+    }
+
+    fn setup(
+        &mut self,
+        num_event_runners: usize,
+    ) -> tokio::sync::watch::Sender<EventRunnerMessage> {
+        // Set up the event runner.
+        let (notifier_tx, notifier_rx) = watch::channel(EventRunnerMessage::AddedEvents);
+        self.event_runner_handles = Some(Vec::with_capacity(num_event_runners));
+        for _ in 0..num_event_runners {
+            let event_runner_fut =
+                tokio::task::spawn(event_runner(Arc::clone(&self.lattice), notifier_rx.clone()));
+            self.event_runner_handles
+                .as_mut()
+                .unwrap()
+                .push(event_runner_fut);
+        }
+        notifier_tx
+    }
+
+    async fn process_messages(
+        &self,
+        mut read_stream: ReadStream<T>,
+        message_processor: &dyn MessageProcessorT<T>,
+        notifier_tx: &tokio::sync::watch::Sender<EventRunnerMessage>,
+    ) {
+        while let Ok(msg) = read_stream.async_read().await {
+            // TODO: optimize so that stateful callbacks not invoked if not needed.
+            let events = match msg.data() {
+                // Data message
+                Some(_) => {
+                    // Stateless callback.
+                    let msg_ref = Arc::clone(&msg);
+                    let stateless_data_event = message_processor.stateless_cb_event(msg_ref);
+
+                    // Stateful callback
+                    let msg_ref = Arc::clone(&msg);
+                    let stateful_data_event = message_processor.stateful_cb_event(msg_ref);
+                    vec![stateless_data_event, stateful_data_event]
+                }
+                // Watermark
+                None => {
+                    let watermark_event = message_processor.watermark_cb_event(msg.timestamp());
+                    vec![watermark_event]
+                }
+            };
+
+            self.lattice.add_events(events).await;
+            notifier_tx
+                .broadcast(EventRunnerMessage::AddedEvents)
+                .unwrap();
+        }
+    }
+
+    async fn teardown(&mut self, notifier_tx: &tokio::sync::watch::Sender<EventRunnerMessage>) {
+        // Wait for event runners to finish.
+        notifier_tx
+            .broadcast(EventRunnerMessage::DestroyOperator)
+            .unwrap();
+
+        // Handle errors?
+        let event_runner_handles = self.event_runner_handles.take().unwrap();
+        future::join_all(event_runner_handles).await;
+    }
+}
+
 pub struct SourceExecutor<O, S, T>
 where
     O: Source<S, T>,
@@ -81,6 +184,7 @@ where
     operator: O,
     state: S,
     write_stream: WriteStream<T>,
+    helper: OperatorExecutorHelper<T>,
 }
 
 impl<O, S, T> SourceExecutor<O, S, T>
@@ -100,13 +204,12 @@ where
             operator: operator_fn(),
             state: state_fn(),
             write_stream,
+            helper: OperatorExecutorHelper::new(),
         }
     }
 
     pub async fn execute(&mut self) {
-        // TODO: replace this with a synchronization step
-        // that ensures all operators are ready to run.
-        tokio::time::delay_for(Duration::from_secs(1)).await;
+        self.helper.synchronize().await;
 
         slog::debug!(
             crate::TERMINAL_LOGGER,
@@ -147,7 +250,9 @@ where
     config: OperatorConfig,
     operator: O,
     state: Arc<Mutex<S>>,
-    read_stream: ReadStream<T>,
+    read_stream: Option<ReadStream<T>>,
+    helper: OperatorExecutorHelper<T>,
+    read_ids: HashSet<StreamId>,
 }
 
 impl<O, S, T> SinkExecutor<O, S, T>
@@ -166,14 +271,14 @@ where
             config,
             operator: operator_fn(),
             state: Arc::new(Mutex::new(state_fn())),
-            read_stream,
+            read_ids: vec![read_stream.id()].into_iter().collect(),
+            read_stream: Some(read_stream),
+            helper: OperatorExecutorHelper::new(),
         }
     }
 
     pub async fn execute(&mut self) {
-        // TODO: replace this with a synchronization step
-        // that ensures all operators are ready to run.
-        tokio::time::delay_for(Duration::from_secs(1)).await;
+        self.helper.synchronize().await;
 
         slog::debug!(
             crate::TERMINAL_LOGGER,
@@ -182,87 +287,16 @@ where
             self.config.get_name()
         );
 
-        tokio::task::block_in_place(|| self.operator.run(&mut self.read_stream));
+        tokio::task::block_in_place(|| self.operator.run(self.read_stream.as_mut().unwrap()));
 
-        // Set up lattice and event runners.
-        let lattice = Arc::new(ExecutionLattice::new());
-        let (notifier_tx, notifier_rx) = watch::channel(EventRunnerMessage::AddedEvents);
-        let mut event_runner_handles = Vec::new();
-        for _ in 0..self.config.num_event_runners {
-            let event_runner_fut =
-                tokio::task::spawn(event_runner(Arc::clone(&lattice), notifier_rx.clone()));
-            event_runner_handles.push(event_runner_fut);
-        }
+        let notifier_tx = self.helper.setup(self.config.num_event_runners);
 
-        // Get messages and insert events into lattice.
-        let mut read_ids = HashSet::new();
-        read_ids.insert(self.read_stream.id());
-        while let Ok(msg) = self.read_stream.async_read().await {
-            // TODO: optimize so that stateful callbacks not invoked if not needed.
-            let events = match msg.data() {
-                // Data message
-                Some(_) => {
-                    // Stateless callback.
-                    let msg_ref = Arc::clone(&msg);
-                    let mut ctx = SinkContext {
-                        timestamp: msg.timestamp().clone(),
-                    };
-                    let data_event = OperatorEvent::new(
-                        msg.timestamp().clone(),
-                        false,
-                        0,
-                        HashSet::new(), // Used to manage state in lattice, should be cleaned up.
-                        HashSet::new(), // Used to manage state in lattice, should be cleaned up.
-                        move || O::on_data(&mut ctx, msg_ref.data().unwrap()),
-                    );
+        let read_stream: ReadStream<T> = self.read_stream.take().unwrap();
+        self.helper
+            .process_messages(read_stream, &(*self), &notifier_tx)
+            .await;
 
-                    // Stateful callback
-                    let msg_ref = Arc::clone(&msg);
-                    let mut ctx = StatefulSinkContext {
-                        timestamp: msg.timestamp().clone(),
-                        state: Arc::clone(&self.state),
-                    };
-                    let stateful_data_event = OperatorEvent::new(
-                        msg.timestamp().clone(),
-                        false,
-                        0,
-                        read_ids.clone(),
-                        HashSet::new(),
-                        move || O::on_data_stateful(&mut ctx, msg_ref.data().unwrap()),
-                    );
-
-                    vec![data_event, stateful_data_event]
-                }
-                // Watermark
-                None => {
-                    let mut ctx = StatefulSinkContext {
-                        timestamp: msg.timestamp().clone(),
-                        state: Arc::clone(&self.state),
-                    };
-                    let watermark_event = OperatorEvent::new(
-                        msg.timestamp().clone(),
-                        true,
-                        0,
-                        read_ids.clone(),
-                        HashSet::new(),
-                        move || O::on_watermark(&mut ctx),
-                    );
-                    vec![watermark_event]
-                }
-            };
-
-            lattice.add_events(events).await;
-            notifier_tx
-                .broadcast(EventRunnerMessage::AddedEvents)
-                .unwrap();
-        }
-
-        // Wait for event runners to finish.
-        notifier_tx
-            .broadcast(EventRunnerMessage::DestroyOperator)
-            .unwrap();
-        // Handle errors?
-        future::join_all(event_runner_handles).await;
+        self.helper.teardown(&notifier_tx).await;
 
         tokio::task::block_in_place(|| self.operator.destroy());
     }
@@ -276,6 +310,59 @@ where
 {
     fn execute<'a>(&'a mut self) -> Pin<Box<dyn Future<Output = ()> + 'a + Send>> {
         Box::pin(self.execute())
+    }
+}
+
+impl<O, S, T> MessageProcessorT<T> for SinkExecutor<O, S, T>
+where
+    O: Sink<S, T>,
+    S: State,
+    T: Data + for<'a> Deserialize<'a>,
+{
+    fn stateless_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent {
+        let mut ctx = SinkContext {
+            timestamp: msg.timestamp().clone(),
+        };
+        OperatorEvent::new(
+            msg.timestamp().clone(),
+            false,
+            0,
+            HashSet::new(),
+            HashSet::new(),
+            move || O::on_data(&mut ctx, msg.data().unwrap()),
+        )
+    }
+
+    // Generates an OperatorEvent for a stateful callback.
+    fn stateful_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent {
+        let mut ctx = StatefulSinkContext {
+            timestamp: msg.timestamp().clone(),
+            state: Arc::clone(&self.state),
+        };
+        OperatorEvent::new(
+            msg.timestamp().clone(),
+            false,
+            0,
+            self.read_ids.clone(),
+            HashSet::new(),
+            move || O::on_data_stateful(&mut ctx, msg.data().unwrap()),
+        )
+    }
+
+    // Generates an OperatorEvent for a watermark callback.
+    fn watermark_cb_event(&self, timestamp: &Timestamp) -> OperatorEvent {
+        let mut ctx = StatefulSinkContext {
+            timestamp: timestamp.clone(),
+            state: Arc::clone(&self.state),
+        };
+        OperatorEvent::new(
+            timestamp.clone(),
+            true,
+            0,
+            self.read_ids.clone(),
+            HashSet::new(),
+            move || O::on_watermark(&mut ctx),
+        )
     }
 }
 
