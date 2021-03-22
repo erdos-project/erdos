@@ -45,16 +45,6 @@ pub use write_stream::WriteStream;
 
 pub type StreamId = crate::Uuid;
 
-pub(crate) trait EventMakerT {
-    type EventDataType: Data;
-
-    /// Returns the id of the stream.
-    fn get_id(&self) -> StreamId;
-
-    /// Returns the vector of events that a message receipt generates.
-    fn make_events(&self, msg: Arc<Message<Self::EventDataType>>) -> Vec<OperatorEvent>;
-}
-
 /// Write stream trait which allows specialized implementations of
 /// [`send`](WriteStreamT::send) depending on the serialization library used.
 pub trait WriteStreamT<D: Data> {

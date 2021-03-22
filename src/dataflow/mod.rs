@@ -10,9 +10,6 @@ pub mod operator;
 pub mod state;
 pub mod stream;
 
-// Crate-wide exports
-pub(crate) use stream::EventMakerT;
-
 // Public exports
 pub use message::{Data, Message, Timestamp, TimestampedData};
 pub use operator::OperatorConfig;
