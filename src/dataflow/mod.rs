@@ -14,7 +14,7 @@ pub mod stream;
 pub use message::{Data, Message, Timestamp, TimestampedData};
 pub use operator::OperatorConfig;
 pub use state::State;
-pub use stream::{LoopStream, ReadStream, WriteStream};
+pub use stream::{LoopStream, OperatorStream, ReadStream, Stream, WriteStream};
 
 #[cfg(test)]
 mod tests {

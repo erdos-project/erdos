@@ -6,7 +6,8 @@ use serde::Deserialize;
 use crate::{
     communication::RecvEndpoint,
     dataflow::{
-        graph::default_graph, operator::*, Data, Message, ReadStream, State, Timestamp, WriteStream,
+        graph::default_graph, operator::*, Data, Message, OperatorStream, ReadStream, State,
+        Stream, Timestamp, WriteStream,
     },
     node::{
         operator_executor::{
@@ -23,14 +24,14 @@ pub fn connect_source<O, S, T>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-) -> WriteStream<T>
+) -> OperatorStream<T>
 where
     O: 'static + Source<S, T>,
     S: State,
     T: Data + for<'a> Deserialize<'a>,
 {
     config.id = OperatorId::new_deterministic();
-    let write_stream = WriteStream::new();
+    let write_stream = OperatorStream::new();
 
     let write_stream_ids = vec![write_stream.id()];
 
@@ -71,7 +72,7 @@ pub fn connect_sink<O, S, T>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: &ReadStream<T>,
+    read_stream: &impl Stream<T>,
 ) where
     O: 'static + Sink<S, T>,
     S: State,
@@ -115,8 +116,8 @@ pub fn connect_one_in_one_out<O, S, T, U>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: &ReadStream<T>,
-) -> WriteStream<U>
+    read_stream: &impl Stream<T>,
+) -> OperatorStream<U>
 where
     O: 'static + OneInOneOut<S, T, U>,
     S: State,
@@ -124,7 +125,7 @@ where
     U: Data + for<'a> Deserialize<'a>,
 {
     config.id = OperatorId::new_deterministic();
-    let write_stream = WriteStream::new();
+    let write_stream = OperatorStream::new();
 
     let read_stream_ids = vec![read_stream.id()];
     let write_stream_ids = vec![write_stream.id()];
@@ -171,9 +172,9 @@ pub fn connect_two_in_one_out<O, S, T, U, V>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    left_read_stream: &ReadStream<T>,
-    right_read_stream: &ReadStream<U>,
-) -> WriteStream<V>
+    left_read_stream: &impl Stream<T>,
+    right_read_stream: &impl Stream<U>,
+) -> OperatorStream<V>
 where
     O: 'static + TwoInOneOut<S, T, U, V>,
     S: State,
@@ -182,7 +183,7 @@ where
     V: Data + for<'a> Deserialize<'a>,
 {
     config.id = OperatorId::new_deterministic();
-    let write_stream = WriteStream::new();
+    let write_stream = OperatorStream::new();
 
     let read_stream_ids = vec![left_read_stream.id(), right_read_stream.id()];
     let write_stream_ids = vec![write_stream.id()];
@@ -233,8 +234,8 @@ pub fn connect_one_in_two_out<O, S, T, U, V>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: &ReadStream<T>,
-) -> (WriteStream<U>, WriteStream<V>)
+    read_stream: &impl Stream<T>,
+) -> (OperatorStream<U>, OperatorStream<V>)
 where
     O: 'static + OneInTwoOut<S, T, U, V>,
     S: State,
@@ -243,8 +244,8 @@ where
     V: Data + for<'a> Deserialize<'a>,
 {
     config.id = OperatorId::new_deterministic();
-    let left_write_stream = WriteStream::new();
-    let right_write_stream = WriteStream::new();
+    let left_write_stream = OperatorStream::new();
+    let right_write_stream = OperatorStream::new();
 
     let read_stream_ids = vec![read_stream.id()];
     let write_stream_ids = vec![left_write_stream.id(), right_write_stream.id()];

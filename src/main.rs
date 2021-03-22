@@ -243,21 +243,15 @@ fn main() {
 
     let source_config = OperatorConfig::new().name("SourceOperator");
     let source_stream = erdos::connect_source(SourceOperator::new, || {}, source_config);
-    // TODO: clean up API weirdness.
-    // * Add a new abstract stream type.
-    // * Look into removing connect from trait.
-    let source_stream = ReadStream::from(&source_stream);
 
     let square_config = OperatorConfig::new().name("SquareOperator");
     let square_stream =
         erdos::connect_one_in_one_out(SquareOperator::new, || {}, square_config, &source_stream);
-    let square_stream = ReadStream::from(&square_stream);
 
     let sum_config = OperatorConfig::new().name("SumOperator");
     let sum_stream =
         erdos::connect_one_in_one_out(SumOperator::new, || 0, sum_config, &square_stream);
 
-    let sum_stream = ReadStream::from(&sum_stream);
     let sink_config = OperatorConfig::new().name("SinkOperator");
     erdos::connect_sink(SinkOperator::new, || (0, 0), sink_config, &sum_stream);
 
