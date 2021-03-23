@@ -62,7 +62,7 @@ pub struct StatefulSinkContext<S: State> {
  * OneInOneOut: receives T, sends U                                          *
  *****************************************************************************/
 
-pub trait OneInOneOut<S, T, U>: Send
+pub trait OneInOneOut<S, T, U>: Send + Sync
 where
     S: State,
     T: Data + for<'a> Deserialize<'a>,
