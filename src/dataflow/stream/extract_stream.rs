@@ -179,7 +179,7 @@ where
                 match channel_manager.lock().unwrap().take_recv_endpoint(self.id) {
                     Ok(recv_endpoint) => {
                         let mut read_stream =
-                            ReadStream::new_internal(self.id, &self.name, Some(recv_endpoint));
+                            ReadStream::new(self.id, &self.name, Some(recv_endpoint));
 
                         let result = read_stream.try_read();
                         self.read_stream_option.replace(read_stream);

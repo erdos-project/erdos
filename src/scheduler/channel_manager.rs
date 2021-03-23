@@ -291,9 +291,8 @@ impl ChannelManager {
     where
         D: Data + for<'a> Deserialize<'a>,
     {
-        self.take_recv_endpoint(stream_id).map(|endpoint| {
-            ReadStream::new_internal(stream_id, &stream_id.to_string(), Some(endpoint))
-        })
+        self.take_recv_endpoint(stream_id)
+            .map(|endpoint| ReadStream::new(stream_id, &stream_id.to_string(), Some(endpoint)))
     }
 
     pub fn get_write_stream<D>(&mut self, stream_id: StreamId) -> Result<WriteStream<D>, String>

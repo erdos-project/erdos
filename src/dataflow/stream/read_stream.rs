@@ -98,25 +98,7 @@ pub struct ReadStream<D: Data> {
 }
 
 impl<D: Data> ReadStream<D> {
-    /// Returns a new instance of the [`ReadStream`].
-    /// Note that ERDOS automatically converts the [`WriteStream`]s returned by an
-    /// [`Operator`](crate::dataflow::operator::Operator) to a corresponding [`ReadStream`].
-    pub(crate) fn new() -> Self {
-        let id = StreamId::new_deterministic();
-        Self::new_internal(id, &id.to_string(), None)
-    }
-
-    /// Returns a new instance of the [`ReadStream`] with the given name..
-    /// Note that ERDOS automatically converts the [`WriteStream`]s returned by an
-    /// [`Operator`](crate::dataflow::operator::Operator) to a corresponding [`ReadStream`].
-    ///
-    /// # Arguments
-    /// * name - The name of the stream.
-    pub(crate) fn new_with_name(name: &str) -> Self {
-        Self::new_internal(StreamId::new_deterministic(), name, None)
-    }
-
-    pub(crate) fn new_internal(
+    pub(crate) fn new(
         id: StreamId,
         name: &str,
         recv_endpoint: Option<RecvEndpoint<Arc<Message<D>>>>,

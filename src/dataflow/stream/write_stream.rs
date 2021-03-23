@@ -76,30 +76,8 @@ pub struct WriteStream<D: Data> {
 }
 
 impl<D: Data> WriteStream<D> {
-    /// Returns a new instance of the [`WriteStream`].
-    pub fn new() -> Self {
-        let id = StreamId::new_deterministic();
-        WriteStream::new_internal(id, id.to_string())
-    }
-
-    /// Returns a new instance of the [`WriteStream`].
-    ///
-    /// # Arguments
-    /// * `name` - The name to be given to the stream.
-    pub fn new_with_name(name: &str) -> Self {
-        WriteStream::new_internal(StreamId::new_deterministic(), name.to_string())
-    }
-
-    /// Returns a new instance of the [`WriteStream`].
-    ///
-    /// # Arguments
-    /// * `id` - The ID of the stream.
-    pub fn new_with_id(id: StreamId) -> Self {
-        WriteStream::new_internal(id, id.to_string())
-    }
-
     /// Creates the [`WriteStream`] to be used to send messages to the dataflow.
-    fn new_internal(id: StreamId, name: String) -> Self {
+    pub(crate) fn new(id: StreamId, name: &str) -> Self {
         slog::debug!(
             crate::TERMINAL_LOGGER,
             "Initializing a WriteStream {} with the ID: {}",
@@ -108,7 +86,7 @@ impl<D: Data> WriteStream<D> {
         );
         Self {
             id,
-            name,
+            name: name.to_string(),
             pusher: Some(Pusher::new()),
             low_watermark: Timestamp::new(vec![0]),
             stream_closed: false,
@@ -116,7 +94,7 @@ impl<D: Data> WriteStream<D> {
     }
 
     pub fn from_endpoints(endpoints: Vec<SendEndpoint<Arc<Message<D>>>>, id: StreamId) -> Self {
-        let mut stream = Self::new_with_id(id);
+        let mut stream = Self::new(id, &id.to_string());
         for endpoint in endpoints {
             stream.add_endpoint(endpoint);
         }
@@ -187,12 +165,6 @@ impl<D: Data> WriteStream<D> {
             }
         }
         Ok(())
-    }
-}
-
-impl<D: Data> Default for WriteStream<D> {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
