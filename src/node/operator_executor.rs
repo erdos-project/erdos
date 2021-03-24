@@ -112,8 +112,7 @@ pub struct OperatorExecutorHelper {
     event_runner_handles: Option<Vec<tokio::task::JoinHandle<()>>>,
 }
 
-impl OperatorExecutorHelper
-{
+impl OperatorExecutorHelper {
     fn new() -> Self {
         OperatorExecutorHelper {
             lattice: Arc::new(ExecutionLattice::new()),
@@ -151,7 +150,7 @@ impl OperatorExecutorHelper
         message_processor: &dyn OneInMessageProcessorT<T>,
         notifier_tx: &tokio::sync::watch::Sender<EventRunnerMessage>,
     ) where
-        T: Data + for<'a> Deserialize<'a>
+        T: Data + for<'a> Deserialize<'a>,
     {
         while let Ok(msg) = read_stream.async_read().await {
             // TODO: optimize so that stateful callbacks not invoked if not needed.
@@ -174,6 +173,82 @@ impl OperatorExecutorHelper
                 }
             };
 
+            self.lattice.add_events(events).await;
+            notifier_tx
+                .broadcast(EventRunnerMessage::AddedEvents)
+                .unwrap();
+        }
+    }
+
+    async fn process_two_streams<T, U>(
+        &self,
+        mut left_read_stream: ReadStream<T>,
+        mut right_read_stream: ReadStream<U>,
+        message_processor: &dyn TwoInMessageProcessorT<T, U>,
+        notifier_tx: &tokio::sync::watch::Sender<EventRunnerMessage>,
+    ) where
+        T: Data + for<'a> Deserialize<'a>,
+        U: Data + for<'a> Deserialize<'a>,
+    {
+        let mut left_watermark = Timestamp::bottom();
+        let mut right_watermark = Timestamp::bottom();
+        let mut min_watermark = cmp::min(&left_watermark, &right_watermark).clone();
+        loop {
+            let events = tokio::select! {
+                Ok(left_msg) = left_read_stream.async_read() => {
+                    match left_msg.data() {
+                        // Data message
+                        Some(_) => {
+                            // Stateless callback.
+                            let msg_ref = Arc::clone(&left_msg);
+                            let data_event = message_processor.left_stateless_cb_event(msg_ref);
+
+                            // Stateful callback
+                            let msg_ref = Arc::clone(&left_msg);
+                            let stateful_data_event = message_processor.left_stateful_cb_event(msg_ref);
+                            vec![data_event, stateful_data_event]
+                        }
+                        // Watermark
+                        None => {
+                            left_watermark = left_msg.timestamp().clone();
+                            let advance_watermark = cmp::min(&left_watermark, &right_watermark) > &min_watermark;
+                            if advance_watermark {
+                                min_watermark = left_watermark.clone();
+                                vec![message_processor.watermark_cb_event(&left_msg.timestamp().clone())]
+                            } else {
+                                Vec::new()
+                            }
+                        }
+                    }
+                }
+                Ok(right_msg) = right_read_stream.async_read() => {
+                    match right_msg.data() {
+                        // Data message
+                        Some(_) => {
+                            // Stateless callback.
+                            let msg_ref = Arc::clone(&right_msg);
+                            let data_event = message_processor.right_stateless_cb_event(msg_ref);
+
+                            // Stateful callback
+                            let msg_ref = Arc::clone(&right_msg);
+                            let stateful_data_event = message_processor.right_stateful_cb_event(msg_ref);
+                            vec![data_event, stateful_data_event]
+                        }
+                        // Watermark
+                        None => {
+                            right_watermark = right_msg.timestamp().clone();
+                            let advance_watermark = cmp::min(&left_watermark, &right_watermark) > &min_watermark;
+                            if advance_watermark {
+                                min_watermark = right_watermark.clone();
+                                vec![message_processor.watermark_cb_event(&right_msg.timestamp().clone())]
+                            } else {
+                                Vec::new()
+                            }
+                        }
+                    }
+                }
+                else => break,
+            };
             self.lattice.add_events(events).await;
             notifier_tx
                 .broadcast(EventRunnerMessage::AddedEvents)
