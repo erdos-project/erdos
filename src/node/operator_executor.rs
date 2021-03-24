@@ -30,7 +30,7 @@ use crate::{
         },
         stream::StreamId,
         stream::WriteStreamT,
-        Data, Message, ReadStream, State, Stream, Timestamp, WriteStream,
+        Data, Message, ReadStream, State, StreamT, Timestamp, WriteStream,
     },
     node::lattice::ExecutionLattice,
     node::operator_event::OperatorEvent,

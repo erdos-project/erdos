@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::dataflow::{graph::default_graph, Data};
 
-use super::{OperatorStream, ReadStream, Stream, StreamId};
+use super::{OperatorStream, ReadStream, StreamT, StreamId};
 
 /// Enables loops in the dataflow.
 ///
@@ -60,7 +60,7 @@ where
     }
 }
 
-impl<D> Stream<D> for LoopStream<D>
+impl<D> StreamT<D> for LoopStream<D>
 where
     for<'a> D: Data + Deserialize<'a>,
 {

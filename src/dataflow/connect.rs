@@ -7,7 +7,7 @@ use crate::{
     communication::RecvEndpoint,
     dataflow::{
         graph::default_graph, operator::*, Data, Message, OperatorStream, ReadStream, State,
-        Stream, Timestamp, WriteStream,
+        StreamT, Timestamp, WriteStream,
     },
     node::{
         operator_executor::{
@@ -72,7 +72,7 @@ pub fn connect_sink<O, S, T>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: &impl Stream<T>,
+    read_stream: &impl StreamT<T>,
 ) where
     O: 'static + Sink<S, T>,
     S: State,
@@ -116,7 +116,7 @@ pub fn connect_one_in_one_out<O, S, T, U>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: &impl Stream<T>,
+    read_stream: &impl StreamT<T>,
 ) -> OperatorStream<U>
 where
     O: 'static + OneInOneOut<S, T, U>,
@@ -172,8 +172,8 @@ pub fn connect_two_in_one_out<O, S, T, U, V>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    left_read_stream: &impl Stream<T>,
-    right_read_stream: &impl Stream<U>,
+    left_read_stream: &impl StreamT<T>,
+    right_read_stream: &impl StreamT<U>,
 ) -> OperatorStream<V>
 where
     O: 'static + TwoInOneOut<S, T, U, V>,
@@ -234,7 +234,7 @@ pub fn connect_one_in_two_out<O, S, T, U, V>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: &impl Stream<T>,
+    read_stream: &impl StreamT<T>,
 ) -> (OperatorStream<U>, OperatorStream<V>)
 where
     O: 'static + OneInTwoOut<S, T, U, V>,

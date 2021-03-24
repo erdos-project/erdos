@@ -52,7 +52,7 @@ pub trait WriteStreamT<D: Data> {
     fn send(&mut self, msg: Message<D>) -> Result<(), WriteStreamError>;
 }
 
-pub trait Stream<D: Data> {
+pub trait StreamT<D: Data> {
     fn id(&self) -> StreamId;
     fn name(&self) -> &str;
 }
@@ -88,7 +88,7 @@ impl<D: Data> OperatorStream<D> {
     }
 }
 
-impl<D: Data> Stream<D> for OperatorStream<D> {
+impl<D: Data> StreamT<D> for OperatorStream<D> {
     fn name(&self) -> &str {
         &self.name
     }

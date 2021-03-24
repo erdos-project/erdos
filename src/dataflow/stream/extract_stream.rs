@@ -15,7 +15,7 @@ use crate::{
 
 use super::{
     errors::{ReadError, TryReadError},
-    ReadStream, Stream, StreamId,
+    ReadStream, StreamT, StreamId,
 };
 
 /// An [`ExtractStream`] enables drivers to read data from a running ERDOS application.
@@ -222,7 +222,7 @@ where
     }
 }
 
-impl<D> Stream<D> for ExtractStream<D>
+impl<D> StreamT<D> for ExtractStream<D>
 where
     for<'a> D: Data + Deserialize<'a>,
 {

@@ -6,7 +6,7 @@ use serde::Deserialize;
 
 use crate::{
     dataflow::{
-        stream::{ExtractStream, IngestStream, LoopStream, Stream, StreamId, WriteStream},
+        stream::{ExtractStream, IngestStream, LoopStream, StreamT, StreamId, WriteStream},
         Data,
     },
     node::NodeId,
@@ -80,7 +80,7 @@ impl Graph {
         );
     }
 
-    pub fn add_operator_stream<D>(&mut self, operator_id: OperatorId, write_stream: &impl Stream<D>)
+    pub fn add_operator_stream<D>(&mut self, operator_id: OperatorId, write_stream: &impl StreamT<D>)
     where
         for<'a> D: Data + Deserialize<'a>,
     {

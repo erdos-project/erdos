@@ -9,7 +9,7 @@ use crate::{
 
 use super::{
     errors::{ReadError, TryReadError},
-    IngestStream, LoopStream, Stream, StreamId, WriteStream,
+    IngestStream, LoopStream, StreamT, StreamId, WriteStream,
 };
 
 /// A [`ReadStream`] allows operators to read data from a corresponding [`WriteStream`].
@@ -196,7 +196,7 @@ impl<D: Data> ReadStream<D> {
     }
 }
 
-impl<D: Data> Stream<D> for ReadStream<D> {
+impl<D: Data> StreamT<D> for ReadStream<D> {
     /// Get the ID given to the stream by the constructor.
     fn id(&self) -> StreamId {
         self.id
