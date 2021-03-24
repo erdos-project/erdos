@@ -144,7 +144,7 @@ impl OperatorExecutorHelper {
         notifier_tx
     }
 
-    async fn process_messages<T>(
+    async fn process_stream<T>(
         &self,
         mut read_stream: ReadStream<T>,
         message_processor: &dyn OneInMessageProcessorT<T>,
@@ -387,7 +387,7 @@ where
 
         let read_stream: ReadStream<T> = self.read_stream.take().unwrap();
         self.helper
-            .process_messages(read_stream, &(*self), &notifier_tx)
+            .process_stream(read_stream, &(*self), &notifier_tx)
             .await;
 
         self.helper.teardown(&notifier_tx).await;
@@ -522,7 +522,7 @@ where
 
         let read_stream: ReadStream<T> = self.read_stream.take().unwrap();
         self.helper
-            .process_messages(read_stream, &(*self), &notifier_tx)
+            .process_stream(read_stream, &(*self), &notifier_tx)
             .await;
 
         self.helper.teardown(&notifier_tx).await;
@@ -699,7 +699,9 @@ where
 
         let left_read_stream: ReadStream<T> = self.left_read_stream.take().unwrap();
         let right_read_stream: ReadStream<U> = self.right_read_stream.take().unwrap();
-        self.helper.process_two_streams(left_read_stream, right_read_stream, &(*self), &notifier_tx).await;
+        self.helper
+            .process_two_streams(left_read_stream, right_read_stream, &(*self), &notifier_tx)
+            .await;
 
         self.helper.teardown(&notifier_tx).await;
         tokio::task::block_in_place(|| self.operator.destroy());
@@ -909,7 +911,7 @@ where
 
         let read_stream: ReadStream<T> = self.read_stream.take().unwrap();
         self.helper
-            .process_messages(read_stream, &(*self), &notifier_tx)
+            .process_stream(read_stream, &(*self), &notifier_tx)
             .await;
 
         self.helper.teardown(&notifier_tx).await;
