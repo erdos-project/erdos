@@ -72,7 +72,7 @@ pub trait OperatorExecutorT: Send {
     fn execute<'a>(&'a mut self) -> Pin<Box<dyn Future<Output = ()> + 'a + Send>>;
 }
 
-pub trait MessageProcessorT<T>: Send + Sync
+pub trait OneInMessageProcessorT<T>: Send + Sync
 where
     T: Data + for<'a> Deserialize<'a>,
 {
@@ -131,7 +131,7 @@ where
     async fn process_messages(
         &self,
         mut read_stream: ReadStream<T>,
-        message_processor: &dyn MessageProcessorT<T>,
+        message_processor: &dyn OneInMessageProcessorT<T>,
         notifier_tx: &tokio::sync::watch::Sender<EventRunnerMessage>,
     ) {
         while let Ok(msg) = read_stream.async_read().await {
@@ -313,7 +313,7 @@ where
     }
 }
 
-impl<O, S, T> MessageProcessorT<T> for SinkExecutor<O, S, T>
+impl<O, S, T> OneInMessageProcessorT<T> for SinkExecutor<O, S, T>
 where
     O: Sink<S, T>,
     S: State,
@@ -456,7 +456,7 @@ where
     }
 }
 
-impl<O, S, T, U> MessageProcessorT<T> for OneInOneOutExecutor<O, S, T, U>
+impl<O, S, T, U> OneInMessageProcessorT<T> for OneInOneOutExecutor<O, S, T, U>
 where
     O: OneInOneOut<S, T, U>,
     S: State,
@@ -926,7 +926,7 @@ where
     }
 }
 
-impl<O, S, T, U, V> MessageProcessorT<T> for OneInTwoOutExecutor<O, S, T, U, V>
+impl<O, S, T, U, V> OneInMessageProcessorT<T> for OneInTwoOutExecutor<O, S, T, U, V>
 where
     O: OneInTwoOut<S, T, U, V>,
     S: State,
