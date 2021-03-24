@@ -107,21 +107,17 @@ where
     fn watermark_cb_event(&self, timestamp: &Timestamp) -> OperatorEvent;
 }
 
-pub struct OperatorExecutorHelper<T> {
+pub struct OperatorExecutorHelper {
     lattice: Arc<ExecutionLattice>,
     event_runner_handles: Option<Vec<tokio::task::JoinHandle<()>>>,
-    phantom: PhantomData<T>,
 }
 
-impl<T> OperatorExecutorHelper<T>
-where
-    T: Data + for<'a> Deserialize<'a>,
+impl OperatorExecutorHelper
 {
     fn new() -> Self {
         OperatorExecutorHelper {
             lattice: Arc::new(ExecutionLattice::new()),
             event_runner_handles: None,
-            phantom: PhantomData,
         }
     }
 
@@ -149,12 +145,14 @@ where
         notifier_tx
     }
 
-    async fn process_messages(
+    async fn process_messages<T>(
         &self,
         mut read_stream: ReadStream<T>,
         message_processor: &dyn OneInMessageProcessorT<T>,
         notifier_tx: &tokio::sync::watch::Sender<EventRunnerMessage>,
-    ) {
+    ) where
+        T: Data + for<'a> Deserialize<'a>
+    {
         while let Ok(msg) = read_stream.async_read().await {
             // TODO: optimize so that stateful callbacks not invoked if not needed.
             let events = match msg.data() {
@@ -205,7 +203,7 @@ where
     operator: O,
     state: S,
     write_stream: WriteStream<T>,
-    helper: OperatorExecutorHelper<T>,
+    helper: OperatorExecutorHelper,
 }
 
 impl<O, S, T> SourceExecutor<O, S, T>
@@ -272,7 +270,7 @@ where
     operator: O,
     state: Arc<Mutex<S>>,
     read_stream: Option<ReadStream<T>>,
-    helper: OperatorExecutorHelper<T>,
+    helper: OperatorExecutorHelper,
     read_ids: HashSet<StreamId>,
 }
 
@@ -399,7 +397,7 @@ where
     state: Arc<Mutex<S>>,
     read_stream: Option<ReadStream<T>>,
     write_stream: WriteStream<U>,
-    helper: OperatorExecutorHelper<T>,
+    helper: OperatorExecutorHelper,
     read_ids: HashSet<StreamId>,
     write_ids: HashSet<StreamId>,
 }
@@ -861,7 +859,7 @@ where
     read_stream: Option<ReadStream<T>>,
     left_write_stream: WriteStream<U>,
     right_write_stream: WriteStream<V>,
-    helper: OperatorExecutorHelper<T>,
+    helper: OperatorExecutorHelper,
     read_ids: HashSet<StreamId>,
     write_ids: HashSet<StreamId>,
 }
