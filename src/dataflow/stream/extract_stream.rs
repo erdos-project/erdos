@@ -15,7 +15,7 @@ use crate::{
 
 use super::{
     errors::{ReadError, TryReadError},
-    ReadStream, StreamT, StreamId,
+    ReadStream, StreamId, StreamT,
 };
 
 /// An [`ExtractStream`] enables drivers to read data from a running ERDOS application.

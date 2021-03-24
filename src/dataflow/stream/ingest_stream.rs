@@ -12,7 +12,7 @@ use crate::{
     scheduler::channel_manager::ChannelManager,
 };
 
-use super::{errors::WriteStreamError, StreamId, WriteStream, WriteStreamT};
+use super::{errors::WriteStreamError, StreamId, StreamT, WriteStream, WriteStreamT};
 
 /// An [`IngestStream`] enables drivers to inject data into a running ERDOS application.
 ///
@@ -129,18 +129,6 @@ where
         ingest_stream
     }
 
-    /// Get the ID given to the stream by the constructor
-    pub fn id(&self) -> StreamId {
-        self.id
-    }
-
-    /// Get the name of the stream.
-    /// Returns a [`str`] version of the ID if the stream was not constructed with
-    /// [`new_with_name`](IngestStream::new_with_name).
-    pub fn name(&self) -> &str {
-        &self.name[..]
-    }
-
     /// Get the ID of the node where the stream originated from. (Typically 0 for driver nodes.)
     pub fn node_id(&self) -> NodeId {
         self.node_id
@@ -182,6 +170,23 @@ where
             );
             return Err(WriteStreamError::Closed);
         }
+    }
+}
+
+impl<D> StreamT<D> for IngestStream<D>
+where
+    for<'a> D: Data + Deserialize<'a>,
+{
+    /// Get the ID given to the stream by the constructor
+    fn id(&self) -> StreamId {
+        self.id
+    }
+
+    /// Get the name of the stream.
+    /// Returns a [`str`] version of the ID if the stream was not constructed with
+    /// [`new_with_name`](IngestStream::new_with_name).
+    fn name(&self) -> &str {
+        &self.name[..]
     }
 }
 

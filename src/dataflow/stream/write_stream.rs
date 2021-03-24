@@ -7,7 +7,7 @@ use crate::{
     dataflow::{Data, Message, Timestamp},
 };
 
-use super::{errors::WriteStreamError, StreamId, WriteStreamT};
+use super::{errors::WriteStreamError, StreamId, StreamT, WriteStreamT};
 
 // TODO (Sukrit) :: This example needs to be fixed after we enable attaching WriteStreams to
 // callbacks for normal read streams.
@@ -101,18 +101,6 @@ impl<D: Data> WriteStream<D> {
         stream
     }
 
-    /// Get the ID given to the stream by the constructor
-    pub fn id(&self) -> StreamId {
-        self.id
-    }
-
-    /// Get the name of the stream.
-    /// Returns a [`str`] version of the ID if the stream was not constructed with
-    /// [`new_with_name`](IngestStream::new_with_name).
-    pub fn name(&self) -> &str {
-        &self.name[..]
-    }
-
     /// Returns `true` if a top watermark message was received or the [`IngestStream`] failed to
     /// set up.
     pub fn is_closed(&self) -> bool {
@@ -175,6 +163,20 @@ impl<D: Data> fmt::Debug for WriteStream<D> {
             "WriteStream {{ id: {}, low_watermark: {:?} }}",
             self.id, self.low_watermark
         )
+    }
+}
+
+impl<D: Data> StreamT<D> for WriteStream<D> {
+    /// Get the ID given to the stream by the constructor
+    fn id(&self) -> StreamId {
+        self.id
+    }
+
+    /// Get the name of the stream.
+    /// Returns a [`str`] version of the ID if the stream was not constructed with
+    /// [`new_with_name`](WriteStream::new_with_name).
+    fn name(&self) -> &str {
+        &self.name[..]
     }
 }
 

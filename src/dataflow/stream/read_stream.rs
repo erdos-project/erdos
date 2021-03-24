@@ -9,7 +9,7 @@ use crate::{
 
 use super::{
     errors::{ReadError, TryReadError},
-    IngestStream, LoopStream, StreamT, StreamId, WriteStream,
+    IngestStream, LoopStream, StreamId, StreamT, WriteStream,
 };
 
 /// A [`ReadStream`] allows operators to read data from a corresponding [`WriteStream`].

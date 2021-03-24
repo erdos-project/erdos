@@ -11,7 +11,7 @@ use serde::Deserialize;
 
 use crate::{
     dataflow::{
-        stream::{ExtractStream, IngestStream, LoopStream, StreamT, StreamId, WriteStream},
+        stream::{ExtractStream, IngestStream, LoopStream, StreamId, StreamT, WriteStream},
         Data,
     },
     node::NodeId,
