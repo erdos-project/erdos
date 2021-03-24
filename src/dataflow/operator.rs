@@ -143,7 +143,7 @@ pub struct StatefulTwoInOneOutContext<S: State, U: Data> {
  * OneInTwoOut: receives T, sends U, sends V                                 *
  *****************************************************************************/
 
-pub trait OneInTwoOut<S: State, T: Data, U: Data, V: Data>: Send {
+pub trait OneInTwoOut<S: State, T: Data, U: Data, V: Data>: Send + Sync {
     fn run(
         &mut self,
         read_stream: &mut ReadStream<T>,
