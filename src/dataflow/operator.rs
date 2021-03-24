@@ -99,7 +99,7 @@ where
  * TwoInOneOut: receives T, receives U, sends V                              *
  *****************************************************************************/
 
-pub trait TwoInOneOut<S, T, U, V>: Send
+pub trait TwoInOneOut<S, T, U, V>: Send + Sync
 where
     S: State,
     T: Data + for<'a> Deserialize<'a>,

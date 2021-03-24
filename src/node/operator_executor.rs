@@ -86,6 +86,27 @@ where
     fn watermark_cb_event(&self, timestamp: &Timestamp) -> OperatorEvent;
 }
 
+pub trait TwoInMessageProcessorT<T, U>: Send + Sync
+where
+    T: Data + for<'a> Deserialize<'a>,
+    U: Data + for<'a> Deserialize<'a>,
+{
+    // Generates an OperatorEvent for a stateless callback on the first stream.
+    fn left_stateless_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent;
+
+    // Generates an OperatorEvent for a stateful callback on the first stream.
+    fn left_stateful_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent;
+
+    // Generates an OperatorEvent for a stateless callback on the second stream.
+    fn right_stateless_cb_event(&self, msg: Arc<Message<U>>) -> OperatorEvent;
+
+    // Generates an OperatorEvent for a stateful callback on the second stream.
+    fn right_stateful_cb_event(&self, msg: Arc<Message<U>>) -> OperatorEvent;
+
+    // Generates an OperatorEvent for a watermark callback.
+    fn watermark_cb_event(&self, timestamp: &Timestamp) -> OperatorEvent;
+}
+
 pub struct OperatorExecutorHelper<T> {
     lattice: Arc<ExecutionLattice>,
     event_runner_handles: Option<Vec<tokio::task::JoinHandle<()>>>,
@@ -547,6 +568,8 @@ where
     left_read_stream: ReadStream<T>,
     right_read_stream: ReadStream<U>,
     write_stream: WriteStream<V>,
+    read_ids: HashSet<StreamId>,
+    write_ids: HashSet<StreamId>,
 }
 
 impl<O, S, T, U, V> TwoInOneOutExecutor<O, S, T, U, V>
@@ -569,8 +592,12 @@ where
             config,
             operator: operator_fn(),
             state: Arc::new(Mutex::new(state_fn())),
+            read_ids: vec![left_read_stream.id(), right_read_stream.id()]
+                .into_iter()
+                .collect(),
             left_read_stream,
             right_read_stream,
+            write_ids: vec![write_stream.id()].into_iter().collect(),
             write_stream,
         }
     }
@@ -624,35 +651,11 @@ where
                         Some(_) => {
                             // Stateless callback.
                             let msg_ref = Arc::clone(&left_msg);
-                            let mut ctx = TwoInOneOutContext {
-                                timestamp: left_msg.timestamp().clone(),
-                                write_stream: self.write_stream.clone(),
-                            };
-                            let data_event = OperatorEvent::new(
-                                left_msg.timestamp().clone(),
-                                false,
-                                0,
-                                HashSet::new(), // Used to manage state in lattice, should be cleaned up.
-                                HashSet::new(), // Used to manage state in lattice, should be cleaned up.
-                                move || O::on_left_data(&mut ctx, msg_ref.data().unwrap()),
-                            );
+                            let data_event = self.left_stateless_cb_event(msg_ref);
 
                             // Stateful callback
                             let msg_ref = Arc::clone(&left_msg);
-                            let mut ctx = StatefulTwoInOneOutContext {
-                                timestamp: left_msg.timestamp().clone(),
-                                write_stream: self.write_stream.clone(),
-                                state: Arc::clone(&self.state),
-                            };
-                            let stateful_data_event = OperatorEvent::new(
-                                left_msg.timestamp().clone(),
-                                false,
-                                0,
-                                read_ids.clone(),
-                                write_ids.clone(),
-                                move || O::on_left_data_stateful(&mut ctx, msg_ref.data().unwrap()),
-                            );
-
+                            let stateful_data_event = self.left_stateful_cb_event(msg_ref);
                             vec![data_event, stateful_data_event]
                         }
                         // Watermark
@@ -661,40 +664,7 @@ where
                             let advance_watermark = cmp::min(&left_watermark, &right_watermark) > &min_watermark;
                             if advance_watermark {
                                 min_watermark = left_watermark.clone();
-
-                                let mut ctx = StatefulTwoInOneOutContext {
-                                    timestamp: left_msg.timestamp().clone(),
-                                    write_stream: self.write_stream.clone(),
-                                    state: Arc::clone(&self.state),
-                                };
-                                let watermark_event = OperatorEvent::new(
-                                    left_msg.timestamp().clone(),
-                                    true,
-                                    0,
-                                    read_ids.clone(),
-                                    write_ids.clone(),
-                                    move || O::on_watermark(&mut ctx),
-                                );
-
-                                if self.config.flow_watermarks {
-                                    let timestamp = left_msg.timestamp().clone();
-                                    let mut write_stream_copy = self.write_stream.clone();
-                                    let flow_watermark_event = OperatorEvent::new(
-                                        left_msg.timestamp().clone(),
-                                        true,
-                                        127,
-                                        read_ids.clone(),
-                                        write_ids.clone(),
-                                        move || {
-                                            write_stream_copy
-                                                .send(Message::new_watermark(timestamp))
-                                                .ok();
-                                        },
-                                    );
-                                    vec![watermark_event, flow_watermark_event]
-                                } else {
-                                    vec![watermark_event]
-                                }
+                                vec![self.watermark_cb_event(&left_msg.timestamp().clone())]
                             } else {
                                 Vec::new()
                             }
@@ -707,35 +677,11 @@ where
                         Some(_) => {
                             // Stateless callback.
                             let msg_ref = Arc::clone(&right_msg);
-                            let mut ctx = TwoInOneOutContext {
-                                timestamp: right_msg.timestamp().clone(),
-                                write_stream: self.write_stream.clone(),
-                            };
-                            let data_event = OperatorEvent::new(
-                                right_msg.timestamp().clone(),
-                                false,
-                                0,
-                                HashSet::new(), // Used to manage state in lattice, should be cleaned up.
-                                HashSet::new(), // Used to manage state in lattice, should be cleaned up.
-                                move || O::on_right_data(&mut ctx, msg_ref.data().unwrap()),
-                            );
+                            let data_event = self.right_stateless_cb_event(msg_ref);
 
                             // Stateful callback
                             let msg_ref = Arc::clone(&right_msg);
-                            let mut ctx = StatefulTwoInOneOutContext {
-                                timestamp: right_msg.timestamp().clone(),
-                                write_stream: self.write_stream.clone(),
-                                state: Arc::clone(&self.state),
-                            };
-                            let stateful_data_event = OperatorEvent::new(
-                                right_msg.timestamp().clone(),
-                                false,
-                                0,
-                                read_ids.clone(),
-                                write_ids.clone(),
-                                move || O::on_right_data_stateful(&mut ctx, msg_ref.data().unwrap()),
-                            );
-
+                            let stateful_data_event = self.right_stateful_cb_event(msg_ref);
                             vec![data_event, stateful_data_event]
                         }
                         // Watermark
@@ -744,40 +690,7 @@ where
                             let advance_watermark = cmp::min(&left_watermark, &right_watermark) > &min_watermark;
                             if advance_watermark {
                                 min_watermark = right_watermark.clone();
-
-                                let mut ctx = StatefulTwoInOneOutContext {
-                                    timestamp: right_msg.timestamp().clone(),
-                                    write_stream: self.write_stream.clone(),
-                                    state: Arc::clone(&self.state),
-                                };
-                                let watermark_event = OperatorEvent::new(
-                                    right_msg.timestamp().clone(),
-                                    true,
-                                    0,
-                                    read_ids.clone(),
-                                    write_ids.clone(),
-                                    move || O::on_watermark(&mut ctx),
-                                );
-
-                                if self.config.flow_watermarks {
-                                    let timestamp = right_msg.timestamp().clone();
-                                    let mut write_stream_copy = self.write_stream.clone();
-                                    let flow_watermark_event = OperatorEvent::new(
-                                        right_msg.timestamp().clone(),
-                                        true,
-                                        127,
-                                        read_ids.clone(),
-                                        write_ids.clone(),
-                                        move || {
-                                            write_stream_copy
-                                                .send(Message::new_watermark(timestamp))
-                                                .ok();
-                                        },
-                                    );
-                                    vec![watermark_event, flow_watermark_event]
-                                } else {
-                                    vec![watermark_event]
-                                }
+                                vec![self.watermark_cb_event(&right_msg.timestamp().clone())]
                             } else {
                                 Vec::new()
                             }
@@ -824,6 +737,116 @@ where
     }
 }
 
+impl<O, S, T, U, V> TwoInMessageProcessorT<T, U> for TwoInOneOutExecutor<O, S, T, U, V>
+where
+    O: TwoInOneOut<S, T, U, V>,
+    S: State,
+    T: Data + for<'a> Deserialize<'a>,
+    U: Data + for<'a> Deserialize<'a>,
+    V: Data + for<'a> Deserialize<'a>,
+{
+    // Generates an OperatorEvent for a stateless callback on the first stream.
+    fn left_stateless_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent {
+        let mut ctx = TwoInOneOutContext {
+            timestamp: msg.timestamp().clone(),
+            write_stream: self.write_stream.clone(),
+        };
+        OperatorEvent::new(
+            msg.timestamp().clone(),
+            false,
+            0,
+            HashSet::new(),
+            HashSet::new(),
+            move || O::on_left_data(&mut ctx, msg.data().unwrap()),
+        )
+    }
+
+    // Generates an OperatorEvent for a stateful callback on the first stream.
+    fn left_stateful_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent {
+        let mut ctx = StatefulTwoInOneOutContext {
+            timestamp: msg.timestamp().clone(),
+            write_stream: self.write_stream.clone(),
+            state: Arc::clone(&self.state),
+        };
+        OperatorEvent::new(
+            msg.timestamp().clone(),
+            false,
+            0,
+            self.read_ids.clone(),
+            self.write_ids.clone(),
+            move || O::on_left_data_stateful(&mut ctx, msg.data().unwrap()),
+        )
+    }
+
+    // Generates an OperatorEvent for a stateless callback on the second stream.
+    fn right_stateless_cb_event(&self, msg: Arc<Message<U>>) -> OperatorEvent {
+        let mut ctx = TwoInOneOutContext {
+            timestamp: msg.timestamp().clone(),
+            write_stream: self.write_stream.clone(),
+        };
+        OperatorEvent::new(
+            msg.timestamp().clone(),
+            false,
+            0,
+            HashSet::new(),
+            HashSet::new(),
+            move || O::on_right_data(&mut ctx, msg.data().unwrap()),
+        )
+    }
+
+    // Generates an OperatorEvent for a stateful callback on the second stream.
+    fn right_stateful_cb_event(&self, msg: Arc<Message<U>>) -> OperatorEvent {
+        let mut ctx = StatefulTwoInOneOutContext {
+            timestamp: msg.timestamp().clone(),
+            write_stream: self.write_stream.clone(),
+            state: Arc::clone(&self.state),
+        };
+        OperatorEvent::new(
+            msg.timestamp().clone(),
+            false,
+            0,
+            self.read_ids.clone(),
+            self.write_ids.clone(),
+            move || O::on_right_data_stateful(&mut ctx, msg.data().unwrap()),
+        )
+    }
+
+    // Generates an OperatorEvent for a watermark callback.
+    fn watermark_cb_event(&self, timestamp: &Timestamp) -> OperatorEvent {
+        let mut ctx = StatefulTwoInOneOutContext {
+            timestamp: timestamp.clone(),
+            write_stream: self.write_stream.clone(),
+            state: Arc::clone(&self.state),
+        };
+        if self.config.flow_watermarks {
+            let timestamp_copy = timestamp.clone();
+            let mut write_stream_copy = self.write_stream.clone();
+            OperatorEvent::new(
+                timestamp.clone(),
+                true,
+                0,
+                self.read_ids.clone(),
+                self.write_ids.clone(),
+                move || {
+                    O::on_watermark(&mut ctx);
+                    write_stream_copy
+                        .send(Message::new_watermark(timestamp_copy))
+                        .ok();
+                },
+            )
+        } else {
+            OperatorEvent::new(
+                timestamp.clone(),
+                true,
+                0,
+                self.read_ids.clone(),
+                self.write_ids.clone(),
+                move || O::on_watermark(&mut ctx),
+            )
+        }
+    }
+}
+
 pub struct OneInTwoOutExecutor<O, S, T, U, V>
 where
     O: OneInTwoOut<S, T, U, V>,
@@ -864,7 +887,9 @@ where
             operator: operator_fn(),
             state: Arc::new(Mutex::new(state_fn())),
             read_ids: vec![read_stream.id()].into_iter().collect(),
-            write_ids: vec![left_write_stream.id(), right_write_stream.id()].into_iter().collect(),
+            write_ids: vec![left_write_stream.id(), right_write_stream.id()]
+                .into_iter()
+                .collect(),
             read_stream: Some(read_stream),
             left_write_stream,
             right_write_stream,
@@ -889,11 +914,13 @@ where
                 &mut self.right_write_stream,
             )
         });
-        
+
         let notifier_tx = self.helper.setup(self.config.num_event_runners);
 
         let read_stream: ReadStream<T> = self.read_stream.take().unwrap();
-        self.helper.process_messages(read_stream, &(*self), &notifier_tx).await;
+        self.helper
+            .process_messages(read_stream, &(*self), &notifier_tx)
+            .await;
 
         self.helper.teardown(&notifier_tx).await;
         tokio::task::block_in_place(|| self.operator.destroy());
@@ -964,7 +991,7 @@ where
             0,
             self.read_ids.clone(),
             self.write_ids.clone(),
-            move || O::on_data_stateful(&mut ctx, msg.data().unwrap())
+            move || O::on_data_stateful(&mut ctx, msg.data().unwrap()),
         )
     }
 
@@ -995,13 +1022,13 @@ where
                     right_write_stream_copy
                         .send(Message::new_watermark(timestamp_copy_right))
                         .ok();
-                    }
+                },
             )
         } else {
             OperatorEvent::new(
                 timestamp.clone(),
                 true,
-                0, 
+                0,
                 self.read_ids.clone(),
                 self.write_ids.clone(),
                 move || {
