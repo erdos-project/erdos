@@ -741,7 +741,7 @@ where
                         // Watermark
                         None => {
                             right_watermark = right_msg.timestamp().clone();
-                            let advance_watermark = cmp::min(&right_watermark, &right_watermark) > &min_watermark;
+                            let advance_watermark = cmp::min(&left_watermark, &right_watermark) > &min_watermark;
                             if advance_watermark {
                                 min_watermark = right_watermark.clone();
 
