@@ -638,11 +638,12 @@ where
     config: OperatorConfig,
     operator: O,
     state: Arc<Mutex<S>>,
-    left_read_stream: ReadStream<T>,
-    right_read_stream: ReadStream<U>,
+    left_read_stream: Option<ReadStream<T>>,
+    right_read_stream: Option<ReadStream<U>>,
     write_stream: WriteStream<V>,
     read_ids: HashSet<StreamId>,
     write_ids: HashSet<StreamId>,
+    helper: OperatorExecutorHelper,
 }
 
 impl<O, S, T, U, V> TwoInOneOutExecutor<O, S, T, U, V>
@@ -668,17 +669,16 @@ where
             read_ids: vec![left_read_stream.id(), right_read_stream.id()]
                 .into_iter()
                 .collect(),
-            left_read_stream,
-            right_read_stream,
+            left_read_stream: Some(left_read_stream),
+            right_read_stream: Some(right_read_stream),
             write_ids: vec![write_stream.id()].into_iter().collect(),
             write_stream,
+            helper: OperatorExecutorHelper::new(),
         }
     }
 
     pub async fn execute(&mut self) {
-        // TODO: replace this with a synchronization step
-        // that ensures all operators are ready to run.
-        tokio::time::delay_for(Duration::from_secs(1)).await;
+        self.helper.synchronize().await;
 
         slog::debug!(
             crate::TERMINAL_LOGGER,
@@ -689,102 +689,19 @@ where
 
         tokio::task::block_in_place(|| {
             self.operator.run(
-                &mut self.left_read_stream,
-                &mut self.right_read_stream,
+                self.left_read_stream.as_mut().unwrap(),
+                self.right_read_stream.as_mut().unwrap(),
                 &mut self.write_stream,
             )
         });
 
-        // Set up lattice and event runners.
-        let lattice = Arc::new(ExecutionLattice::new());
-        let (notifier_tx, notifier_rx) = watch::channel(EventRunnerMessage::AddedEvents);
-        let mut event_runner_handles = Vec::new();
-        for _ in 0..self.config.num_event_runners {
-            let event_runner_fut =
-                tokio::task::spawn(event_runner(Arc::clone(&lattice), notifier_rx.clone()));
-            event_runner_handles.push(event_runner_fut);
-        }
+        let notifier_tx = self.helper.setup(self.config.num_event_runners);
 
-        let mut read_ids = HashSet::new();
-        read_ids.insert(self.left_read_stream.id());
-        read_ids.insert(self.right_read_stream.id());
+        let left_read_stream: ReadStream<T> = self.left_read_stream.take().unwrap();
+        let right_read_stream: ReadStream<U> = self.right_read_stream.take().unwrap();
+        self.helper.process_two_streams(left_read_stream, right_read_stream, &(*self), &notifier_tx).await;
 
-        let mut write_ids = HashSet::new();
-        write_ids.insert(self.write_stream.id());
-
-        let mut left_watermark = Timestamp::bottom();
-        let mut right_watermark = Timestamp::bottom();
-        let mut min_watermark = cmp::min(&left_watermark, &right_watermark).clone();
-
-        loop {
-            let events = tokio::select! {
-                Ok(left_msg) = self.left_read_stream.async_read() => {
-                    match left_msg.data() {
-                        // Data message
-                        Some(_) => {
-                            // Stateless callback.
-                            let msg_ref = Arc::clone(&left_msg);
-                            let data_event = self.left_stateless_cb_event(msg_ref);
-
-                            // Stateful callback
-                            let msg_ref = Arc::clone(&left_msg);
-                            let stateful_data_event = self.left_stateful_cb_event(msg_ref);
-                            vec![data_event, stateful_data_event]
-                        }
-                        // Watermark
-                        None => {
-                            left_watermark = left_msg.timestamp().clone();
-                            let advance_watermark = cmp::min(&left_watermark, &right_watermark) > &min_watermark;
-                            if advance_watermark {
-                                min_watermark = left_watermark.clone();
-                                vec![self.watermark_cb_event(&left_msg.timestamp().clone())]
-                            } else {
-                                Vec::new()
-                            }
-                        }
-                    }
-                }
-                Ok(right_msg) = self.right_read_stream.async_read() => {
-                    match right_msg.data() {
-                        // Data message
-                        Some(_) => {
-                            // Stateless callback.
-                            let msg_ref = Arc::clone(&right_msg);
-                            let data_event = self.right_stateless_cb_event(msg_ref);
-
-                            // Stateful callback
-                            let msg_ref = Arc::clone(&right_msg);
-                            let stateful_data_event = self.right_stateful_cb_event(msg_ref);
-                            vec![data_event, stateful_data_event]
-                        }
-                        // Watermark
-                        None => {
-                            right_watermark = right_msg.timestamp().clone();
-                            let advance_watermark = cmp::min(&left_watermark, &right_watermark) > &min_watermark;
-                            if advance_watermark {
-                                min_watermark = right_watermark.clone();
-                                vec![self.watermark_cb_event(&right_msg.timestamp().clone())]
-                            } else {
-                                Vec::new()
-                            }
-                        }
-                    }
-                }
-                else => break,
-            };
-            lattice.add_events(events).await;
-            notifier_tx
-                .broadcast(EventRunnerMessage::AddedEvents)
-                .unwrap();
-        }
-
-        // Wait for event runners to finish.
-        notifier_tx
-            .broadcast(EventRunnerMessage::DestroyOperator)
-            .unwrap();
-        // Handle errors?
-        future::join_all(event_runner_handles).await;
-
+        self.helper.teardown(&notifier_tx).await;
         tokio::task::block_in_place(|| self.operator.destroy());
 
         // Close the stream.
