@@ -11,7 +11,7 @@ use serde::Deserialize;
 
 use crate::{
     dataflow::{
-        stream::{ExtractStream, IngestStream, LoopStream, StreamId, WriteStream},
+        stream::{ExtractStream, IngestStream, LoopStream, StreamId, StreamT, WriteStream},
         Data,
     },
     node::NodeId,
@@ -39,7 +39,7 @@ pub fn add_operator<F: OperatorRunner>(
     });
 }
 
-pub fn add_operator_stream<D>(operator_id: OperatorId, write_stream: &WriteStream<D>)
+pub fn add_operator_stream<D>(operator_id: OperatorId, write_stream: &impl StreamT<D>)
 where
     for<'a> D: Data + Deserialize<'a>,
 {

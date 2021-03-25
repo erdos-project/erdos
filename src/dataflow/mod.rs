@@ -10,14 +10,11 @@ pub mod operator;
 pub mod state;
 pub mod stream;
 
-// Crate-wide exports
-pub(crate) use stream::EventMakerT;
-
 // Public exports
 pub use message::{Data, Message, Timestamp, TimestampedData};
 pub use operator::OperatorConfig;
 pub use state::State;
-pub use stream::{LoopStream, ReadStream, WriteStream};
+pub use stream::{LoopStream, Stream, ReadStream, StreamT, WriteStream};
 
 #[cfg(test)]
 mod tests {

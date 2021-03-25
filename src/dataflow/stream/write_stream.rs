@@ -7,7 +7,7 @@ use crate::{
     dataflow::{Data, Message, Timestamp},
 };
 
-use super::{errors::WriteStreamError, StreamId, WriteStreamT};
+use super::{errors::WriteStreamError, StreamId, StreamT, WriteStreamT};
 
 // TODO (Sukrit) :: This example needs to be fixed after we enable attaching WriteStreams to
 // callbacks for normal read streams.
@@ -76,30 +76,8 @@ pub struct WriteStream<D: Data> {
 }
 
 impl<D: Data> WriteStream<D> {
-    /// Returns a new instance of the [`WriteStream`].
-    pub fn new() -> Self {
-        let id = StreamId::new_deterministic();
-        WriteStream::new_internal(id, id.to_string())
-    }
-
-    /// Returns a new instance of the [`WriteStream`].
-    ///
-    /// # Arguments
-    /// * `name` - The name to be given to the stream.
-    pub fn new_with_name(name: &str) -> Self {
-        WriteStream::new_internal(StreamId::new_deterministic(), name.to_string())
-    }
-
-    /// Returns a new instance of the [`WriteStream`].
-    ///
-    /// # Arguments
-    /// * `id` - The ID of the stream.
-    pub fn new_with_id(id: StreamId) -> Self {
-        WriteStream::new_internal(id, id.to_string())
-    }
-
     /// Creates the [`WriteStream`] to be used to send messages to the dataflow.
-    fn new_internal(id: StreamId, name: String) -> Self {
+    pub(crate) fn new(id: StreamId, name: &str) -> Self {
         slog::debug!(
             crate::TERMINAL_LOGGER,
             "Initializing a WriteStream {} with the ID: {}",
@@ -108,7 +86,7 @@ impl<D: Data> WriteStream<D> {
         );
         Self {
             id,
-            name,
+            name: name.to_string(),
             pusher: Some(Pusher::new()),
             low_watermark: Timestamp::new(vec![0]),
             stream_closed: false,
@@ -116,23 +94,11 @@ impl<D: Data> WriteStream<D> {
     }
 
     pub fn from_endpoints(endpoints: Vec<SendEndpoint<Arc<Message<D>>>>, id: StreamId) -> Self {
-        let mut stream = Self::new_with_id(id);
+        let mut stream = Self::new(id, &id.to_string());
         for endpoint in endpoints {
             stream.add_endpoint(endpoint);
         }
         stream
-    }
-
-    /// Get the ID given to the stream by the constructor
-    pub fn id(&self) -> StreamId {
-        self.id
-    }
-
-    /// Get the name of the stream.
-    /// Returns a [`str`] version of the ID if the stream was not constructed with
-    /// [`new_with_name`](IngestStream::new_with_name).
-    pub fn name(&self) -> &str {
-        &self.name[..]
     }
 
     /// Returns `true` if a top watermark message was received or the [`IngestStream`] failed to
@@ -190,12 +156,6 @@ impl<D: Data> WriteStream<D> {
     }
 }
 
-impl<D: Data> Default for WriteStream<D> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl<D: Data> fmt::Debug for WriteStream<D> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -203,6 +163,20 @@ impl<D: Data> fmt::Debug for WriteStream<D> {
             "WriteStream {{ id: {}, low_watermark: {:?} }}",
             self.id, self.low_watermark
         )
+    }
+}
+
+impl<D: Data> StreamT<D> for WriteStream<D> {
+    /// Get the ID given to the stream by the constructor
+    fn id(&self) -> StreamId {
+        self.id
+    }
+
+    /// Get the name of the stream.
+    /// Returns a [`str`] version of the ID if the stream was not constructed with
+    /// [`new_with_name`](WriteStream::new_with_name).
+    fn name(&self) -> &str {
+        &self.name[..]
     }
 }
 

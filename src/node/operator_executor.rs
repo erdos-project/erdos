@@ -17,7 +17,6 @@ use futures::{future, select};
 use serde::Deserialize;
 use tokio::{
     self,
-    stream::{Stream, StreamExt},
     sync::{mpsc, watch, Mutex},
 };
 
@@ -31,7 +30,7 @@ use crate::{
         },
         stream::StreamId,
         stream::WriteStreamT,
-        Data, EventMakerT, Message, ReadStream, State, Timestamp, WriteStream,
+        Data, Message, ReadStream, State, StreamT, Timestamp, WriteStream,
     },
     node::lattice::ExecutionLattice,
     node::operator_event::OperatorEvent,

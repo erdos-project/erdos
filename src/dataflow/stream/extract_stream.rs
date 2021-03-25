@@ -15,7 +15,7 @@ use crate::{
 
 use super::{
     errors::{ReadError, TryReadError},
-    ReadStream, StreamId,
+    ReadStream, StreamId, StreamT,
 };
 
 /// An [`ExtractStream`] enables drivers to read data from a running ERDOS application.
@@ -152,18 +152,6 @@ where
         extract_stream
     }
 
-    /// Get the ID given to the stream by the constructor.
-    pub fn id(&self) -> StreamId {
-        self.id
-    }
-
-    /// Get the name of the stream.
-    /// Returns a [`str`] version of the ID if the stream was not constructed with
-    /// [`new_with_name`](ExtractStream::new_with_name).
-    pub fn name(&self) -> &str {
-        &self.name[..]
-    }
-
     /// Get the ID of the node where the stream originated from. (Typically 0 for driver nodes.)
     pub fn node_id(&self) -> NodeId {
         self.node_id
@@ -191,7 +179,7 @@ where
                 match channel_manager.lock().unwrap().take_recv_endpoint(self.id) {
                     Ok(recv_endpoint) => {
                         let mut read_stream =
-                            ReadStream::new_internal(self.id, &self.name, Some(recv_endpoint));
+                            ReadStream::new(self.id, &self.name, Some(recv_endpoint));
 
                         let result = read_stream.try_read();
                         self.read_stream_option.replace(read_stream);
@@ -231,6 +219,23 @@ where
                 thread::sleep(Duration::from_millis(100));
             }
         }
+    }
+}
+
+impl<D> StreamT<D> for ExtractStream<D>
+where
+    for<'a> D: Data + Deserialize<'a>,
+{
+    /// Get the ID given to the stream by the constructor.
+    fn id(&self) -> StreamId {
+        self.id
+    }
+
+    /// Get the name of the stream.
+    /// Returns a [`str`] version of the ID if the stream was not constructed with
+    /// [`new_with_name`](ExtractStream::new_with_name).
+    fn name(&self) -> &str {
+        &self.name[..]
     }
 }
 

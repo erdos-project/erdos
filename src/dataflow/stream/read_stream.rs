@@ -9,7 +9,7 @@ use crate::{
 
 use super::{
     errors::{ReadError, TryReadError},
-    IngestStream, LoopStream, StreamId, WriteStream,
+    IngestStream, LoopStream, StreamId, StreamT, WriteStream,
 };
 
 /// A [`ReadStream`] allows operators to read data from a corresponding [`WriteStream`].
@@ -98,25 +98,7 @@ pub struct ReadStream<D: Data> {
 }
 
 impl<D: Data> ReadStream<D> {
-    /// Returns a new instance of the [`ReadStream`].
-    /// Note that ERDOS automatically converts the [`WriteStream`]s returned by an
-    /// [`Operator`](crate::dataflow::operator::Operator) to a corresponding [`ReadStream`].
-    pub fn new() -> Self {
-        let id = StreamId::new_deterministic();
-        Self::new_internal(id, &id.to_string(), None)
-    }
-
-    /// Returns a new instance of the [`ReadStream`] with the given name..
-    /// Note that ERDOS automatically converts the [`WriteStream`]s returned by an
-    /// [`Operator`](crate::dataflow::operator::Operator) to a corresponding [`ReadStream`].
-    ///
-    /// # Arguments
-    /// * name - The name of the stream.
-    pub fn new_with_name(name: &str) -> Self {
-        Self::new_internal(StreamId::new_deterministic(), name, None)
-    }
-
-    pub(crate) fn new_internal(
+    pub(crate) fn new(
         id: StreamId,
         name: &str,
         recv_endpoint: Option<RecvEndpoint<Arc<Message<D>>>>,
@@ -127,18 +109,6 @@ impl<D: Data> ReadStream<D> {
             is_closed: false,
             recv_endpoint,
         }
-    }
-
-    /// Get the ID given to the stream by the constructor.
-    pub fn id(&self) -> StreamId {
-        self.id
-    }
-
-    /// Get the name of the stream.
-    /// Returns a [`String`] version of the ID if the stream was not constructed with
-    /// [`new_with_name`](ReadStream::new_with_name).
-    pub fn name(&self) -> &str {
-        self.name.as_str()
     }
 
     /// Returns `true` if a top watermark message was sent or the [`ReadStream`] failed to set up.
@@ -226,27 +196,17 @@ impl<D: Data> ReadStream<D> {
     }
 }
 
-impl<D: Data> From<&WriteStream<D>> for ReadStream<D> {
-    fn from(write_stream: &WriteStream<D>) -> Self {
-        Self::new_internal(write_stream.id(), write_stream.name(), None)
+impl<D: Data> StreamT<D> for ReadStream<D> {
+    /// Get the ID given to the stream by the constructor.
+    fn id(&self) -> StreamId {
+        self.id
     }
-}
 
-impl<D> From<&LoopStream<D>> for ReadStream<D>
-where
-    for<'a> D: Data + Deserialize<'a>,
-{
-    fn from(loop_stream: &LoopStream<D>) -> Self {
-        Self::new_internal(loop_stream.id(), loop_stream.name(), None)
-    }
-}
-
-impl<D> From<&IngestStream<D>> for ReadStream<D>
-where
-    for<'a> D: Data + Deserialize<'a>,
-{
-    fn from(ingest_stream: &IngestStream<D>) -> Self {
-        Self::new_internal(ingest_stream.id(), ingest_stream.name(), None)
+    /// Get the name of the stream.
+    /// Returns a [`String`] version of the ID if the stream was not constructed with
+    /// [`new_with_name`](ReadStream::new_with_name).
+    fn name(&self) -> &str {
+        &self.name
     }
 }
 
