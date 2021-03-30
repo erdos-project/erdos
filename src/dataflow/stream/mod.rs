@@ -148,8 +148,8 @@ mod tests {
         let mut ws: WriteStream<usize> =
             WriteStream::from_endpoints(endpoints, StreamId::new_deterministic());
         thread::spawn(move || {
-            let msg1 = Message::TimestampedData(TimestampedData::new(Timestamp::new(vec![0]), 1));
-            let msg2 = Message::TimestampedData(TimestampedData::new(Timestamp::new(vec![0]), 2));
+            let msg1 = Message::TimestampedData(TimestampedData::new(Timestamp::Time(vec![0]), 1));
+            let msg2 = Message::TimestampedData(TimestampedData::new(Timestamp::Time(vec![0]), 2));
             ws.send(msg1).unwrap();
             ws.send(msg2).unwrap();
         });
@@ -183,15 +183,15 @@ mod tests {
         let mut ws: WriteStream<usize> =
             WriteStream::from_endpoints(endpoints, StreamId::new_deterministic());
         thread::spawn(move || {
-            let w1 = Message::Watermark(Timestamp::new(vec![1]));
-            let w2 = Message::Watermark(Timestamp::new(vec![2]));
+            let w1 = Message::Watermark(Timestamp::Time(vec![1]));
+            let w2 = Message::Watermark(Timestamp::Time(vec![2]));
             ws.send(w1).unwrap();
             ws.send(w2).unwrap();
         });
         let w1 = rt.block_on(rx.recv()).unwrap();
         match &*w1 {
             Message::Watermark(t) => {
-                assert_eq!(t.time[0], 1);
+                assert_eq!(*t, Timestamp::Time(vec![1 as u64]));
             }
             _ => {
                 panic!("Unexpected first watermark");
@@ -200,7 +200,7 @@ mod tests {
         let w2 = rt.block_on(rx.recv()).unwrap();
         match &*w2 {
             Message::Watermark(t) => {
-                assert_eq!(t.time[0], 2);
+                assert_eq!(*t, Timestamp::Time(vec![2 as u64]));
             }
             _ => {
                 panic!("Unexpected second watermark");
@@ -215,9 +215,9 @@ mod tests {
         let endpoints = vec![SendEndpoint::InterThread(tx)];
         let mut ws: WriteStream<usize> =
             WriteStream::from_endpoints(endpoints, StreamId::new_deterministic());
-        let w1 = Message::Watermark(Timestamp::new(vec![2]));
+        let w1 = Message::Watermark(Timestamp::Time(vec![2]));
         ws.send(w1).unwrap();
-        let w2 = Message::Watermark(Timestamp::new(vec![1]));
+        let w2 = Message::Watermark(Timestamp::Time(vec![1]));
         match ws.send(w2) {
             Err(_) => Ok(()),
             _ => Err(String::from(
@@ -234,9 +234,9 @@ mod tests {
         let endpoints = vec![SendEndpoint::InterThread(tx)];
         let mut ws: WriteStream<usize> =
             WriteStream::from_endpoints(endpoints, StreamId::new_deterministic());
-        let w1 = Message::Watermark(Timestamp::new(vec![2]));
+        let w1 = Message::Watermark(Timestamp::Time(vec![2]));
         ws.send(w1).unwrap();
-        let msg = Message::TimestampedData(TimestampedData::new(Timestamp::new(vec![1]), 2));
+        let msg = Message::TimestampedData(TimestampedData::new(Timestamp::Time(vec![1]), 2));
         match ws.send(msg) {
             Err(_) => Ok(()),
             _ => Err(String::from(

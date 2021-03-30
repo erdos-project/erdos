@@ -10,7 +10,7 @@ use erdos::{
             errors::{ReadError, TryReadError, WriteStreamError},
             ExtractStream, IngestStream, WriteStreamT,
         },
-        Operator, OperatorConfig, ReadStream, WriteStream,
+        Operator, OperatorConfig, ReadStream, Timestamp, WriteStream,
     },
     node::Node,
     *,
@@ -38,7 +38,7 @@ impl Operator for SendOperator {
             println!("SendOperator: sending {}", count);
             self.write_stream
                 .send(Message::new_message(
-                    Timestamp::new(vec![count as u64]),
+                    Timestamp::Time(vec![count as u64]),
                     count,
                 ))
                 .unwrap();
@@ -185,7 +185,7 @@ fn test_ingest() {
         println!("IngestStream: sending {}", count);
         ingest_stream
             .send(Message::new_message(
-                Timestamp::new(vec![count as u64]),
+                Timestamp::Time(vec![count as u64]),
                 count,
             ))
             .unwrap();
@@ -207,7 +207,7 @@ fn test_extract() {
         assert_eq!(
             msg,
             Ok(Message::new_message(
-                Timestamp::new(vec![count as u64]),
+                Timestamp::Time(vec![count as u64]),
                 count as usize
             ))
         );
@@ -232,7 +232,7 @@ fn test_ingest_extract() {
     let logger = erdos::get_terminal_logger();
 
     for count in 0..5 {
-        let msg = Message::new_message(Timestamp::new(vec![count as u64]), count);
+        let msg = Message::new_message(Timestamp::Time(vec![count as u64]), count);
         slog::debug!(logger, "Ingest stream: sending {:?}", msg);
         ingest_stream.send(msg).unwrap();
         let result = extract_stream.read();
@@ -253,14 +253,14 @@ fn test_destroy() {
 
     let logger = erdos::get_terminal_logger();
 
-    let msg = Message::new_message(Timestamp::new(vec![0]), 0);
+    let msg = Message::new_message(Timestamp::Time(vec![0]), 0);
     slog::debug!(logger, "IngestStream: sending {:?}", msg);
     ingest_stream.send(msg).unwrap();
 
     let received_msg = extract_stream.read().unwrap();
     slog::debug!(logger, "ExtractStream: received {:?}", received_msg);
 
-    let msg = Message::new_watermark(Timestamp::top());
+    let msg = Message::new_watermark(Timestamp::Top);
     slog::debug!(logger, "IngestStream: sending {:?}", msg);
     ingest_stream.send(msg).unwrap();
 
@@ -268,7 +268,7 @@ fn test_destroy() {
     slog::debug!(logger, "ExtractStream: received {:?}", received_msg);
 
     // Check that the stream is closed.
-    let msg = Message::new_message(Timestamp::new(vec![0]), 0);
+    let msg = Message::new_message(Timestamp::Time(vec![0]), 0);
     assert!(ingest_stream.is_closed());
     assert!(extract_stream.is_closed());
     assert_eq!(ingest_stream.send(msg), Err(WriteStreamError::Closed));
@@ -295,13 +295,13 @@ fn test_only_destroy_if_closed() {
 
         node.run_async();
 
-        let watermark_msg = Message::new_watermark(Timestamp::new(vec![1]));
+        let watermark_msg = Message::new_watermark(Timestamp::Time(vec![1]));
         ingest_stream_1.send(watermark_msg.clone()).unwrap();
         ingest_stream_2.send(watermark_msg.clone()).unwrap();
 
         // Only close 1 of the ingest streams.
         ingest_stream_1
-            .send(Message::new_watermark(Timestamp::top()))
+            .send(Message::new_watermark(Timestamp::Top))
             .unwrap();
 
         extract_stream
@@ -309,7 +309,7 @@ fn test_only_destroy_if_closed() {
 
     // Receive 1 flowed watermark message for t=1.
     let msg = extract_stream.read().unwrap();
-    assert_eq!(msg, Message::new_watermark(Timestamp::new(vec![1])));
+    assert_eq!(msg, Message::new_watermark(Timestamp::Time(vec![1])));
     assert_eq!(extract_stream.try_read(), Err(TryReadError::Empty));
     assert!(!extract_stream.is_closed());
 }
@@ -332,27 +332,27 @@ fn test_close_write_streams_on_destroy() {
 
     node.run_async();
 
-    let watermark_msg = Message::new_watermark(Timestamp::new(vec![1]));
+    let watermark_msg = Message::new_watermark(Timestamp::Time(vec![1]));
     ingest_stream_1.send(watermark_msg.clone()).unwrap();
     ingest_stream_2.send(watermark_msg).unwrap();
 
     // Receive flowed watermark message for t=1.
     let msg = extract_stream.read().unwrap();
-    assert_eq!(Message::new_watermark(Timestamp::new(vec![1])), msg);
+    assert_eq!(Message::new_watermark(Timestamp::Time(vec![1])), msg);
 
     // Close both ingest streams.
     ingest_stream_1
-        .send(Message::new_watermark(Timestamp::top()))
+        .send(Message::new_watermark(Timestamp::Top))
         .unwrap();
     ingest_stream_2
-        .send(Message::new_watermark(Timestamp::top()))
+        .send(Message::new_watermark(Timestamp::Top))
         .unwrap();
     assert!(ingest_stream_1.is_closed());
     assert!(ingest_stream_2.is_closed());
 
     // Receive top watermark.
     let msg = extract_stream.read().unwrap();
-    assert_eq!(msg, Message::new_watermark(Timestamp::top()));
+    assert_eq!(msg, Message::new_watermark(Timestamp::Top));
     assert_eq!(extract_stream.try_read(), Err(TryReadError::Closed));
     assert!(extract_stream.is_closed());
 }

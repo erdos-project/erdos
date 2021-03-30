@@ -22,7 +22,7 @@ impl Source<(), usize> for SourceOperator {
         let logger = erdos::get_terminal_logger();
         slog::info!(logger, "Running Source Operator");
         for t in 0..10 {
-            let timestamp = Timestamp::new(vec![t as u64]);
+            let timestamp = Timestamp::Time(vec![t as u64]);
             write_stream
                 .send(Message::new_message(timestamp.clone(), t))
                 .unwrap();

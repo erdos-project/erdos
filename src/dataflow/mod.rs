@@ -6,12 +6,14 @@ pub mod connect;
 pub mod graph;
 pub mod message;
 pub mod operator;
+pub mod time;
 // pub mod operators;
 pub mod state;
 pub mod stream;
 
 // Public exports
-pub use message::{Data, Message, Timestamp, TimestampedData};
+pub use message::{Data, Message, TimestampedData};
+pub use time::Timestamp;
 pub use operator::OperatorConfig;
 pub use state::State;
 pub use stream::{LoopStream, Stream, ReadStream, StreamT, WriteStream};
@@ -39,7 +41,7 @@ mod tests {
         });
 
         // Generate events from message
-        let msg = Message::new_message(Timestamp::new(vec![1]), String::from("msg 1"));
+        let msg = Message::new_message(Timestamp::Time(vec![1]), String::from("msg 1"));
         let irs: Rc<RefCell<InternalReadStream<String>>> = (&rs).into();
         let mut events = irs.borrow().make_events(Arc::new(msg));
         assert!(events.len() == 1);
@@ -66,8 +68,8 @@ mod tests {
         });
 
         // Generate events from message
-        let msg = Message::new_message(Timestamp::new(vec![1]), String::from("msg 1"));
-        let watermark_msg = Message::new_watermark(Timestamp::new(vec![2]));
+        let msg = Message::new_message(Timestamp::Time(vec![1]), String::from("msg 1"));
+        let watermark_msg = Message::new_watermark(Timestamp::Time(vec![2]));
         // Non-watermark messages should not create events
         let events = irs.borrow().make_events(Arc::new(msg));
         assert!(events.is_empty());
@@ -103,7 +105,7 @@ mod tests {
         });
 
         // Generate events from message
-        let msg = Message::new_message(Timestamp::new(vec![1]), 42);
+        let msg = Message::new_message(Timestamp::Time(vec![1]), 42);
         let mut events = irs.borrow().make_events(Arc::new(msg));
         assert!(events.len() == 1);
 
@@ -129,8 +131,8 @@ mod tests {
         });
 
         // Generate events from message
-        let msg = Message::new_message(Timestamp::new(vec![1]), 1);
-        let watermark_msg = Message::new_watermark(Timestamp::new(vec![2]));
+        let msg = Message::new_message(Timestamp::Time(vec![1]), 1);
+        let watermark_msg = Message::new_watermark(Timestamp::Time(vec![2]));
         // Non-watermark messages should not create events
         let events = irs.borrow().make_events(Arc::new(msg));
         assert!(events.is_empty());
@@ -164,10 +166,10 @@ mod tests {
         crate::add_watermark_callback!((srs1, srs2), (), (cb));
 
         // Generate events from message
-        let msg1 = Message::new_message(Timestamp::new(vec![1]), 1);
-        let msg2 = Message::new_message(Timestamp::new(vec![1]), 1);
-        let watermark_msg1 = Message::new_watermark(Timestamp::new(vec![2]));
-        let watermark_msg2 = Message::new_watermark(Timestamp::new(vec![2]));
+        let msg1 = Message::new_message(Timestamp::Time(vec![1]), 1);
+        let msg2 = Message::new_message(Timestamp::Time(vec![1]), 1);
+        let watermark_msg1 = Message::new_watermark(Timestamp::Time(vec![2]));
+        let watermark_msg2 = Message::new_watermark(Timestamp::Time(vec![2]));
         // Non-watermark messages should not create events
         let events = irs1.borrow().make_events(Arc::new(msg1));
         assert!(events.is_empty());
@@ -223,12 +225,12 @@ mod tests {
             .add_watermark_callback(cb);
 
         // Generate events from message
-        let msg1 = Message::new_message(Timestamp::new(vec![1]), 1);
-        let msg2 = Message::new_message(Timestamp::new(vec![1]), 1);
-        let msg3 = Message::new_message(Timestamp::new(vec![1]), 1);
-        let watermark_msg1 = Message::new_watermark(Timestamp::new(vec![2]));
-        let watermark_msg2 = Message::new_watermark(Timestamp::new(vec![2]));
-        let watermark_msg3 = Message::new_watermark(Timestamp::new(vec![2]));
+        let msg1 = Message::new_message(Timestamp::Time(vec![1]), 1);
+        let msg2 = Message::new_message(Timestamp::Time(vec![1]), 1);
+        let msg3 = Message::new_message(Timestamp::Time(vec![1]), 1);
+        let watermark_msg1 = Message::new_watermark(Timestamp::Time(vec![2]));
+        let watermark_msg2 = Message::new_watermark(Timestamp::Time(vec![2]));
+        let watermark_msg3 = Message::new_watermark(Timestamp::Time(vec![2]));
         // Non-watermark messages should not create events
         let events = irs1.borrow().make_events(Arc::new(msg1));
         assert!(events.is_empty());
@@ -270,7 +272,7 @@ mod tests {
         rws.borrow_mut().add_watermark_callback(
             |_t: &Timestamp, state: &CounterState, output_stream: &mut WriteStream<usize>| {
                 let msg = TimestampedData {
-                    timestamp: Timestamp::new(vec![1]),
+                    timestamp: Timestamp::Time(vec![1]),
                     data: state.count,
                 };
                 output_stream.send(Message::TimestampedData(msg)).unwrap()
@@ -278,9 +280,9 @@ mod tests {
         );
 
         // Watermark messages should create events
-        let t0 = Timestamp::new(vec![0]);
-        let t1 = Timestamp::new(vec![1]);
-        let t2 = Timestamp::new(vec![2]);
+        let t0 = Timestamp::Time(vec![0]);
+        let t1 = Timestamp::Time(vec![1]);
+        let t2 = Timestamp::Time(vec![2]);
 
         // First watermark should create events
         let events = rws.borrow_mut().receive_watermark(rs.get_id(), t1);
@@ -320,8 +322,8 @@ mod tests {
             tx2.send("watermark callback invoked").unwrap();
         });
         // Generate events from message
-        let msg = Message::new_message(Timestamp::new(vec![1]), String::from(""));
-        let watermark_msg = Message::new_watermark(Timestamp::new(vec![2]));
+        let msg = Message::new_message(Timestamp::Time(vec![1]), String::from(""));
+        let watermark_msg = Message::new_watermark(Timestamp::Time(vec![2]));
         // Non-watermark messages should not create events
         let mut events = irs.borrow().make_events(Arc::new(msg));
         assert!(events.len() == 1);
