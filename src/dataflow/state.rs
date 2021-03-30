@@ -397,16 +397,16 @@ mod tests {
         state.set_history_size(2).unwrap();
         assert_eq!(state.history_size(), 2);
         state.set_initial_state(99).unwrap();
-        assert_eq!(Some(&99), state.state_history.get(&Timestamp::bottom()));
+        assert_eq!(Some(&99), state.state_history.get(&Timestamp::Bottom));
         assert!(state.append(3).is_err());
         assert_eq!(
             Some(&Vec::new()),
-            state.message_history.get(&Timestamp::bottom())
+            state.message_history.get(&Timestamp::Bottom)
         );
         assert!(state.get_current_messages().is_err());
-        assert!(state.get_messages(&Timestamp::bottom()).is_err());
+        assert!(state.get_messages(&Timestamp::Bottom).is_err());
         assert!(state.iter_messages().is_err());
-        assert!(state.get_state(&Timestamp::bottom()).is_err());
+        assert!(state.get_state(&Timestamp::Bottom).is_err());
         assert!(state.get_current_state().is_err());
         assert!(state.get_current_state_mut().is_err());
         assert!(state.iter_states().is_err());
@@ -417,18 +417,18 @@ mod tests {
         let mut state: TimeVersionedState<usize, usize> =
             TimeVersionedState::new_with_history_size(1);
         state.access_context = AccessContext::Callback;
-        let current_time = Timestamp::new(vec![1]);
+        let current_time = Timestamp::Time(vec![1]);
         state.set_current_time(current_time.clone());
         assert!(state.set_history_size(2).is_err());
         assert_ne!(state.history_size(), 2);
         assert!(state.set_initial_state(99).is_err());
-        assert_eq!(None, state.state_history.get(&Timestamp::bottom()));
+        assert_eq!(None, state.state_history.get(&Timestamp::Bottom));
         assert!(state.append(3).is_ok());
         assert_eq!(Some(&vec![3]), state.message_history.get(&current_time));
         assert!(state.get_current_messages().is_err());
-        assert!(state.get_messages(&Timestamp::bottom()).is_err());
+        assert!(state.get_messages(&Timestamp::Bottom).is_err());
         assert!(state.iter_messages().is_err());
-        assert!(state.get_state(&Timestamp::bottom()).is_err());
+        assert!(state.get_state(&Timestamp::Bottom).is_err());
         assert!(state.get_current_state().is_err());
         assert!(state.get_current_state_mut().is_err());
         assert!(state.iter_states().is_err());
@@ -438,20 +438,20 @@ mod tests {
     fn test_watermark_callback_access() {
         let mut state: TimeVersionedState<usize, usize> =
             TimeVersionedState::new_with_history_size(1);
-        state.set_current_time(Timestamp::new(vec![1]));
+        state.set_current_time(Timestamp::Time(vec![1]));
         state.access_context = AccessContext::WatermarkCallback;
         assert!(state.set_history_size(2).is_err());
         assert_ne!(state.history_size(), 2);
         assert!(state.set_initial_state(99).is_err());
-        assert_eq!(None, state.state_history.get(&Timestamp::bottom()));
+        assert_eq!(None, state.state_history.get(&Timestamp::Bottom));
         assert!(state.append(3).is_err());
         assert_eq!(
             Ok(Some(&vec![])),
-            state.get_messages(&Timestamp::new(vec![1]))
+            state.get_messages(&Timestamp::Time(vec![1]))
         );
         assert_eq!(Ok(&vec![]), state.get_current_messages());
         assert_eq!(Ok(&mut usize::default()), state.get_current_state_mut());
-        assert_eq!(Ok(None), state.get_state(&Timestamp::bottom()));
+        assert_eq!(Ok(None), state.get_state(&Timestamp::Bottom));
         assert_eq!(Ok(&usize::default()), state.get_current_state());
         assert_eq!(Ok(&mut usize::default()), state.get_current_state_mut());
         assert!(state.iter_states().is_ok());
@@ -471,7 +471,7 @@ mod tests {
         // Add all messages first.
         for i in 1..=5 {
             // Called internally by ERDOS.
-            versioned_state.set_current_time(Timestamp::new(vec![i as u64]));
+            versioned_state.set_current_time(Timestamp::Time(vec![i as u64]));
             // Add message data from simulated callback.
             versioned_state.append(i).unwrap();
             versioned_state.append(i * 2).unwrap();
@@ -481,7 +481,7 @@ mod tests {
         versioned_state.set_access_context(AccessContext::WatermarkCallback);
         // Process messages and create states.
         for i in 1..=5 {
-            let current_time = Timestamp::new(vec![i as u64]);
+            let current_time = Timestamp::Time(vec![i as u64]);
             // Called internally by ERDOS.
             versioned_state.set_current_time(current_time.clone());
             // Check that state is initiated to default.
@@ -508,8 +508,8 @@ mod tests {
             for (j, ((t_msg, msgs), (t_state, state))) in msg_iter.zip(state_iter).enumerate() {
                 let k = i - j;
                 let (expected_t, expected_state, expected_msgs) = match k {
-                    0 => (Timestamp::bottom(), 100, Vec::new()),
-                    x => (Timestamp::new(vec![x as u64]), 6 * x, vec![k, k * 2, k * 3]),
+                    0 => (Timestamp::Bottom, 100, Vec::new()),
+                    x => (Timestamp::Time(vec![x as u64]), 6 * x, vec![k, k * 2, k * 3]),
                 };
                 assert_eq!(t_msg, t_state);
                 assert_eq!(t_msg, &expected_t);
@@ -527,7 +527,7 @@ mod tests {
             );
             // Try to get a future state.
             assert!(versioned_state
-                .get_state(&Timestamp::new(vec![(i + 1) as u64]))
+                .get_state(&Timestamp::Time(vec![(i + 1) as u64]))
                 .unwrap()
                 .is_none());
             // Called internally by ERDOS.
@@ -535,7 +535,7 @@ mod tests {
             if i % 2 == 0 {
                 versioned_state.close_time(&current_time).unwrap();
                 let expected_min_time =
-                    Timestamp::new(vec![(i + 1 - expected_num_states_accessible) as u64]);
+                    Timestamp::Time(vec![(i + 1 - expected_num_states_accessible) as u64]);
                 let gcd_messages: Vec<_> = versioned_state
                     .message_history
                     .range(..expected_min_time.clone())

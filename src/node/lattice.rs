@@ -134,8 +134,8 @@ impl PartialOrd for RunnableEvent {
 ///
 ///     // Add two events of timestamp 1 and 2 to the lattice with empty callbacks.
 ///     events = vec![
-///         OperatorEvent::new(Timestamp::new(vec![1]), true, 0, HashSet::new(), HashSet::new(), || ())
-///         OperatorEvent::new(Timestamp::new(vec![2]), true, 0, HashSet::new(), HashSet::new(), || ())
+///         OperatorEvent::new(Timestamp::Time(vec![1]), true, 0, HashSet::new(), HashSet::new(), || ())
+///         OperatorEvent::new(Timestamp::Time(vec![2]), true, 0, HashSet::new(), HashSet::new(), || ())
 ///     ];
 ///     lattice.add_events(events).await;
 ///
@@ -460,7 +460,7 @@ mod test {
     fn test_leaf_addition() {
         let lattice: ExecutionLattice = ExecutionLattice::new();
         let events = vec![OperatorEvent::new(
-            Timestamp::new(vec![1]),
+            Timestamp::Time(vec![1]),
             false,
             0,
             HashSet::new(),
@@ -472,7 +472,8 @@ mod test {
         // Ensure that the correct event is returned by the lattice.
         let (event, _event_id) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
-            event.timestamp.time[0], 1,
+            event.timestamp,
+            Timestamp::Time(vec![1 as u64]),
             "The wrong event was returned by the lattice."
         );
 
@@ -487,7 +488,7 @@ mod test {
         let lattice: ExecutionLattice = ExecutionLattice::new();
         let events = vec![
             OperatorEvent::new(
-                Timestamp::new(vec![1]),
+                Timestamp::Time(vec![1]),
                 false,
                 0,
                 HashSet::new(),
@@ -495,7 +496,7 @@ mod test {
                 || (),
             ),
             OperatorEvent::new(
-                Timestamp::new(vec![1]),
+                Timestamp::Time(vec![1]),
                 false,
                 0,
                 HashSet::new(),
@@ -508,7 +509,8 @@ mod test {
         // Check the first event is returned correctly by the lattice.
         let (event, _event_id) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
-            event.timestamp.time[0], 1,
+            event.timestamp,
+            Timestamp::Time(vec![1 as u64]),
             "The wrong event was returned by the lattice."
         );
 
@@ -516,7 +518,8 @@ mod test {
         // This shows that they can be executed concurrently.
         let (event_2, _event_id_2) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
-            event_2.timestamp.time[0], 1,
+            event_2.timestamp,
+            Timestamp::Time(vec![1 as u64]),
             "The wrong event was returned by the lattice."
         );
     }
@@ -528,7 +531,7 @@ mod test {
         let lattice: ExecutionLattice = ExecutionLattice::new();
         let events = vec![
             OperatorEvent::new(
-                Timestamp::new(vec![1]),
+                Timestamp::Time(vec![1]),
                 false,
                 0,
                 HashSet::new(),
@@ -536,7 +539,7 @@ mod test {
                 || (),
             ),
             OperatorEvent::new(
-                Timestamp::new(vec![1]),
+                Timestamp::Time(vec![1]),
                 false,
                 0,
                 HashSet::new(),
@@ -544,7 +547,7 @@ mod test {
                 || (),
             ),
             OperatorEvent::new(
-                Timestamp::new(vec![1]),
+                Timestamp::Time(vec![1]),
                 true,
                 0,
                 HashSet::new(),
@@ -556,14 +559,14 @@ mod test {
         // Check that the first event is returned correctly by the lattice.
         let (event, event_id) = block_on(lattice.get_event()).unwrap();
         assert!(
-            event.timestamp.time[0] == 1 && !event.is_watermark_callback,
+            event.timestamp == Timestamp::Time(vec![1 as u64]) && !event.is_watermark_callback,
             "The wrong event was returned by the lattice."
         );
 
         // Check that the first event is returned correctly by the lattice.
         let (event_2, event_id_2) = block_on(lattice.get_event()).unwrap();
         assert!(
-            event_2.timestamp.time[0] == 1 && !event.is_watermark_callback,
+            event_2.timestamp == Timestamp::Time(vec![1 as u64]) && !event.is_watermark_callback,
             "The wrong event was returned by the lattice."
         );
         let no_event = block_on(lattice.get_event());
@@ -580,7 +583,7 @@ mod test {
 
         let (event_3, _event_id_3) = block_on(lattice.get_event()).unwrap();
         assert!(
-            event_3.timestamp.time[0] == 1 && event_3.is_watermark_callback,
+            event_3.timestamp == Timestamp::Time(vec![1 as u64]) && event_3.is_watermark_callback,
             "The wrong event was returned by the lattice."
         );
     }
@@ -592,7 +595,7 @@ mod test {
         let lattice: ExecutionLattice = ExecutionLattice::new();
         let events = vec![
             OperatorEvent::new(
-                Timestamp::new(vec![3]),
+                Timestamp::Time(vec![3]),
                 true,
                 0,
                 HashSet::new(),
@@ -600,7 +603,7 @@ mod test {
                 || (),
             ),
             OperatorEvent::new(
-                Timestamp::new(vec![2]),
+                Timestamp::Time(vec![2]),
                 true,
                 0,
                 HashSet::new(),
@@ -608,7 +611,7 @@ mod test {
                 || (),
             ),
             OperatorEvent::new(
-                Timestamp::new(vec![1]),
+                Timestamp::Time(vec![1]),
                 true,
                 0,
                 HashSet::new(),
@@ -620,7 +623,8 @@ mod test {
 
         let (event, event_id) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
-            event.timestamp.time[0], 1,
+            event.timestamp,
+            Timestamp::Time(vec![1 as u64]),
             "The wrong event was returned by the lattice."
         );
         assert!(
@@ -630,7 +634,8 @@ mod test {
         block_on(lattice.mark_as_completed(event_id));
         let (event_2, event_id_2) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
-            event_2.timestamp.time[0], 2,
+            event_2.timestamp,
+            Timestamp::Time(vec![2 as u64]),
             "The wrong event was returned by the lattice."
         );
         assert!(
@@ -640,7 +645,8 @@ mod test {
         block_on(lattice.mark_as_completed(event_id_2));
         let (event_3, _event_id_3) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
-            event_3.timestamp.time[0], 3,
+            event_3.timestamp,
+            Timestamp::Time(vec![3 as u64]),
             "The wrong event was returned by the lattice."
         );
         assert!(
@@ -655,7 +661,7 @@ mod test {
         let lattice: ExecutionLattice = ExecutionLattice::new();
         let events = vec![
             OperatorEvent::new(
-                Timestamp::new(vec![3]),
+                Timestamp::Time(vec![3]),
                 false,
                 0,
                 HashSet::new(),
@@ -663,7 +669,7 @@ mod test {
                 || (),
             ),
             OperatorEvent::new(
-                Timestamp::new(vec![2]),
+                Timestamp::Time(vec![2]),
                 false,
                 0,
                 HashSet::new(),
@@ -671,7 +677,7 @@ mod test {
                 || (),
             ),
             OperatorEvent::new(
-                Timestamp::new(vec![1]),
+                Timestamp::Time(vec![1]),
                 false,
                 0,
                 HashSet::new(),
@@ -683,17 +689,20 @@ mod test {
 
         let (event, _event_id) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
-            event.timestamp.time[0], 1,
+            event.timestamp,
+            Timestamp::Time(vec![1 as u64]),
             "The wrong event was returned by the lattice."
         );
         let (event_2, _event_id_2) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
-            event_2.timestamp.time[0], 2,
+            event_2.timestamp,
+            Timestamp::Time(vec![2 as u64]),
             "The wrong event was returned by the lattice."
         );
         let (event_3, _event_id_3) = block_on(lattice.get_event()).unwrap();
         assert_eq!(
-            event_3.timestamp.time[0], 3,
+            event_3.timestamp,
+            Timestamp::Time(vec![3 as u64]),
             "The wrong event was returned by the lattice."
         );
     }
@@ -704,7 +713,7 @@ mod test {
         let lattice: ExecutionLattice = ExecutionLattice::new();
         let events = vec![
             OperatorEvent::new(
-                Timestamp::new(vec![3]),
+                Timestamp::Time(vec![3]),
                 true,
                 0,
                 HashSet::new(),
@@ -712,7 +721,7 @@ mod test {
                 || (),
             ),
             OperatorEvent::new(
-                Timestamp::new(vec![2]),
+                Timestamp::Time(vec![2]),
                 true,
                 0,
                 HashSet::new(),
@@ -720,7 +729,7 @@ mod test {
                 || (),
             ),
             OperatorEvent::new(
-                Timestamp::new(vec![1]),
+                Timestamp::Time(vec![1]),
                 true,
                 0,
                 HashSet::new(),
@@ -728,7 +737,7 @@ mod test {
                 || (),
             ),
             OperatorEvent::new(
-                Timestamp::new(vec![1]),
+                Timestamp::Time(vec![1]),
                 false,
                 0,
                 HashSet::new(),
@@ -736,7 +745,7 @@ mod test {
                 || (),
             ),
             OperatorEvent::new(
-                Timestamp::new(vec![2]),
+                Timestamp::Time(vec![2]),
                 false,
                 0,
                 HashSet::new(),
@@ -744,7 +753,7 @@ mod test {
                 || (),
             ),
             OperatorEvent::new(
-                Timestamp::new(vec![3]),
+                Timestamp::Time(vec![3]),
                 false,
                 0,
                 HashSet::new(),
@@ -755,17 +764,17 @@ mod test {
         block_on(lattice.add_events(events));
         let (event, event_id) = block_on(lattice.get_event()).unwrap();
         assert!(
-            event.timestamp.time[0] == 1 && !event.is_watermark_callback,
+            event.timestamp == Timestamp::Time(vec![1 as u64]) && !event.is_watermark_callback,
             "The wrong event was returned by the lattice."
         );
         let (event_2, event_id_2) = block_on(lattice.get_event()).unwrap();
         assert!(
-            event_2.timestamp.time[0] == 2 && !event_2.is_watermark_callback,
+            event_2.timestamp == Timestamp::Time(vec![2 as u64]) && !event_2.is_watermark_callback,
             "The wrong event was returned by the lattice."
         );
         let (event_3, event_id_3) = block_on(lattice.get_event()).unwrap();
         assert!(
-            event_3.timestamp.time[0] == 3 && !event_3.is_watermark_callback,
+            event_3.timestamp == Timestamp::Time(vec![3 as u64]) && !event_3.is_watermark_callback,
             "The wrong event was returned by the lattice."
         );
         assert!(
@@ -775,7 +784,7 @@ mod test {
         block_on(lattice.mark_as_completed(event_id));
         let (event_4, event_id_4) = block_on(lattice.get_event()).unwrap();
         assert!(
-            event_4.timestamp.time[0] == 1 && event_4.is_watermark_callback,
+            event_4.timestamp == Timestamp::Time(vec![1 as u64]) && event_4.is_watermark_callback,
             "The wrong event was returned by the lattice."
         );
         assert!(
@@ -790,7 +799,7 @@ mod test {
         block_on(lattice.mark_as_completed(event_id_2));
         let (event_5, event_id_5) = block_on(lattice.get_event()).unwrap();
         assert!(
-            event_5.timestamp.time[0] == 2 && event_5.is_watermark_callback,
+            event_5.timestamp == Timestamp::Time(vec![2 as u64]) && event_5.is_watermark_callback,
             "The wrong event was returned by the lattice."
         );
         block_on(lattice.mark_as_completed(event_id_3));
@@ -801,7 +810,7 @@ mod test {
         block_on(lattice.mark_as_completed(event_id_5));
         let (event_6, event_id_6) = block_on(lattice.get_event()).unwrap();
         assert!(
-            event_6.timestamp.time[0] == 3 && event_6.is_watermark_callback,
+            event_6.timestamp == Timestamp::Time(vec![3 as u64]) && event_6.is_watermark_callback,
             "The wrong event was returned by the lattice."
         );
         block_on(lattice.mark_as_completed(event_id_6));
@@ -820,7 +829,7 @@ mod test {
         // Add 2 operators that can run concurrently.
         let initial_events = vec![
             OperatorEvent::new(
-                Timestamp::new(vec![0]),
+                Timestamp::Time(vec![0]),
                 false,
                 0,
                 HashSet::new(),
@@ -828,7 +837,7 @@ mod test {
                 || {},
             ),
             OperatorEvent::new(
-                Timestamp::new(vec![0]),
+                Timestamp::Time(vec![0]),
                 false,
                 0,
                 HashSet::new(),
@@ -840,7 +849,7 @@ mod test {
 
         // Generate events A and B where B precedes A.
         let event_a = OperatorEvent::new(
-            Timestamp::new(vec![0]),
+            Timestamp::Time(vec![0]),
             true,
             20,
             HashSet::new(),
@@ -848,7 +857,7 @@ mod test {
             || {},
         );
         let event_b = OperatorEvent::new(
-            Timestamp::new(vec![0]),
+            Timestamp::Time(vec![0]),
             true,
             0,
             HashSet::new(),

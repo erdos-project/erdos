@@ -88,7 +88,7 @@ impl<D: Data> WriteStream<D> {
             id,
             name: name.to_string(),
             pusher: Some(Pusher::new()),
-            low_watermark: Timestamp::new(vec![0]),
+            low_watermark: Timestamp::Time(vec![0]),
             stream_closed: false,
         }
     }

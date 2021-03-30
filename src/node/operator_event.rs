@@ -179,7 +179,7 @@ mod test {
     fn test_watermark_event_orderings() {
         {
             let watermark_event_a: OperatorEvent = OperatorEvent::new(
-                Timestamp::new(vec![1]),
+                Timestamp::Time(vec![1]),
                 true,
                 0,
                 HashSet::new(),
@@ -187,7 +187,7 @@ mod test {
                 || (),
             );
             let watermark_event_b: OperatorEvent = OperatorEvent::new(
-                Timestamp::new(vec![2]),
+                Timestamp::Time(vec![2]),
                 true,
                 0,
                 HashSet::new(),
@@ -202,7 +202,7 @@ mod test {
         // Test that priorities should break ties only for otherwise equal watermark callbacks.
         {
             let watermark_event_a: OperatorEvent = OperatorEvent::new(
-                Timestamp::new(vec![1]),
+                Timestamp::Time(vec![1]),
                 true,
                 -1,
                 HashSet::new(),
@@ -210,7 +210,7 @@ mod test {
                 || (),
             );
             let watermark_event_b: OperatorEvent = OperatorEvent::new(
-                Timestamp::new(vec![1]),
+                Timestamp::Time(vec![1]),
                 true,
                 1,
                 HashSet::new(),
@@ -223,7 +223,7 @@ mod test {
             );
 
             let watermark_event_c: OperatorEvent = OperatorEvent::new(
-                Timestamp::new(vec![0]),
+                Timestamp::Time(vec![0]),
                 true,
                 0,
                 HashSet::new(),
@@ -240,7 +240,7 @@ mod test {
             );
 
             let watermark_event_d: OperatorEvent = OperatorEvent::new(
-                Timestamp::new(vec![2]),
+                Timestamp::Time(vec![2]),
                 true,
                 0,
                 HashSet::new(),
@@ -258,7 +258,7 @@ mod test {
 
             // Priority should not affect message events
             let message_event_a: OperatorEvent = OperatorEvent::new(
-                Timestamp::new(vec![1]),
+                Timestamp::Time(vec![1]),
                 false,
                 0,
                 HashSet::new(),
@@ -275,7 +275,7 @@ mod test {
             );
 
             let message_event_b: OperatorEvent = OperatorEvent::new(
-                Timestamp::new(vec![2]),
+                Timestamp::Time(vec![2]),
                 false,
                 0,
                 HashSet::new(),
@@ -298,7 +298,7 @@ mod test {
     #[test]
     fn test_message_event_orderings() {
         let message_event_a: OperatorEvent = OperatorEvent::new(
-            Timestamp::new(vec![1]),
+            Timestamp::Time(vec![1]),
             false,
             0,
             HashSet::new(),
@@ -306,7 +306,7 @@ mod test {
             || (),
         );
         let message_event_b: OperatorEvent = OperatorEvent::new(
-            Timestamp::new(vec![2]),
+            Timestamp::Time(vec![2]),
             false,
             0,
             HashSet::new(),
@@ -325,7 +325,7 @@ mod test {
         // is dependent on the message.
         {
             let message_event_a: OperatorEvent = OperatorEvent::new(
-                Timestamp::new(vec![1]),
+                Timestamp::Time(vec![1]),
                 false,
                 0,
                 HashSet::new(),
@@ -333,7 +333,7 @@ mod test {
                 || (),
             );
             let watermark_event_b: OperatorEvent = OperatorEvent::new(
-                Timestamp::new(vec![2]),
+                Timestamp::Time(vec![2]),
                 true,
                 0,
                 HashSet::new(),
@@ -350,7 +350,7 @@ mod test {
         // watermark.
         {
             let message_event_a: OperatorEvent = OperatorEvent::new(
-                Timestamp::new(vec![1]),
+                Timestamp::Time(vec![1]),
                 false,
                 0,
                 HashSet::new(),
@@ -358,7 +358,7 @@ mod test {
                 || (),
             );
             let watermark_event_b: OperatorEvent = OperatorEvent::new(
-                Timestamp::new(vec![1]),
+                Timestamp::Time(vec![1]),
                 true,
                 0,
                 HashSet::new(),
@@ -375,7 +375,7 @@ mod test {
         // with a watermark of lesser timestamp.
         {
             let message_event_a: OperatorEvent = OperatorEvent::new(
-                Timestamp::new(vec![2]),
+                Timestamp::Time(vec![2]),
                 false,
                 0,
                 HashSet::new(),
@@ -383,7 +383,7 @@ mod test {
                 || (),
             );
             let watermark_event_b: OperatorEvent = OperatorEvent::new(
-                Timestamp::new(vec![1]),
+                Timestamp::Time(vec![1]),
                 true,
                 0,
                 HashSet::new(),
@@ -402,7 +402,7 @@ mod test {
         let mut write_ids = HashSet::new();
         write_ids.insert(Uuid::new_deterministic());
         let event_a = OperatorEvent::new(
-            Timestamp::new(vec![0]),
+            Timestamp::Time(vec![0]),
             true,
             0,
             HashSet::new(),
@@ -411,7 +411,7 @@ mod test {
         );
 
         let event_b = OperatorEvent::new(
-            Timestamp::new(vec![0]),
+            Timestamp::Time(vec![0]),
             true,
             1,
             HashSet::new(),
@@ -423,7 +423,7 @@ mod test {
         let mut read_ids = HashSet::new();
         read_ids.insert(Uuid::new_deterministic());
         let event_c = OperatorEvent::new(
-            Timestamp::new(vec![0]),
+            Timestamp::Time(vec![0]),
             true,
             0,
             read_ids,
@@ -437,7 +437,7 @@ mod test {
 
         let read_ids = write_ids.clone();
         let event_d = OperatorEvent::new(
-            Timestamp::new(vec![0]),
+            Timestamp::Time(vec![0]),
             true,
             0,
             read_ids,

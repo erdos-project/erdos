@@ -3,7 +3,7 @@ use erdos::{
         message::*,
         operators::MapOperator,
         stream::{ExtractStream, WriteStreamT},
-        Operator, OperatorConfig, ReadStream, WriteStream,
+        Operator, OperatorConfig, ReadStream, Timestamp, WriteStream,
     },
     node::Node,
     *,

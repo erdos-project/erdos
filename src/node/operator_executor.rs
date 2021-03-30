@@ -189,8 +189,8 @@ impl OperatorExecutorHelper {
         T: Data + for<'a> Deserialize<'a>,
         U: Data + for<'a> Deserialize<'a>,
     {
-        let mut left_watermark = Timestamp::bottom();
-        let mut right_watermark = Timestamp::bottom();
+        let mut left_watermark = Timestamp::Bottom;
+        let mut right_watermark = Timestamp::Bottom;
         let mut min_watermark = cmp::min(&left_watermark, &right_watermark).clone();
         loop {
             let events = tokio::select! {
@@ -317,7 +317,7 @@ where
         // Close the stream.
         if !self.write_stream.is_closed() {
             self.write_stream
-                .send(Message::new_watermark(Timestamp::top()))
+                .send(Message::new_watermark(Timestamp::Top))
                 .unwrap();
         }
     }
@@ -531,7 +531,7 @@ where
         // TODO: check that the top watermark hasn't already been sent.
         if !self.write_stream.is_closed() {
             self.write_stream
-                .send(Message::new_watermark(Timestamp::top()))
+                .send(Message::new_watermark(Timestamp::Top))
                 .unwrap();
         }
     }
@@ -709,7 +709,7 @@ where
         // TODO: check that the top watermark hasn't already been sent.
         if !self.write_stream.is_closed() {
             self.write_stream
-                .send(Message::new_watermark(Timestamp::top()))
+                .send(Message::new_watermark(Timestamp::Top))
                 .unwrap();
         }
     }
@@ -920,12 +920,12 @@ where
         // TODO: check that the top watermark hasn't already been sent.
         if !self.left_write_stream.is_closed() {
             self.left_write_stream
-                .send(Message::new_watermark(Timestamp::top()))
+                .send(Message::new_watermark(Timestamp::Top))
                 .unwrap();
         }
         if !self.right_write_stream.is_closed() {
             self.right_write_stream
-                .send(Message::new_watermark(Timestamp::top()))
+                .send(Message::new_watermark(Timestamp::Top))
                 .unwrap();
         }
     }
