@@ -1,20 +1,5 @@
-use std::{
-    cell::RefCell,
-    cmp,
-    collections::{HashMap, HashSet},
-    future::Future,
-    marker::PhantomData,
-    pin::Pin,
-    rc::Rc,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-    task::{Context, Poll},
-    time::Duration,
-};
+use std::{cmp, collections::HashSet, future::Future, pin::Pin, sync::Arc, time::Duration};
 
-use futures::{future, select};
 use serde::Deserialize;
 use tokio::{
     self,
@@ -22,7 +7,6 @@ use tokio::{
 };
 
 use crate::{
-    communication::{ControlMessage, RecvEndpoint},
     dataflow::{
         operator::{
             OneInOneOut, OneInOneOutContext, OneInTwoOut, OneInTwoOutContext, OperatorConfig, Sink,
@@ -36,7 +20,6 @@ use crate::{
     node::lattice::ExecutionLattice,
     node::operator_event::OperatorEvent,
     node::worker::EventNotification,
-    scheduler::channel_manager::ChannelManager,
     OperatorId,
 };
 
@@ -225,17 +208,6 @@ impl OperatorExecutorHelper {
                 .unwrap();
         }
     }
-
-    async fn teardown(&mut self, notifier_tx: &tokio::sync::broadcast::Sender<EventNotification>) {
-        // Wait for event runners to finish.
-        // notifier_tx
-        //     .send(EventNotification::DestroyOperator(self.operator_id))
-        //     .unwrap();
-
-        // Handle errors?
-        let event_runner_handles = self.event_runner_handles.take().unwrap();
-        future::join_all(event_runner_handles).await;
-    }
 }
 
 pub struct SourceExecutor<O, S, T>
@@ -409,8 +381,6 @@ where
                 }
             };
         }
-
-        self.helper.teardown(&channel_to_event_runners).await;
 
         tokio::task::block_in_place(|| self.operator.destroy());
 
@@ -589,7 +559,6 @@ where
             };
         }
 
-        self.helper.teardown(&channel_to_event_runners).await;
         tokio::task::block_in_place(|| self.operator.destroy());
 
         // Close the stream.
@@ -815,7 +784,6 @@ where
             };
         }
 
-        self.helper.teardown(&channel_to_event_runners).await;
         tokio::task::block_in_place(|| self.operator.destroy());
 
         // Close the stream.
@@ -1070,7 +1038,6 @@ where
             };
         }
 
-        self.helper.teardown(&channel_to_event_runners).await;
         tokio::task::block_in_place(|| self.operator.destroy());
 
         // Close the stream.

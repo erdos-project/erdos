@@ -5,7 +5,7 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::{dataflow::operator, OperatorId};
+use crate::OperatorId;
 
 use super::{lattice::ExecutionLattice, operator_executor::OperatorExecutorT};
 
