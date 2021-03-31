@@ -18,7 +18,7 @@ use futures::{future, select};
 use serde::Deserialize;
 use tokio::{
     self,
-    sync::{mpsc, watch, Mutex},
+    sync::{broadcast, mpsc, Mutex},
 };
 
 use crate::{
@@ -35,40 +35,28 @@ use crate::{
     },
     node::lattice::ExecutionLattice,
     node::operator_event::OperatorEvent,
+    node::worker::EventNotification,
     scheduler::channel_manager::ChannelManager,
+    OperatorId,
 };
 
-#[derive(Clone, Debug, PartialEq)]
-enum EventRunnerMessage {
-    AddedEvents,
-    DestroyOperator,
-}
-
-// TODO: can optimized.
-// Maybe there should be a node-wide pool of threads that run events...
-/// An `event_runner` invocation is in charge of executing callbacks associated with an event.
-/// Upon receipt of an `AddedEvents` notification, it queries the lattice for events that are
-/// ready to run, executes them, and notifies the lattice of their completion.
-async fn event_runner(
-    lattice: Arc<ExecutionLattice>,
-    mut notifier_rx: watch::Receiver<EventRunnerMessage>,
-) {
-    // Wait for notification for events added.
-    while let Some(control_msg) = notifier_rx.recv().await {
-        while let Some((event, event_id)) = lattice.get_event().await {
-            (event.callback)();
-            lattice.mark_as_completed(event_id).await;
-        }
-        if EventRunnerMessage::DestroyOperator == control_msg {
-            break;
-        }
-    }
-}
+use super::worker::{OperatorExecutorNotification, WorkerNotification};
 
 // TODO: use indirection to make this private.
 pub trait OperatorExecutorT: Send {
-    // Returns a future for OperatorExecutor::execute().
-    fn execute<'a>(&'a mut self) -> Pin<Box<dyn Future<Output = ()> + 'a + Send>>;
+    /// Returns a future for OperatorExecutor::execute().
+    fn execute<'a>(
+        &'a mut self,
+        channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
+        channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
+        channel_to_event_runners: broadcast::Sender<EventNotification>,
+    ) -> Pin<Box<dyn Future<Output = ()> + 'a + Send>>;
+
+    /// Returns the lattice into which the executor inserts events.
+    fn lattice(&self) -> Arc<ExecutionLattice>;
+
+    /// Returns the operator ID.
+    fn operator_id(&self) -> OperatorId;
 }
 
 pub trait OneInMessageProcessorT<T>: Send + Sync
@@ -107,13 +95,15 @@ where
 }
 
 pub struct OperatorExecutorHelper {
+    operator_id: OperatorId,
     lattice: Arc<ExecutionLattice>,
     event_runner_handles: Option<Vec<tokio::task::JoinHandle<()>>>,
 }
 
 impl OperatorExecutorHelper {
-    fn new() -> Self {
+    fn new(operator_id: OperatorId) -> Self {
         OperatorExecutorHelper {
+            operator_id,
             lattice: Arc::new(ExecutionLattice::new()),
             event_runner_handles: None,
         }
@@ -125,29 +115,11 @@ impl OperatorExecutorHelper {
         tokio::time::delay_for(Duration::from_secs(1)).await;
     }
 
-    fn setup(
-        &mut self,
-        num_event_runners: usize,
-    ) -> tokio::sync::watch::Sender<EventRunnerMessage> {
-        // Set up the event runner.
-        let (notifier_tx, notifier_rx) = watch::channel(EventRunnerMessage::AddedEvents);
-        self.event_runner_handles = Some(Vec::with_capacity(num_event_runners));
-        for _ in 0..num_event_runners {
-            let event_runner_fut =
-                tokio::task::spawn(event_runner(Arc::clone(&self.lattice), notifier_rx.clone()));
-            self.event_runner_handles
-                .as_mut()
-                .unwrap()
-                .push(event_runner_fut);
-        }
-        notifier_tx
-    }
-
     async fn process_stream<T>(
         &self,
         mut read_stream: ReadStream<T>,
         message_processor: &dyn OneInMessageProcessorT<T>,
-        notifier_tx: &tokio::sync::watch::Sender<EventRunnerMessage>,
+        notifier_tx: &tokio::sync::broadcast::Sender<EventNotification>,
     ) where
         T: Data + for<'a> Deserialize<'a>,
     {
@@ -174,7 +146,7 @@ impl OperatorExecutorHelper {
 
             self.lattice.add_events(events).await;
             notifier_tx
-                .broadcast(EventRunnerMessage::AddedEvents)
+                .send(EventNotification::AddedEvents(self.operator_id))
                 .unwrap();
         }
     }
@@ -184,7 +156,7 @@ impl OperatorExecutorHelper {
         mut left_read_stream: ReadStream<T>,
         mut right_read_stream: ReadStream<U>,
         message_processor: &dyn TwoInMessageProcessorT<T, U>,
-        notifier_tx: &tokio::sync::watch::Sender<EventRunnerMessage>,
+        notifier_tx: &tokio::sync::broadcast::Sender<EventNotification>,
     ) where
         T: Data + for<'a> Deserialize<'a>,
         U: Data + for<'a> Deserialize<'a>,
@@ -250,16 +222,16 @@ impl OperatorExecutorHelper {
             };
             self.lattice.add_events(events).await;
             notifier_tx
-                .broadcast(EventRunnerMessage::AddedEvents)
+                .send(EventNotification::AddedEvents(self.operator_id))
                 .unwrap();
         }
     }
 
-    async fn teardown(&mut self, notifier_tx: &tokio::sync::watch::Sender<EventRunnerMessage>) {
+    async fn teardown(&mut self, notifier_tx: &tokio::sync::broadcast::Sender<EventNotification>) {
         // Wait for event runners to finish.
-        notifier_tx
-            .broadcast(EventRunnerMessage::DestroyOperator)
-            .unwrap();
+        // notifier_tx
+        //     .send(EventNotification::DestroyOperator(self.operator_id))
+        //     .unwrap();
 
         // Handle errors?
         let event_runner_handles = self.event_runner_handles.take().unwrap();
@@ -297,11 +269,16 @@ where
             operator: operator_fn(),
             state: state_fn(),
             write_stream,
-            helper: OperatorExecutorHelper::new(),
+            helper: OperatorExecutorHelper::new(config.id),
         }
     }
 
-    pub async fn execute(&mut self) {
+    pub async fn execute(
+        &mut self,
+        channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
+        channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
+        channel_to_event_runners: broadcast::Sender<EventNotification>,
+    ) {
         self.helper.synchronize().await;
 
         slog::debug!(
@@ -320,6 +297,10 @@ where
                 .send(Message::new_watermark(Timestamp::top()))
                 .unwrap();
         }
+
+        channel_to_worker
+            .send(WorkerNotification::DestroyedOperator(self.operator_id()))
+            .unwrap();
     }
 }
 
@@ -329,8 +310,25 @@ where
     S: State,
     T: Data + for<'a> Deserialize<'a>,
 {
-    fn execute<'a>(&'a mut self) -> Pin<Box<dyn Future<Output = ()> + 'a + Send>> {
-        Box::pin(self.execute())
+    fn execute<'a>(
+        &'a mut self,
+        channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
+        channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
+        channel_to_event_runners: broadcast::Sender<EventNotification>,
+    ) -> Pin<Box<dyn Future<Output = ()> + 'a + Send>> {
+        Box::pin(self.execute(
+            channel_from_worker,
+            channel_to_worker,
+            channel_to_event_runners,
+        ))
+    }
+
+    fn lattice(&self) -> Arc<ExecutionLattice> {
+        Arc::clone(&self.helper.lattice)
+    }
+
+    fn operator_id(&self) -> OperatorId {
+        self.config.id
     }
 }
 
@@ -366,11 +364,16 @@ where
             state: Arc::new(Mutex::new(state_fn())),
             read_ids: vec![read_stream.id()].into_iter().collect(),
             read_stream: Some(read_stream),
-            helper: OperatorExecutorHelper::new(),
+            helper: OperatorExecutorHelper::new(config.id),
         }
     }
 
-    pub async fn execute(&mut self) {
+    pub async fn execute(
+        &mut self,
+        mut channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
+        channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
+        channel_to_event_runners: broadcast::Sender<EventNotification>,
+    ) {
         self.helper.synchronize().await;
 
         slog::debug!(
@@ -382,16 +385,37 @@ where
 
         tokio::task::block_in_place(|| self.operator.run(self.read_stream.as_mut().unwrap()));
 
-        let notifier_tx = self.helper.setup(self.config.num_event_runners);
-
         let read_stream: ReadStream<T> = self.read_stream.take().unwrap();
-        self.helper
-            .process_stream(read_stream, &(*self), &notifier_tx)
-            .await;
+        let process_stream_fut =
+            self.helper
+                .process_stream(read_stream, &(*self), &channel_to_event_runners);
+        loop {
+            tokio::select! {
+                _ = process_stream_fut => break,
+                notification_result = channel_from_worker.recv() => {
+                    match notification_result {
+                        Ok(notification) => {
+                            match notification {
+                                OperatorExecutorNotification::Shutdown => { break; }
+                            }
+                        }
+                        Err(e) => {
+                            slog::error!(crate::get_terminal_logger(),
+                            "Operator executor {}: error receiving notifications {:?}", self.operator_id(), e);
+                            break;
+                        }
+                    }
+                }
+            };
+        }
 
-        self.helper.teardown(&notifier_tx).await;
+        self.helper.teardown(&channel_to_event_runners).await;
 
         tokio::task::block_in_place(|| self.operator.destroy());
+
+        channel_to_worker
+            .send(WorkerNotification::DestroyedOperator(self.operator_id()))
+            .unwrap();
     }
 }
 
@@ -401,8 +425,25 @@ where
     S: State,
     T: Data + for<'a> Deserialize<'a>,
 {
-    fn execute<'a>(&'a mut self) -> Pin<Box<dyn Future<Output = ()> + 'a + Send>> {
-        Box::pin(self.execute())
+    fn execute<'a>(
+        &'a mut self,
+        channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
+        channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
+        channel_to_event_runners: broadcast::Sender<EventNotification>,
+    ) -> Pin<Box<dyn Future<Output = ()> + 'a + Send>> {
+        Box::pin(self.execute(
+            channel_from_worker,
+            channel_to_worker,
+            channel_to_event_runners,
+        ))
+    }
+
+    fn lattice(&self) -> Arc<ExecutionLattice> {
+        Arc::clone(&self.helper.lattice)
+    }
+
+    fn operator_id(&self) -> OperatorId {
+        self.config.id
     }
 }
 
@@ -498,11 +539,16 @@ where
             write_ids: vec![write_stream.id()].into_iter().collect(),
             read_stream: Some(read_stream),
             write_stream,
-            helper: OperatorExecutorHelper::new(),
+            helper: OperatorExecutorHelper::new(config.id),
         }
     }
 
-    pub async fn execute(&mut self) {
+    pub async fn execute(
+        &mut self,
+        mut channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
+        channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
+        channel_to_event_runners: broadcast::Sender<EventNotification>,
+    ) {
         self.helper.synchronize().await;
 
         slog::debug!(
@@ -517,14 +563,31 @@ where
                 .run(self.read_stream.as_mut().unwrap(), &mut self.write_stream)
         });
 
-        let notifier_tx = self.helper.setup(self.config.num_event_runners);
-
         let read_stream: ReadStream<T> = self.read_stream.take().unwrap();
-        self.helper
-            .process_stream(read_stream, &(*self), &notifier_tx)
-            .await;
+        let process_stream_fut =
+            self.helper
+                .process_stream(read_stream, &(*self), &channel_to_event_runners);
+        loop {
+            tokio::select! {
+                _ = process_stream_fut => break,
+                notification_result = channel_from_worker.recv() => {
+                    match notification_result {
+                        Ok(notification) => {
+                            match notification {
+                                OperatorExecutorNotification::Shutdown => { break; }
+                            }
+                        }
+                        Err(e) => {
+                            slog::error!(crate::get_terminal_logger(),
+                            "Operator executor {}: error receiving notifications {:?}", self.operator_id(), e);
+                            break;
+                        }
+                    }
+                }
+            };
+        }
 
-        self.helper.teardown(&notifier_tx).await;
+        self.helper.teardown(&channel_to_event_runners).await;
         tokio::task::block_in_place(|| self.operator.destroy());
 
         // Close the stream.
@@ -534,6 +597,10 @@ where
                 .send(Message::new_watermark(Timestamp::top()))
                 .unwrap();
         }
+
+        channel_to_worker
+            .send(WorkerNotification::DestroyedOperator(self.operator_id()))
+            .unwrap();
     }
 }
 
@@ -544,8 +611,25 @@ where
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
-    fn execute<'a>(&'a mut self) -> Pin<Box<dyn Future<Output = ()> + 'a + Send>> {
-        Box::pin(self.execute())
+    fn execute<'a>(
+        &'a mut self,
+        channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
+        channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
+        channel_to_event_runners: broadcast::Sender<EventNotification>,
+    ) -> Pin<Box<dyn Future<Output = ()> + 'a + Send>> {
+        Box::pin(self.execute(
+            channel_from_worker,
+            channel_to_worker,
+            channel_to_event_runners,
+        ))
+    }
+
+    fn lattice(&self) -> Arc<ExecutionLattice> {
+        Arc::clone(&self.helper.lattice)
+    }
+
+    fn operator_id(&self) -> OperatorId {
+        self.config.id
     }
 }
 
@@ -672,11 +756,16 @@ where
             right_read_stream: Some(right_read_stream),
             write_ids: vec![write_stream.id()].into_iter().collect(),
             write_stream,
-            helper: OperatorExecutorHelper::new(),
+            helper: OperatorExecutorHelper::new(config.id),
         }
     }
 
-    pub async fn execute(&mut self) {
+    pub async fn execute(
+        &mut self,
+        mut channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
+        channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
+        channel_to_event_runners: broadcast::Sender<EventNotification>,
+    ) {
         self.helper.synchronize().await;
 
         slog::debug!(
@@ -694,15 +783,36 @@ where
             )
         });
 
-        let notifier_tx = self.helper.setup(self.config.num_event_runners);
-
         let left_read_stream: ReadStream<T> = self.left_read_stream.take().unwrap();
         let right_read_stream: ReadStream<U> = self.right_read_stream.take().unwrap();
-        self.helper
-            .process_two_streams(left_read_stream, right_read_stream, &(*self), &notifier_tx)
-            .await;
+        let process_stream_fut = self.helper.process_two_streams(
+            left_read_stream,
+            right_read_stream,
+            &(*self),
+            &channel_to_event_runners,
+        );
 
-        self.helper.teardown(&notifier_tx).await;
+        loop {
+            tokio::select! {
+                _ = process_stream_fut => break,
+                notification_result = channel_from_worker.recv() => {
+                    match notification_result {
+                        Ok(notification) => {
+                            match notification {
+                                OperatorExecutorNotification::Shutdown => { break; }
+                            }
+                        }
+                        Err(e) => {
+                            slog::error!(crate::get_terminal_logger(),
+                            "Operator executor {}: error receiving notifications {:?}", self.operator_id(), e);
+                            break;
+                        }
+                    }
+                }
+            };
+        }
+
+        self.helper.teardown(&channel_to_event_runners).await;
         tokio::task::block_in_place(|| self.operator.destroy());
 
         // Close the stream.
@@ -712,6 +822,10 @@ where
                 .send(Message::new_watermark(Timestamp::top()))
                 .unwrap();
         }
+
+        channel_to_worker
+            .send(WorkerNotification::DestroyedOperator(self.operator_id()))
+            .unwrap();
     }
 }
 
@@ -723,8 +837,25 @@ where
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
 {
-    fn execute<'a>(&'a mut self) -> Pin<Box<dyn Future<Output = ()> + 'a + Send>> {
-        Box::pin(self.execute())
+    fn execute<'a>(
+        &'a mut self,
+        channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
+        channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
+        channel_to_event_runners: broadcast::Sender<EventNotification>,
+    ) -> Pin<Box<dyn Future<Output = ()> + 'a + Send>> {
+        Box::pin(self.execute(
+            channel_from_worker,
+            channel_to_worker,
+            channel_to_event_runners,
+        ))
+    }
+
+    fn lattice(&self) -> Arc<ExecutionLattice> {
+        Arc::clone(&self.helper.lattice)
+    }
+
+    fn operator_id(&self) -> OperatorId {
+        self.config.id
     }
 }
 
@@ -884,11 +1015,16 @@ where
             read_stream: Some(read_stream),
             left_write_stream,
             right_write_stream,
-            helper: OperatorExecutorHelper::new(),
+            helper: OperatorExecutorHelper::new(config.id),
         }
     }
 
-    pub async fn execute(&mut self) {
+    pub async fn execute(
+        &mut self,
+        mut channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
+        channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
+        channel_to_event_runners: broadcast::Sender<EventNotification>,
+    ) {
         self.helper.synchronize().await;
 
         slog::debug!(
@@ -906,14 +1042,31 @@ where
             )
         });
 
-        let notifier_tx = self.helper.setup(self.config.num_event_runners);
-
         let read_stream: ReadStream<T> = self.read_stream.take().unwrap();
-        self.helper
-            .process_stream(read_stream, &(*self), &notifier_tx)
-            .await;
+        let process_stream_fut =
+            self.helper
+                .process_stream(read_stream, &(*self), &channel_to_event_runners);
+        loop {
+            tokio::select! {
+                _ = process_stream_fut => break,
+                notification_result = channel_from_worker.recv() => {
+                    match notification_result {
+                        Ok(notification) => {
+                            match notification {
+                                OperatorExecutorNotification::Shutdown => { break; }
+                            }
+                        }
+                        Err(e) => {
+                            slog::error!(crate::get_terminal_logger(),
+                            "Operator executor {}: error receiving notifications {:?}", self.operator_id(), e);
+                            break;
+                        }
+                    }
+                }
+            };
+        }
 
-        self.helper.teardown(&notifier_tx).await;
+        self.helper.teardown(&channel_to_event_runners).await;
         tokio::task::block_in_place(|| self.operator.destroy());
 
         // Close the stream.
@@ -928,6 +1081,10 @@ where
                 .send(Message::new_watermark(Timestamp::top()))
                 .unwrap();
         }
+
+        channel_to_worker
+            .send(WorkerNotification::DestroyedOperator(self.operator_id()))
+            .unwrap();
     }
 }
 
@@ -939,8 +1096,25 @@ where
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
 {
-    fn execute<'a>(&'a mut self) -> Pin<Box<dyn Future<Output = ()> + 'a + Send>> {
-        Box::pin(self.execute())
+    fn execute<'a>(
+        &'a mut self,
+        channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
+        channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
+        channel_to_event_runners: broadcast::Sender<EventNotification>,
+    ) -> Pin<Box<dyn Future<Output = ()> + 'a + Send>> {
+        Box::pin(self.execute(
+            channel_from_worker,
+            channel_to_worker,
+            channel_to_event_runners,
+        ))
+    }
+
+    fn lattice(&self) -> Arc<ExecutionLattice> {
+        Arc::clone(&self.helper.lattice)
+    }
+
+    fn operator_id(&self) -> OperatorId {
+        self.config.id
     }
 }
 

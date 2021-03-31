@@ -56,7 +56,7 @@ impl fmt::Display for RunnableEvent {
     }
 }
 
-impl fmt::Debug for RunnableEvent {
+impl Debug for RunnableEvent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -445,6 +445,12 @@ impl ExecutionLattice {
             "{:?}",
             Dot::with_config(&graph, &[dot::Config::EdgeNoLabel])
         )
+    }
+}
+
+impl fmt::Debug for ExecutionLattice {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ExecutionLattice")
     }
 }
 
