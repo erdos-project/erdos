@@ -329,7 +329,10 @@ impl Node {
 
         // TODO: choose a better value.
         let num_event_runners = std::cmp::max(
-            self.config.num_worker_threads - num_local_operators,
+            self.config
+                .num_worker_threads
+                .checked_sub(num_local_operators)
+                .unwrap_or(1),
             num_local_operators,
         );
         let mut worker = Worker::new(num_event_runners);

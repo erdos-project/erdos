@@ -210,7 +210,8 @@ impl Worker {
         self.event_runner_notifications
             .send(EventRunnerNotification::UpdateLattices(Arc::clone(
                 &self.lattices_arc,
-            )));
+            )))
+            .unwrap();
 
         let channel_from_worker = self.operator_executor_notifications.subscribe();
         let channel_to_worker = self.worker_notifications_tx.clone();
@@ -250,7 +251,7 @@ impl Worker {
         let control_channel = self.event_runner_notifications.subscribe();
         let lattices = Arc::clone(&self.lattices_arc);
         let task = tokio::task::spawn(async move {
-            event_runner(id, lattices, events_channel, control_channel);
+            event_runner(id, lattices, events_channel, control_channel).await;
         });
         self.event_runner_tasks.push(task);
     }
