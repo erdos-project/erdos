@@ -25,7 +25,7 @@ thread_local!(static DEFAULT_GRAPH: RefCell<Graph> = RefCell::new(Graph::new()))
 /// Adds an operator to the default graph.
 ///
 /// The operator is pinned on a given node.
-pub fn add_operator<F: OperatorRunner>(
+pub(crate) fn add_operator<F: OperatorRunner>(
     id: OperatorId,
     name: Option<String>,
     node_id: NodeId,
@@ -39,7 +39,7 @@ pub fn add_operator<F: OperatorRunner>(
     });
 }
 
-pub fn add_operator_stream<D>(operator_id: OperatorId, write_stream: &impl StreamT<D>)
+pub(crate) fn add_operator_stream<D>(operator_id: OperatorId, write_stream: &impl StreamT<D>)
 where
     for<'a> D: Data + Deserialize<'a>,
 {
@@ -49,8 +49,10 @@ where
     });
 }
 
-pub fn add_ingest_stream<D, F: StreamSetupHook>(ingest_stream: &IngestStream<D>, setup_hook: F)
-where
+pub(crate) fn add_ingest_stream<D, F: StreamSetupHook>(
+    ingest_stream: &IngestStream<D>,
+    setup_hook: F,
+) where
     for<'a> D: Data + Deserialize<'a>,
 {
     DEFAULT_GRAPH.with(|g| {
@@ -58,8 +60,10 @@ where
     });
 }
 
-pub fn add_extract_stream<D, F: StreamSetupHook>(extract_stream: &ExtractStream<D>, setup_hook: F)
-where
+pub(crate) fn add_extract_stream<D, F: StreamSetupHook>(
+    extract_stream: &ExtractStream<D>,
+    setup_hook: F,
+) where
     for<'a> D: Data + Deserialize<'a>,
 {
     DEFAULT_GRAPH.with(|g| {
@@ -68,7 +72,7 @@ where
     });
 }
 
-pub fn add_loop_stream<D>(loop_stream: &LoopStream<D>)
+pub(crate) fn add_loop_stream<D>(loop_stream: &LoopStream<D>)
 where
     for<'a> D: Data + Deserialize<'a>,
 {
@@ -78,15 +82,15 @@ where
 }
 
 /// Adds an alias from from_id to to_id on the default graph.
-pub fn add_stream_alias(from_id: StreamId, to_id: StreamId) -> Result<(), String> {
+pub(crate) fn add_stream_alias(from_id: StreamId, to_id: StreamId) -> Result<(), String> {
     DEFAULT_GRAPH.with(|g| g.borrow_mut().add_stream_alias(from_id, to_id))
 }
 
-pub fn clone() -> Graph {
+pub(crate) fn clone() -> Graph {
     DEFAULT_GRAPH.with(|g| g.borrow().clone())
 }
 
 /// Updates the graph, and returns previous value
-pub fn set(graph: Graph) -> Graph {
+pub(crate) fn set(graph: Graph) -> Graph {
     DEFAULT_GRAPH.with(|g| g.replace(graph))
 }

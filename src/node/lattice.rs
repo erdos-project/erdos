@@ -56,7 +56,7 @@ impl fmt::Display for RunnableEvent {
     }
 }
 
-impl Debug for RunnableEvent {
+impl fmt::Debug for RunnableEvent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,

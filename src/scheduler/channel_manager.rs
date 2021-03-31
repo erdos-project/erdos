@@ -139,7 +139,7 @@ where
 
 /// Data structure that stores information needed to set up dataflow channels
 /// by constructing individual transport channels.
-pub struct ChannelManager {
+pub(crate) struct ChannelManager {
     /// The node to which the [`ChannelManager`] belongs.
     node_id: NodeId,
     /// The dataflow graph.

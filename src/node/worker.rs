@@ -32,7 +32,7 @@ pub(crate) enum WorkerNotification {
 
 async fn process_events(lattice: &ExecutionLattice) {
     while let Some((event, event_id)) = lattice.get_event().await {
-        (event.callback)();
+        tokio::task::block_in_place(|| (event.callback)());
         lattice.mark_as_completed(event_id).await;
     }
 }
@@ -94,7 +94,7 @@ async fn event_runner(
     }
 }
 
-struct Worker {
+pub(crate) struct Worker {
     /// Number of tasks that execute events generate by operators.
     num_event_runners: usize,
     // Lattices of events for each operator.
@@ -140,7 +140,7 @@ impl Worker {
         }
     }
 
-    pub async fn execute(&mut self, operator_executors: Vec<Box<dyn OperatorExecutorT>>) {
+    pub async fn spawn_tasks(&mut self, operator_executors: Vec<Box<dyn OperatorExecutorT>>) {
         // Spawn event runners.
         for i in 0..self.num_event_runners {
             self.spawn_event_runner(i).await;
@@ -149,6 +149,9 @@ impl Worker {
         for operator_executor in operator_executors {
             self.spawn_operator(operator_executor).await;
         }
+    }
+
+    pub async fn execute(&mut self) {
         // Manage destruction of operators.
         // TODO: in the future, scale up/down event runners, spawn new operators.
         while let Some(notification) = self.worker_notifications_rx.recv().await {
@@ -195,6 +198,11 @@ impl Worker {
 
     async fn spawn_operator(&mut self, mut operator_executor: Box<dyn OperatorExecutorT>) {
         let operator_id = operator_executor.operator_id();
+        slog::debug!(
+            crate::get_terminal_logger(),
+            "Worker: spawning operator with ID {}",
+            operator_id
+        );
         // Get lattice and share with event runners.
         self.lattices
             .insert(operator_id, operator_executor.lattice());

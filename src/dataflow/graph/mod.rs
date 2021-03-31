@@ -13,16 +13,14 @@ mod graph;
 mod vertex;
 
 // Public submodules
-pub mod default_graph;
+pub(crate) mod default_graph;
 
 // Crate-wide exports
 pub(crate) use edge::{Channel, ChannelMetadata, StreamMetadata};
+pub(crate) use graph::Graph;
 pub(crate) use vertex::{DriverMetadata, OperatorMetadata, Vertex};
 
-// Public exports
-pub use graph::Graph;
-
-pub trait OperatorRunner:
+pub(crate) trait OperatorRunner:
     'static + (Fn(Arc<Mutex<ChannelManager>>) -> Box<dyn OperatorExecutorT>) + Sync + Send
 {
     fn box_clone(&self) -> Box<dyn OperatorRunner>;
@@ -41,7 +39,9 @@ impl<
     }
 }
 
-pub trait StreamSetupHook: 'static + Fn(Arc<Mutex<ChannelManager>>) + Sync + Send {
+pub(crate) trait StreamSetupHook:
+    'static + Fn(Arc<Mutex<ChannelManager>>) + Sync + Send
+{
     fn box_clone(&self) -> Box<dyn StreamSetupHook>;
 }
 

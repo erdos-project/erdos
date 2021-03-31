@@ -42,8 +42,7 @@ use crate::{
 
 use super::worker::{OperatorExecutorNotification, WorkerNotification};
 
-// TODO: use indirection to make this private.
-pub trait OperatorExecutorT: Send {
+pub(crate) trait OperatorExecutorT: Send {
     /// Returns a future for OperatorExecutor::execute().
     fn execute<'a>(
         &'a mut self,
@@ -264,20 +263,21 @@ where
         state_fn: impl Fn() -> S + Send,
         write_stream: WriteStream<T>,
     ) -> Self {
+        let operator_id = config.id;
         Self {
             config,
             operator: operator_fn(),
             state: state_fn(),
             write_stream,
-            helper: OperatorExecutorHelper::new(config.id),
+            helper: OperatorExecutorHelper::new(operator_id),
         }
     }
 
-    pub async fn execute(
+    pub(crate) async fn execute(
         &mut self,
-        channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
+        _channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
         channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
-        channel_to_event_runners: broadcast::Sender<EventNotification>,
+        _channel_to_event_runners: broadcast::Sender<EventNotification>,
     ) {
         self.helper.synchronize().await;
 
@@ -358,17 +358,18 @@ where
         state_fn: impl Fn() -> S + Send,
         read_stream: ReadStream<T>,
     ) -> Self {
+        let operator_id = config.id;
         Self {
             config,
             operator: operator_fn(),
             state: Arc::new(Mutex::new(state_fn())),
             read_ids: vec![read_stream.id()].into_iter().collect(),
             read_stream: Some(read_stream),
-            helper: OperatorExecutorHelper::new(config.id),
+            helper: OperatorExecutorHelper::new(operator_id),
         }
     }
 
-    pub async fn execute(
+    pub(crate) async fn execute(
         &mut self,
         mut channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
         channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
@@ -531,6 +532,7 @@ where
         read_stream: ReadStream<T>,
         write_stream: WriteStream<U>,
     ) -> Self {
+        let operator_id = config.id;
         Self {
             config,
             operator: operator_fn(),
@@ -539,11 +541,11 @@ where
             write_ids: vec![write_stream.id()].into_iter().collect(),
             read_stream: Some(read_stream),
             write_stream,
-            helper: OperatorExecutorHelper::new(config.id),
+            helper: OperatorExecutorHelper::new(operator_id),
         }
     }
 
-    pub async fn execute(
+    pub(crate) async fn execute(
         &mut self,
         mut channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
         channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
@@ -745,6 +747,7 @@ where
         right_read_stream: ReadStream<U>,
         write_stream: WriteStream<V>,
     ) -> Self {
+        let operator_id = config.id;
         Self {
             config,
             operator: operator_fn(),
@@ -756,11 +759,11 @@ where
             right_read_stream: Some(right_read_stream),
             write_ids: vec![write_stream.id()].into_iter().collect(),
             write_stream,
-            helper: OperatorExecutorHelper::new(config.id),
+            helper: OperatorExecutorHelper::new(operator_id),
         }
     }
 
-    pub async fn execute(
+    pub(crate) async fn execute(
         &mut self,
         mut channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
         channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
@@ -1004,6 +1007,7 @@ where
         left_write_stream: WriteStream<U>,
         right_write_stream: WriteStream<V>,
     ) -> Self {
+        let operator_id = config.id;
         Self {
             config,
             operator: operator_fn(),
@@ -1015,11 +1019,11 @@ where
             read_stream: Some(read_stream),
             left_write_stream,
             right_write_stream,
-            helper: OperatorExecutorHelper::new(config.id),
+            helper: OperatorExecutorHelper::new(operator_id),
         }
     }
 
-    pub async fn execute(
+    pub(crate) async fn execute(
         &mut self,
         mut channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
         channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,

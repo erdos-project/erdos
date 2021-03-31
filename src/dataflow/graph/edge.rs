@@ -10,7 +10,7 @@ use crate::{
 use super::Vertex;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub enum Channel {
+pub(crate) enum Channel {
     InterThread(ChannelMetadata),
     InterNode(ChannelMetadata),
     Unscheduled(ChannelMetadata),
@@ -20,7 +20,7 @@ pub enum Channel {
 ///
 /// A data-flow channel is an edge in the data-flow graph.
 #[derive(Clone, PartialEq, Eq, Debug)]
-pub struct ChannelMetadata {
+pub(crate) struct ChannelMetadata {
     pub stream_id: StreamId,
     pub source: Vertex,
     pub sink: Vertex,
@@ -37,7 +37,7 @@ impl ChannelMetadata {
 }
 
 #[derive(Clone)]
-pub struct TypedStreamMetadata<D>
+pub(crate) struct TypedStreamMetadata<D>
 where
     for<'a> D: Data + Deserialize<'a>,
 {
@@ -61,7 +61,7 @@ where
     }
 }
 
-pub trait StreamMetadataT: Send {
+pub(crate) trait StreamMetadataT: Send {
     fn id(&self) -> StreamId;
     fn source(&self) -> Vertex;
     fn box_clone(&self) -> Box<dyn StreamMetadataT>;
@@ -104,7 +104,7 @@ where
     }
 }
 
-pub struct StreamMetadata {
+pub(crate) struct StreamMetadata {
     stream_metadata_t: Box<dyn StreamMetadataT>,
 }
 
