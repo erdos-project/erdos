@@ -448,6 +448,12 @@ impl ExecutionLattice {
     }
 }
 
+impl fmt::Debug for ExecutionLattice {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ExecutionLattice")
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

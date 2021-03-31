@@ -31,6 +31,8 @@ use crate::scheduler::{
 };
 use crate::Configuration;
 
+use super::worker::Worker;
+
 /// Unique index for a [`Node`].
 pub type NodeId = usize;
 
@@ -318,9 +320,6 @@ impl Node {
             .filter(|op| op.node_id == self.id)
             .collect();
 
-        let (operator_tx, rx_from_operators) = mpsc::unbounded_channel();
-        let mut channels_to_operators = HashMap::new();
-
         let num_local_operators = local_operators.len();
         slog::debug!(
             crate::TERMINAL_LOGGER,
@@ -328,7 +327,18 @@ impl Node {
             num_local_operators
         );
 
-        let mut join_handles = Vec::with_capacity(num_local_operators);
+        // TODO: choose a better value.
+        let num_event_runners = std::cmp::max(
+            self.config
+                .num_worker_threads
+                .checked_sub(num_local_operators)
+                .unwrap_or(1),
+            num_local_operators,
+        );
+        let mut worker = Worker::new(num_event_runners);
+
+        let mut operator_executors = Vec::with_capacity(num_local_operators);
+
         for operator_info in local_operators {
             let name = operator_info
                 .name
@@ -341,20 +351,14 @@ impl Node {
                 name
             );
             let channel_manager_copy = Arc::clone(&channel_manager);
-            let operator_tx_copy = operator_tx.clone();
-            let (tx, rx) = mpsc::unbounded_channel();
-            channels_to_operators.insert(operator_info.id, tx);
             // Launch the operator as a separate async task.
-            let join_handle = tokio::spawn(async move {
-                let mut operator_executor = (operator_info.runner)(channel_manager_copy);
-                operator_executor.execute().await;
-            });
-            join_handles.push(join_handle);
+            let operator_executor = (operator_info.runner)(channel_manager_copy);
+            operator_executors.push(operator_executor);
         }
 
-        // Wait for all operators to finish setting up.
-        self.wait_for_local_operators_initialized(rx_from_operators, num_local_operators)
-            .await;
+        worker.spawn_tasks(operator_executors).await;
+        // TODO: Wait for all operators to finish setting up.
+
         // Setup driver on the current node.
         if let Some(driver) = graph.get_driver(self.id) {
             for setup_hook in driver.setup_hooks {
@@ -367,13 +371,9 @@ impl Node {
         self.wait_for_all_operators_initialized().await?;
         // Tell driver to run.
         self.set_node_initialized();
-        // Tell all operators to run.
-        for (op_id, tx) in channels_to_operators {
-            tx.send(ControlMessage::RunOperator(op_id))
-                .map_err(|e| format!("Error telling operator to run: {}", e))?;
-        }
+        // TODO: Tell all operators to run.
         // Wait for all operators to finish running.
-        future::join_all(join_handles).await;
+        worker.execute().await;
         Ok(())
     }
 

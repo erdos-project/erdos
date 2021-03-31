@@ -3,12 +3,12 @@ use crate::{dataflow::stream::StreamId, node::NodeId, OperatorId};
 use super::{OperatorRunner, StreamSetupHook};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Vertex {
+pub(crate) enum Vertex {
     Driver(NodeId),
     Operator(OperatorId),
 }
 
-pub struct DriverMetadata {
+pub(crate) struct DriverMetadata {
     /// The id of the node on which the driver executes.
     pub id: NodeId,
     pub ingest_stream_ids: Vec<StreamId>,
@@ -53,7 +53,7 @@ impl Clone for DriverMetadata {
     }
 }
 
-pub struct OperatorMetadata {
+pub(crate) struct OperatorMetadata {
     /// The id of the operator.
     pub id: OperatorId,
     /// The name of the operator.

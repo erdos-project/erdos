@@ -13,6 +13,7 @@
 // Private submodules
 mod lattice;
 mod node;
+mod worker;
 
 // Crate-wide visible submodules
 pub(crate) mod operator_event;

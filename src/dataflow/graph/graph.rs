@@ -24,7 +24,7 @@ use super::{
 /// Streams are collections of related channels. Writing on one stream
 /// broadcasts the message on all channels belonging to that stream.
 #[derive(Clone)]
-pub struct Graph {
+pub(crate) struct Graph {
     /// Mapping between operator ids and operator metadata.
     operators: HashMap<OperatorId, OperatorMetadata>,
     /// Mapping between node ids and driver metadata.
