@@ -267,16 +267,16 @@ impl OperatorExecutor {
                 .unwrap();
             // Handle errors?
             future::join_all(event_runner_handles).await;
+        }
 
-            if self.all_streams_closed() {
-                slog::debug!(
-                    crate::TERMINAL_LOGGER,
-                    "Node {}: destroying operator {}",
-                    self.config.node_id,
-                    name,
-                );
-                self.operator.destroy();
-            }
+        if self.all_streams_closed() {
+            slog::debug!(
+                crate::TERMINAL_LOGGER,
+                "Node {}: destroying operator {}",
+                self.config.node_id,
+                name,
+            );
+            self.operator.destroy();
         }
     }
 

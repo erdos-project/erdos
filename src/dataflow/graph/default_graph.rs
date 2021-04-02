@@ -1,3 +1,10 @@
+//! A globally accessible dataflow graph.
+//!
+//! This is used in the driver when connecting new operators,
+//! or setting up [`IngestStream`]s, [`ExtractStream`]s, and [`LoopStream`]s.
+//! The dataflow graph is thread-local; therefore, drivers should not be
+//! multi-threaded and this module should never be used from an asynchronous
+//! context.
 use std::cell::RefCell;
 
 use serde::Deserialize;

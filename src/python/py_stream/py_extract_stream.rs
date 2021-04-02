@@ -1,6 +1,9 @@
 use pyo3::{exceptions, prelude::*};
 
-use crate::{dataflow::stream::ExtractStream, python::PyMessage};
+use crate::{
+    dataflow::stream::{errors::TryReadError, ExtractStream},
+    python::PyMessage,
+};
 
 use super::PyReadStream;
 
@@ -36,6 +39,18 @@ impl PyExtractStream {
         let result = py.allow_threads(|| self.extract_stream.read());
         match result {
             Ok(msg) => Ok(PyMessage::from(msg)),
+            Err(e) => Err(exceptions::Exception::py_err(format!(
+                "Unable to to read from stream {}: {:?}",
+                self.extract_stream.get_id(),
+                e
+            ))),
+        }
+    }
+
+    fn try_read<'p>(&mut self) -> PyResult<Option<PyMessage>> {
+        match self.extract_stream.try_read() {
+            Ok(msg) => Ok(Some(PyMessage::from(msg))),
+            Err(TryReadError::Empty) => Ok(None),
             Err(e) => Err(exceptions::Exception::py_err(format!(
                 "Unable to to read from stream {}: {:?}",
                 self.extract_stream.get_id(),
