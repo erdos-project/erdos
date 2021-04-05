@@ -89,7 +89,7 @@ pub struct OperatorExecutorHelper {
     event_runner_handles: Option<Vec<tokio::task::JoinHandle<()>>>,
     condition_context: ConditionContext,
     deadline_queue: DelayQueue<(StreamId, Timestamp, Arc<dyn HandlerContextT>)>,
-    stream_timestamp_to_key_map: HashMap<(StreamId, Timestamp), Key>,
+    stream_timestamp_to_key_map: HashMap<(StreamId, Timestamp), Key>, // for active deadlines.
 }
 
 impl OperatorExecutorHelper {
@@ -120,7 +120,12 @@ impl OperatorExecutorHelper {
         for deadline in setup_context.get_deadlines() {
             match deadline {
                 Deadline::TimestampDeadline(d) => {
-                    if d.start_condition(&self.condition_context) {
+                    // Check the start condition if this deadline is not active.
+                    if !self
+                        .stream_timestamp_to_key_map
+                        .contains_key(&(stream_id, timestamp.clone()))
+                        && d.start_condition(&self.condition_context)
+                    {
                         // Compute the deadline for the timestamp.
                         let deadline_duration = d.get_deadline(&self.condition_context);
 
@@ -144,34 +149,26 @@ impl OperatorExecutorHelper {
                             .insert((stream_id, timestamp.clone()), queue_key);
                     }
 
-                    // Check the end condition.
-                    if d.end_condition(&self.condition_context) {
+                    // Check the end condition if this deadline is active.
+                    if self
+                        .stream_timestamp_to_key_map
+                        .contains_key(&(stream_id, timestamp.clone()))
+                        && d.end_condition(&self.condition_context)
+                    {
                         // Remove the handler from the deadline queue.
-                        match self
+                        if let Some(key) = self
                             .stream_timestamp_to_key_map
                             .remove(&(stream_id, timestamp.clone()))
                         {
-                            None => {
-                                slog::warn!(
-                                    crate::TERMINAL_LOGGER,
-                                    "Could not find an installed deadline handler corresponding \
-                                    to Stream ID: {} and Timestamp: {:?}",
-                                    stream_id,
-                                    timestamp,
-                                );
-                            }
-                            Some(key) => {
-                                // Remove the handler from the deadline queue.
-                                slog::debug!(
-                                    crate::TERMINAL_LOGGER,
-                                    "Removing the deadline with the Key: {:?} corresponding to \
+                            slog::debug!(
+                                crate::TERMINAL_LOGGER,
+                                "Removing the deadline with the Key: {:?} corresponding to \
                                     Stream ID: {} and Timestamp: {:?} from the deadline queue.",
-                                    key,
-                                    stream_id,
-                                    timestamp,
-                                );
-                                self.deadline_queue.remove(&key);
-                            }
+                                key,
+                                stream_id,
+                                timestamp,
+                            );
+                            self.deadline_queue.remove(&key);
                         }
                     }
                 }
