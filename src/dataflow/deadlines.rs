@@ -42,6 +42,11 @@ impl ConditionContext {
             .or_insert(false);
         *watermark = true;
     }
+
+    pub fn clear_state(&mut self, stream_id: StreamId, timestamp: Timestamp) {
+        self.message_count.remove(&(stream_id, timestamp.clone()));
+        self.watermark_status.remove(&(stream_id, timestamp));
+    }
 }
 
 pub trait DeadlineContextT: Send + Sync {

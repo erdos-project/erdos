@@ -155,7 +155,8 @@ impl OperatorExecutorHelper {
                         .contains_key(&(stream_id, timestamp.clone()))
                         && d.end_condition(&self.condition_context)
                     {
-                        // Remove the handler from the deadline queue.
+                        // Remove the handler from the deadline queue and clear the state in the
+                        // ConditionContext.
                         if let Some(key) = self
                             .stream_timestamp_to_key_map
                             .remove(&(stream_id, timestamp.clone()))
@@ -169,6 +170,8 @@ impl OperatorExecutorHelper {
                                 timestamp,
                             );
                             self.deadline_queue.remove(&key);
+                            self.condition_context
+                                .clear_state(stream_id, timestamp.clone());
                         }
                     }
                 }
@@ -199,7 +202,7 @@ impl OperatorExecutorHelper {
                     let (stream_id, timestamp, handler_context) = x.unwrap().into_inner();
                     handler_context.invoke_handler(&self.condition_context);
 
-                    // Remove the key from the hashmap.
+                    // Remove the key from the hashmap and clear the state in the ConditionContext.
                     match self.stream_timestamp_to_key_map.remove(&(stream_id, timestamp.clone())) {
                         None => {
                             slog::warn!(
@@ -218,6 +221,7 @@ impl OperatorExecutorHelper {
                                 key, stream_id, timestamp);
                         }
                     }
+                    self.condition_context.clear_state(stream_id, timestamp.clone());
                 },
                 // If there is a message on the ReadStream, then increment the messgae counts for
                 // the given timestamp, evaluate the start and end condition and install / disarm
