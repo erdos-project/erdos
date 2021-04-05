@@ -1,17 +1,24 @@
-use std::{cmp, collections::HashSet, future::Future, pin::Pin, sync::Arc, time::Duration};
+use std::{
+    cmp, collections::HashMap, collections::HashSet, future::Future, pin::Pin, sync::Arc,
+    time::Duration,
+};
 
 use serde::Deserialize;
 use tokio::{
     self,
+    stream::StreamExt,
     sync::{broadcast, mpsc, Mutex},
+    time::{delay_queue::Key, DelayQueue},
 };
 
 use crate::{
     dataflow::{
+        deadlines::{ConditionContext, Deadline, HandlerContextT},
         operator::{
-            OneInOneOut, OneInOneOutContext, OneInTwoOut, OneInTwoOutContext, OperatorConfig, Sink,
-            SinkContext, Source, StatefulOneInOneOutContext, StatefulOneInTwoOutContext,
-            StatefulSinkContext, StatefulTwoInOneOutContext, TwoInOneOut, TwoInOneOutContext,
+            OneInOneOut, OneInOneOutContext, OneInOneOutSetupContext, OneInTwoOut,
+            OneInTwoOutContext, OperatorConfig, SetupContextT, Sink, SinkContext, Source,
+            StatefulOneInOneOutContext, StatefulOneInTwoOutContext, StatefulSinkContext,
+            StatefulTwoInOneOutContext, TwoInOneOut, TwoInOneOutContext,
         },
         stream::StreamId,
         stream::WriteStreamT,
@@ -80,6 +87,9 @@ pub struct OperatorExecutorHelper {
     operator_id: OperatorId,
     lattice: Arc<ExecutionLattice>,
     event_runner_handles: Option<Vec<tokio::task::JoinHandle<()>>>,
+    condition_context: ConditionContext,
+    deadline_queue: DelayQueue<(StreamId, Timestamp, Arc<dyn HandlerContextT>)>,
+    stream_timestamp_to_key_map: HashMap<(StreamId, Timestamp), Key>,
 }
 
 impl OperatorExecutorHelper {
@@ -88,6 +98,9 @@ impl OperatorExecutorHelper {
             operator_id,
             lattice: Arc::new(ExecutionLattice::new()),
             event_runner_handles: None,
+            condition_context: ConditionContext::new(),
+            deadline_queue: DelayQueue::new(),
+            stream_timestamp_to_key_map: HashMap::new(),
         }
     }
 
@@ -97,39 +110,177 @@ impl OperatorExecutorHelper {
         tokio::time::delay_for(Duration::from_secs(1)).await;
     }
 
+    fn manage_deadlines(
+        &mut self,
+        setup_context: &dyn SetupContextT,
+        stream_id: StreamId,
+        timestamp: Timestamp,
+    ) {
+        // Run the start and the end condition functions for all the deadlines.
+        for deadline in setup_context.get_deadlines() {
+            match deadline {
+                Deadline::TimestampDeadline(d) => {
+                    if d.start_condition(&self.condition_context) {
+                        // Compute the deadline for the timestamp.
+                        let deadline_duration = d.get_deadline(&self.condition_context);
+
+                        // Install the handler into the queue with the given
+                        // duration.
+                        let queue_key: Key = self.deadline_queue.insert(
+                            (stream_id, timestamp.clone(), d.get_handler()),
+                            deadline_duration,
+                        );
+
+                        slog::debug!(
+                            crate::TERMINAL_LOGGER,
+                            "Installed a deadline handler with the Key: {:?} corresponding to \
+                            Stream ID: {} and Timestamp: {:?}",
+                            queue_key,
+                            stream_id,
+                            timestamp,
+                        );
+
+                        self.stream_timestamp_to_key_map
+                            .insert((stream_id, timestamp.clone()), queue_key);
+                    }
+
+                    // Check the end condition.
+                    if d.end_condition(&self.condition_context) {
+                        // Remove the handler from the deadline queue.
+                        match self
+                            .stream_timestamp_to_key_map
+                            .remove(&(stream_id, timestamp.clone()))
+                        {
+                            None => {
+                                slog::warn!(
+                                    crate::TERMINAL_LOGGER,
+                                    "Could not find an installed deadline handler corresponding \
+                                    to Stream ID: {} and Timestamp: {:?}",
+                                    stream_id,
+                                    timestamp,
+                                );
+                            }
+                            Some(key) => {
+                                // Remove the handler from the deadline queue.
+                                slog::debug!(
+                                    crate::TERMINAL_LOGGER,
+                                    "Removing the deadline with the Key: {:?} corresponding to \
+                                    Stream ID: {} and Timestamp: {:?} from the deadline queue.",
+                                    key,
+                                    stream_id,
+                                    timestamp,
+                                );
+                                self.deadline_queue.remove(&key);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     async fn process_stream<T>(
-        &self,
+        &mut self,
         mut read_stream: ReadStream<T>,
         message_processor: &dyn OneInMessageProcessorT<T>,
         notifier_tx: &tokio::sync::broadcast::Sender<EventNotification>,
+        setup_context: &dyn SetupContextT,
     ) where
         T: Data + for<'a> Deserialize<'a>,
     {
-        while let Ok(msg) = read_stream.async_read().await {
-            // TODO: optimize so that stateful callbacks not invoked if not needed.
-            let events = match msg.data() {
-                // Data message
-                Some(_) => {
-                    // Stateless callback.
-                    let msg_ref = Arc::clone(&msg);
-                    let stateless_data_event = message_processor.stateless_cb_event(msg_ref);
+        loop {
+            tokio::select! {
+                // DelayQueue returns `None` if the queue is empty. This means that if there are no
+                // deadlines installed, the queue will always be ready and return `None` thus
+                // wasting resources. We can potentially fix this by inserting a Deadline for the
+                // future and maintaining it so that the queue is not empty.
+                Some(x) = self.deadline_queue.next() => {
+                    // Missed a deadline. Invoke the handler.
+                    // TODO (Sukrit): The handler is invoked in the thread of the OperatorExecutor.
+                    // This may be an issue for long-running handlers since they block the
+                    // processing of future messages. We can spawn these as a separate task.
+                    let (stream_id, timestamp, handler_context) = x.unwrap().into_inner();
+                    handler_context.invoke_handler(&self.condition_context);
 
-                    // Stateful callback
-                    let msg_ref = Arc::clone(&msg);
-                    let stateful_data_event = message_processor.stateful_cb_event(msg_ref);
-                    vec![stateless_data_event, stateful_data_event]
-                }
-                // Watermark
-                None => {
-                    let watermark_event = message_processor.watermark_cb_event(msg.timestamp());
-                    vec![watermark_event]
-                }
-            };
+                    // Remove the key from the hashmap.
+                    match self.stream_timestamp_to_key_map.remove(&(stream_id, timestamp.clone())) {
+                        None => {
+                            slog::warn!(
+                                crate::TERMINAL_LOGGER,
+                                "Could not find a key corresponding to the Stream ID: {} \
+                                and the Timestamp: {:?}",
+                                stream_id,
+                                timestamp,
+                            );
+                        }
+                        Some(key) => {
+                            slog::debug!(
+                                crate::TERMINAL_LOGGER,
+                                "Finished invoking the deadline handler for the Key: {:?} \
+                                corresponding to the Stream ID: {} and the Timestamp: {:?}",
+                                key, stream_id, timestamp);
+                        }
+                    }
+                },
+                // If there is a message on the ReadStream, then increment the messgae counts for
+                // the given timestamp, evaluate the start and end condition and install / disarm
+                // deadlines accordingly.
+                // TODO (Sukrit) : The start and end conditions are evaluated in the thread of the
+                // OperatorExecutor, and can be moved to a separate task if they become a
+                // bottleneck.
+                Ok(msg) = read_stream.async_read() => {
+                    let events = match msg.data() {
+                        // Data message
+                        Some(_) => {
+                            // Increment the message count and handle the arming and disarming of
+                            // deadlines.
+                            self.condition_context
+                                .increment_msg_count(read_stream.id(), msg.timestamp().clone());
+                            self.manage_deadlines(
+                                setup_context,
+                                read_stream.id(),
+                                msg.timestamp().clone()
+                            );
 
-            self.lattice.add_events(events).await;
-            notifier_tx
-                .send(EventNotification::AddedEvents(self.operator_id))
-                .unwrap();
+
+                            // TODO : Check if an event for both the stateful and the stateless
+                            // callback is needed.
+
+                            // Stateless callback.
+                            let msg_ref = Arc::clone(&msg);
+                            let stateless_data_event = message_processor.stateless_cb_event(msg_ref);
+
+                            // Stateful callback
+                            let msg_ref = Arc::clone(&msg);
+                            let stateful_data_event = message_processor.stateful_cb_event(msg_ref);
+                            vec![stateless_data_event, stateful_data_event]
+                        },
+
+                        // Watermark
+                        None => {
+                            // Set the watermark status and handle the arming and disarming of
+                            // deadlines.
+                            self.condition_context
+                                .notify_watermark_arrival(read_stream.id(), msg.timestamp().clone());
+                            self.manage_deadlines(
+                                setup_context,
+                                read_stream.id(),
+                                msg.timestamp().clone()
+                            );
+
+                            let watermark_event = message_processor.watermark_cb_event(
+                                msg.timestamp());
+                            vec![watermark_event]
+                        }
+                    };
+
+                    self.lattice.add_events(events).await;
+                    notifier_tx
+                        .send(EventNotification::AddedEvents(self.operator_id))
+                        .unwrap();
+                },
+                else => break,
+            }
         }
     }
 
@@ -314,7 +465,7 @@ where
     operator: O,
     state: Arc<Mutex<S>>,
     read_stream: Option<ReadStream<T>>,
-    helper: OperatorExecutorHelper,
+    helper: Option<OperatorExecutorHelper>,
     read_ids: HashSet<StreamId>,
 }
 
@@ -337,7 +488,7 @@ where
             state: Arc::new(Mutex::new(state_fn())),
             read_ids: vec![read_stream.id()].into_iter().collect(),
             read_stream: Some(read_stream),
-            helper: OperatorExecutorHelper::new(operator_id),
+            helper: Some(OperatorExecutorHelper::new(operator_id)),
         }
     }
 
@@ -347,7 +498,8 @@ where
         channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
         channel_to_event_runners: broadcast::Sender<EventNotification>,
     ) {
-        self.helper.synchronize().await;
+        let mut helper = self.helper.take().unwrap();
+        helper.synchronize().await;
 
         slog::debug!(
             crate::TERMINAL_LOGGER,
@@ -358,10 +510,16 @@ where
 
         tokio::task::block_in_place(|| self.operator.run(self.read_stream.as_mut().unwrap()));
 
+        // Run the setup method.
+        let mut setup_context: OneInOneOutSetupContext<usize> = OneInOneOutSetupContext::new();
+
         let read_stream: ReadStream<T> = self.read_stream.take().unwrap();
-        let process_stream_fut =
-            self.helper
-                .process_stream(read_stream, &(*self), &channel_to_event_runners);
+        let process_stream_fut = helper.process_stream(
+            read_stream,
+            &(*self),
+            &channel_to_event_runners,
+            &setup_context,
+        );
         loop {
             tokio::select! {
                 _ = process_stream_fut => break,
@@ -410,7 +568,7 @@ where
     }
 
     fn lattice(&self) -> Arc<ExecutionLattice> {
-        Arc::clone(&self.helper.lattice)
+        Arc::clone(&self.helper.as_ref().unwrap().lattice)
     }
 
     fn operator_id(&self) -> OperatorId {
@@ -483,7 +641,7 @@ where
     state: Arc<Mutex<S>>,
     read_stream: Option<ReadStream<T>>,
     write_stream: WriteStream<U>,
-    helper: OperatorExecutorHelper,
+    helper: Option<OperatorExecutorHelper>,
     read_ids: HashSet<StreamId>,
     write_ids: HashSet<StreamId>,
 }
@@ -511,7 +669,7 @@ where
             write_ids: vec![write_stream.id()].into_iter().collect(),
             read_stream: Some(read_stream),
             write_stream,
-            helper: OperatorExecutorHelper::new(operator_id),
+            helper: Some(OperatorExecutorHelper::new(operator_id)),
         }
     }
 
@@ -521,7 +679,8 @@ where
         channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
         channel_to_event_runners: broadcast::Sender<EventNotification>,
     ) {
-        self.helper.synchronize().await;
+        let mut helper = self.helper.take().unwrap();
+        helper.synchronize().await;
 
         slog::debug!(
             crate::TERMINAL_LOGGER,
@@ -530,15 +689,23 @@ where
             self.config.get_name()
         );
 
+        // Run the setup method.
+        let mut setup_context: OneInOneOutSetupContext<U> = OneInOneOutSetupContext::new();
+        self.operator.setup(&mut setup_context);
+
         tokio::task::block_in_place(|| {
             self.operator
                 .run(self.read_stream.as_mut().unwrap(), &mut self.write_stream)
         });
 
         let read_stream: ReadStream<T> = self.read_stream.take().unwrap();
-        let process_stream_fut =
-            self.helper
-                .process_stream(read_stream, &(*self), &channel_to_event_runners);
+        let process_stream_fut = helper.process_stream(
+            read_stream,
+            &(*self),
+            &channel_to_event_runners,
+            &setup_context,
+        );
+
         loop {
             tokio::select! {
                 _ = process_stream_fut => break,
@@ -560,6 +727,9 @@ where
         }
 
         tokio::task::block_in_place(|| self.operator.destroy());
+
+        // Return the helper.
+        self.helper.replace(helper);
 
         // Close the stream.
         // TODO: check that the top watermark hasn't already been sent.
@@ -596,7 +766,7 @@ where
     }
 
     fn lattice(&self) -> Arc<ExecutionLattice> {
-        Arc::clone(&self.helper.lattice)
+        Arc::clone(&self.helper.as_ref().unwrap().lattice)
     }
 
     fn operator_id(&self) -> OperatorId {
@@ -697,7 +867,7 @@ where
     write_stream: WriteStream<V>,
     read_ids: HashSet<StreamId>,
     write_ids: HashSet<StreamId>,
-    helper: OperatorExecutorHelper,
+    helper: Option<OperatorExecutorHelper>,
 }
 
 impl<O, S, T, U, V> TwoInOneOutExecutor<O, S, T, U, V>
@@ -728,7 +898,7 @@ where
             right_read_stream: Some(right_read_stream),
             write_ids: vec![write_stream.id()].into_iter().collect(),
             write_stream,
-            helper: OperatorExecutorHelper::new(operator_id),
+            helper: Some(OperatorExecutorHelper::new(operator_id)),
         }
     }
 
@@ -738,7 +908,8 @@ where
         channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
         channel_to_event_runners: broadcast::Sender<EventNotification>,
     ) {
-        self.helper.synchronize().await;
+        let helper = self.helper.take().unwrap();
+        helper.synchronize().await;
 
         slog::debug!(
             crate::TERMINAL_LOGGER,
@@ -757,7 +928,7 @@ where
 
         let left_read_stream: ReadStream<T> = self.left_read_stream.take().unwrap();
         let right_read_stream: ReadStream<U> = self.right_read_stream.take().unwrap();
-        let process_stream_fut = self.helper.process_two_streams(
+        let process_stream_fut = helper.process_two_streams(
             left_read_stream,
             right_read_stream,
             &(*self),
@@ -785,6 +956,9 @@ where
         }
 
         tokio::task::block_in_place(|| self.operator.destroy());
+
+        // Return the helper.
+        self.helper.replace(helper);
 
         // Close the stream.
         // TODO: check that the top watermark hasn't already been sent.
@@ -822,7 +996,7 @@ where
     }
 
     fn lattice(&self) -> Arc<ExecutionLattice> {
-        Arc::clone(&self.helper.lattice)
+        Arc::clone(&self.helper.as_ref().unwrap().lattice)
     }
 
     fn operator_id(&self) -> OperatorId {
@@ -954,7 +1128,7 @@ where
     read_stream: Option<ReadStream<T>>,
     left_write_stream: WriteStream<U>,
     right_write_stream: WriteStream<V>,
-    helper: OperatorExecutorHelper,
+    helper: Option<OperatorExecutorHelper>,
     read_ids: HashSet<StreamId>,
     write_ids: HashSet<StreamId>,
 }
@@ -987,7 +1161,7 @@ where
             read_stream: Some(read_stream),
             left_write_stream,
             right_write_stream,
-            helper: OperatorExecutorHelper::new(operator_id),
+            helper: Some(OperatorExecutorHelper::new(operator_id)),
         }
     }
 
@@ -997,7 +1171,8 @@ where
         channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
         channel_to_event_runners: broadcast::Sender<EventNotification>,
     ) {
-        self.helper.synchronize().await;
+        let mut helper = self.helper.take().unwrap();
+        helper.synchronize().await;
 
         slog::debug!(
             crate::TERMINAL_LOGGER,
@@ -1014,10 +1189,16 @@ where
             )
         });
 
+        // Run the setup method.
+        let mut setup_context: OneInOneOutSetupContext<U> = OneInOneOutSetupContext::new();
+
         let read_stream: ReadStream<T> = self.read_stream.take().unwrap();
-        let process_stream_fut =
-            self.helper
-                .process_stream(read_stream, &(*self), &channel_to_event_runners);
+        let process_stream_fut = helper.process_stream(
+            read_stream,
+            &(*self),
+            &channel_to_event_runners,
+            &setup_context,
+        );
         loop {
             tokio::select! {
                 _ = process_stream_fut => break,
@@ -1039,6 +1220,9 @@ where
         }
 
         tokio::task::block_in_place(|| self.operator.destroy());
+
+        // Return the helper.
+        self.helper.replace(helper);
 
         // Close the stream.
         // TODO: check that the top watermark hasn't already been sent.
@@ -1081,7 +1265,7 @@ where
     }
 
     fn lattice(&self) -> Arc<ExecutionLattice> {
-        Arc::clone(&self.helper.lattice)
+        Arc::clone(&self.helper.as_ref().unwrap().lattice)
     }
 
     fn operator_id(&self) -> OperatorId {

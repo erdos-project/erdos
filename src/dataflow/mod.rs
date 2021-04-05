@@ -8,15 +8,17 @@ pub mod message;
 pub mod operator;
 pub mod time;
 // pub mod operators;
+pub mod deadlines;
 pub mod state;
 pub mod stream;
 
 // Public exports
+pub use deadlines::TimestampDeadline;
 pub use message::{Data, Message, TimestampedData};
-pub use time::Timestamp;
 pub use operator::OperatorConfig;
 pub use state::State;
-pub use stream::{LoopStream, Stream, ReadStream, StreamT, WriteStream};
+pub use stream::{LoopStream, ReadStream, Stream, StreamT, WriteStream};
+pub use time::Timestamp;
 
 #[cfg(test)]
 mod tests {

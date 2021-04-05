@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+use std::slice::Iter;
 use std::sync::Arc;
 
 use futures::channel;
@@ -6,7 +8,10 @@ use tokio::sync::Mutex;
 
 use crate::{
     communication::RecvEndpoint,
-    dataflow::{graph::default_graph, Data, Message, ReadStream, State, Timestamp, WriteStream},
+    dataflow::{
+        deadlines::Deadline, graph::default_graph, Data, Message, ReadStream, State, Timestamp,
+        WriteStream,
+    },
     node::{
         operator_executor::{
             OneInOneOutExecutor, OneInTwoOutExecutor, OperatorExecutorT, SinkExecutor,
@@ -17,6 +22,12 @@ use crate::{
     scheduler::channel_manager::ChannelManager,
     OperatorId, Uuid,
 };
+
+pub trait SetupContextT: Send + Sync {
+    fn add_deadline(&mut self, deadline: Deadline);
+    fn get_deadlines(&self) -> Iter<Deadline>;
+    fn num_deadlines(&self) -> usize;
+}
 
 /*****************************************************************************
  * Source: sends data with type T                                            *
@@ -68,6 +79,8 @@ where
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
+    fn setup(&mut self, ctx: &mut OneInOneOutSetupContext<U>) {}
+
     fn run(&mut self, read_stream: &mut ReadStream<T>, write_stream: &mut WriteStream<U>) {}
 
     fn destroy(&mut self) {}
@@ -77,6 +90,51 @@ where
     fn on_data_stateful(ctx: &mut StatefulOneInOneOutContext<S, U>, data: &T);
 
     fn on_watermark(ctx: &mut StatefulOneInOneOutContext<S, U>);
+}
+
+pub struct OneInOneOutSetupContext<U>
+where
+    U: Data + for<'a> Deserialize<'a>,
+{
+    pub(crate) deadlines: Vec<Deadline>,
+    phantom: PhantomData<U>,
+}
+
+impl<U> OneInOneOutSetupContext<U>
+where
+    U: Data + for<'a> Deserialize<'a>,
+{
+    pub fn new() -> Self {
+        OneInOneOutSetupContext {
+            deadlines: Vec::new(),
+            phantom: PhantomData,
+        }
+    }
+
+    pub fn add_deadline(&mut self, deadline: Deadline) {
+        self.deadlines.push(deadline);
+    }
+
+    pub fn num_deadlines(&mut self) -> usize {
+        self.deadlines.len()
+    }
+}
+
+impl<U> SetupContextT for OneInOneOutSetupContext<U>
+where
+    U: Data + for<'a> Deserialize<'a>,
+{
+    fn add_deadline(&mut self, deadline: Deadline) {
+        self.deadlines.push(deadline);
+    }
+
+    fn get_deadlines(&self) -> Iter<Deadline> {
+        self.deadlines.iter()
+    }
+
+    fn num_deadlines(&self) -> usize {
+        self.deadlines.len()
+    }
 }
 
 pub struct OneInOneOutContext<U: Data> {
