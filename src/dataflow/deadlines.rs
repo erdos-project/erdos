@@ -1,5 +1,9 @@
-use crate::dataflow::{stream::StreamId, time::Timestamp, State};
-use std::{collections::HashMap, sync::Arc};
+use crate::dataflow::{stream::StreamId, time::Timestamp, Data, State, StreamT};
+use serde::Deserialize;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 use tokio::time::Duration;
 
 /// `CondFn` defines the type of the start and end condition functions.
@@ -62,6 +66,7 @@ pub struct TimestampDeadline {
     end_condition_fn: Box<CondFn>,
     deadline_context: Box<dyn DeadlineContext>,
     handler_context: Arc<dyn HandlerContextT>,
+    read_stream_ids: HashSet<StreamId>,
 }
 
 impl TimestampDeadline {
@@ -74,7 +79,14 @@ impl TimestampDeadline {
             end_condition_fn: Box::new(TimestampDeadline::default_end_condition),
             deadline_context,
             handler_context,
+            read_stream_ids: HashSet::new(),
         }
+    }
+
+    pub fn on_read_stream(mut self, read_stream_id: StreamId) -> Self
+    {
+        self.read_stream_ids.insert(read_stream_id);
+        self
     }
 
     pub fn with_start_condition(mut self, condition: Box<CondFn>) -> Self {
@@ -97,6 +109,10 @@ impl TimestampDeadline {
 
     pub(crate) fn calculate_deadline(&self, condition_context: &ConditionContext) -> Duration {
         self.deadline_context.calculate_deadline(condition_context)
+    }
+
+    pub(crate) fn constrained_on_read_stream(&self, read_stream_id: StreamId) -> bool {
+        self.read_stream_ids.contains(&read_stream_id)
     }
 
     pub(crate) fn get_handler(&self) -> Arc<dyn HandlerContextT> {

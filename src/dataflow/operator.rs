@@ -9,8 +9,8 @@ use tokio::sync::Mutex;
 use crate::{
     communication::RecvEndpoint,
     dataflow::{
-        deadlines::Deadline, graph::default_graph, Data, Message, ReadStream, State, Timestamp,
-        WriteStream,
+        deadlines::Deadline, graph::default_graph, stream::StreamId, Data, Message, ReadStream,
+        State, Timestamp, WriteStream,
     },
     node::{
         operator_executor::{
@@ -79,7 +79,7 @@ where
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
-    fn setup(&mut self, ctx: &mut OneInOneOutSetupContext<U>) {}
+    fn setup(&mut self, ctx: &mut OneInOneOutSetupContext) {}
 
     fn run(&mut self, read_stream: &mut ReadStream<T>, write_stream: &mut WriteStream<U>) {}
 
@@ -92,29 +92,22 @@ where
     fn on_watermark(ctx: &mut StatefulOneInOneOutContext<S, U>);
 }
 
-pub struct OneInOneOutSetupContext<U>
-where
-    U: Data + for<'a> Deserialize<'a>,
-{
+pub struct OneInOneOutSetupContext {
     pub(crate) deadlines: Vec<Deadline>,
-    phantom: PhantomData<U>,
+    pub read_stream_id: StreamId,
 }
 
-impl<U> OneInOneOutSetupContext<U>
-where
-    U: Data + for<'a> Deserialize<'a>,
+impl OneInOneOutSetupContext
 {
-    pub fn new() -> Self {
+    pub fn new(read_stream_id: StreamId) -> Self {
         OneInOneOutSetupContext {
             deadlines: Vec::new(),
-            phantom: PhantomData,
+            read_stream_id,
         }
     }
 }
 
-impl<U> SetupContextT for OneInOneOutSetupContext<U>
-where
-    U: Data + for<'a> Deserialize<'a>,
+impl SetupContextT for OneInOneOutSetupContext
 {
     fn add_deadline(&mut self, deadline: Deadline) {
         self.deadlines.push(deadline);

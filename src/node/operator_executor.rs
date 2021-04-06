@@ -121,10 +121,16 @@ impl OperatorExecutorHelper {
             match deadline {
                 Deadline::TimestampDeadline(d) => {
                     // Check the start condition if this deadline is not active.
-                    if !self
-                        .stream_timestamp_to_key_map
-                        .contains_key(&(stream_id, timestamp.clone()))
+                    // We check if the registered deadline constrains the given `stream_id` and
+                    // arm the timer only if it does and if the start condiiton evaluates to true.
+                    // Note: The current implementation assumes a single deadline for each (stream,
+                    // timestamp) pair.
+                    if d.constrained_on_read_stream(stream_id) // works on this read stream?
+                        && !self
+                            .stream_timestamp_to_key_map  // is there a deadline already active?
+                            .contains_key(&(stream_id, timestamp.clone()))
                         && d.start_condition(&self.condition_context)
+                    // is the condition satisfied?
                     {
                         // Compute the deadline for the timestamp.
                         let deadline_duration = d.calculate_deadline(&self.condition_context);
@@ -512,7 +518,8 @@ where
         tokio::task::block_in_place(|| self.operator.run(self.read_stream.as_mut().unwrap()));
 
         // Run the setup method.
-        let mut setup_context: OneInOneOutSetupContext<usize> = OneInOneOutSetupContext::new();
+        let mut setup_context =
+            OneInOneOutSetupContext::new(self.read_stream.as_ref().unwrap().id());
 
         let read_stream: ReadStream<T> = self.read_stream.take().unwrap();
         let process_stream_fut = helper.process_stream(
@@ -691,7 +698,8 @@ where
         );
 
         // Run the setup method.
-        let mut setup_context: OneInOneOutSetupContext<U> = OneInOneOutSetupContext::new();
+        let mut setup_context =
+            OneInOneOutSetupContext::new(self.read_stream.as_ref().unwrap().id());
         self.operator.setup(&mut setup_context);
 
         tokio::task::block_in_place(|| {
@@ -1191,7 +1199,8 @@ where
         });
 
         // Run the setup method.
-        let mut setup_context: OneInOneOutSetupContext<U> = OneInOneOutSetupContext::new();
+        let mut setup_context =
+            OneInOneOutSetupContext::new(self.read_stream.as_ref().unwrap().id());
 
         let read_stream: ReadStream<T> = self.read_stream.take().unwrap();
         let process_stream_fut = helper.process_stream(
