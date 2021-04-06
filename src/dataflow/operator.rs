@@ -110,14 +110,6 @@ where
             phantom: PhantomData,
         }
     }
-
-    pub fn add_deadline(&mut self, deadline: Deadline) {
-        self.deadlines.push(deadline);
-    }
-
-    pub fn num_deadlines(&mut self) -> usize {
-        self.deadlines.len()
-    }
 }
 
 impl<U> SetupContextT for OneInOneOutSetupContext<U>
