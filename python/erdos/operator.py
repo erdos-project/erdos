@@ -3,6 +3,9 @@ from collections import defaultdict, deque
 
 import numpy as np
 
+from erdos.streams import ReadStream
+from erdos.internal import PyReceivingFrequencyDeadline
+
 MAX_NUM_RUNTIME_SAMPLES = 1000
 
 
@@ -153,6 +156,7 @@ class OperatorConfig(object):
         self._log_file_name = log_file_name
         self._csv_log_file_name = csv_log_file_name
         self._profile_file_name = profile_file_name
+        self._receiving_frequency_deadlines = []
 
     @property
     def name(self):
@@ -178,3 +182,13 @@ class OperatorConfig(object):
     def profile_file_name(self):
         """File named used for profiling an operator's performance."""
         return self._profile_file_name
+
+    def add_receiving_frequency_deadline(self, read_stream: ReadStream,
+                                         deadline_ms: int, msg: str):
+        """Adds a receiving frequency deadline on a stream.
+        
+        Should only be called in operator.__init__().
+        """
+        deadline = PyReceivingFrequencyDeadline(read_stream._py_read_stream,
+                                                deadline_ms, msg)
+        self._receiving_frequency_deadlines.append(deadline)

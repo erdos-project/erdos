@@ -20,10 +20,12 @@ use crate::{
 };
 
 // Private submodules
+mod py_deadlines;
 mod py_message;
 mod py_stream;
 
 // Private imports
+use py_deadlines::*;
 use py_message::PyMessage;
 use py_stream::{PyExtractStream, PyIngestStream, PyLoopStream, PyReadStream, PyWriteStream};
 
@@ -35,6 +37,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyIngestStream>()?;
     m.add_class::<PyExtractStream>()?;
     m.add_class::<PyMessage>()?;
+    m.add_class::<PyReceivingFrequencyDeadline>()?;
 
     #[pyfn(m, "connect")]
     fn connect_py(
@@ -291,9 +294,22 @@ operator.__init__(*read_streams, *write_streams, *args, **kwargs)
                     .eval("operator", None, Some(&locals))
                     .unwrap()
                     .to_object(py);
-                let operator_arc = Arc::new(operator_obj);
 
                 let mut config: OperatorConfig<()> = OperatorConfig::new();
+
+                let py_config = operator_obj.getattr(py, "_config").unwrap();
+                let py_receiving_frequency_deadlines_obj = py_config
+                    .getattr(py, "_receiving_frequency_deadlines")
+                    .unwrap();
+                let py_receiving_frequency_deadlines: Vec<&mut PyReceivingFrequencyDeadline> =
+                    py_receiving_frequency_deadlines_obj.extract(py).unwrap();
+                for py_deadline in py_receiving_frequency_deadlines {
+                    let deadline = py_deadline.deadline.take().unwrap();
+                    config.add_receiving_frequency_deadline(deadline);
+                }
+
+                let operator_arc = Arc::new(operator_obj);
+
                 config.name = name_clone.clone();
                 config.id = op_id;
                 config.flow_watermarks = flow_watermarks;

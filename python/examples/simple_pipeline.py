@@ -31,6 +31,8 @@ class CallbackOp(erdos.Operator):
     def __init__(self, read_stream):
         print("initializing  op")
         read_stream.add_callback(CallbackOp.callback)
+        self.config.add_receiving_frequency_deadline(
+            read_stream, 900, "Missed deadline in CallbackOp")
 
     @staticmethod
     def callback(msg):
