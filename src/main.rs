@@ -56,8 +56,8 @@ impl SquareOperatorDeadlineContext {
     }
 }
 
-impl DeadlineContextT for SquareOperatorDeadlineContext {
-    fn get_deadline(&self, ctx: &ConditionContext) -> Duration {
+impl DeadlineContext for SquareOperatorDeadlineContext {
+    fn calculate_deadline(&self, ctx: &ConditionContext) -> Duration {
         Duration::new(1, 0)
     }
 }

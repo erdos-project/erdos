@@ -127,7 +127,7 @@ impl OperatorExecutorHelper {
                         && d.start_condition(&self.condition_context)
                     {
                         // Compute the deadline for the timestamp.
-                        let deadline_duration = d.get_deadline(&self.condition_context);
+                        let deadline_duration = d.calculate_deadline(&self.condition_context);
 
                         // Install the handler into the queue with the given
                         // duration.

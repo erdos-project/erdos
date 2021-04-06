@@ -49,8 +49,8 @@ impl ConditionContext {
     }
 }
 
-pub trait DeadlineContextT: Send + Sync {
-    fn get_deadline(&self, ctx: &ConditionContext) -> Duration;
+pub trait DeadlineContext: Send + Sync {
+    fn calculate_deadline(&self, ctx: &ConditionContext) -> Duration;
 }
 
 pub trait HandlerContextT: Send + Sync {
@@ -60,13 +60,13 @@ pub trait HandlerContextT: Send + Sync {
 pub struct TimestampDeadline {
     start_condition_fn: Box<CondFn>,
     end_condition_fn: Box<CondFn>,
-    deadline_context: Box<dyn DeadlineContextT>,
+    deadline_context: Box<dyn DeadlineContext>,
     handler_context: Arc<dyn HandlerContextT>,
 }
 
 impl TimestampDeadline {
     pub fn new(
-        deadline_context: Box<dyn DeadlineContextT>,
+        deadline_context: Box<dyn DeadlineContext>,
         handler_context: Arc<dyn HandlerContextT>,
     ) -> Self {
         TimestampDeadline {
@@ -95,8 +95,8 @@ impl TimestampDeadline {
         (self.end_condition_fn)(condition_context)
     }
 
-    pub fn get_deadline(&self, condition_context: &ConditionContext) -> Duration {
-        self.deadline_context.get_deadline(condition_context)
+    pub fn calculate_deadline(&self, condition_context: &ConditionContext) -> Duration {
+        self.deadline_context.calculate_deadline(condition_context)
     }
 
     pub fn get_handler(&self) -> Arc<dyn HandlerContextT> {
