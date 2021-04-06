@@ -81,10 +81,10 @@ impl HandlerContextT for SquareOperatorHandlerContext {
 impl OneInOneOut<(), usize, usize> for SquareOperator {
     fn setup(&mut self, ctx: &mut OneInOneOutSetupContext<usize>) {
         println!("Executed setup!");
-        let deadline = Box::new(TimestampDeadline::new(
+        let deadline = TimestampDeadline::new(
             Box::new(SquareOperatorDeadlineContext::new()),
             Arc::new(SquareOperatorHandlerContext::new()),
-        ));
+        );
         ctx.add_deadline(Deadline::TimestampDeadline(deadline));
     }
 

@@ -10,7 +10,7 @@ type CondFn = dyn Fn(&ConditionContext) -> bool + Send + Sync;
 
 /// Enumerates the types of deadlines available to the user.
 pub enum Deadline {
-    TimestampDeadline(Box<TimestampDeadline>),
+    TimestampDeadline(TimestampDeadline),
 }
 
 #[derive(Debug)]
