@@ -87,19 +87,19 @@ impl TimestampDeadline {
         self
     }
 
-    pub fn start_condition(&self, condition_context: &ConditionContext) -> bool {
+    pub(crate) fn start_condition(&self, condition_context: &ConditionContext) -> bool {
         (self.start_condition_fn)(condition_context)
     }
 
-    pub fn end_condition(&self, condition_context: &ConditionContext) -> bool {
+    pub(crate) fn end_condition(&self, condition_context: &ConditionContext) -> bool {
         (self.end_condition_fn)(condition_context)
     }
 
-    pub fn calculate_deadline(&self, condition_context: &ConditionContext) -> Duration {
+    pub(crate) fn calculate_deadline(&self, condition_context: &ConditionContext) -> Duration {
         self.deadline_context.calculate_deadline(condition_context)
     }
 
-    pub fn get_handler(&self) -> Arc<dyn HandlerContextT> {
+    pub(crate) fn get_handler(&self) -> Arc<dyn HandlerContextT> {
         Arc::clone(&self.handler_context)
     }
 
