@@ -22,36 +22,45 @@ impl DeadlineOperator {
         read_stream: ReadStream<usize>,
         write_stream: WriteStream<usize>,
     ) -> Self {
-        let mut receiving_deadline =
-            TimestampReceivingFrequencyDeadline::new(Duration::from_millis(100), || {
+        let receiving_deadline = ReceivingFrequencyDeadline::new(Duration::from_millis(100))
+            .with_handler(|| {
                 slog::error!(
                     erdos::get_terminal_logger(),
                     "Missed timestamp receiving frequency deadline!"
                 );
-            });
-        receiving_deadline.subscribe(&read_stream).unwrap();
-        // config is more like a context
-        config.add_deadline(receiving_deadline);
+            })
+            .on_read_stream(&read_stream);
+        config.add_receiving_frequency_deadline(receiving_deadline);
+        // let mut receiving_deadline =
+        //     TimestampReceivingFrequencyDeadline::new(Duration::from_millis(100), || {
+        //         slog::error!(
+        //             erdos::get_terminal_logger(),
+        //             "Missed timestamp receiving frequency deadline!"
+        //         );
+        //     });
+        // receiving_deadline.subscribe(&read_stream).unwrap();
+        // // config is more like a context
+        // config.add_deadline(receiving_deadline);
 
-        let mut sending_deadline =
-            TimestampSendingFrequencyDeadline::new(Duration::from_millis(100), || {
-                slog::error!(
-                    erdos::get_terminal_logger(),
-                    "Missed timestamp sending frequency deadline!"
-                );
-            });
-        sending_deadline.subscribe(&write_stream).unwrap();
-        config.add_deadline(sending_deadline);
+        // let mut sending_deadline =
+        //     TimestampSendingFrequencyDeadline::new(Duration::from_millis(100), || {
+        //         slog::error!(
+        //             erdos::get_terminal_logger(),
+        //             "Missed timestamp sending frequency deadline!"
+        //         );
+        //     });
+        // sending_deadline.subscribe(&write_stream).unwrap();
+        // config.add_deadline(sending_deadline);
 
-        let mut output_deadline = TimestampOutputDeadline::new(Duration::from_millis(50), || {
-            slog::error!(
-                erdos::get_terminal_logger(),
-                "Missed timestamp output frequency deadline!"
-            );
-        });
-        output_deadline.add_read_stream(&read_stream);
-        output_deadline.add_write_stream(&write_stream);
-        config.add_deadline(output_deadline);
+        // let mut output_deadline = TimestampOutputDeadline::new(Duration::from_millis(50), || {
+        //     slog::error!(
+        //         erdos::get_terminal_logger(),
+        //         "Missed timestamp output frequency deadline!"
+        //     );
+        // });
+        // output_deadline.add_read_stream(&read_stream);
+        // output_deadline.add_write_stream(&write_stream);
+        // config.add_deadline(output_deadline);
 
         Self {}
     }

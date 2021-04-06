@@ -1,6 +1,6 @@
 use std::{
     cell::RefCell,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs::{self, File, OpenOptions},
     io::prelude::*,
     pin::Pin,
@@ -10,7 +10,7 @@ use std::{
         Arc,
     },
     task::{Context, Poll},
-    time::{Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use futures::future;
@@ -19,6 +19,7 @@ use tokio::{
     self,
     stream::{Stream, StreamExt, StreamMap},
     sync::{broadcast, mpsc, watch, Mutex},
+    time::{delay_queue::Key, DelayQueue},
 };
 
 use crate::{
@@ -26,9 +27,9 @@ use crate::{
     dataflow::{
         operator::{Operator, OperatorConfig},
         stream::{InternalReadStream, StreamId},
-        Data, EventMakerT, Message, ReadStream,
+        Data, EventMakerT, Message, ReadStream, Timestamp,
     },
-    deadlines::{Deadline, Notification},
+    deadlines::{Notification, NotificationType},
     node::lattice::ExecutionLattice,
     node::operator_event::OperatorEvent,
     Uuid,
@@ -218,27 +219,58 @@ impl OperatorExecutor {
         tokio::task::block_in_place(|| self.operator.run());
 
         // Deadlines.
-        let file = if self.config.logging {
-            fs::create_dir_all("/tmp/erdos").unwrap();
-            Some(Arc::new(Mutex::new(
-                OpenOptions::new()
-                    .create(true)
-                    .write(true)
-                    .truncate(true)
-                    .open(format!("/tmp/erdos/{}.log", self.config.id))
-                    .unwrap(),
-            )))
-        } else {
-            None
-        };
+        // let file = if self.config.logging {
+        //     fs::create_dir_all("/tmp/erdos").unwrap();
+        //     Some(Arc::new(Mutex::new(
+        //         OpenOptions::new()
+        //             .create(true)
+        //             .write(true)
+        //             .truncate(true)
+        //             .open(format!("/tmp/erdos/{}.log", self.config.id))
+        //             .unwrap(),
+        //     )))
+        // } else {
+        //     None
+        // };
 
-        let _deadline_task_handles: Vec<_> = {
-            let mut deadlines = self.config.deadlines.try_lock().unwrap();
-            deadlines
-                .drain(..)
-                .map(|deadline| tokio::spawn(Self::enforce_deadline(deadline, file.clone())))
-                .collect()
-        };
+        // let _deadline_task_handles: Vec<_> = {
+        //     let mut deadlines = self.config.deadlines.try_lock().unwrap();
+        //     deadlines
+        //         .drain(..)
+        //         .map(|deadline| tokio::spawn(Self::enforce_deadline(deadline, file.clone())))
+        //         .collect()
+        // };
+
+        let mut receiving_frequency_deadlines: HashMap<Uuid, _> = HashMap::new();
+        let mut deadlines_per_stream: HashMap<StreamId, Vec<_>> = HashMap::new();
+        let mut receiving_frequency_notifications = StreamMap::new();
+
+        for mut deadline in self
+            .config
+            .receiving_frequency_deadlines
+            .lock()
+            .unwrap()
+            .drain(..)
+        {
+            if let Some(stream_id) = deadline.read_stream_id {
+                if let Some(notification_rx) = deadline.notification_rx.take() {
+                    let deadline_id = Uuid::new_deterministic();
+
+                    receiving_frequency_deadlines.insert(deadline_id, deadline);
+                    let entry = deadlines_per_stream.entry(stream_id).or_default();
+                    entry.push(deadline_id);
+
+                    receiving_frequency_notifications.insert(deadline_id, notification_rx);
+                }
+            }
+        }
+
+        let mut active_receiving_frequency_timestamps: HashMap<StreamId, HashSet<Timestamp>> =
+            HashMap::new();
+        let mut active_receiving_frequency_deadlines_keys: HashMap<(Uuid, Timestamp), Key> =
+            HashMap::new();
+        let mut active_receiving_frequency_deadlines: DelayQueue<(Uuid, Timestamp)> =
+            DelayQueue::new();
 
         if let Some(mut event_stream) = self.event_stream.take() {
             // Launch consumers
@@ -251,15 +283,66 @@ impl OperatorExecutor {
                     Self::event_runner(Arc::clone(&self.lattice), notifier_rx.clone());
                 event_runner_handles.push(tokio::spawn(event_runner_fut));
             }
-            while let Some(events) = event_stream.next().await {
-                {
-                    // Add all the received events to the lattice.
-                    self.lattice.add_events(events).await;
-                    // Notify receivers that new events were added.
-                    notifier_tx
-                        .broadcast(EventRunnerMessage::AddedEvents)
-                        .unwrap();
-                }
+            loop {
+                tokio::select! {
+                    Some(events) = event_stream.next() => {
+                        // Add all the received events to the lattice.
+                        self.lattice.add_events(events).await;
+                        // Notify receivers that new events were added.
+                        notifier_tx
+                            .broadcast(EventRunnerMessage::AddedEvents)
+                            .unwrap();
+                    }
+                    Some((deadline_id, Ok(notification))) = receiving_frequency_notifications.next() => {
+                        slog::debug!(crate::TERMINAL_LOGGER, "Received notification");
+                        match notification.notification_type {
+                            NotificationType::ReceivedData(stream_id, timestamp)
+                            | NotificationType::ReceivedWatermark(stream_id, timestamp) => {
+                                let timestamps = active_receiving_frequency_timestamps
+                                    .entry(stream_id)
+                                    .or_default();
+                                if !timestamps.contains(&timestamp) {
+                                    timestamps.retain(|t| t > &timestamp);
+                                    timestamps.insert(timestamp.clone());
+                                    // Close deadlines for all where t < timestamp.
+                                    for ((_, t), key) in active_receiving_frequency_deadlines_keys.iter() {
+                                        if t < &timestamp {
+                                            active_receiving_frequency_deadlines.remove(key);
+                                        }
+                                    }
+                                    active_receiving_frequency_deadlines_keys
+                                        .retain(|(_, t), _| t > &timestamp);
+
+                                    // Instantiate deadlines if necessary.
+                                    for deadline_id in deadlines_per_stream[&stream_id].iter() {
+                                        let deadline = receiving_frequency_deadlines.get(deadline_id).unwrap();
+                                        let timeout = deadline
+                                            .duration
+                                            .checked_sub(Instant::now() - notification.trigger_time)
+                                            .unwrap_or(Duration::from_secs(0));
+                                        slog::debug!(crate::TERMINAL_LOGGER, "Activating deadline w/ timeout {} ms", timeout.as_millis());
+                                        let key = active_receiving_frequency_deadlines
+                                            .insert((*deadline_id, timestamp.clone()), timeout);
+                                        active_receiving_frequency_deadlines_keys
+                                            .insert((*deadline_id, timestamp.clone()), key);
+                                    }
+                                }
+                            }
+                            _ => (),
+                        }
+                    }
+                    result = active_receiving_frequency_deadlines.next(), if !active_receiving_frequency_deadlines.is_empty() => {
+                        let tuple = result.unwrap().unwrap().into_inner();
+                        active_receiving_frequency_deadlines_keys.remove(&tuple);
+                        let (deadline_id, timestamp) = tuple;
+                        slog::debug!(crate::TERMINAL_LOGGER, "Executing handler for time {:?}", timestamp);
+                        let deadline = receiving_frequency_deadlines.get(&deadline_id).unwrap();
+                        if let Some(handler) = &deadline.handler {
+                            handler();
+                        }
+                    }
+                    else => break,
+                };
             }
             // Wait for event runners to finish.
             notifier_tx
@@ -280,91 +363,91 @@ impl OperatorExecutor {
         }
     }
 
-    // Spawn 1 task for each deadline. This is bad.
-    async fn enforce_deadline(
-        mut deadline: Box<dyn Deadline + Send>,
-        file: Option<Arc<Mutex<File>>>,
-    ) {
-        let mut start_condition_channels = StreamMap::new();
-        for (i, rx) in deadline
-            .get_start_condition_receivers()
-            .into_iter()
-            .enumerate()
-        {
-            start_condition_channels.insert(i, rx);
-        }
+    // // Spawn 1 task for each deadline. This is bad.
+    // async fn enforce_deadline(
+    //     mut deadline: Box<dyn Deadline + Send>,
+    //     file: Option<Arc<Mutex<File>>>,
+    // ) {
+    //     let mut start_condition_channels = StreamMap::new();
+    //     for (i, rx) in deadline
+    //         .get_start_condition_receivers()
+    //         .into_iter()
+    //         .enumerate()
+    //     {
+    //         start_condition_channels.insert(i, rx);
+    //     }
 
-        let mut end_condition_channels = StreamMap::new();
-        for (i, rx) in deadline
-            .get_end_condition_receivers()
-            .into_iter()
-            .enumerate()
-        {
-            end_condition_channels.insert(i, rx);
-        }
+    //     let mut end_condition_channels = StreamMap::new();
+    //     for (i, rx) in deadline
+    //         .get_end_condition_receivers()
+    //         .into_iter()
+    //         .enumerate()
+    //     {
+    //         end_condition_channels.insert(i, rx);
+    //     }
 
-        // Contains handlers.
-        let mut active_deadlines: tokio::time::DelayQueue<(
-            Uuid,
-            Instant,
-            Arc<dyn Send + Sync + Fn() -> String>,
-        )> = tokio::time::DelayQueue::new();
-        // Pairs of (key in active_deadlines, end_condition).
-        let mut end_conditions: Vec<(
-            Uuid,
-            tokio::time::delay_queue::Key,
-            Arc<dyn Send + Sync + FnMut(&Notification) -> bool>,
-        )> = Vec::new();
-        loop {
-            tokio::select! {
-                // Start condition notification.
-                msg = start_condition_channels.next() => {
-                    let notification = msg.unwrap().1.unwrap();
-                    if let Some((instant, end_condition, handler)) = deadline.start_condition(&notification) {
-                        let id = Uuid::new_deterministic();
-                        let key = active_deadlines.insert_at((id, instant, handler), tokio::time::Instant::from_std(instant));
-                        end_conditions.push((id, key, end_condition));
-                    }
-                }
-                // End condition notification.
-                msg = end_condition_channels.next() => {
-                    let notification = msg.unwrap().1.unwrap();
-                    end_conditions = end_conditions.into_iter().filter_map(|(id, key, mut end_condition_arc)| {
-                        let end_condition = Arc::get_mut(&mut end_condition_arc).unwrap();
-                        if end_condition(&notification) {
-                            slog::error!(crate::TERMINAL_LOGGER, "Resolved end condition");
-                            active_deadlines.remove(&key);
-                            None
-                        } else {
-                            Some((id, key, end_condition_arc))
-                        }
-                    }).collect();
-                }
-                // Deadline missed.
-                result = active_deadlines.next(), if !active_deadlines.is_empty() => {
-                    let (id, instant, handler) = result.unwrap().unwrap().into_inner();
-                    let mut now_duration = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-                    let now_instant = Instant::now();
-                    let duration_to_deadline = now_instant.duration_since(instant);
-                    let deadline_time = now_duration.as_secs_f64() - duration_to_deadline.as_secs_f64();
+    //     // Contains handlers.
+    //     let mut active_deadlines: tokio::time::DelayQueue<(
+    //         Uuid,
+    //         Instant,
+    //         Arc<dyn Send + Sync + Fn() -> String>,
+    //     )> = tokio::time::DelayQueue::new();
+    //     // Pairs of (key in active_deadlines, end_condition).
+    //     let mut end_conditions: Vec<(
+    //         Uuid,
+    //         tokio::time::delay_queue::Key,
+    //         Arc<dyn Send + Sync + FnMut(&Notification) -> bool>,
+    //     )> = Vec::new();
+    //     loop {
+    //         tokio::select! {
+    //             // Start condition notification.
+    //             msg = start_condition_channels.next() => {
+    //                 let notification = msg.unwrap().1.unwrap();
+    //                 if let Some((instant, end_condition, handler)) = deadline.start_condition(&notification) {
+    //                     let id = Uuid::new_deterministic();
+    //                     let key = active_deadlines.insert_at((id, instant, handler), tokio::time::Instant::from_std(instant));
+    //                     end_conditions.push((id, key, end_condition));
+    //                 }
+    //             }
+    //             // End condition notification.
+    //             msg = end_condition_channels.next() => {
+    //                 let notification = msg.unwrap().1.unwrap();
+    //                 end_conditions = end_conditions.into_iter().filter_map(|(id, key, mut end_condition_arc)| {
+    //                     let end_condition = Arc::get_mut(&mut end_condition_arc).unwrap();
+    //                     if end_condition(&notification) {
+    //                         slog::error!(crate::TERMINAL_LOGGER, "Resolved end condition");
+    //                         active_deadlines.remove(&key);
+    //                         None
+    //                     } else {
+    //                         Some((id, key, end_condition_arc))
+    //                     }
+    //                 }).collect();
+    //             }
+    //             // Deadline missed.
+    //             result = active_deadlines.next(), if !active_deadlines.is_empty() => {
+    //                 let (id, instant, handler) = result.unwrap().unwrap().into_inner();
+    //                 let mut now_duration = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    //                 let now_instant = Instant::now();
+    //                 let duration_to_deadline = now_instant.duration_since(instant);
+    //                 let deadline_time = now_duration.as_secs_f64() - duration_to_deadline.as_secs_f64();
 
-                    if let Some(file) = file.as_ref() {
-                        let mut file = file.lock().await;
-                        writeln!(file, "{}: invoking handler for deadline {} @ {}", deadline.description(), deadline_time, now_duration.as_secs_f64()).unwrap();
-                        file.flush().unwrap();
-                    }
-                    let info = handler();
-                    now_duration += now_instant.elapsed();
-                    if let Some(file) = file.as_ref() {
-                        let mut file = file.lock().await;
-                        writeln!(file, "{}: finished invoking handler for deadline {} @ {}; {}", deadline.description(), deadline_time, now_duration.as_secs_f64(), info).unwrap();
-                        file.flush().unwrap();
-                    }
-                    end_conditions.retain(|(other_id, _, _)| &id != other_id);
-                }
-            }
-        }
-    }
+    //                 if let Some(file) = file.as_ref() {
+    //                     let mut file = file.lock().await;
+    //                     writeln!(file, "{}: invoking handler for deadline {} @ {}", deadline.description(), deadline_time, now_duration.as_secs_f64()).unwrap();
+    //                     file.flush().unwrap();
+    //                 }
+    //                 let info = handler();
+    //                 now_duration += now_instant.elapsed();
+    //                 if let Some(file) = file.as_ref() {
+    //                     let mut file = file.lock().await;
+    //                     writeln!(file, "{}: finished invoking handler for deadline {} @ {}; {}", deadline.description(), deadline_time, now_duration.as_secs_f64(), info).unwrap();
+    //                     file.flush().unwrap();
+    //                 }
+    //                 end_conditions.retain(|(other_id, _, _)| &id != other_id);
+    //             }
+    //         }
+    //     }
+    // }
 
     /// An `event_runner` invocation is in charge of executing callbacks associated with an event.
     /// Upon receipt of an `AddedEvents` notification, it queries the lattice for events that are

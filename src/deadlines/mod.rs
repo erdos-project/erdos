@@ -5,10 +5,8 @@ use tokio::sync::broadcast;
 use crate::dataflow::{stream::StreamId, Timestamp};
 
 mod frequency;
-mod output;
 
 pub use frequency::*;
-pub use output::*;
 
 #[derive(Clone)]
 pub enum NotificationType {
@@ -20,8 +18,8 @@ pub enum NotificationType {
 
 #[derive(Clone)]
 pub struct Notification {
-    trigger_time: Instant,
-    notification_type: NotificationType,
+    pub(crate) trigger_time: Instant,
+    pub(crate) notification_type: NotificationType,
 }
 
 impl Notification {
@@ -30,26 +28,6 @@ impl Notification {
             trigger_time,
             notification_type,
         }
-    }
-}
-
-pub trait Deadline {
-    /// The start condition.
-    /// Decides whether the notification generates a new physical time deadline.
-    /// Returns a function to decide whether the deadline is made (end condition),
-    /// and a handler in case the deadline is missed.
-    fn start_condition(
-        &mut self,
-        notification: &Notification,
-    ) -> Option<(
-        Instant,
-        Arc<dyn Send + Sync + FnMut(&Notification) -> bool>,
-        Arc<dyn Send + Sync + Fn() -> String>,
-    )>;
-    fn get_start_condition_receivers(&mut self) -> Vec<broadcast::Receiver<Notification>>;
-    fn get_end_condition_receivers(&mut self) -> Vec<broadcast::Receiver<Notification>>;
-    fn description(&self) -> &str {
-        "Deadline"
     }
 }
 

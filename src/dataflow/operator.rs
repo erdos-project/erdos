@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use crate::{deadlines::Deadline, node::NodeId, OperatorId};
+use crate::{deadlines::*, node::NodeId, OperatorId};
 
 /// Trait that must be implemented by any operator.
 pub trait Operator {
@@ -42,7 +42,7 @@ pub struct OperatorConfig<T: Clone> {
     /// by dependencies on [`State`](crate::dataflow::State) and timestamps.
     pub num_event_runners: usize,
     pub logging: bool,
-    pub(crate) deadlines: Arc<Mutex<Vec<Box<dyn Deadline + Send + Sync>>>>,
+    pub(crate) receiving_frequency_deadlines: Arc<Mutex<Vec<ReceivingFrequencyDeadline>>>,
 }
 
 impl<T: Clone> OperatorConfig<T> {
@@ -55,7 +55,7 @@ impl<T: Clone> OperatorConfig<T> {
             node_id: 0,
             num_event_runners: 1,
             logging: false,
-            deadlines: Arc::new(Mutex::new(Vec::new())),
+            receiving_frequency_deadlines: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -100,9 +100,9 @@ impl<T: Clone> OperatorConfig<T> {
         self
     }
 
-    pub fn add_deadline(&self, deadline: impl 'static + Send + Sync + Deadline) {
-        let mut deadlines = self.deadlines.try_lock().unwrap();
-        deadlines.push(Box::new(deadline));
+    pub fn add_receiving_frequency_deadline(&self, deadline: ReceivingFrequencyDeadline) {
+        let mut deadlines = self.receiving_frequency_deadlines.lock().unwrap();
+        deadlines.push(deadline);
     }
 
     /// Removes the argument to lose type information. Used in
@@ -116,7 +116,7 @@ impl<T: Clone> OperatorConfig<T> {
             node_id: self.node_id,
             logging: self.logging,
             num_event_runners: self.num_event_runners,
-            deadlines: self.deadlines.clone(),
+            receiving_frequency_deadlines: self.receiving_frequency_deadlines.clone(),
         }
     }
 }
