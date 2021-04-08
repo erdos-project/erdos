@@ -38,6 +38,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyExtractStream>()?;
     m.add_class::<PyMessage>()?;
     m.add_class::<PyReceivingFrequencyDeadline>()?;
+    m.add_class::<PyTimestampDeadline>()?;
 
     #[pyfn(m, "connect")]
     fn connect_py(
@@ -306,6 +307,15 @@ operator.__init__(*read_streams, *write_streams, *args, **kwargs)
                 for py_deadline in py_receiving_frequency_deadlines {
                     let deadline = py_deadline.deadline.take().unwrap();
                     config.add_receiving_frequency_deadline(deadline);
+                }
+
+                let py_timestamp_deadlines_obj =
+                    py_config.getattr(py, "_timestamp_deadlines").unwrap();
+                let py_timestamp_deadlines: Vec<&mut PyTimestampDeadline> =
+                    py_timestamp_deadlines_obj.extract(py).unwrap();
+                for py_deadline in py_timestamp_deadlines {
+                    let deadline = py_deadline.deadline.take().unwrap();
+                    config.add_timestamp_deadline(deadline);
                 }
 
                 let operator_arc = Arc::new(operator_obj);

@@ -3,8 +3,8 @@ from collections import defaultdict, deque
 
 import numpy as np
 
-from erdos.streams import ReadStream
-from erdos.internal import PyReceivingFrequencyDeadline
+from erdos.streams import ReadStream, WriteStream
+from erdos.internal import PyReceivingFrequencyDeadline, PyTimestampDeadline
 
 MAX_NUM_RUNTIME_SAMPLES = 1000
 
@@ -157,6 +157,7 @@ class OperatorConfig(object):
         self._csv_log_file_name = csv_log_file_name
         self._profile_file_name = profile_file_name
         self._receiving_frequency_deadlines = []
+        self._timestamp_deadlines = []
 
     @property
     def name(self):
@@ -192,3 +193,15 @@ class OperatorConfig(object):
         deadline = PyReceivingFrequencyDeadline(read_stream._py_read_stream,
                                                 deadline_ms, msg)
         self._receiving_frequency_deadlines.append(deadline)
+
+    def add_timestamp_deadline(self, read_stream: ReadStream,
+                               write_stream: WriteStream, deadline_ms: int):
+        """Adds a timestamp deadline which sends a watermark on the write
+        stream when the deadline is missed.
+
+        Should only be called in operator.__init__().
+        """
+        deadline = PyTimestampDeadline(read_stream._py_read_stream,
+                                       write_stream._py_write_stream,
+                                       deadline_ms)
+        self._timestamp_deadlines.append(deadline)

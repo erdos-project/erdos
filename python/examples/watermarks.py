@@ -49,6 +49,7 @@ class BatchOp(erdos.Operator):
         read_stream.add_callback(self.add_to_batch)
         read_stream.add_watermark_callback(self.send_batch, [write_stream])
         self.batch = []
+        self.config.add_timestamp_deadline(read_stream, write_stream, 1000)
 
     @staticmethod
     def connect(read_stream):
