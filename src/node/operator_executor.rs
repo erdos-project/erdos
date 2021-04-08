@@ -272,6 +272,36 @@ impl OperatorExecutor {
         let mut active_receiving_frequency_deadlines: DelayQueue<(Uuid, Timestamp)> =
             DelayQueue::new();
 
+        // Timestamp deadlines
+        let mut timestamp_deadlines: HashMap<Uuid, _> = HashMap::new();
+        let mut td_per_read_stream: HashMap<StreamId, Vec<_>> = HashMap::new();
+        let mut td_per_write_stream: HashMap<StreamId, Vec<_>> = HashMap::new();
+        let mut td_notifications = StreamMap::new();
+        for mut deadline in self.config.timestamp_deadlines.lock().unwrap().drain(..) {
+            if let (Some(read_stream_id), Some(write_stream_id)) =
+                (deadline.read_stream_id, deadline.write_stream_id)
+            {
+                if let (Some(read_stream_notifications), Some(write_stream_notifications)) = (
+                    deadline.read_stream_notifications.take(),
+                    deadline.write_stream_notifications.take(),
+                ) {
+                    let deadline_id = Uuid::new_deterministic();
+                    timestamp_deadlines.insert(deadline_id, deadline);
+                    let entry = td_per_read_stream.entry(read_stream_id).or_default();
+                    entry.push(deadline_id);
+                    let entry = td_per_write_stream.entry(write_stream_id).or_default();
+                    entry.push(deadline_id);
+
+                    td_notifications.insert(read_stream_id, read_stream_notifications);
+                    td_notifications.insert(write_stream_id, write_stream_notifications);
+                }
+            }
+        }
+
+        let mut active_td_timestamps: HashMap<StreamId, HashSet<Timestamp>> = HashMap::new();
+        let mut active_td_keys: HashMap<(Uuid, Timestamp), Key> = HashMap::new();
+        let mut active_tds: DelayQueue<(Uuid, Timestamp)> = DelayQueue::new();
+
         if let Some(mut event_stream) = self.event_stream.take() {
             // Launch consumers
             // TODO: use CondVar instead of watch.
@@ -293,6 +323,53 @@ impl OperatorExecutor {
                             .broadcast(EventRunnerMessage::AddedEvents)
                             .unwrap();
                     }
+                    Some((stream_id, Ok(notification))) = td_notifications.next() => {
+                        slog::debug!(crate::TERMINAL_LOGGER, "Received notification");
+                        match notification.notification_type {
+                            NotificationType::ReceivedData(stream_id, timestamp)
+                            | NotificationType::ReceivedWatermark(stream_id, timestamp) => {
+                                // Instantiate deadlines if necessary.
+                                let timestamps = active_td_timestamps.entry(stream_id).or_default();
+                                if !timestamps.contains(&timestamp) {
+                                    timestamps.insert(timestamp.clone());
+                                    // Instantiate deadlines.
+                                    for deadline_id in td_per_read_stream[&stream_id].iter() {
+                                        let deadline = timestamp_deadlines.get(&deadline_id).unwrap();
+                                        let timeout = deadline
+                                            .duration
+                                            .checked_sub(Instant::now() - notification.trigger_time)
+                                            .unwrap_or(Duration::from_secs(0));
+                                        slog::debug!(crate::TERMINAL_LOGGER, "Activating deadline w/ timeout {} ms", timeout.as_millis());
+                                        let key = active_tds.insert((*deadline_id, timestamp.clone()), timeout);
+                                        active_td_keys.insert((*deadline_id, timestamp.clone()), key);
+                                    }
+                                }
+                            }
+                            NotificationType::SentWatermark(stream_id, timestamp) => {
+                                // Close deadlines.
+                                let timestamps = active_td_timestamps.entry(stream_id).or_default();
+                                timestamps.retain(|t| t > &timestamp);
+                                let deadline_ids = td_per_write_stream.get(&stream_id).unwrap();
+                                for ((deadline_id, t), key) in active_td_keys.iter() {
+                                    if t <= &timestamp && deadline_ids.contains(deadline_id) {
+                                        active_tds.remove(key);
+                                    }
+                                }
+                                active_td_keys.retain(|(deadline_id, t), _| t > &timestamp && deadline_ids.contains(deadline_id));
+                            }
+                            _ => (),
+                        }
+                    }
+                    result = active_tds.next(), if !active_tds.is_empty() => {
+                        let tuple = result.unwrap().unwrap().into_inner();
+                        active_td_keys.remove(&tuple);
+                        let (deadline_id, timestamp) = tuple;
+                        slog::debug!(crate::TERMINAL_LOGGER, "Executing handler for time {:?}", timestamp);
+                        let deadline = timestamp_deadlines.get(&deadline_id).unwrap();
+                        if let Some(handler) = &deadline.handler {
+                            handler(timestamp);
+                        }
+                    }
                     Some((deadline_id, Ok(notification))) = receiving_frequency_notifications.next() => {
                         slog::debug!(crate::TERMINAL_LOGGER, "Received notification");
                         match notification.notification_type {
@@ -305,6 +382,7 @@ impl OperatorExecutor {
                                     timestamps.retain(|t| t > &timestamp);
                                     timestamps.insert(timestamp.clone());
                                     // Close deadlines for all where t < timestamp.
+                                    // WARNING: this is buggy. It will close deadlines for other streams as well.
                                     for ((_, t), key) in active_receiving_frequency_deadlines_keys.iter() {
                                         if t < &timestamp {
                                             active_receiving_frequency_deadlines.remove(key);
@@ -338,7 +416,7 @@ impl OperatorExecutor {
                         slog::debug!(crate::TERMINAL_LOGGER, "Executing handler for time {:?}", timestamp);
                         let deadline = receiving_frequency_deadlines.get(&deadline_id).unwrap();
                         if let Some(handler) = &deadline.handler {
-                            handler();
+                            handler(timestamp);
                         }
                     }
                     else => break,

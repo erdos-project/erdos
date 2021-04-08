@@ -23,14 +23,27 @@ impl DeadlineOperator {
         write_stream: WriteStream<usize>,
     ) -> Self {
         let receiving_deadline = ReceivingFrequencyDeadline::new(Duration::from_millis(100))
-            .with_handler(|| {
+            .with_handler(|t| {
                 slog::error!(
                     erdos::get_terminal_logger(),
-                    "Missed timestamp receiving frequency deadline!"
+                    "Missed timestamp receiving frequency deadline @ {:?}",
+                    t
                 );
             })
             .on_read_stream(&read_stream);
         config.add_receiving_frequency_deadline(receiving_deadline);
+
+        let timestamp_deadline = TimestampDeadline::new(Duration::from_millis(100))
+            .with_handler(|t| {
+                slog::error!(
+                    erdos::get_terminal_logger(),
+                    "Missed timestamp deadline @ {:?}",
+                    t
+                );
+            })
+            .on_read_stream(&read_stream)
+            .on_write_stream(&write_stream);
+        config.add_timestamp_deadline(timestamp_deadline);
         // let mut receiving_deadline =
         //     TimestampReceivingFrequencyDeadline::new(Duration::from_millis(100), || {
         //         slog::error!(
@@ -109,11 +122,18 @@ fn main() {
     ingest_stream
         .send(Message::Watermark(Timestamp::new(vec![0u64])))
         .unwrap();
+    ingest_stream
+        .send(Message::new_message(Timestamp::new(vec![1u64]), 1))
+        .unwrap();
     thread::sleep_ms(50);
 
     println!("Sending 1: deadline should trigger.");
     ingest_stream
         .send(Message::Watermark(Timestamp::new(vec![1u64])))
+        .unwrap();
+
+    ingest_stream
+        .send(Message::new_message(Timestamp::new(vec![2u64]), 2))
         .unwrap();
     thread::sleep_ms(150);
 

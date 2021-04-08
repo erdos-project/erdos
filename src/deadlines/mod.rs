@@ -5,8 +5,10 @@ use tokio::sync::broadcast;
 use crate::dataflow::{stream::StreamId, Timestamp};
 
 mod frequency;
+mod timestamp;
 
 pub use frequency::*;
+pub use timestamp::*;
 
 #[derive(Clone)]
 pub enum NotificationType {

@@ -43,6 +43,7 @@ pub struct OperatorConfig<T: Clone> {
     pub num_event_runners: usize,
     pub logging: bool,
     pub(crate) receiving_frequency_deadlines: Arc<Mutex<Vec<ReceivingFrequencyDeadline>>>,
+    pub(crate) timestamp_deadlines: Arc<Mutex<Vec<TimestampDeadline>>>,
 }
 
 impl<T: Clone> OperatorConfig<T> {
@@ -56,6 +57,7 @@ impl<T: Clone> OperatorConfig<T> {
             num_event_runners: 1,
             logging: false,
             receiving_frequency_deadlines: Arc::new(Mutex::new(Vec::new())),
+            timestamp_deadlines: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -105,6 +107,11 @@ impl<T: Clone> OperatorConfig<T> {
         deadlines.push(deadline);
     }
 
+    pub fn add_timestamp_deadline(&self, deadline: TimestampDeadline) {
+        let mut deadlines = self.timestamp_deadlines.lock().unwrap();
+        deadlines.push(deadline);
+    }
+
     /// Removes the argument to lose type information. Used in
     /// [`OperatorExecutor`](crate::node::operator_executor::OperatorExecutor).
     pub(crate) fn drop_arg(self) -> OperatorConfig<()> {
@@ -117,6 +124,7 @@ impl<T: Clone> OperatorConfig<T> {
             logging: self.logging,
             num_event_runners: self.num_event_runners,
             receiving_frequency_deadlines: self.receiving_frequency_deadlines.clone(),
+            timestamp_deadlines: self.timestamp_deadlines.clone(),
         }
     }
 }

@@ -9,7 +9,7 @@ use super::*;
 
 pub struct ReceivingFrequencyDeadline {
     pub(crate) duration: Duration,
-    pub(crate) handler: Option<Arc<dyn Send + Sync + Fn() -> ()>>,
+    pub(crate) handler: Option<Arc<dyn Send + Sync + Fn(Timestamp) -> ()>>,
     pub(crate) notification_rx: Option<broadcast::Receiver<Notification>>,
     pub(crate) read_stream_id: Option<StreamId>,
 }
@@ -24,7 +24,10 @@ impl ReceivingFrequencyDeadline {
         }
     }
 
-    pub fn with_handler<F: 'static + Send + Sync + Fn() -> ()>(mut self, handler: F) -> Self {
+    pub fn with_handler<F: 'static + Send + Sync + Fn(Timestamp) -> ()>(
+        mut self,
+        handler: F,
+    ) -> Self {
         self.handler = Some(Arc::new(handler));
         self
     }
