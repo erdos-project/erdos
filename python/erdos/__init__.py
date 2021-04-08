@@ -86,15 +86,9 @@ def connect(
         num=node_id, name=config.name))
     if config._address is not None:
         global node_to_address
-        addresses = list(node_to_address.values())
-        processes_per_address = {a: addresses.count(a) for a in set(addresses)}
         if len(node_to_address) == 0:
-            processes_per_address[config._address] = 1
-            node_to_address[0] = (config._address, 1)
-        processes_per_address[config._address] = \
-            processes_per_address.get(config._address, 0) + 1
-        node_to_address[node_id] = (config._address,
-                                    processes_per_address[config._address])
+            node_to_address[0] = config._address  # Configure main node first
+        node_to_address[node_id] = config._address
 
     py_read_streams = []
     op_read_streams = list(
@@ -220,14 +214,13 @@ def run_async(graph_filename: Optional[str] = None,
         ]
     else:
         data_addresses = [
-            node_to_address[i][0] +
-            ":{port}".format(port=start_port + node_to_address[i][1])
-            for i in range(_num_py_operators + 1)
+            node_to_address[i] + ":{port}".format(port=start_port + offset)
+            for offset, i in enumerate(range(_num_py_operators + 1))
         ]
         control_addresses = [
-            node_to_address[i][0] + ":{port}".format(
-                port=start_port + len(data_addresses) + node_to_address[i][1])
-            for i in range(_num_py_operators + 1)
+            node_to_address[i] + ":{port}".format(
+                port=start_port + len(data_addresses) + offset)
+            for offset, i in enumerate(range(_num_py_operators + 1))
         ]
     logger.debug(
         "Running the dataflow graph on addresses: {}".format(data_addresses))
@@ -248,7 +241,7 @@ def run_async(graph_filename: Optional[str] = None,
             mp.Process(target=runner,
                        args=(i, data_addresses, control_addresses))
             for i in range(1, _num_py_operators + 1)
-            if local_address == node_to_address[i][0]
+            if local_address == node_to_address[i]
         ]
 
     # Needed to shut down child processes
