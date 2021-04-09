@@ -324,7 +324,7 @@ impl OperatorExecutor {
                             .unwrap();
                     }
                     Some((stream_id, Ok(notification))) = td_notifications.next() => {
-                        slog::debug!(crate::TERMINAL_LOGGER, "Received notification");
+                        // slog::debug!(crate::TERMINAL_LOGGER, "Received notification");
                         match notification.notification_type {
                             NotificationType::ReceivedData(stream_id, timestamp)
                             | NotificationType::ReceivedWatermark(stream_id, timestamp) => {
@@ -371,7 +371,7 @@ impl OperatorExecutor {
                         }
                     }
                     Some((deadline_id, Ok(notification))) = receiving_frequency_notifications.next() => {
-                        slog::debug!(crate::TERMINAL_LOGGER, "Received notification");
+                        // slog::debug!(crate::TERMINAL_LOGGER, "Received notification");
                         match notification.notification_type {
                             NotificationType::ReceivedData(stream_id, timestamp)
                             | NotificationType::ReceivedWatermark(stream_id, timestamp) => {
