@@ -82,8 +82,8 @@ impl OneInOneOut<(), usize, usize> for SquareOperator {
     fn setup(&mut self, ctx: &mut OneInOneOutSetupContext) {
         println!("Executed setup!");
         let deadline = TimestampDeadline::new(
-            Box::new(SquareOperatorDeadlineContext::new()),
-            Arc::new(SquareOperatorHandlerContext::new()),
+            SquareOperatorDeadlineContext::new(),
+            SquareOperatorHandlerContext::new(),
         ).on_read_stream(ctx.read_stream_id);
         ctx.add_deadline(Deadline::TimestampDeadline(deadline));
     }

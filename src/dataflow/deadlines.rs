@@ -71,14 +71,14 @@ pub struct TimestampDeadline {
 
 impl TimestampDeadline {
     pub fn new(
-        deadline_context: Box<dyn DeadlineContext>,
-        handler_context: Arc<dyn HandlerContextT>,
+        deadline_context: impl DeadlineContext + 'static,
+        handler_context: impl HandlerContextT + 'static,
     ) -> Self {
         TimestampDeadline {
             start_condition_fn: Box::new(TimestampDeadline::default_start_condition),
             end_condition_fn: Box::new(TimestampDeadline::default_end_condition),
-            deadline_context,
-            handler_context,
+            deadline_context: Box::new(deadline_context),
+            handler_context: Arc::new(handler_context),
             read_stream_ids: HashSet::new(),
         }
     }
