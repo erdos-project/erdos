@@ -50,6 +50,8 @@ class BatchOp(erdos.Operator):
         read_stream.add_callback(self.add_to_batch)
         read_stream.add_watermark_callback(self.send_batch, [write_stream])
         self.batch = []
+        # Specifies the streams on which the timestamp deadline is declared,
+        # and the timeout in milliseconds.
         self.config.add_timestamp_deadline(read_stream, write_stream, 300)
 
     @staticmethod
