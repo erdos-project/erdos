@@ -1,5 +1,4 @@
-use crate::dataflow::{stream::StreamId, time::Timestamp, Data, State, StreamT};
-use serde::Deserialize;
+use crate::dataflow::{stream::StreamId, time::Timestamp};
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
@@ -10,7 +9,8 @@ use tokio::time::Duration;
 /// Each function receives the `ConditionContext` that contains the information necessary for the
 /// evaluation of the start and end conditions (s.a. the message counts and the state of the
 /// watermarks on each stream for the given timestamp)
-type CondFn = dyn Fn(&ConditionContext) -> bool + Send + Sync;
+pub trait CondFn: Fn(&ConditionContext) -> bool + Send + Sync {}
+impl<F: Fn(&ConditionContext) -> bool + Send + Sync> CondFn for F {}
 
 /// Enumerates the types of deadlines available to the user.
 pub enum Deadline {
@@ -62,8 +62,8 @@ pub trait HandlerContextT: Send + Sync {
 }
 
 pub struct TimestampDeadline {
-    start_condition_fn: Box<CondFn>,
-    end_condition_fn: Box<CondFn>,
+    start_condition_fn: Box<dyn CondFn>,
+    end_condition_fn: Box<dyn CondFn>,
     deadline_context: Box<dyn DeadlineContext>,
     handler_context: Arc<dyn HandlerContextT>,
     read_stream_ids: HashSet<StreamId>,
@@ -83,19 +83,18 @@ impl TimestampDeadline {
         }
     }
 
-    pub fn on_read_stream(mut self, read_stream_id: StreamId) -> Self
-    {
+    pub fn on_read_stream(mut self, read_stream_id: StreamId) -> Self {
         self.read_stream_ids.insert(read_stream_id);
         self
     }
 
-    pub fn with_start_condition(mut self, condition: Box<CondFn>) -> Self {
-        self.start_condition_fn = condition;
+    pub fn with_start_condition(mut self, condition: impl 'static + CondFn) -> Self {
+        self.start_condition_fn = Box::new(condition);
         self
     }
 
-    pub fn with_end_condition(mut self, condition: Box<CondFn>) -> Self {
-        self.end_condition_fn = condition;
+    pub fn with_end_condition(mut self, condition: impl 'static + CondFn) -> Self {
+        self.end_condition_fn = Box::new(condition);
         self
     }
 
