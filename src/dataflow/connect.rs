@@ -6,8 +6,8 @@ use serde::Deserialize;
 use crate::{
     communication::RecvEndpoint,
     dataflow::{
-        graph::default_graph, operator::*, Data, Message, Stream, ReadStream, State,
-        StreamT, Timestamp, WriteStream,
+        graph::default_graph, operator::*, Data, Message, ReadStream, State, Stream, StreamT,
+        Timestamp, WriteStream,
     },
     node::{
         operator_executor::{

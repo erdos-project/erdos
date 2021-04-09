@@ -1,8 +1,9 @@
 #[macro_use]
 extern crate erdos;
 
-use std::{thread, time::Duration};
+use std::{sync::Arc, thread, time::Duration};
 
+use erdos::dataflow::deadlines::*;
 use erdos::dataflow::operator::*;
 use erdos::dataflow::stream::WriteStreamT;
 use erdos::dataflow::*;
@@ -29,7 +30,8 @@ impl Source<(), usize> for SourceOperator {
             write_stream
                 .send(Message::new_watermark(timestamp))
                 .unwrap();
-            thread::sleep(Duration::from_millis(100));
+            //thread::sleep(Duration::from_millis(100));
+            thread::sleep(Duration::new(5, 0));
         }
     }
 
@@ -46,8 +48,46 @@ impl SquareOperator {
     }
 }
 
+struct SquareOperatorDeadlineContext {}
+
+impl SquareOperatorDeadlineContext {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl DeadlineContext for SquareOperatorDeadlineContext {
+    fn calculate_deadline(&self, ctx: &ConditionContext) -> Duration {
+        Duration::new(1, 0)
+    }
+}
+
+struct SquareOperatorHandlerContext { }
+
+impl SquareOperatorHandlerContext {
+    pub fn new() -> Self {
+        Self { }
+    }
+}
+
+impl HandlerContextT for SquareOperatorHandlerContext {
+    fn invoke_handler(&self, ctx: &ConditionContext) {
+        println!("Handled {:?} errors.", ctx);
+    }
+}
+
 impl OneInOneOut<(), usize, usize> for SquareOperator {
+    fn setup(&mut self, ctx: &mut OneInOneOutSetupContext) {
+        println!("Executed setup!");
+        let deadline = TimestampDeadline::new(
+            SquareOperatorDeadlineContext::new(),
+            SquareOperatorHandlerContext::new(),
+        ).on_read_stream(ctx.read_stream_id);
+        ctx.add_deadline(Deadline::TimestampDeadline(deadline));
+    }
+
     fn on_data(ctx: &mut OneInOneOutContext<usize>, data: &usize) {
+        thread::sleep(Duration::new(2, 0));
         let logger = erdos::get_terminal_logger();
         slog::info!(
             logger,
@@ -238,6 +278,8 @@ impl OneInTwoOut<(), usize, usize, usize> for EvenOddOperator {
 }
 
 fn main() {
+    //let mut s = TimestampDeadline::new().with_start_condition(45);
+    //println!("The s value is {}", s.s);
     let args = erdos::new_app("ERDOS").get_matches();
     let mut node = Node::new(Configuration::from_args(&args));
 
@@ -248,25 +290,25 @@ fn main() {
     let square_stream =
         erdos::connect_one_in_one_out(SquareOperator::new, || {}, square_config, &source_stream);
 
-    let sum_config = OperatorConfig::new().name("SumOperator");
-    let sum_stream =
-        erdos::connect_one_in_one_out(SumOperator::new, || 0, sum_config, &square_stream);
+    //let sum_config = OperatorConfig::new().name("SumOperator");
+    //let sum_stream =
+    //    erdos::connect_one_in_one_out(SumOperator::new, || 0, sum_config, &square_stream);
 
     let sink_config = OperatorConfig::new().name("SinkOperator");
-    erdos::connect_sink(SinkOperator::new, || (0, 0), sink_config, &sum_stream);
+    erdos::connect_sink(SinkOperator::new, || (0, 0), sink_config, &square_stream);
 
-    let join_sum_config = OperatorConfig::new().name("JoinSumOperator");
-    let join_stream = erdos::connect_two_in_one_out(
-        JoinSumOperator::new,
-        || 0,
-        join_sum_config,
-        &source_stream,
-        &sum_stream,
-    );
+    //let join_sum_config = OperatorConfig::new().name("JoinSumOperator");
+    //let join_stream = erdos::connect_two_in_one_out(
+    //    JoinSumOperator::new,
+    //    || 0,
+    //    join_sum_config,
+    //    &source_stream,
+    //    &sum_stream,
+    //);
 
-    let even_odd_config = OperatorConfig::new().name("EvenOddOperator");
-    let (even_stream, odd_stream) =
-        erdos::connect_one_in_two_out(EvenOddOperator::new, || {}, even_odd_config, &source_stream);
+    //let even_odd_config = OperatorConfig::new().name("EvenOddOperator");
+    //let (even_stream, odd_stream) =
+    //    erdos::connect_one_in_two_out(EvenOddOperator::new, || {}, even_odd_config, &source_stream);
 
     node.run();
 }

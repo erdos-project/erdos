@@ -509,7 +509,11 @@ mod tests {
                 let k = i - j;
                 let (expected_t, expected_state, expected_msgs) = match k {
                     0 => (Timestamp::Bottom, 100, Vec::new()),
-                    x => (Timestamp::Time(vec![x as u64]), 6 * x, vec![k, k * 2, k * 3]),
+                    x => (
+                        Timestamp::Time(vec![x as u64]),
+                        6 * x,
+                        vec![k, k * 2, k * 3],
+                    ),
                 };
                 assert_eq!(t_msg, t_state);
                 assert_eq!(t_msg, &expected_t);
