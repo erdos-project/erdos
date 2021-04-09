@@ -62,13 +62,11 @@ impl DeadlineContext for SquareOperatorDeadlineContext {
     }
 }
 
-struct SquareOperatorHandlerContext {
-    i: u32,
-}
+struct SquareOperatorHandlerContext { }
 
 impl SquareOperatorHandlerContext {
     pub fn new() -> Self {
-        Self { i: 0 }
+        Self { }
     }
 }
 
