@@ -130,7 +130,7 @@ impl Ord for IntTimestamp {
             (true, true) => Ordering::Equal,
             (true, false) => Ordering::Greater,
             (false, true) => Ordering::Less,
-            (false, false) => self.time.cmp(&other.time),
+            _ => self.time.cmp(&other.time),
         }
     }
 }

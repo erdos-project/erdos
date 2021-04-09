@@ -1,4 +1,8 @@
-use std::{fmt, sync::Arc, time::Instant};
+use std::{
+    fmt,
+    sync::{Arc, Mutex},
+    time::Instant,
+};
 
 use serde::Deserialize;
 use tokio::sync::broadcast;
@@ -72,7 +76,7 @@ pub struct WriteStream<D: Data> {
     /// Sends message to other operators.
     pusher: Option<Pusher<Arc<Message<D>>>>,
     /// Current low watermark.
-    low_watermark: Timestamp,
+    low_watermark: Arc<Mutex<Timestamp>>,
     /// Whether the stream is closed.
     stream_closed: bool,
     /// Broadcasts notifications upon message receipt.
@@ -116,7 +120,7 @@ impl<D: Data> WriteStream<D> {
             id,
             name,
             pusher: Some(Pusher::new()),
-            low_watermark: Timestamp::new(vec![0]),
+            low_watermark: Arc::new(Mutex::new(Timestamp::bottom())),
             stream_closed: false,
             notification_tx: broadcast::channel(128).0,
         }
@@ -172,14 +176,17 @@ impl<D: Data> WriteStream<D> {
     /// # Arguments
     /// * `msg` - The message to be sent on the stream.
     fn update_watermark(&mut self, msg: &Message<D>) -> Result<(), WriteStreamError> {
+        let mut low_watermark = self.low_watermark.lock().unwrap();
         match msg {
             Message::TimestampedData(td) => {
-                if td.timestamp < self.low_watermark {
+                if td.timestamp <= *low_watermark {
+                    slog::error!(crate::TERMINAL_LOGGER, "Trying to send message with timestamp {:?} which precedes the low watermark {:?}", td.timestamp, *low_watermark);
                     return Err(WriteStreamError::TimestampError);
                 }
             }
             Message::Watermark(msg_watermark) => {
-                if msg_watermark < &self.low_watermark {
+                if msg_watermark <= &*low_watermark {
+                    slog::error!(crate::TERMINAL_LOGGER, "Trying to send message with timestamp {:?} which precedes the low watermark {:?}", msg_watermark, *low_watermark);
                     return Err(WriteStreamError::TimestampError);
                 }
                 slog::debug!(
@@ -187,10 +194,10 @@ impl<D: Data> WriteStream<D> {
                     "Updating watermark on WriteStream {} (ID: {}) from {:?} to {:?}",
                     self.get_name(),
                     self.get_id(),
-                    self.low_watermark,
+                    low_watermark,
                     msg_watermark
                 );
-                self.low_watermark = msg_watermark.clone();
+                *low_watermark = msg_watermark.clone();
             }
         }
         Ok(())
@@ -240,6 +247,9 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
             close_stream = true;
         }
 
+        // Update the watermark and send the message forward.
+        self.update_watermark(&msg)?;
+
         // Send notification.
         match &msg {
             Message::TimestampedData(_) => self
@@ -258,10 +268,7 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
                 .unwrap_or(0),
         };
 
-        // Update the watermark and send the message forward.
-        self.update_watermark(&msg)?;
         let msg_arc = Arc::new(msg);
-
         match self.pusher.as_mut() {
             Some(pusher) => pusher.send(msg_arc).map_err(WriteStreamError::from)?,
             None => {

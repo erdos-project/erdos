@@ -24,6 +24,7 @@ class SendOp(erdos.Operator):
             self.write_stream.send(msg)
 
             if count % 3 == 2:
+                time.sleep(1)
                 print("sendOp: sending watermark")
                 self.write_stream.send(erdos.WatermarkMessage(timestamp))
 
@@ -49,7 +50,7 @@ class BatchOp(erdos.Operator):
         read_stream.add_callback(self.add_to_batch)
         read_stream.add_watermark_callback(self.send_batch, [write_stream])
         self.batch = []
-        self.config.add_timestamp_deadline(read_stream, write_stream, 1000)
+        self.config.add_timestamp_deadline(read_stream, write_stream, 300)
 
     @staticmethod
     def connect(read_stream):
@@ -57,14 +58,18 @@ class BatchOp(erdos.Operator):
 
     # TODO: use a callback on a stateful read stream instead of passing self
     def add_to_batch(self, msg):
-        print("adding to batch: {msg}".format(msg=msg))
+        print("BatchOp: adding to batch: {msg}".format(msg=msg))
         self.batch.append(msg.data)
 
     # TODO: use a callback on a stateful read stream instead of passing self
     def send_batch(self, timestamp, write_stream):
         msg = erdos.Message(timestamp, self.batch)
         print("BatchOp: sending batch {msg}".format(msg=msg))
-        write_stream.send(msg)
+        try:
+            write_stream.send(msg)
+            write_stream.send(erdos.WatermarkMessage(timestamp))
+        except Exception:
+            print("Unable to send message, handler already sent watermark.")
         self.batch = []
 
 
@@ -106,10 +111,12 @@ def main():
     """Creates and runs the dataflow graph."""
     (count_stream, ) = erdos.connect(SendOp, erdos.OperatorConfig(), [])
     (top_stream, ) = erdos.connect(TopOp, erdos.OperatorConfig(), [])
-    (batch_stream, ) = erdos.connect(BatchOp, erdos.OperatorConfig(),
-                                     [count_stream])
-    erdos.connect(CallbackWatermarkListener, erdos.OperatorConfig(),
-                  [batch_stream, top_stream])
+    (batch_stream, ) = erdos.connect(
+        BatchOp, erdos.OperatorConfig(name="BatchOp", flow_watermarks=False),
+        [count_stream])
+    # Bug: when flow_watermarks = false, BatchOp stops working.
+    # erdos.connect(CallbackWatermarkListener, erdos.OperatorConfig(),
+    #               [batch_stream, top_stream])
     erdos.connect(PullWatermarkListener, erdos.OperatorConfig(),
                   [batch_stream])
 
