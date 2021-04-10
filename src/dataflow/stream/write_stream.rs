@@ -136,13 +136,12 @@ impl<D: Data> WriteStream<D> {
     fn update_statistics(&mut self, msg: &Message<D>) -> Result<(), WriteStreamError> {
         match msg {
             Message::TimestampedData(td) => {
-                if td.timestamp < *self.stats.lock().unwrap().low_watermark() {
+                let mut stats = self.stats.lock().unwrap();
+                if td.timestamp < *stats.low_watermark() {
                     return Err(WriteStreamError::TimestampError);
                 }
                 // Increment the message count.
-                self.stats
-                    .lock()
-                    .unwrap()
+                stats
                     .condition_context
                     .increment_msg_count(self.id(), td.timestamp.clone())
             }
@@ -162,9 +161,7 @@ impl<D: Data> WriteStream<D> {
                 stats.update_low_watermark(msg_watermark.clone());
 
                 // Notify the arrival of the watermark.
-                self.stats
-                    .lock()
-                    .unwrap()
+                stats
                     .condition_context
                     .notify_watermark_arrival(self.id(), msg_watermark.clone());
             }
