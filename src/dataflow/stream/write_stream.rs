@@ -1,4 +1,7 @@
-use std::{fmt, sync::Arc};
+use std::{
+    fmt,
+    sync::{Arc, Mutex},
+};
 
 use serde::Deserialize;
 
@@ -69,10 +72,8 @@ pub struct WriteStream<D: Data> {
     name: String,
     /// Sends message to other operators.
     pusher: Option<Pusher<Arc<Message<D>>>>,
-    /// Current low watermark.
-    low_watermark: Timestamp,
-    /// Whether the stream is closed.
-    stream_closed: bool,
+    /// Statistics about this instance of the write stream.
+    stats: Arc<Mutex<WriteStreamStatistics>>,
 }
 
 impl<D: Data> WriteStream<D> {
@@ -88,8 +89,7 @@ impl<D: Data> WriteStream<D> {
             id,
             name: name.to_string(),
             pusher: Some(Pusher::new()),
-            low_watermark: Timestamp::Time(vec![0]),
-            stream_closed: false,
+            stats: Arc::new(Mutex::new(WriteStreamStatistics::new())),
         }
     }
 
@@ -104,7 +104,7 @@ impl<D: Data> WriteStream<D> {
     /// Returns `true` if a top watermark message was received or the [`IngestStream`] failed to
     /// set up.
     pub fn is_closed(&self) -> bool {
-        self.stream_closed
+        self.stats.lock().unwrap().is_stream_closed()
     }
 
     fn add_endpoint(&mut self, endpoint: SendEndpoint<Arc<Message<D>>>) {
@@ -122,7 +122,7 @@ impl<D: Data> WriteStream<D> {
             self.name(),
             self.id()
         );
-        self.stream_closed = true;
+        self.stats.lock().unwrap().close_stream();
         self.pusher = None;
     }
 
@@ -133,12 +133,13 @@ impl<D: Data> WriteStream<D> {
     fn update_watermark(&mut self, msg: &Message<D>) -> Result<(), WriteStreamError> {
         match msg {
             Message::TimestampedData(td) => {
-                if td.timestamp < self.low_watermark {
+                if td.timestamp < *self.stats.lock().unwrap().low_watermark() {
                     return Err(WriteStreamError::TimestampError);
                 }
             }
             Message::Watermark(msg_watermark) => {
-                if msg_watermark < &self.low_watermark {
+                let mut stats = self.stats.lock().unwrap();
+                if msg_watermark < stats.low_watermark() {
                     return Err(WriteStreamError::TimestampError);
                 }
                 slog::debug!(
@@ -146,10 +147,10 @@ impl<D: Data> WriteStream<D> {
                     "Updating watermark on WriteStream {} (ID: {}) from {:?} to {:?}",
                     self.name(),
                     self.id(),
-                    self.low_watermark,
+                    stats.low_watermark(),
                     msg_watermark
                 );
-                self.low_watermark = msg_watermark.clone();
+                stats.update_low_watermark(msg_watermark.clone());
             }
         }
         Ok(())
@@ -161,7 +162,8 @@ impl<D: Data> fmt::Debug for WriteStream<D> {
         write!(
             f,
             "WriteStream {{ id: {}, low_watermark: {:?} }}",
-            self.id, self.low_watermark
+            self.id,
+            self.stats.lock().unwrap().low_watermark,
         )
     }
 }
@@ -183,7 +185,7 @@ impl<D: Data> StreamT<D> for WriteStream<D> {
 impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
     fn send(&mut self, msg: Message<D>) -> Result<(), WriteStreamError> {
         // Check if the stream was closed before, and return an error.
-        if self.stream_closed {
+        if self.is_closed() {
             slog::warn!(
                 crate::TERMINAL_LOGGER,
                 "Trying to send messages on a closed WriteStream {} (ID: {})",
@@ -228,5 +230,45 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
             self.close_stream();
         }
         Ok(())
+    }
+}
+
+/// Maintains statistics on the WriteStream required for the maintenance of the watermarks, and the 
+/// execution of end conditions for deadlines.
+struct WriteStreamStatistics {
+    low_watermark: Timestamp,
+    is_stream_closed: bool,
+}
+
+impl WriteStreamStatistics {
+    fn new() -> Self {
+        Self {
+            low_watermark: Timestamp::Bottom,
+            is_stream_closed: false,
+        }
+    }
+
+    /// Closes the stream.
+    fn close_stream(&mut self) {
+        self.low_watermark = Timestamp::Top;
+        self.is_stream_closed = true;
+    }
+
+    /// Is the stream closed? 
+    fn is_stream_closed(&self) -> bool {
+        self.is_stream_closed
+    }
+
+    /// Returns the current low watermark on the stream.
+    fn low_watermark(&self) -> &Timestamp {
+        &self.low_watermark
+    }
+
+    /// Update the low watermark of the corresponding stream.
+    /// Increases the low watermark only if watermark_timestamp > current low watermark.
+    fn update_low_watermark(&mut self, watermark_timestamp: Timestamp) {
+        if self.low_watermark < watermark_timestamp {
+            self.low_watermark = watermark_timestamp;
+        }
     }
 }
