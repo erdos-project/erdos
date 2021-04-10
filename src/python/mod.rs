@@ -471,9 +471,8 @@ fn flow_watermarks_py(read_streams: &Vec<PyReadStream>, write_streams: &Vec<PyWr
         write_streams,
         |t, write_streams| {
             for write_stream in write_streams {
-                write_stream
-                    .send(Message::new_watermark(t.clone()))
-                    .expect("Error flowing watermarks for python opreator.");
+                write_stream.send(Message::new_watermark(t.clone()));
+                //.expect("Error flowing watermarks for python opreator.");
             }
         },
         127,

@@ -187,8 +187,9 @@ class WriteStream(object):
         try:
             return self._py_write_stream.send(internal_msg)
         except Exception as e:
-            raise Exception("Exception on stream {} ({})".format(
-                self._name, self._id)) from e
+            pass
+            # raise Exception("Exception on stream {} ({})".format(
+            #     self._name, self._id)) from e
 
 
 class LoopStream(object):

@@ -62,8 +62,8 @@ impl PyTimestampDeadline {
                         write_stream_clone
                             .lock()
                             .unwrap()
-                            .send(Message::new_watermark(t))
-                            .unwrap();
+                            .send(Message::new_watermark(t));
+                        //.unwrap();
                     }),
             ),
         })
