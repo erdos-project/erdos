@@ -7,7 +7,10 @@ use serde::Deserialize;
 
 use crate::{
     communication::{Pusher, SendEndpoint},
-    dataflow::{Data, Message, Timestamp},
+    dataflow::{
+        deadlines::{CondFn, ConditionContext},
+        Data, Message, Timestamp,
+    },
 };
 
 use super::{errors::WriteStreamError, StreamId, StreamT, WriteStreamT};
@@ -130,12 +133,18 @@ impl<D: Data> WriteStream<D> {
     ///
     /// # Arguments
     /// * `msg` - The message to be sent on the stream.
-    fn update_watermark(&mut self, msg: &Message<D>) -> Result<(), WriteStreamError> {
+    fn update_statistics(&mut self, msg: &Message<D>) -> Result<(), WriteStreamError> {
         match msg {
             Message::TimestampedData(td) => {
                 if td.timestamp < *self.stats.lock().unwrap().low_watermark() {
                     return Err(WriteStreamError::TimestampError);
                 }
+                // Increment the message count.
+                self.stats
+                    .lock()
+                    .unwrap()
+                    .condition_context
+                    .increment_msg_count(self.id(), td.timestamp.clone())
             }
             Message::Watermark(msg_watermark) => {
                 let mut stats = self.stats.lock().unwrap();
@@ -151,9 +160,21 @@ impl<D: Data> WriteStream<D> {
                     msg_watermark
                 );
                 stats.update_low_watermark(msg_watermark.clone());
+
+                // Notify the arrival of the watermark.
+                self.stats
+                    .lock()
+                    .unwrap()
+                    .condition_context
+                    .notify_watermark_arrival(self.id(), msg_watermark.clone());
             }
         }
         Ok(())
+    }
+
+    /// Evaluates a condition function on the statistics of the write stream.
+    pub fn evaluate_condition(&self, condition_fn: &CondFn) -> bool {
+        (condition_fn)(&self.stats.lock().unwrap().condition_context)
     }
 }
 
@@ -208,7 +229,7 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
         }
 
         // Update the watermark and send the message forward.
-        self.update_watermark(&msg)?;
+        self.update_statistics(&msg)?;
         let msg_arc = Arc::new(msg);
 
         match self.pusher.as_mut() {
@@ -233,11 +254,12 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
     }
 }
 
-/// Maintains statistics on the WriteStream required for the maintenance of the watermarks, and the 
+/// Maintains statistics on the WriteStream required for the maintenance of the watermarks, and the
 /// execution of end conditions for deadlines.
 struct WriteStreamStatistics {
     low_watermark: Timestamp,
     is_stream_closed: bool,
+    condition_context: ConditionContext,
 }
 
 impl WriteStreamStatistics {
@@ -245,6 +267,7 @@ impl WriteStreamStatistics {
         Self {
             low_watermark: Timestamp::Bottom,
             is_stream_closed: false,
+            condition_context: ConditionContext::new(),
         }
     }
 
@@ -254,7 +277,7 @@ impl WriteStreamStatistics {
         self.is_stream_closed = true;
     }
 
-    /// Is the stream closed? 
+    /// Is the stream closed?
     fn is_stream_closed(&self) -> bool {
         self.is_stream_closed
     }

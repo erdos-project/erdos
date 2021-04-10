@@ -4,7 +4,10 @@ use serde::Deserialize;
 
 use crate::{
     communication::{RecvEndpoint, TryRecvError},
-    dataflow::{Data, Message, State, Timestamp},
+    dataflow::{
+        deadlines::{CondFn, ConditionContext},
+        Data, Message, State, Timestamp,
+    },
 };
 
 use super::{
@@ -95,6 +98,8 @@ pub struct ReadStream<D: Data> {
     is_closed: bool,
     /// The endpoint on which the stream receives data.
     recv_endpoint: Option<RecvEndpoint<Arc<Message<D>>>>,
+    /// Statistics about the messages received and the watermark status of timestamps.
+    condition_context: ConditionContext,
 }
 
 impl<D: Data> ReadStream<D> {
@@ -108,6 +113,7 @@ impl<D: Data> ReadStream<D> {
             name: name.to_string(),
             is_closed: false,
             recv_endpoint,
+            condition_context: ConditionContext::new(),
         }
     }
 
@@ -169,13 +175,29 @@ impl<D: Data> ReadStream<D> {
                     }
                 }
             });
-        if result
-            .as_ref()
-            .map(Message::is_top_watermark)
-            .unwrap_or(false)
-        {
-            self.is_closed = true;
-            self.recv_endpoint = None;
+
+        // Update the statistics of the condition context.
+        match result.as_ref() {
+            Ok(msg) => {
+                match msg {
+                    Message::TimestampedData(td) => {
+                        // Increment the message count.
+                        self.condition_context
+                            .increment_msg_count(self.id, td.timestamp.clone());
+                    }
+                    Message::Watermark(t) => {
+                        // Notify the watermark arrrival.
+                        self.condition_context
+                            .notify_watermark_arrival(self.id, t.clone());
+                        // Close the stream if the timestamp is top.
+                        if t.is_top() {
+                            self.is_closed = true;
+                            self.recv_endpoint = None;
+                        }
+                    }
+                }
+            }
+            Err(_) => {}
         }
         result
     }
@@ -193,6 +215,11 @@ impl<D: Data> ReadStream<D> {
             },
             None => Err(ReadError::Disconnected),
         }
+    }
+
+    /// Evaluate a condition function on the statistics of the ReadStream.
+    pub fn evaluate_condition(&self, condition_fn: &CondFn) -> bool {
+        (condition_fn)(&self.condition_context)
     }
 }
 
