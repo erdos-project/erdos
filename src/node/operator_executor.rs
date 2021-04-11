@@ -745,7 +745,10 @@ where
         if !self.write_stream.is_closed() {
             self.write_stream
                 .send(Message::new_watermark(Timestamp::Top))
-                .unwrap();
+                .expect(&format!(
+                    "[Operator Executor] Error sending top watermark for operator {}",
+                    self.config.get_name()
+                ));
         }
 
         channel_to_worker
