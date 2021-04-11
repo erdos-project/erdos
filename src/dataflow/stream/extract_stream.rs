@@ -15,7 +15,7 @@ use crate::{
 
 use super::{
     errors::{ReadError, TryReadError},
-    ReadStream, StreamId, StreamT,
+    ReadStream, Stream, StreamId, StreamT,
 };
 
 /// An [`ExtractStream`] enables drivers to read data from a running ERDOS application.
@@ -91,7 +91,7 @@ where
     /// * `node_id`: The ID of the Node where the driver is running (typically, 0).
     /// * `read_stream`: The [`ReadStream`] returned by an
     /// [`Operator`](crate::dataflow::operator::Operator) to extract the messages from.
-    pub fn new(node_id: NodeId, read_stream: &ReadStream<D>) -> Self {
+    pub fn new(node_id: NodeId, read_stream: &Stream<D>) -> Self {
         slog::debug!(
             crate::TERMINAL_LOGGER,
             "Initializing an ExtractStream on the node {} with the ReadStream {} (ID: {})",
@@ -109,7 +109,7 @@ where
     /// * `read_stream`: The [`ReadStream`] returned by an
     /// [`Operator`](crate::dataflow::operator::Operator) to extract the messages from.
     /// * `name`: The name to be given to the stream.
-    pub fn new_with_name(node_id: NodeId, read_stream: &ReadStream<D>, name: &str) -> Self {
+    pub fn new_with_name(node_id: NodeId, read_stream: &Stream<D>, name: &str) -> Self {
         slog::debug!(
             crate::TERMINAL_LOGGER,
             "Initializing an ExtractStream {} on the node {} with the ReadStream {} (ID: {})",
@@ -122,7 +122,7 @@ where
     }
 
     /// Creates the appropriate channels for the [`ExtractStream`] and adds it to the dataflow.
-    fn new_internal(node_id: NodeId, read_stream: &ReadStream<D>, name: Option<String>) -> Self {
+    fn new_internal(node_id: NodeId, read_stream: &Stream<D>, name: Option<String>) -> Self {
         // Generate an ID, and use it as the name if no name was provided.
         let id = read_stream.id();
         let stream_name = match name {

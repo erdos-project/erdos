@@ -30,8 +30,8 @@ impl Source<(), usize> for SourceOperator {
             write_stream
                 .send(Message::new_watermark(timestamp))
                 .unwrap();
-            //thread::sleep(Duration::from_millis(100));
-            thread::sleep(Duration::new(5, 0));
+            thread::sleep(Duration::from_millis(100));
+            // thread::sleep(Duration::new(5, 0));
         }
     }
 
@@ -62,11 +62,11 @@ impl DeadlineContext for SquareOperatorDeadlineContext {
     }
 }
 
-struct SquareOperatorHandlerContext { }
+struct SquareOperatorHandlerContext {}
 
 impl SquareOperatorHandlerContext {
     pub fn new() -> Self {
-        Self { }
+        Self {}
     }
 }
 
@@ -82,7 +82,8 @@ impl OneInOneOut<(), usize, usize> for SquareOperator {
         let deadline = TimestampDeadline::new(
             SquareOperatorDeadlineContext::new(),
             SquareOperatorHandlerContext::new(),
-        ).on_read_stream(ctx.read_stream_id);
+        )
+        .on_read_stream(ctx.read_stream_id);
         ctx.add_deadline(Deadline::TimestampDeadline(deadline));
     }
 
