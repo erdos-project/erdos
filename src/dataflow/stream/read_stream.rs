@@ -176,28 +176,21 @@ impl<D: Data> ReadStream<D> {
                 }
             });
 
-        // Update the statistics of the condition context.
+        // Update the condition context.
         match result.as_ref() {
             Ok(msg) => {
-                match msg {
-                    Message::TimestampedData(td) => {
-                        // Increment the message count.
-                        self.condition_context
-                            .increment_msg_count(self.id, td.timestamp.clone());
-                    }
-                    Message::Watermark(t) => {
-                        // Notify the watermark arrrival.
-                        self.condition_context
-                            .notify_watermark_arrival(self.id, t.clone());
-                        // Close the stream if the timestamp is top.
-                        if t.is_top() {
-                            self.is_closed = true;
-                            self.recv_endpoint = None;
-                        }
-                    }
-                }
-            }
-            Err(_) => {}
+                self.update_condition_context(&msg);
+            },
+            Err(_) => {},
+        };
+
+        if result
+            .as_ref()
+            .map(Message::is_top_watermark)
+            .unwrap_or(false)
+        {
+            self.is_closed = true;
+            self.recv_endpoint = None;
         }
         result
     }
@@ -209,17 +202,58 @@ impl<D: Data> ReadStream<D> {
         // Poll for the next message
         match self.recv_endpoint.as_mut() {
             Some(endpoint) => match endpoint.read().await {
-                Ok(msg) => Ok(msg),
+                Ok(msg) => {
+                    self.update_condition_context(&msg);
+                    Ok(msg)
+                }
                 // TODO: better error handling.
                 _ => Err(ReadError::Disconnected),
             },
             None => Err(ReadError::Disconnected),
         }
+
+        // TODO: Close the stream? 
+    }
+
+    /// Maintains the statistics for the ConditionContext.
+    fn update_condition_context(&mut self, msg: &Message<D>) {
+        slog::debug!(
+            crate::TERMINAL_LOGGER,
+            "Updating statistics for the message: {:?}",
+            msg
+        );
+        match msg {
+            Message::TimestampedData(td) => {
+                // Increment the message count.
+                self.condition_context
+                    .increment_msg_count(self.id(), td.timestamp.clone());
+            }
+            Message::Watermark(t) => {
+                // Notify the watermark arrival.
+                self.condition_context
+                    .notify_watermark_arrival(self.id(), t.clone());
+            }
+        }
+    }
+
+    /// Clears the condition context state.
+    pub fn clear_condition_state(&mut self, stream_id: StreamId, timestamp: Timestamp) {
+        self.condition_context.clear_state(stream_id, timestamp);
     }
 
     /// Evaluate a condition function on the statistics of the ReadStream.
     pub fn evaluate_condition(&self, condition_fn: &CondFn) -> bool {
+        slog::debug!(
+            crate::TERMINAL_LOGGER,
+            "Executing a condition function with the context: {:?}",
+            self.condition_context
+        );
         (condition_fn)(&self.condition_context)
+    }
+
+    /// Get the ConditionContext saved in the stream.
+    pub fn get_condition_context(&self) -> &ConditionContext {
+        &self.condition_context
     }
 }
 
