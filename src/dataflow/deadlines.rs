@@ -12,6 +12,32 @@ use tokio::time::Duration;
 pub trait CondFn: Fn(&ConditionContext) -> bool + Send + Sync {}
 impl<F: Fn(&ConditionContext) -> bool + Send + Sync> CondFn for F {}
 
+pub struct DeadlineEvent {
+    pub stream_id: StreamId,
+    pub timestamp: Timestamp,
+    pub duration: Duration,
+    pub handler: Arc<dyn HandlerContextT>,
+    pub end_condition: Arc<dyn CondFn>,
+}
+
+impl DeadlineEvent {
+    pub fn new(
+        stream_id: StreamId,
+        timestamp: Timestamp,
+        duration: Duration,
+        handler: Arc<dyn HandlerContextT>,
+        end_condition: Arc<dyn CondFn>,
+    ) -> Self {
+        Self {
+            stream_id,
+            timestamp,
+            duration,
+            handler,
+            end_condition,
+        }
+    }
+}
+
 /// Enumerates the types of deadlines available to the user.
 pub enum Deadline {
     TimestampDeadline(TimestampDeadline),
@@ -62,8 +88,8 @@ pub trait HandlerContextT: Send + Sync {
 }
 
 pub struct TimestampDeadline {
-    start_condition_fn: Box<dyn CondFn>,
-    end_condition_fn: Box<dyn CondFn>,
+    start_condition_fn: Arc<dyn CondFn>,
+    end_condition_fn: Arc<dyn CondFn>,
     deadline_context: Box<dyn DeadlineContext>,
     handler_context: Arc<dyn HandlerContextT>,
     read_stream_ids: HashSet<StreamId>,
@@ -75,8 +101,8 @@ impl TimestampDeadline {
         handler_context: impl HandlerContextT + 'static,
     ) -> Self {
         TimestampDeadline {
-            start_condition_fn: Box::new(TimestampDeadline::default_start_condition),
-            end_condition_fn: Box::new(TimestampDeadline::default_end_condition),
+            start_condition_fn: Arc::new(TimestampDeadline::default_start_condition),
+            end_condition_fn: Arc::new(TimestampDeadline::default_end_condition),
             deadline_context: Box::new(deadline_context),
             handler_context: Arc::new(handler_context),
             read_stream_ids: HashSet::new(),
@@ -89,13 +115,21 @@ impl TimestampDeadline {
     }
 
     pub fn with_start_condition(mut self, condition: impl 'static + CondFn) -> Self {
-        self.start_condition_fn = Box::new(condition);
+        self.start_condition_fn = Arc::new(condition);
         self
     }
 
     pub fn with_end_condition(mut self, condition: impl 'static + CondFn) -> Self {
-        self.end_condition_fn = Box::new(condition);
+        self.end_condition_fn = Arc::new(condition);
         self
+    }
+
+    pub(crate) fn get_start_condition_fn(&self) -> Arc<dyn CondFn> {
+        Arc::clone(&self.start_condition_fn)
+    }
+
+    pub(crate) fn get_end_condition_fn(&self) -> Arc<dyn CondFn> {
+        Arc::clone(&self.end_condition_fn)
     }
 
     pub(crate) fn start_condition(&self, condition_context: &ConditionContext) -> bool {
