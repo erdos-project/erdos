@@ -628,7 +628,6 @@ where
     helper: Option<OperatorExecutorHelper>,
     read_ids: HashSet<StreamId>,
     write_ids: HashSet<StreamId>,
-    setup_context: Option<OneInOneOutSetupContext>,
 }
 
 impl<O, S, T, U> OneInOneOutExecutor<O, S, T, U>
@@ -655,7 +654,6 @@ where
             read_stream: Some(read_stream),
             write_stream,
             helper: Some(OperatorExecutorHelper::new(operator_id)),
-            setup_context: None,
         }
     }
 
@@ -679,7 +677,6 @@ where
         let mut setup_context =
             OneInOneOutSetupContext::new(self.read_stream.as_ref().unwrap().id());
         self.operator.setup(&mut setup_context);
-        //self.setup_context = Some(setup_context);
 
         tokio::task::block_in_place(|| {
             self.operator
