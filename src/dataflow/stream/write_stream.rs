@@ -173,6 +173,11 @@ impl<D: Data> WriteStream<D> {
     pub fn evaluate_condition(&self, condition_fn: &CondFn) -> bool {
         (condition_fn)(&self.stats.lock().unwrap().condition_context)
     }
+
+    /// Clears the condition context state.
+    pub fn clear_condition_state(&mut self, stream_id: StreamId, timestamp: Timestamp) {
+        self.stats.lock().unwrap().condition_context.clear_state(stream_id, timestamp);
+    }
 }
 
 impl<D: Data> fmt::Debug for WriteStream<D> {
@@ -290,5 +295,10 @@ impl WriteStreamStatistics {
         if self.low_watermark < watermark_timestamp {
             self.low_watermark = watermark_timestamp;
         }
+    }
+
+    /// Get the ConditionContext saved in the stream.
+    fn get_condition_context(&self) -> &ConditionContext {
+        &self.condition_context
     }
 }
