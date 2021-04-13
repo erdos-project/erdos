@@ -265,6 +265,13 @@ impl OperatorExecutor {
             }
         }
 
+        slog::info!(
+            crate::TERMINAL_LOGGER,
+            "Discovered {} receiving frequency deadlines for {}",
+            receiving_frequency_deadlines.len(),
+            name
+        );
+
         let mut active_receiving_frequency_timestamps: HashMap<StreamId, HashSet<Timestamp>> =
             HashMap::new();
         let mut active_receiving_frequency_deadlines_keys: HashMap<(Uuid, Timestamp), Key> =
@@ -297,6 +304,12 @@ impl OperatorExecutor {
                 }
             }
         }
+        slog::info!(
+            crate::TERMINAL_LOGGER,
+            "Discovered {} timestamp deadlines for {}",
+            timestamp_deadlines.len(),
+            name
+        );
 
         let mut active_td_timestamps: HashMap<StreamId, HashSet<Timestamp>> = HashMap::new();
         let mut active_td_keys: HashMap<(Uuid, Timestamp), Key> = HashMap::new();
@@ -323,7 +336,7 @@ impl OperatorExecutor {
                             .broadcast(EventRunnerMessage::AddedEvents)
                             .unwrap();
                     }
-                    Some((stream_id, Ok(notification))) = td_notifications.next() => {
+                    Some((stream_id, Ok(notification))) = td_notifications.next(), if !td_notifications.is_empty() => {
                         // slog::debug!(crate::TERMINAL_LOGGER, "Received notification");
                         match notification.notification_type {
                             NotificationType::ReceivedData(stream_id, timestamp)
@@ -370,7 +383,7 @@ impl OperatorExecutor {
                             handler(timestamp);
                         }
                     }
-                    Some((deadline_id, Ok(notification))) = receiving_frequency_notifications.next() => {
+                    Some((deadline_id, Ok(notification))) = receiving_frequency_notifications.next(), if !receiving_frequency_notifications.is_empty() => {
                         // slog::debug!(crate::TERMINAL_LOGGER, "Received notification");
                         match notification.notification_type {
                             NotificationType::ReceivedData(stream_id, timestamp)
