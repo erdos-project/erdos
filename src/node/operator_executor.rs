@@ -73,11 +73,11 @@ where
             match deadline {
                 Deadline::TimestampDeadline(d) => {
                     if d.constrained_on_read_stream(read_stream.id())
-                        && read_stream.evaluate_condition(&*d.get_start_condition_fn())
+                        && d.start_condition(read_stream.get_condition_context())
                     {
                         // Compute the deadline for the timestamp.
                         let deadline_duration =
-                            d.calculate_deadline(&read_stream.get_condition_context());
+                            d.calculate_deadline(read_stream.get_condition_context());
                         deadline_event_vec.push(DeadlineEvent::new(
                             read_stream.id(),
                             timestamp.clone(),
@@ -145,6 +145,7 @@ impl OperatorExecutorHelper {
         tokio::time::delay_for(Duration::from_secs(1)).await;
     }
 
+    // Arms the given `DeadlineEvents` by installing them into a DeadlineQueue.
     fn manage_deadlines(&mut self, deadlines: Vec<DeadlineEvent>) {
         for event in deadlines {
             if !self
@@ -196,7 +197,7 @@ impl OperatorExecutorHelper {
                     if !message_processor.disarm_deadline(&deadline_event) {
                         // Invoke the handler.
                         deadline_event.handler.invoke_handler(&read_stream.get_condition_context());
-                    } 
+                    }
 
                     // Remove the key from the hashmap and clear the state in the ConditionContext.
                     match self.stream_timestamp_to_key_map.remove(&(deadline_event.stream_id, deadline_event.timestamp.clone())) {
@@ -837,7 +838,14 @@ where
 
     // Checks if the given deadline should be disarmed.
     fn disarm_deadline(&self, deadline_event: &DeadlineEvent) -> bool {
-        self.write_stream.evaluate_condition(&*deadline_event.end_condition)    
+        (deadline_event.end_condition)(
+            &self
+                .write_stream
+                .get_statistics()
+                .lock()
+                .unwrap()
+                .get_condition_context(),
+        )
     }
 }
 

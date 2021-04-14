@@ -174,9 +174,17 @@ impl<D: Data> WriteStream<D> {
         (condition_fn)(&self.stats.lock().unwrap().condition_context)
     }
 
+    pub(crate) fn get_statistics(&self) -> Arc<Mutex<WriteStreamStatistics>> {
+        Arc::clone(&self.stats)
+    }
+
     /// Clears the condition context state.
-    pub fn clear_condition_state(&mut self, stream_id: StreamId, timestamp: Timestamp) {
-        self.stats.lock().unwrap().condition_context.clear_state(stream_id, timestamp);
+    pub fn clear_state(&mut self, timestamp: Timestamp) {
+        self.stats
+            .lock()
+            .unwrap()
+            .condition_context
+            .clear_state(self.id(), timestamp);
     }
 }
 
@@ -258,7 +266,7 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
 
 /// Maintains statistics on the WriteStream required for the maintenance of the watermarks, and the
 /// execution of end conditions for deadlines.
-struct WriteStreamStatistics {
+pub(crate) struct WriteStreamStatistics {
     low_watermark: Timestamp,
     is_stream_closed: bool,
     condition_context: ConditionContext,
@@ -298,7 +306,7 @@ impl WriteStreamStatistics {
     }
 
     /// Get the ConditionContext saved in the stream.
-    fn get_condition_context(&self) -> &ConditionContext {
+    pub(crate) fn get_condition_context(&self) -> &ConditionContext {
         &self.condition_context
     }
 }

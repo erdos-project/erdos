@@ -12,6 +12,10 @@ use tokio::time::Duration;
 pub trait CondFn: Fn(&ConditionContext) -> bool + Send + Sync {}
 impl<F: Fn(&ConditionContext) -> bool + Send + Sync> CondFn for F {}
 
+/// A `DeadlineEvent` structure defines a deadline that is generated upon the fulfillment of a
+/// start condition on a given stream and a given timestamp (we assume a single deadline for each
+/// timestamp). Upon expiration of the deadline (defined as `duration`), the `end_condition`
+/// function is checked, and the `handler` is invoked if it was not satisfied.
 pub struct DeadlineEvent {
     pub stream_id: StreamId,
     pub timestamp: Timestamp,

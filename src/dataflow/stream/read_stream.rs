@@ -180,8 +180,8 @@ impl<D: Data> ReadStream<D> {
         match result.as_ref() {
             Ok(msg) => {
                 self.update_condition_context(&msg);
-            },
-            Err(_) => {},
+            }
+            Err(_) => {}
         };
 
         if result
@@ -212,7 +212,7 @@ impl<D: Data> ReadStream<D> {
             None => Err(ReadError::Disconnected),
         }
 
-        // TODO: Close the stream? 
+        // TODO: Close the stream?
     }
 
     /// Maintains the statistics for the ConditionContext.
@@ -237,22 +237,12 @@ impl<D: Data> ReadStream<D> {
     }
 
     /// Clears the condition context state.
-    pub fn clear_condition_state(&mut self, stream_id: StreamId, timestamp: Timestamp) {
-        self.condition_context.clear_state(stream_id, timestamp);
-    }
-
-    /// Evaluate a condition function on the statistics of the ReadStream.
-    pub fn evaluate_condition(&self, condition_fn: &CondFn) -> bool {
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
-            "Executing a condition function with the context: {:?}",
-            self.condition_context
-        );
-        (condition_fn)(&self.condition_context)
+    pub fn clear_condition_state(&mut self, timestamp: Timestamp) {
+        self.condition_context.clear_state(self.id(), timestamp);
     }
 
     /// Get the ConditionContext saved in the stream.
-    pub fn get_condition_context(&self) -> &ConditionContext {
+    pub(crate) fn get_condition_context(&self) -> &ConditionContext {
         &self.condition_context
     }
 }
