@@ -13,7 +13,7 @@ use tokio::{
 
 use crate::{
     dataflow::{
-        deadlines::{ConditionContext, Deadline, HandlerContextT},
+        deadlines::{ConditionContext, Deadline, DeadlineEvent, HandlerContextT},
         operator::{
             OneInOneOut, OneInOneOutContext, OneInOneOutSetupContext, OneInTwoOut,
             OneInTwoOutContext, OperatorConfig, SetupContextT, Sink, SinkContext, Source,
@@ -60,6 +60,43 @@ where
 
     // Generates an OperatorEvent for a watermark callback.
     fn watermark_cb_event(&self, timestamp: &Timestamp) -> OperatorEvent;
+
+    // Generates a DeadlineEvent for arming a deadline.
+    fn arm_deadlines(
+        &self,
+        setup_context: &dyn SetupContextT,
+        read_stream: &ReadStream<T>,
+        timestamp: Timestamp,
+    ) -> Vec<DeadlineEvent> {
+        let mut deadline_event_vec = Vec::new();
+        for deadline in setup_context.get_deadlines() {
+            match deadline {
+                Deadline::TimestampDeadline(d) => {
+                    if d.constrained_on_read_stream(read_stream.id())
+                        && d.start_condition(read_stream.get_condition_context())
+                    {
+                        // Compute the deadline for the timestamp.
+                        let deadline_duration =
+                            d.calculate_deadline(read_stream.get_condition_context());
+                        deadline_event_vec.push(DeadlineEvent::new(
+                            read_stream.id(),
+                            timestamp.clone(),
+                            deadline_duration,
+                            d.get_handler(),
+                            d.get_end_condition_fn(),
+                        ));
+                    }
+                }
+            }
+        }
+        deadline_event_vec
+    }
+
+    // Disarms a deadline by returning true if the given deadline should be disarmed, or false
+    // otherwise.
+    fn disarm_deadline(&self, deadline_event: &DeadlineEvent) -> bool {
+        true
+    }
 }
 
 pub trait TwoInMessageProcessorT<T, U>: Send + Sync
@@ -87,8 +124,7 @@ pub struct OperatorExecutorHelper {
     operator_id: OperatorId,
     lattice: Arc<ExecutionLattice>,
     event_runner_handles: Option<Vec<tokio::task::JoinHandle<()>>>,
-    condition_context: ConditionContext,
-    deadline_queue: DelayQueue<(StreamId, Timestamp, Arc<dyn HandlerContextT>)>,
+    deadline_queue: DelayQueue<DeadlineEvent>,
     stream_timestamp_to_key_map: HashMap<(StreamId, Timestamp), Key>, // for active deadlines.
 }
 
@@ -98,7 +134,6 @@ impl OperatorExecutorHelper {
             operator_id,
             lattice: Arc::new(ExecutionLattice::new()),
             event_runner_handles: None,
-            condition_context: ConditionContext::new(),
             deadline_queue: DelayQueue::new(),
             stream_timestamp_to_key_map: HashMap::new(),
         }
@@ -110,77 +145,29 @@ impl OperatorExecutorHelper {
         tokio::time::delay_for(Duration::from_secs(1)).await;
     }
 
-    fn manage_deadlines(
-        &mut self,
-        setup_context: &dyn SetupContextT,
-        stream_id: StreamId,
-        timestamp: Timestamp,
-    ) {
-        // Run the start and the end condition functions for all the deadlines.
-        for deadline in setup_context.get_deadlines() {
-            match deadline {
-                Deadline::TimestampDeadline(d) => {
-                    // Check the start condition if this deadline is not active.
-                    // We check if the registered deadline constrains the given `stream_id` and
-                    // arm the timer only if it does and if the start condiiton evaluates to true.
-                    // Note: The current implementation assumes a single deadline for each (stream,
-                    // timestamp) pair.
-                    if d.constrained_on_read_stream(stream_id) // works on this read stream?
-                        && !self
-                            .stream_timestamp_to_key_map  // is there a deadline already active?
-                            .contains_key(&(stream_id, timestamp.clone()))
-                        && d.start_condition(&self.condition_context)
-                    // is the condition satisfied?
-                    {
-                        // Compute the deadline for the timestamp.
-                        let deadline_duration = d.calculate_deadline(&self.condition_context);
-
-                        // Install the handler into the queue with the given
-                        // duration.
-                        let queue_key: Key = self.deadline_queue.insert(
-                            (stream_id, timestamp.clone(), d.get_handler()),
-                            deadline_duration,
-                        );
-
-                        slog::debug!(
-                            crate::TERMINAL_LOGGER,
-                            "Installed a deadline handler with the Key: {:?} corresponding to \
+    // Arms the given `DeadlineEvents` by installing them into a DeadlineQueue.
+    fn manage_deadlines(&mut self, deadlines: Vec<DeadlineEvent>) {
+        for event in deadlines {
+            if !self
+                .stream_timestamp_to_key_map
+                .contains_key(&(event.stream_id, event.timestamp.clone()))
+            {
+                // Install the handler onto the queue with the given duration.
+                let event_duration = event.duration;
+                let stream_id = event.stream_id;
+                let event_timestamp = event.timestamp.clone();
+                let queue_key: Key = self.deadline_queue.insert(event, event_duration);
+                slog::debug!(
+                    crate::TERMINAL_LOGGER,
+                    "Installed a deadline handler with the Key: {:?} corresponding to \
                             Stream ID: {} and Timestamp: {:?}",
-                            queue_key,
-                            stream_id,
-                            timestamp,
-                        );
+                    queue_key,
+                    stream_id,
+                    event_timestamp,
+                );
 
-                        self.stream_timestamp_to_key_map
-                            .insert((stream_id, timestamp.clone()), queue_key);
-                    }
-
-                    // Check the end condition if this deadline is active.
-                    if self
-                        .stream_timestamp_to_key_map
-                        .contains_key(&(stream_id, timestamp.clone()))
-                        && d.end_condition(&self.condition_context)
-                    {
-                        // Remove the handler from the deadline queue and clear the state in the
-                        // ConditionContext.
-                        if let Some(key) = self
-                            .stream_timestamp_to_key_map
-                            .remove(&(stream_id, timestamp.clone()))
-                        {
-                            slog::debug!(
-                                crate::TERMINAL_LOGGER,
-                                "Removing the deadline with the Key: {:?} corresponding to \
-                                    Stream ID: {} and Timestamp: {:?} from the deadline queue.",
-                                key,
-                                stream_id,
-                                timestamp,
-                            );
-                            self.deadline_queue.remove(&key);
-                            self.condition_context
-                                .clear_state(stream_id, timestamp.clone());
-                        }
-                    }
-                }
+                self.stream_timestamp_to_key_map
+                    .insert((stream_id, event_timestamp), queue_key);
             }
         }
     }
@@ -200,23 +187,27 @@ impl OperatorExecutorHelper {
                 // deadlines installed, the queue will always be ready and return `None` thus
                 // wasting resources. We can potentially fix this by inserting a Deadline for the
                 // future and maintaining it so that the queue is not empty.
-                Some(x) = self.deadline_queue.next() => {
-                    // Missed a deadline. Invoke the handler.
+                Some(event) = self.deadline_queue.next() => {
+                    // Missed a deadline. Check if the end condition is satisfied and invoke the
+                    // handler if not so.
                     // TODO (Sukrit): The handler is invoked in the thread of the OperatorExecutor.
                     // This may be an issue for long-running handlers since they block the
                     // processing of future messages. We can spawn these as a separate task.
-                    let (stream_id, timestamp, handler_context) = x.unwrap().into_inner();
-                    handler_context.invoke_handler(&self.condition_context);
+                    let deadline_event = event.unwrap().into_inner();
+                    if !message_processor.disarm_deadline(&deadline_event) {
+                        // Invoke the handler.
+                        deadline_event.handler.invoke_handler(&read_stream.get_condition_context());
+                    }
 
                     // Remove the key from the hashmap and clear the state in the ConditionContext.
-                    match self.stream_timestamp_to_key_map.remove(&(stream_id, timestamp.clone())) {
+                    match self.stream_timestamp_to_key_map.remove(&(deadline_event.stream_id, deadline_event.timestamp.clone())) {
                         None => {
                             slog::warn!(
                                 crate::TERMINAL_LOGGER,
                                 "Could not find a key corresponding to the Stream ID: {} \
                                 and the Timestamp: {:?}",
-                                stream_id,
-                                timestamp,
+                                deadline_event.stream_id,
+                                deadline_event.timestamp,
                             );
                         }
                         Some(key) => {
@@ -224,10 +215,9 @@ impl OperatorExecutorHelper {
                                 crate::TERMINAL_LOGGER,
                                 "Finished invoking the deadline handler for the Key: {:?} \
                                 corresponding to the Stream ID: {} and the Timestamp: {:?}",
-                                key, stream_id, timestamp);
+                                key, deadline_event.stream_id, deadline_event.timestamp);
                         }
                     }
-                    self.condition_context.clear_state(stream_id, timestamp.clone());
                 },
                 // If there is a message on the ReadStream, then increment the messgae counts for
                 // the given timestamp, evaluate the start and end condition and install / disarm
@@ -239,17 +229,6 @@ impl OperatorExecutorHelper {
                     let events = match msg.data() {
                         // Data message
                         Some(_) => {
-                            // Increment the message count and handle the arming and disarming of
-                            // deadlines.
-                            self.condition_context
-                                .increment_msg_count(read_stream.id(), msg.timestamp().clone());
-                            self.manage_deadlines(
-                                setup_context,
-                                read_stream.id(),
-                                msg.timestamp().clone()
-                            );
-
-
                             // TODO : Check if an event for both the stateful and the stateless
                             // callback is needed.
 
@@ -265,21 +244,19 @@ impl OperatorExecutorHelper {
 
                         // Watermark
                         None => {
-                            // Set the watermark status and handle the arming and disarming of
-                            // deadlines.
-                            self.condition_context
-                                .notify_watermark_arrival(read_stream.id(), msg.timestamp().clone());
-                            self.manage_deadlines(
-                                setup_context,
-                                read_stream.id(),
-                                msg.timestamp().clone()
-                            );
-
                             let watermark_event = message_processor.watermark_cb_event(
                                 msg.timestamp());
                             vec![watermark_event]
                         }
                     };
+
+                    // Arm deadlines and install them into the executor.
+                    let deadline_events = message_processor.arm_deadlines(
+                        setup_context,
+                        &read_stream,
+                        msg.timestamp().clone()
+                    );
+                    self.manage_deadlines(deadline_events);
 
                     self.lattice.add_events(events).await;
                     notifier_tx
@@ -697,7 +674,7 @@ where
             self.config.get_name()
         );
 
-        // Run the setup method.
+        // Run the setup method and save the setup context.
         let mut setup_context =
             OneInOneOutSetupContext::new(self.read_stream.as_ref().unwrap().id());
         self.operator.setup(&mut setup_context);
@@ -860,6 +837,18 @@ where
                 },
             )
         }
+    }
+
+    // Checks if the given deadline should be disarmed.
+    fn disarm_deadline(&self, deadline_event: &DeadlineEvent) -> bool {
+        (deadline_event.end_condition)(
+            &self
+                .write_stream
+                .get_statistics()
+                .lock()
+                .unwrap()
+                .get_condition_context(),
+        )
     }
 }
 
