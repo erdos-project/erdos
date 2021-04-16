@@ -169,11 +169,7 @@ impl<D: Data> WriteStream<D> {
         Ok(())
     }
 
-    /// Evaluates a condition function on the statistics of the write stream.
-    pub fn evaluate_condition(&self, condition_fn: &CondFn) -> bool {
-        (condition_fn)(&self.stats.lock().unwrap().condition_context)
-    }
-
+    /// Gets the statistics of the WriteStream.
     pub(crate) fn get_statistics(&self) -> Arc<Mutex<WriteStreamStatistics>> {
         Arc::clone(&self.stats)
     }
