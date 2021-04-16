@@ -89,7 +89,7 @@ pub trait DeadlineContext: Send + Sync {
 }
 
 pub trait HandlerContextT: Send + Sync {
-    fn invoke_handler(&self, ctx: &ConditionContext);
+    fn invoke_handler(&self, ctx: &ConditionContext, current_timestamp: &Timestamp);
 }
 
 pub struct TimestampDeadline {

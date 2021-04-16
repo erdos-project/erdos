@@ -196,7 +196,10 @@ impl OperatorExecutorHelper {
                     let deadline_event = event.unwrap().into_inner();
                     if !message_processor.disarm_deadline(&deadline_event) {
                         // Invoke the handler.
-                        deadline_event.handler.invoke_handler(&read_stream.get_condition_context());
+                        deadline_event.handler.invoke_handler(
+                            &read_stream.get_condition_context(), 
+                            &deadline_event.timestamp.clone()
+                        );
                     }
 
                     // Remove the key from the hashmap and clear the state in the ConditionContext.
