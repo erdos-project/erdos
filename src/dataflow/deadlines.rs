@@ -8,9 +8,10 @@ use tokio::time::Duration;
 /// `CondFn` defines the type of the start and end condition functions.
 /// Each function receives the `ConditionContext` that contains the information necessary for the
 /// evaluation of the start and end conditions (s.a. the message counts and the state of the
-/// watermarks on each stream for the given timestamp)
-pub trait CondFn: Fn(&ConditionContext) -> bool + Send + Sync {}
-impl<F: Fn(&ConditionContext) -> bool + Send + Sync> CondFn for F {}
+/// watermarks on each stream for the given timestamp) and the current timestamp for which the
+/// condition is being executed.
+pub trait CondFn: Fn(&ConditionContext, &Timestamp) -> bool + Send + Sync {}
+impl<F: Fn(&ConditionContext, &Timestamp) -> bool + Send + Sync> CondFn for F {}
 
 /// A `DeadlineEvent` structure defines a deadline that is generated upon the fulfillment of a
 /// start condition on a given stream and a given timestamp (we assume a single deadline for each
@@ -136,12 +137,20 @@ impl TimestampDeadline {
         Arc::clone(&self.end_condition_fn)
     }
 
-    pub(crate) fn start_condition(&self, condition_context: &ConditionContext) -> bool {
-        (self.start_condition_fn)(condition_context)
+    pub(crate) fn start_condition(
+        &self,
+        condition_context: &ConditionContext,
+        current_timestamp: &Timestamp,
+    ) -> bool {
+        (self.start_condition_fn)(condition_context, current_timestamp)
     }
 
-    pub(crate) fn end_condition(&self, condition_context: &ConditionContext) -> bool {
-        (self.end_condition_fn)(condition_context)
+    pub(crate) fn end_condition(
+        &self,
+        condition_context: &ConditionContext,
+        current_timestamp: &Timestamp,
+    ) -> bool {
+        (self.end_condition_fn)(condition_context, current_timestamp)
     }
 
     pub(crate) fn calculate_deadline(&self, condition_context: &ConditionContext) -> Duration {
@@ -156,20 +165,28 @@ impl TimestampDeadline {
         Arc::clone(&self.handler_context)
     }
 
-    fn default_start_condition(condition_context: &ConditionContext) -> bool {
+    fn default_start_condition(
+        condition_context: &ConditionContext,
+        current_timestamp: &Timestamp,
+    ) -> bool {
         slog::debug!(
             crate::TERMINAL_LOGGER,
-            "Executed default start condition with the context: {:?}",
-            condition_context
+            "Executed default start condition for the timestamp: {:?} with the context: {:?}",
+            current_timestamp,
+            condition_context,
         );
         true
     }
 
-    fn default_end_condition(condition_context: &ConditionContext) -> bool {
+    fn default_end_condition(
+        condition_context: &ConditionContext,
+        current_timestamp: &Timestamp,
+    ) -> bool {
         slog::debug!(
             crate::TERMINAL_LOGGER,
-            "Executed default end condition with the context: {:?}",
-            condition_context
+            "Executed default end condition for the timestamp: {:?} with the context: {:?}",
+            current_timestamp,
+            condition_context,
         );
         false
     }

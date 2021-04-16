@@ -73,7 +73,7 @@ where
             match deadline {
                 Deadline::TimestampDeadline(d) => {
                     if d.constrained_on_read_stream(read_stream.id())
-                        && d.start_condition(read_stream.get_condition_context())
+                        && d.start_condition(read_stream.get_condition_context(), &timestamp)
                     {
                         // Compute the deadline for the timestamp.
                         let deadline_duration =
@@ -848,6 +848,7 @@ where
                 .lock()
                 .unwrap()
                 .get_condition_context(),
+            &deadline_event.timestamp,
         )
     }
 }
