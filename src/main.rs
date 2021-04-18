@@ -71,7 +71,7 @@ impl SquareOperatorHandlerContext {
 }
 
 impl HandlerContextT for SquareOperatorHandlerContext {
-    fn invoke_handler(&self, ctx: &ConditionContext, current_timestamp: &Timestamp) {
+    fn invoke_handler(&mut self, ctx: &ConditionContext, current_timestamp: &Timestamp) {
         println!("Handled {:?} errors.", ctx);
     }
 }

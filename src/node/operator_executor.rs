@@ -196,14 +196,15 @@ impl OperatorExecutorHelper {
                     let deadline_event = event.unwrap().into_inner();
                     if !message_processor.disarm_deadline(&deadline_event) {
                         // Invoke the handler.
-                        deadline_event.handler.invoke_handler(
-                            &read_stream.get_condition_context(), 
+                        deadline_event.handler.lock().unwrap().invoke_handler(
+                            &read_stream.get_condition_context(),
                             &deadline_event.timestamp.clone()
                         );
                     }
 
                     // Remove the key from the hashmap and clear the state in the ConditionContext.
-                    match self.stream_timestamp_to_key_map.remove(&(deadline_event.stream_id, deadline_event.timestamp.clone())) {
+                    match self.stream_timestamp_to_key_map.remove(
+                        &(deadline_event.stream_id, deadline_event.timestamp.clone())) {
                         None => {
                             slog::warn!(
                                 crate::TERMINAL_LOGGER,

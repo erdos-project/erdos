@@ -1,7 +1,7 @@
 use crate::dataflow::{stream::StreamId, time::Timestamp};
 use std::{
     collections::{HashMap, HashSet},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 use tokio::time::Duration;
 
@@ -21,7 +21,7 @@ pub struct DeadlineEvent {
     pub stream_id: StreamId,
     pub timestamp: Timestamp,
     pub duration: Duration,
-    pub handler: Arc<dyn HandlerContextT>,
+    pub handler: Arc<Mutex<dyn HandlerContextT>>,
     pub end_condition: Arc<dyn CondFn>,
 }
 
@@ -30,7 +30,7 @@ impl DeadlineEvent {
         stream_id: StreamId,
         timestamp: Timestamp,
         duration: Duration,
-        handler: Arc<dyn HandlerContextT>,
+        handler: Arc<Mutex<dyn HandlerContextT>>,
         end_condition: Arc<dyn CondFn>,
     ) -> Self {
         Self {
@@ -89,14 +89,14 @@ pub trait DeadlineContext: Send + Sync {
 }
 
 pub trait HandlerContextT: Send + Sync {
-    fn invoke_handler(&self, ctx: &ConditionContext, current_timestamp: &Timestamp);
+    fn invoke_handler(&mut self, ctx: &ConditionContext, current_timestamp: &Timestamp);
 }
 
 pub struct TimestampDeadline {
     start_condition_fn: Arc<dyn CondFn>,
     end_condition_fn: Arc<dyn CondFn>,
     deadline_context: Box<dyn DeadlineContext>,
-    handler_context: Arc<dyn HandlerContextT>,
+    handler_context: Arc<Mutex<dyn HandlerContextT>>,
     read_stream_ids: HashSet<StreamId>,
 }
 
@@ -109,7 +109,7 @@ impl TimestampDeadline {
             start_condition_fn: Arc::new(TimestampDeadline::default_start_condition),
             end_condition_fn: Arc::new(TimestampDeadline::default_end_condition),
             deadline_context: Box::new(deadline_context),
-            handler_context: Arc::new(handler_context),
+            handler_context: Arc::new(Mutex::new(handler_context)),
             read_stream_ids: HashSet::new(),
         }
     }
@@ -161,7 +161,7 @@ impl TimestampDeadline {
         self.read_stream_ids.contains(&read_stream_id)
     }
 
-    pub(crate) fn get_handler(&self) -> Arc<dyn HandlerContextT> {
+    pub(crate) fn get_handler(&self) -> Arc<Mutex<dyn HandlerContextT>> {
         Arc::clone(&self.handler_context)
     }
 
