@@ -1,6 +1,6 @@
 import erdos
 import time
-import heapq
+from collections import deque
 from erdos.operators import map
 from enum import Enum
 
@@ -36,7 +36,7 @@ def clear_queue_send(queue,
     queue will also be sent.
     """
     while queue and queue[0][0] <= max_timestamp:
-        ts, msg = heapq.heappop(queue)
+        ts, msg = queue.popleft()
         if write_downstream is not None:
             # Send data to next operators along with watermark
             print("{name}: sending {msg}".format(name=sender, msg=msg))
@@ -61,7 +61,7 @@ class DestOp(erdos.Operator):
     """
     def __init__(self, read_stream: erdos.ReadStream,
                  write_watermark_stream: erdos.WriteStream):
-        self.queue = []
+        self.queue = deque([])
         read_stream.add_callback(self.callback)
         read_stream.add_watermark_callback(self.watermark_callback,
                                            [write_watermark_stream])
@@ -72,7 +72,7 @@ class DestOp(erdos.Operator):
 
     def callback(self, msg):
         print("{name}: received {msg}".format(msg=msg, name=self.config.name))
-        heapq.heappush(self.queue, (msg.timestamp, msg))
+        self.queue.append((msg.timestamp, msg))
 
     def watermark_callback(self, timestamp, write_watermark_stream):
         watermark = erdos.WatermarkMessage(timestamp)
@@ -122,7 +122,7 @@ class IngressOp(erdos.Operator):
                  primary_cons_watermark_stream: erdos.ReadStream,
                  secondary_cons_watermark_stream: erdos.ReadStream,
                  write_stream: erdos.WriteStream):
-        self.queue = []
+        self.queue = deque([])
         # Gets watermarks from SourceOp
         read_stream.add_watermark_callback(self.src_watermark_callback,
                                            [write_stream])
@@ -140,7 +140,7 @@ class IngressOp(erdos.Operator):
     def callback(self, msg):
         print("{name}: received message {msg}".format(msg=msg,
                                                       name=self.config.name))
-        heapq.heappush(self.queue, (msg.timestamp, msg))
+        self.queue.append((msg.timestamp, msg))
 
     def src_watermark_callback(self, timestamp: erdos.Timestamp,
                                write_stream: erdos.WriteStream):
@@ -164,7 +164,9 @@ class IngressOp(erdos.Operator):
             "{name}: received primary & secondary cons watermarks at {timestamp}"
             .format(timestamp=timestamp, name=self.config.name))
         # Clears queue of messages <= timestamp
+        print("QUEUE BEFORE", self.queue)
         clear_queue_send(self.queue, timestamp)
+        print("QUEUE AFTER", self.queue)
 
 
 class SConsOp(erdos.Operator):
@@ -177,7 +179,7 @@ class SConsOp(erdos.Operator):
     def __init__(self, read_stream: erdos.ReadStream,
                  write_stream: erdos.WriteStream,
                  write_watermark_stream: erdos.WriteStream):
-        self.queue = []
+        self.queue = deque([])
         # Gets watermarks from IngressOp
         read_stream.add_watermark_callback(
             self.watermark_callback, [write_stream, write_watermark_stream])
@@ -192,15 +194,17 @@ class SConsOp(erdos.Operator):
 
     def callback(self, msg):
         print("{name}: received {msg}".format(msg=msg, name=self.config.name))
-        heapq.heappush(self.queue, (msg.timestamp, msg))
+        self.queue.append((msg.timestamp, msg))
 
     def watermark_callback(self, timestamp, write_stream,
                            write_watermark_stream):
+        print(self.config.name + " QUEUE BEFORE " + str(timestamp), self.queue)
         clear_queue_send(self.queue,
                          timestamp,
                          write_stream,
                          write_watermark_stream,
                          sender=self.config.name)
+        print(self.config.name + " QUEUE AFTER " + str(timestamp), self.queue)
 
 
 class SProdPOp(erdos.Operator):
@@ -211,7 +215,7 @@ class SProdPOp(erdos.Operator):
     """
     def __init__(self, read_stream: erdos.ReadStream,
                  write_stream: erdos.WriteStream):
-        self.queue = []
+        self.queue = deque([])
         # Gets watermarks from SConsPOp
         read_stream.add_watermark_callback(self.watermark_callback,
                                            [write_stream])
@@ -224,15 +228,17 @@ class SProdPOp(erdos.Operator):
 
     def callback(self, msg):
         print("{name}: received {msg}".format(msg=msg, name=self.config.name))
-        heapq.heappush(self.queue, (msg.timestamp, msg))
+        self.queue.append((msg.timestamp, msg))
 
     def watermark_callback(self, timestamp, write_stream):
-        print("{name}: received watermark at timestamp {ts}".format(
+        print("{name}: received watermark at timestamp {ts} from SConsPOp".format(
             ts=timestamp, name=self.config.name))
+        print(self.config.name + " QUEUE BEFORE", self.queue)
         clear_queue_send(self.queue,
                          timestamp,
                          write_downstream=write_stream,
                          sender=self.config.name)
+        print(self.config.name + " QUEUE AFTER", self.queue)
 
 
 class SProdSOp(erdos.Operator):
@@ -243,7 +249,7 @@ class SProdSOp(erdos.Operator):
     """
     def __init__(self, read_stream: erdos.ReadStream,
                  egress_watermark_stream: erdos.ReadStream):
-        self.queue = []
+        self.queue = deque([])
         read_stream.add_callback(self.callback)
         read_stream.add_watermark_callback(self.watermark_callback)
         egress_watermark_stream.add_watermark_callback(
@@ -256,7 +262,7 @@ class SProdSOp(erdos.Operator):
     def callback(self, msg):
         # Queue up the data received in the SProdSOp and order by timestamp
         print("{name}: received {msg}".format(msg=msg, name=self.config.name))
-        heapq.heappush(self.queue, (msg.timestamp, msg))
+        self.queue.append((msg.timestamp, msg))
 
     def watermark_callback(self, timestamp):
         print("{name}: received watermark at {ts} from SConsSOp".format(
@@ -266,7 +272,9 @@ class SProdSOp(erdos.Operator):
         # Clear the queue with timestamps <= timestamp
         print("{name}: received watermark from EgressOp".format(
             name=self.config.name))
+        print(self.config.name + " QUEUE BEFORE", self.queue)
         clear_queue_send(self.queue, timestamp)
+        print(self.config.name + " QUEUE AFTER", self.queue)
 
 
 class EgressOp(erdos.Operator):
@@ -281,7 +289,7 @@ class EgressOp(erdos.Operator):
                  dest_watermark_stream: erdos.ReadStream,
                  write_watermark_stream: erdos.WriteStream,
                  write_stream: erdos.WriteStream):
-        self.queue = []
+        self.queue = deque([])
         read_stream.add_callback(self.callback)
         read_stream.add_watermark_callback(
             self.watermark_callback, [write_stream, write_watermark_stream])
@@ -296,16 +304,20 @@ class EgressOp(erdos.Operator):
         return [write_watermark_stream, write_stream]
 
     def callback(self, msg):
-        print("{name}: received {msg} from SConsPOp".format(
+        print("{name}: received {msg} from SProdPOp".format(
             msg=msg, name=self.config.name))
-        heapq.heappush(self.queue, (msg.timestamp, msg))
+        self.queue.append((msg.timestamp, msg))
 
     def watermark_callback(self, timestamp, write_stream,
                            write_watermark_stream):
         i = 0
+        print(
+            "{name}: received watermark at timestamp {timestamp} from SProdPOp".
+            format(timestamp=timestamp, name=self.config.name))
+        print("EGRESS OP: BEFORE QUEUE", self.queue)
         while i < len(self.queue) and self.queue[i][0] <= timestamp:
             msg = self.queue[i][1]
-            print("{name}: sending {msg} to SConsOp".format(
+            print("{name}: sending {msg} to DestOp".format(
                 msg=msg, name=self.config.name))
             write_stream.send(msg)
             watermark = erdos.WatermarkMessage(msg.timestamp)
@@ -324,7 +336,6 @@ class EgressOp(erdos.Operator):
         print(
             "{name}: received watermark at timestamp {timestamp} from DestOp".
             format(timestamp=timestamp, name=self.config.name))
-        print("BEFORE", self.queue)
         clear_queue_send(self.queue, timestamp)
 
 
@@ -411,7 +422,8 @@ def main():
     # while True:
     #     print("{name}: received {recv_msg}".format(recv_msg=stream.read()))
 
-    # Need to maintain buffer for acks in case they come before data is received in SProdS from secondary pipeline
+    # Need to maintain buffer for acks in case they come before data is 
+    # received in SProdS from secondary pipeline
 
     # Buffer B : { {sn, tuple, mark}, … }
     # delete = { Marking.PROD | Marking.PRIM | Marking.SEC }
