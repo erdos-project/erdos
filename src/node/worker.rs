@@ -32,7 +32,7 @@ pub(crate) enum WorkerNotification {
 
 async fn process_events(lattice: &ExecutionLattice) {
     while let Some((event, event_id)) = lattice.get_event().await {
-        tokio::task::block_in_place(|| (event.callback)());
+        (event.callback)();
         lattice.mark_as_completed(event_id).await;
     }
 }
