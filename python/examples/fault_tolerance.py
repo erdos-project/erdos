@@ -25,40 +25,60 @@ class Conn(Enum):
     PAUSE = 4
 
 
-def clear_queue_send(queue, timestamp, write_stream=None, sender="Operator"):
+def clear_queue_send(queue,
+                     max_timestamp,
+                     write_downstream=None,
+                     write_upstream=None,
+                     sender="Operator"):
     """
     Clears queue of all messages <= timestamp and sends each message.
     If a write_stream is passed in, every message removed from the
     queue will also be sent.
     """
-    while queue and queue[0][0] <= timestamp:
-        msg = heapq.heappop(queue)
-        if write_stream is not None:
-            print("{sender}: sending {msg}".format(sender=sender, msg=msg))
-            write_stream.send(msg)
+    while queue and queue[0][0] <= max_timestamp:
+        ts, msg = heapq.heappop(queue)
+        if write_downstream is not None:
+            # Send data to next operators along with watermark
+            print("{name}: sending {msg}".format(name=sender, msg=msg))
+            write_downstream.send(msg)
+            watermark = erdos.WatermarkMessage(ts)
+            print("{name}: sending watermark {watermark} downstream".format(
+                name=sender, watermark=watermark))
+            write_downstream.send(watermark)
+        if write_upstream is not None:
+            # Send watermark acks back to previous operator
+            watermark = erdos.WatermarkMessage(ts)
+            print("{name}: sending watermark {watermark} upstream".format(
+                name=sender, watermark=watermark))
+            write_upstream.send(watermark)
 
 
 class DestOp(erdos.Operator):
     """ 1 in 1 out operator
 
-        In1 - Receives data from EgressOp
+        In1 - Receives data + watermark from EgressOp
         Out1 - Sends watermark to EgressOp
     """
     def __init__(self, read_stream: erdos.ReadStream,
                  write_watermark_stream: erdos.WriteStream):
-        read_stream.add_callback(DestOp.callback, [write_watermark_stream])
-
-    @staticmethod
-    def callback(msg, write_watermark_stream):
-        print("DestOp: received {msg}".format(msg=msg))
-        watermark = erdos.WatermarkMessage(msg.timestamp)
-        print("DestOp: sending watermark {watermark}".format(
-            watermark=watermark))
-        write_watermark_stream.send(watermark)
+        self.queue = []
+        read_stream.add_callback(self.callback)
+        read_stream.add_watermark_callback(self.watermark_callback,
+                                           [write_watermark_stream])
 
     @staticmethod
     def connect(read_stream):
         return [erdos.WriteStream()]
+
+    def callback(self, msg):
+        print("{name}: received {msg}".format(msg=msg, name=self.config.name))
+        heapq.heappush(self.queue, (msg.timestamp, msg))
+
+    def watermark_callback(self, timestamp, write_watermark_stream):
+        watermark = erdos.WatermarkMessage(timestamp)
+        print("{name}: sending watermark {watermark} to EgressOp".format(
+            watermark=watermark, name=self.config.name))
+        write_watermark_stream.send(watermark)
 
 
 class SourceOp(erdos.Operator):
@@ -79,12 +99,12 @@ class SourceOp(erdos.Operator):
             timestamp = erdos.Timestamp(coordinates=[count])
             payload = [erdos.Message(timestamp, count)] * 2
             msg = erdos.Message(timestamp, payload)
-            print("SourceOp: sending {msg}".format(msg=msg))
+            print("{name}: sending {msg}".format(msg=msg,
+                                                 name=self.config.name))
             self.write_stream.send(msg)
             watermark = erdos.WatermarkMessage(msg.timestamp)
-            print(
-                "SourceOp: sending watermark {watermark} to IngressOp".format(
-                    watermark=watermark))
+            print("{name}: sending watermark {watermark} to IngressOp".format(
+                watermark=watermark, name=self.config.name))
             self.write_stream.send(watermark)
             count += 1
             time.sleep(1)
@@ -93,10 +113,10 @@ class SourceOp(erdos.Operator):
 class IngressOp(erdos.Operator):
     """ 3 in 1 out operator
 
-        In1 - Receives data from SourceOp
+        In1 - Receives data + watermark from SourceOp
         In2 - Receives watermark from SConsPOp (Primary consumer op)
         In3 - Receives watermark from SConsSOp (Secondary consumer op)
-        Out1 - Sends data to SConsPOp and SConsSOp (primary and consumer ops)
+        Out1 - Sends data + watermark to SConsPOp and SConsSOp
     """
     def __init__(self, read_stream: erdos.ReadStream,
                  primary_cons_watermark_stream: erdos.ReadStream,
@@ -104,8 +124,8 @@ class IngressOp(erdos.Operator):
                  write_stream: erdos.WriteStream):
         self.queue = []
         # Gets watermarks from SourceOp
-        read_stream.add_watermark_callback(
-            self.src_watermark_callback, [write_stream])
+        read_stream.add_watermark_callback(self.src_watermark_callback,
+                                           [write_stream])
         # Gets data messages from SourceOp
         read_stream.add_callback(self.callback)
         erdos.add_watermark_callback(
@@ -113,166 +133,199 @@ class IngressOp(erdos.Operator):
             [], self.ack_watermark_callback)
 
     @staticmethod
-    def connect(read_stream,
-                primary_cons_watermark_stream,
+    def connect(read_stream, primary_cons_watermark_stream,
                 secondary_cons_watermark_stream):
         return [erdos.WriteStream()]
 
     def callback(self, msg):
-        print("IngressOp: received message {msg}".format(msg=msg))
+        print("{name}: received message {msg}".format(msg=msg,
+                                                      name=self.config.name))
         heapq.heappush(self.queue, (msg.timestamp, msg))
 
-    def src_watermark_callback(self, timestamp: erdos.Timestamp, write_stream: erdos.WriteStream):
+    def src_watermark_callback(self, timestamp: erdos.Timestamp,
+                               write_stream: erdos.WriteStream):
         # After getting watermark from SourceOp, sends data to consumers
-        print("IngressOp: received watermark at timestamp {timestamp}".format(
-            timestamp=timestamp))
+        print("{name}: received watermark at timestamp {timestamp}".format(
+            timestamp=timestamp, name=self.config.name))
         i = 0
         while i < len(self.queue) and self.queue[i][0] <= timestamp:
             msg = self.queue[i][1]
-            print("IngressOp: sending {msg}".format(msg=msg))
+            print("{name}: sending {msg} to SConsOp".format(
+                msg=msg, name=self.config.name))
             write_stream.send(msg)
+            watermark = erdos.WatermarkMessage(msg.timestamp)
+            print("{name}: sending watermark {watermark} to SConsOp".format(
+                watermark=watermark, name=self.config.name))
+            write_stream.send(watermark)
             i += 1
 
     def ack_watermark_callback(self, timestamp):
         print(
-            "IngressOp: received primary & secondary cons watermark at timestamp: {timestamp}"
-            .format(timestamp=timestamp))
-        print("BEFORE QUEUE", self.queue)
+            "{name}: received primary & secondary cons watermarks at {timestamp}"
+            .format(timestamp=timestamp, name=self.config.name))
         # Clears queue of messages <= timestamp
         clear_queue_send(self.queue, timestamp)
-        print("AFTER QUEUE", self.queue)
 
 
 class SConsOp(erdos.Operator):
     """ 1 in 2 out operator
 
-        In1 - Receives data from IngressOp
-        Out1 - Sends data to SProdPOp
+        In1 - Receives data + watermark from IngressOp
+        Out1 - Sends data + watermark to SProdPOp
         Out2 - Sends watermark to IngressOp
     """
-    def __init__(self, data_stream: erdos.ReadStream,
-                 write_data_stream: erdos.WriteStream,
+    def __init__(self, read_stream: erdos.ReadStream,
+                 write_stream: erdos.WriteStream,
                  write_watermark_stream: erdos.WriteStream):
-        data_stream.add_callback(self.data_callback, [write_data_stream])
-        self._write_watermark_stream = write_watermark_stream
-        self.queue = {}
+        self.queue = []
+        # Gets watermarks from IngressOp
+        read_stream.add_watermark_callback(
+            self.watermark_callback, [write_stream, write_watermark_stream])
+        # Gets data messages from IngressOp
+        read_stream.add_callback(self.callback)
 
     @staticmethod
-    def connect(data_stream):
-        write_data_stream = erdos.WriteStream()
+    def connect(read_stream):
+        write_stream = erdos.WriteStream()
         write_watermark_stream = erdos.WriteStream()
-        return [write_data_stream, write_watermark_stream]
+        return [write_stream, write_watermark_stream]
 
-    def data_callback(self, msg, write_stream):
-        print("SConsOp: received {msg}".format(msg=msg))
-        watermark = erdos.WatermarkMessage(msg.timestamp)
-        print("SConsOp: sending watermark {watermark} to IngressOp".format(
-            watermark=watermark))
-        self._write_watermark_stream.send(watermark)
-        print("SConsOp: sending {msg} to SProdOp".format(msg=msg))
-        write_stream.send(msg)
+    def callback(self, msg):
+        print("{name}: received {msg}".format(msg=msg, name=self.config.name))
+        heapq.heappush(self.queue, (msg.timestamp, msg))
+
+    def watermark_callback(self, timestamp, write_stream,
+                           write_watermark_stream):
+        clear_queue_send(self.queue,
+                         timestamp,
+                         write_stream,
+                         write_watermark_stream,
+                         sender=self.config.name)
 
 
 class SProdPOp(erdos.Operator):
     """ 1 in 1 out operator
 
-        In1 - Receives data from SConsPOp (primary consumer op)
-        Out1 - Sends data to EgressOp
+        In1 - Receives data + watermark from SConsPOp (primary consumer op)
+        Out1 - Sends data + watermark to EgressOp
     """
-    def __init__(self, data_stream: erdos.ReadStream,
+    def __init__(self, read_stream: erdos.ReadStream,
                  write_stream: erdos.WriteStream):
-        data_stream.add_callback(SProdPOp.data_callback, [write_stream])
+        self.queue = []
+        # Gets watermarks from SConsPOp
+        read_stream.add_watermark_callback(self.watermark_callback,
+                                           [write_stream])
+        # Gets data messages from SConsPOp
+        read_stream.add_callback(self.callback)
 
     @staticmethod
-    def connect(data_stream):
+    def connect(read_stream):
         return [erdos.WriteStream()]
 
-    @staticmethod
-    def data_callback(msg, write_stream):
-        print("SProdPOp: received {msg}".format(msg=msg))
-        print("SProdPOp: sending {msg}".format(msg=msg))
-        write_stream.send(msg)
+    def callback(self, msg):
+        print("{name}: received {msg}".format(msg=msg, name=self.config.name))
+        heapq.heappush(self.queue, (msg.timestamp, msg))
+
+    def watermark_callback(self, timestamp, write_stream):
+        print("{name}: received watermark at timestamp {ts}".format(
+            ts=timestamp, name=self.config.name))
+        clear_queue_send(self.queue,
+                         timestamp,
+                         write_downstream=write_stream,
+                         sender=self.config.name)
 
 
 class SProdSOp(erdos.Operator):
     """ 2 in operator
 
-        In1 - Receives data from SConsSOp (Secondary consumer op)
+        In1 - Receives data + watermark from SConsSOp (Secondary consumer op)
         In2 - Receives watermark from EgressOp
     """
-    def __init__(self, data_stream: erdos.ReadStream,
+    def __init__(self, read_stream: erdos.ReadStream,
                  egress_watermark_stream: erdos.ReadStream):
-        self.queue = {}
-        data_stream.add_callback(self.data_callback)
+        self.queue = []
+        read_stream.add_callback(self.callback)
+        read_stream.add_watermark_callback(self.watermark_callback)
         egress_watermark_stream.add_watermark_callback(
             self.egress_watermark_callback)
 
     @staticmethod
-    def connect(data_stream, egress_watermark_stream):
+    def connect(read_stream, egress_watermark_stream):
         return []
 
-    def data_callback(self, msg):
+    def callback(self, msg):
         # Queue up the data received in the SProdSOp and order by timestamp
-        self.queue[msg.timestamp] = msg
-        print("SProdSOp: received {msg}".format(msg=msg))
+        print("{name}: received {msg}".format(msg=msg, name=self.config.name))
+        heapq.heappush(self.queue, (msg.timestamp, msg))
+
+    def watermark_callback(self, timestamp):
+        print("{name}: received watermark at {ts} from SConsSOp".format(
+            name=self.config.name, ts=timestamp))
 
     def egress_watermark_callback(self, timestamp):
         # Clear the queue with timestamps <= timestamp
-        print("SProdSOp: received watermark from EgressOp")
-        print("SProdSOp: before queue: {queue}".format(queue=self.queue))
-        self.queue = {
-            key: val
-            for key, val in self.queue.items() if key > timestamp
-        }
-        print("SProdSOp: after queue: {queue}".format(queue=self.queue))
+        print("{name}: received watermark from EgressOp".format(
+            name=self.config.name))
+        clear_queue_send(self.queue, timestamp)
 
 
 class EgressOp(erdos.Operator):
     """ 2 in 2 out operator
 
-        In1 - Receives data from SProdPOp
+        In1 - Receives data + watermark from SProdPOp
         In2 - Receives watermark from DestOp
         Out1 - Sends watermark to SProdSOp
-        Out2 - Sends data to DestOp
+        Out2 - Sends data + watermark to DestOp
     """
     def __init__(self, read_stream: erdos.ReadStream,
-                 watermark_stream: erdos.ReadStream,
+                 dest_watermark_stream: erdos.ReadStream,
                  write_watermark_stream: erdos.WriteStream,
                  write_stream: erdos.WriteStream):
-        read_stream.add_callback(self.callback,
-                                 [write_stream, write_watermark_stream])
-        watermark_stream.add_watermark_callback(self.dest_watermark_callback)
-        self.queue = {}
+        self.queue = []
+        read_stream.add_callback(self.callback)
+        read_stream.add_watermark_callback(
+            self.watermark_callback, [write_stream, write_watermark_stream])
+        dest_watermark_stream.add_watermark_callback(
+            self.dest_watermark_callback)
         # self.delete = {Marking.PROD, Marking.}
 
     @staticmethod
-    def connect(read_stream, watermark_stream):
+    def connect(read_stream, dest_watermark_stream):
         write_stream = erdos.WriteStream()
         write_watermark_stream = erdos.WriteStream()
         return [write_watermark_stream, write_stream]
 
-    def callback(self, msg, write_stream, write_watermark_stream):
-        print("EgressOp: received {msg} from primary pipe".format(msg=msg))
-        self.queue[msg.timestamp] = msg
+    def callback(self, msg):
+        print("{name}: received {msg} from SConsPOp".format(
+            msg=msg, name=self.config.name))
+        heapq.heappush(self.queue, (msg.timestamp, msg))
 
-        # Sends a watermark message to the SProdSOp
-        watermark = erdos.WatermarkMessage(msg.timestamp)
-        print("EgressOp: sending {watermark} to SProdS".format(
-            watermark=watermark))
-        write_watermark_stream.send(watermark)
-
-        print("EgressOp: sending {msg} to DestOp".format(msg=msg))
-        write_stream.send(msg)
+    def watermark_callback(self, timestamp, write_stream,
+                           write_watermark_stream):
+        i = 0
+        while i < len(self.queue) and self.queue[i][0] <= timestamp:
+            msg = self.queue[i][1]
+            print("{name}: sending {msg} to SConsOp".format(
+                msg=msg, name=self.config.name))
+            write_stream.send(msg)
+            watermark = erdos.WatermarkMessage(msg.timestamp)
+            print("{name}: sending watermark {watermark} to DestOp".format(
+                watermark=watermark, name=self.config.name))
+            write_stream.send(watermark)
+            # Sends a watermark message to the SProdSOp
+            watermark = erdos.WatermarkMessage(timestamp)
+            print("{name}: sending {watermark} to SProdSOp".format(
+                watermark=watermark, name=self.config.name))
+            write_watermark_stream.send(watermark)
+            i += 1
 
     def dest_watermark_callback(self, timestamp):
         # Clear the queue with timestamps <= timestamp
-        print("EgressOp: received watermark from destination")
-        print("EgressOp: before queue: {queue}".format(queue=self.queue))
-        self.queue = {
-            key: val
-            for key, val in self.queue.items() if key > timestamp
-        }
-        print("EgressOp: after queue: {queue}".format(queue=self.queue))
+        print(
+            "{name}: received watermark at timestamp {timestamp} from DestOp".
+            format(timestamp=timestamp, name=self.config.name))
+        print("BEFORE", self.queue)
+        clear_queue_send(self.queue, timestamp)
 
 
 def main():
@@ -313,50 +366,50 @@ def main():
 
     secondary_cons_watermark_stream.set(secondary_watermark_stream)
 
-    # # Data from IngressOp runs intermediate primary Map Operator and sends
-    # # modified data out to SProdPOp
-    # (primary_map_stream, ) = erdos.connect(
-    #     map.Map,
-    #     erdos.OperatorConfig(name="Primary MapOp"), [primary_cons_stream],
-    #     function=add)
+    # Data from IngressOp runs intermediate primary Map Operator and sends
+    # modified data out to SProdPOp
+    (primary_map_stream, ) = erdos.connect(
+        map.Map,
+        erdos.OperatorConfig(name="Primary MapOp"), [primary_cons_stream],
+        function=add)
 
-    # # Data from IngressOp runs intermediate secondary Map Operator and sends
-    # # modified data out to SProdSOp
-    # (secondary_map_stream, ) = erdos.connect(
-    #     map.Map,
-    #     erdos.OperatorConfig(name="Secondary MapOp"), [secondary_cons_stream],
-    #     function=add)
+    # Data from IngressOp runs intermediate secondary Map Operator and sends
+    # modified data out to SProdSOp
+    (secondary_map_stream, ) = erdos.connect(
+        map.Map,
+        erdos.OperatorConfig(name="Secondary MapOp"), [secondary_cons_stream],
+        function=add)
 
-    # # Data from intermediate operators and goes into SProdPOp
-    # # and sends data out to EgressOp
-    # (primary_prod_stream, ) = erdos.connect(
-    #     SProdPOp, erdos.OperatorConfig(name="SProdPOp"), [primary_map_stream])
+    # Data from intermediate operators and goes into SProdPOp
+    # and sends data out to EgressOp
+    (primary_prod_stream, ) = erdos.connect(
+        SProdPOp, erdos.OperatorConfig(name="SProdPOp"), [primary_map_stream])
 
-    # # Data from Ingress passed into EgressOp and EgressOp
-    # # returns WatermarkMessage
-    # dest_watermark_stream = erdos.LoopStream()
-    # (egress_watermark_stream, egress_dest_stream) = erdos.connect(
-    #     EgressOp, erdos.OperatorConfig(name="EgressOp"),
-    #     [primary_prod_stream, dest_watermark_stream])
+    # Data from Ingress passed into EgressOp and EgressOp
+    # returns WatermarkMessage
+    dest_watermark_stream = erdos.LoopStream()
+    (egress_watermark_stream, egress_dest_stream) = erdos.connect(
+        EgressOp, erdos.OperatorConfig(name="EgressOp"),
+        [primary_prod_stream, dest_watermark_stream])
 
-    # # EgressOp sends Watermark to SProdSOp to clear its queue of messages.
-    # # Also SProdSOp receives data from secondary intermediate operators
-    # erdos.connect(SProdSOp, erdos.OperatorConfig(name="SProdSOp"),
-    #               [secondary_map_stream, egress_watermark_stream])
+    # EgressOp sends Watermark to SProdSOp to clear its queue of messages.
+    # Also SProdSOp receives data from secondary intermediate operators
+    erdos.connect(SProdSOp, erdos.OperatorConfig(name="SProdSOp"),
+                  [secondary_map_stream, egress_watermark_stream])
 
-    # # Data from EgressOp flows into DestOp and DestOp
-    # # sends WatermarkMessage back to EgressOp to clear its queue
-    # (watermark_stream, ) = erdos.connect(DestOp,
-    #                                      erdos.OperatorConfig(name="DestOp"),
-    #                                      [egress_dest_stream])
-    # dest_watermark_stream.set(watermark_stream)
+    # Data from EgressOp flows into DestOp and DestOp
+    # sends WatermarkMessage back to EgressOp to clear its queue
+    (watermark_stream, ) = erdos.connect(DestOp,
+                                         erdos.OperatorConfig(name="DestOp"),
+                                         [egress_dest_stream])
+    dest_watermark_stream.set(watermark_stream)
 
     # stream = erdos.ExtractStream(primary_cons_watermark_stream)
 
     erdos.run(graph_filename="graph.gv")
 
     # while True:
-    #     print("ExtractStream: received {recv_msg}".format(recv_msg=stream.read()))
+    #     print("{name}: received {recv_msg}".format(recv_msg=stream.read()))
 
     # Need to maintain buffer for acks in case they come before data is received in SProdS from secondary pipeline
 
