@@ -71,8 +71,10 @@ async fn event_runner(
                             process_events(lattice).await;
                         }
                     }
+                    Err(broadcast::RecvError::Lagged(_)) => (),
                     Err(e) => {
                         slog::error!(logger, "Event runner {}: shutting down due to error {:?}", id, e);
+                        return;
                     }
                 }
             },
@@ -85,6 +87,7 @@ async fn event_runner(
                         slog::debug!(logger, "Event runner {}: shutting down", id);
                         return;
                     }
+                    Err(broadcast::RecvError::Lagged(_)) => (),
                     Err(e) => {
                         slog::error!(logger, "Event runner {}: shutting down due to error {:?}", id, e);
                     }
