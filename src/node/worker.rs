@@ -27,9 +27,7 @@ pub(crate) enum OperatorExecutorNotification {
 
 #[derive(Clone, Debug)]
 pub(crate) enum WorkerNotification {
-    DestroyedOperator(OperatorId),
-}
-
+    DestroyedOperator(OperatorId), } 
 async fn process_events(lattice: &ExecutionLattice) {
     while let Some((event, event_id)) = lattice.get_event().await {
         (event.callback)();
@@ -62,9 +60,9 @@ async fn event_runner(
 
     loop {
         tokio::select! {
-            Ok(event_notification) = events_channel.recv() => {
-                match event_notification {
-                    EventNotification::AddedEvents(operator_id) => {
+            event_result = events_channel.recv() => {
+                match event_result {
+                    Ok(EventNotification::AddedEvents(operator_id)) => {
                         if let Some(lattice) = lattices.get(&operator_id) {
                             process_events(lattice).await;
                         }
@@ -73,22 +71,24 @@ async fn event_runner(
                             process_events(lattice).await;
                         }
                     }
+                    Err(e) => {
+                        slog::error!(logger, "Event runner {}: shutting down due to error {:?}", id, e);
+                    }
                 }
             },
-            Ok(control_notification) = control_channel.recv() => {
-                match control_notification {
-                    EventRunnerNotification::UpdateLattices(updated_lattices) => {
+            control_result = control_channel.recv() => {
+                match control_result {
+                    Ok(EventRunnerNotification::UpdateLattices(updated_lattices)) => {
                         lattices = updated_lattices;
                     }
-                    EventRunnerNotification::Shutdown => {
+                    Ok(EventRunnerNotification::Shutdown) => {
                         slog::debug!(logger, "Event runner {}: shutting down", id);
                         return;
                     }
+                    Err(e) => {
+                        slog::error!(logger, "Event runner {}: shutting down due to error {:?}", id, e);
+                    }
                 }
-            }
-            else => {
-                slog::error!(logger, "Event runner {}: shutting down due to error.", id);
-                return;
             }
         };
     }
