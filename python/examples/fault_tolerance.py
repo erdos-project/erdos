@@ -161,7 +161,7 @@ class IngressOp(erdos.Operator):
 
     def ack_watermark_callback(self, timestamp):
         print(
-            "{name}: received primary & secondary cons watermarks at {timestamp}"
+            "{name}: received primary & secondary watermarks at {timestamp}"
             .format(timestamp=timestamp, name=self.config.name))
         # Clears queue of messages <= timestamp
         print("QUEUE BEFORE", self.queue)
@@ -231,8 +231,8 @@ class SProdPOp(erdos.Operator):
         self.queue.append((msg.timestamp, msg))
 
     def watermark_callback(self, timestamp, write_stream):
-        print("{name}: received watermark at timestamp {ts} from SConsPOp".format(
-            ts=timestamp, name=self.config.name))
+        print("{name}: received watermark at timestamp {ts} from SConsPOp".
+              format(ts=timestamp, name=self.config.name))
         print(self.config.name + " QUEUE BEFORE", self.queue)
         clear_queue_send(self.queue,
                          timestamp,
@@ -312,8 +312,8 @@ class EgressOp(erdos.Operator):
                            write_watermark_stream):
         i = 0
         print(
-            "{name}: received watermark at timestamp {timestamp} from SProdPOp".
-            format(timestamp=timestamp, name=self.config.name))
+            "{name}: received watermark at timestamp {timestamp} from SProdPOp"
+            .format(timestamp=timestamp, name=self.config.name))
         print("EGRESS OP: BEFORE QUEUE", self.queue)
         while i < len(self.queue) and self.queue[i][0] <= timestamp:
             msg = self.queue[i][1]
@@ -422,12 +422,13 @@ def main():
     # while True:
     #     print("{name}: received {recv_msg}".format(recv_msg=stream.read()))
 
-    # Need to maintain buffer for acks in case they come before data is 
+    # Need to maintain buffer for acks in case they come before data is
     # received in SProdS from secondary pipeline
 
     # Buffer B : { {sn, tuple, mark}, … }
     # delete = { Marking.PROD | Marking.PRIM | Marking.SEC }
-    # status[Marking.PRIM] = { Status.ACTIVE,Status.DEAD,Status.STDBY,Status.PAUSE }
+    # status[Marking.PRIM] = { Status.ACTIVE,Status.DEAD,Status.STDBY,
+    # Status.PAUSE }
     # conn[Marking.PRIM] = { Conn.SEND | Conn.RECV | Conn.ACK | Conn.PAUSE }
     # dest = { Marking.PRIM, Marking.SEC }
 
