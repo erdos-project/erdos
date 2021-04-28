@@ -3,12 +3,13 @@ use std::{
     time::Duration,
 };
 
+use futures_delay_queue::{delay_queue, DelayHandle, DelayQueue, Receiver};
+use futures_intrusive::buffer::GrowingHeapBuf;
 use serde::Deserialize;
 use tokio::{
     self,
     stream::StreamExt,
     sync::{broadcast, mpsc, Mutex},
-    time::{delay_queue::Key, DelayQueue},
 };
 
 use crate::{
@@ -124,17 +125,20 @@ pub struct OperatorExecutorHelper {
     operator_id: OperatorId,
     lattice: Arc<ExecutionLattice>,
     event_runner_handles: Option<Vec<tokio::task::JoinHandle<()>>>,
-    deadline_queue: DelayQueue<DeadlineEvent>,
-    stream_timestamp_to_key_map: HashMap<(StreamId, Timestamp), Key>, // for active deadlines.
+    deadline_queue: DelayQueue<DeadlineEvent, GrowingHeapBuf<DeadlineEvent>>,
+    deadline_queue_rx: Receiver<DeadlineEvent>,
+    stream_timestamp_to_key_map: HashMap<(StreamId, Timestamp), DelayHandle>, // for active deadlines.
 }
 
 impl OperatorExecutorHelper {
     fn new(operator_id: OperatorId) -> Self {
+        let (deadline_queue, deadline_queue_rx) = delay_queue();
         OperatorExecutorHelper {
             operator_id,
             lattice: Arc::new(ExecutionLattice::new()),
             event_runner_handles: None,
-            deadline_queue: DelayQueue::new(),
+            deadline_queue,
+            deadline_queue_rx,
             stream_timestamp_to_key_map: HashMap::new(),
         }
     }
@@ -156,10 +160,10 @@ impl OperatorExecutorHelper {
                 let event_duration = event.duration;
                 let stream_id = event.stream_id;
                 let event_timestamp = event.timestamp.clone();
-                let queue_key: Key = self.deadline_queue.insert(event, event_duration);
+                let queue_key: DelayHandle = self.deadline_queue.insert(event, event_duration);
                 slog::debug!(
                     crate::TERMINAL_LOGGER,
-                    "Installed a deadline handler with the Key: {:?} corresponding to \
+                    "Installed a deadline handler with the DelayHandle: {:?} corresponding to \
                             Stream ID: {} and Timestamp: {:?}",
                     queue_key,
                     stream_id,
@@ -187,13 +191,13 @@ impl OperatorExecutorHelper {
                 // deadlines installed, the queue will always be ready and return `None` thus
                 // wasting resources. We can potentially fix this by inserting a Deadline for the
                 // future and maintaining it so that the queue is not empty.
-                Some(event) = self.deadline_queue.next() => {
+                Some(deadline_event) = self.deadline_queue_rx.receive() => {
                     // Missed a deadline. Check if the end condition is satisfied and invoke the
                     // handler if not so.
                     // TODO (Sukrit): The handler is invoked in the thread of the OperatorExecutor.
                     // This may be an issue for long-running handlers since they block the
                     // processing of future messages. We can spawn these as a separate task.
-                    let deadline_event = event.unwrap().into_inner();
+                    // let deadline_event = event.unwrap().into_inner();
                     if !message_processor.disarm_deadline(&deadline_event) {
                         // Invoke the handler.
                         deadline_event.handler.lock().unwrap().invoke_handler(
@@ -217,7 +221,7 @@ impl OperatorExecutorHelper {
                         Some(key) => {
                             slog::debug!(
                                 crate::TERMINAL_LOGGER,
-                                "Finished invoking the deadline handler for the Key: {:?} \
+                                "Finished invoking the deadline handler for the DelayHandle: {:?} \
                                 corresponding to the Stream ID: {} and the Timestamp: {:?}",
                                 key, deadline_event.stream_id, deadline_event.timestamp);
                         }
