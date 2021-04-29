@@ -2,27 +2,7 @@ import erdos
 import time
 from collections import deque
 from erdos.operators import map
-from enum import Enum
-
-
-class Marking(Enum):
-    PROD = 1
-    PRIM = 2
-    SEC = 3
-
-
-class Status(Enum):
-    ACTIVE = 1
-    DEAD = 2
-    STDBY = 3
-    PAUSE = 4
-
-
-class Conn(Enum):
-    SEND = 1
-    RECV = 2
-    ACK = 3
-    PAUSE = 4
+from utils import Marking, Status, Conn
 
 
 def clear_queue_send(queue,
@@ -35,8 +15,9 @@ def clear_queue_send(queue,
     If a write_stream is passed in, every message removed from the
     queue will also be sent.
     """
-    while queue and queue[0][0] <= max_timestamp:
-        ts, msg = queue.popleft()
+    while queue and queue[0][0] <= max_timestamp:        
+        data = queue.popleft()
+        ts, msg = data[0], data[1]
         if write_downstream is not None:
             # Send data to next operators along with watermark
             print("{name}: sending {msg}".format(name=sender, msg=msg))
@@ -123,6 +104,11 @@ class IngressOp(erdos.Operator):
                  secondary_cons_watermark_stream: erdos.ReadStream,
                  write_stream: erdos.WriteStream):
         self.queue = deque([])
+        self.conn = dict.fromkeys([Marking.PRIM, Marking.SEC],
+                                  {Conn.SEND, Conn.ACK})
+        self.delete = {Marking.PROD, Marking.PRIM, Marking.SEC}
+        self.dest = Marking.PRIM
+
         # Gets watermarks from SourceOp
         read_stream.add_watermark_callback(self.src_watermark_callback,
                                            [write_stream])
@@ -140,7 +126,8 @@ class IngressOp(erdos.Operator):
     def callback(self, msg):
         print("{name}: received message {msg}".format(msg=msg,
                                                       name=self.config.name))
-        self.queue.append((msg.timestamp, msg))
+        # This message was produced from below, so its marking is set to Marking.PROD
+        self.queue.append((msg.timestamp, msg, {Marking.PROD}))
 
     def src_watermark_callback(self, timestamp: erdos.Timestamp,
                                write_stream: erdos.WriteStream):
@@ -160,9 +147,8 @@ class IngressOp(erdos.Operator):
             i += 1
 
     def ack_watermark_callback(self, timestamp):
-        print(
-            "{name}: received primary & secondary watermarks at {timestamp}"
-            .format(timestamp=timestamp, name=self.config.name))
+        print("{name}: received primary & secondary watermarks at {timestamp}".
+              format(timestamp=timestamp, name=self.config.name))
         # Clears queue of messages <= timestamp
         print("QUEUE BEFORE", self.queue)
         clear_queue_send(self.queue, timestamp)
@@ -216,6 +202,10 @@ class SProdPOp(erdos.Operator):
     def __init__(self, read_stream: erdos.ReadStream,
                  write_stream: erdos.WriteStream):
         self.queue = deque([])
+        self.conn = {}
+        self.conn[Marking.PRIM] = Conn.SEND
+        self.delete = {Marking.PRIM, Marking.SEC}
+        self.dest = Marking.PRIM
         # Gets watermarks from SConsPOp
         read_stream.add_watermark_callback(self.watermark_callback,
                                            [write_stream])
@@ -250,6 +240,10 @@ class SProdSOp(erdos.Operator):
     def __init__(self, read_stream: erdos.ReadStream,
                  egress_watermark_stream: erdos.ReadStream):
         self.queue = deque([])
+        self.conn = {}
+        self.conn[Marking.PRIM] = Conn.ACK  # data is not forwarded
+        self.delete = {Marking.PRIM, Marking.SEC}
+        self.dest = Marking.PRIM
         read_stream.add_callback(self.callback)
         read_stream.add_watermark_callback(self.watermark_callback)
         egress_watermark_stream.add_watermark_callback(
