@@ -7,40 +7,76 @@ class Buffer():
     """
     Deque wrapper buffer for Flux fault tolerance
     """
-    def __init__(self):
-        self.buf = OrderedDict({})
+    def __init__(self, init_buffer=[]):
+        self.buf = OrderedDict(init_buffer)
         self.cursors = dict.fromkeys([Marking.PRIM, Marking.SEC], 0)
 
-    def peek(self, dest: Marking.PRIM | Marking.SEC):
-        idx = self.cursors[dest]
-        return self.buf.items()[idx] if len(self.buf) > 0 else None
+    def __update_cursors(self, timestamp):
+        idx = self.cursors[Marking.PRIM]
+        timestamps = list(self.buf.keys())
+        if timestamps[idx] > timestamp and idx > 0:
+            self.cursors[Marking.PRIM] -= 1
+        idx = self.cursors[Marking.SEC]
+        if timestamps[idx] > timestamp and idx > 0:
+            self.cursors[Marking.SEC] -= 1
 
-    def advance(self, dest: Marking.PRIM | Marking.SEC):
+    def peek(self, dest: Marking):
+        """ Returns the tuple at the current cursor position at this dest """
+        idx = self.cursors[dest]
+        return list(self.buf.values())[idx] if len(self.buf) > 0 else None
+
+    def advance(self, dest: Marking):
+        """ Advances cursor index forward for dest by 1 """
         if self.cursors[dest] < len(self.buf) - 1:
             self.cursors[dest] += 1
 
     def put(self, msg: erdos.Message, timestamp: erdos.Timestamp, delete: set):
-        self.buf[timestamp] = (msg, {Marking.PROD})
+        """ Inserts a new tuple into the buffer """
+        self.buf[timestamp] = (msg, delete)
 
-    def ack(self, timestamp: erdos.Timestamp, dest: Marking.PRIM | Marking.SEC,
-            delete: set):
+    def ack(self, timestamp: erdos.Timestamp, dest: Marking, delete: set):
+        """ When you receive an ack from a downstream operator """
         # Add destination acknowledgement to tuple's markings
-        data = self.buf[timestamp]
-        self.buf[timestamp][1].add(dest)
-        if self.buf[timestamp][1].issubset(delete):
-            del self.buf[timestamp]
-        # all_timestamps = self.buf.keys()
-        # while len(all_timestamps) > 0 and all_timestamps[0][0] <= timestamp:
-        #     data = self.buf.popitem(last=False)
-        #     ts, msg = all_timestamps[0], data[0]
-        #     all_timestamps = self.buf.keys()
-        return data
+        data_tuples = []
+        buf_items = self.buf.items()
+        for ts, data in buf_items:
+            if ts > timestamp:
+                break
+
+            data_tuples.append(data)
+            self.buf[ts][1].add(dest)
+            if delete.issubset(self.buf[timestamp][1]):
+                self.__update_cursors(timestamp)
+                del self.buf[ts]
+
+        return data_tuples
+
+    def upstream_watermark(self, timestamp: erdos.Timestamp, clear=False):
+        """ When you receive a watermark from an upstream operator, returns all messages <= timestamp
+        and clears the buffer if clear is set to true
+        """
+        # data_tuples = list(self.buf.values())[0:list(self.buf.keys()).index(timestamp) + 1]
+        data_tuples = []
+        buf_items = self.buf.items()
+        for ts, data in buf_items:
+            if ts > timestamp:
+                break
+
+            data_tuples.append(data)
+            if clear:
+                self.__update_cursors(ts)
+                del self.buf[ts]
+
+        return data_tuples
 
     def ack_all(self, dest, delete):
         return 0
 
     def reset(self, dest):
         return 0
+
+    def __repr__(self):
+        return str(self.buf)
 
 
 def main():
