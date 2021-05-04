@@ -28,7 +28,7 @@ use crate::{
     node::lattice::ExecutionLattice,
     node::operator_event::OperatorEvent,
     node::worker::EventNotification,
-    OperatorId,
+    OperatorId, Uuid,
 };
 
 use super::worker::{OperatorExecutorNotification, WorkerNotification};
@@ -458,7 +458,7 @@ where
     state: Arc<Mutex<S>>,
     read_stream: Option<ReadStream<T>>,
     helper: Option<OperatorExecutorHelper>,
-    read_ids: HashSet<StreamId>,
+    state_ids: HashSet<Uuid>,
 }
 
 impl<O, S, T> SinkExecutor<O, S, T>
@@ -478,7 +478,7 @@ where
             config,
             operator: operator_fn(),
             state: Arc::new(Mutex::new(state_fn())),
-            read_ids: vec![read_stream.id()].into_iter().collect(),
+            state_ids: vec![Uuid::new_deterministic()].into_iter().collect(),
             read_stream: Some(read_stream),
             helper: Some(OperatorExecutorHelper::new(operator_id)),
         }
@@ -599,8 +599,8 @@ where
             msg.timestamp().clone(),
             false,
             0,
-            self.read_ids.clone(),
             HashSet::new(),
+            self.state_ids.clone(),
             move || O::on_data_stateful(&mut ctx, msg.data().unwrap()),
         )
     }
@@ -615,8 +615,8 @@ where
             timestamp.clone(),
             true,
             0,
-            self.read_ids.clone(),
             HashSet::new(),
+            self.state_ids.clone(),
             move || O::on_watermark(&mut ctx),
         )
     }
@@ -635,8 +635,7 @@ where
     read_stream: Option<ReadStream<T>>,
     write_stream: WriteStream<U>,
     helper: Option<OperatorExecutorHelper>,
-    read_ids: HashSet<StreamId>,
-    write_ids: HashSet<StreamId>,
+    state_ids: HashSet<Uuid>,
 }
 
 impl<O, S, T, U> OneInOneOutExecutor<O, S, T, U>
@@ -658,8 +657,7 @@ where
             config,
             operator: operator_fn(),
             state: Arc::new(Mutex::new(state_fn())),
-            read_ids: vec![read_stream.id()].into_iter().collect(),
-            write_ids: vec![write_stream.id()].into_iter().collect(),
+            state_ids: vec![crate::Uuid::new_deterministic()].into_iter().collect(),
             read_stream: Some(read_stream),
             write_stream,
             helper: Some(OperatorExecutorHelper::new(operator_id)),
@@ -804,8 +802,8 @@ where
             msg.timestamp().clone(),
             false,
             0,
-            self.read_ids.clone(),
-            self.write_ids.clone(),
+            HashSet::new(),
+            self.state_ids.clone(),
             move || O::on_data_stateful(&mut ctx, msg.data().unwrap()),
         )
     }
@@ -824,8 +822,8 @@ where
                 timestamp.clone(),
                 true,
                 127,
-                self.read_ids.clone(),
-                self.write_ids.clone(),
+                HashSet::new(),
+                self.state_ids.clone(),
                 move || {
                     O::on_watermark(&mut ctx);
                     write_stream_copy
@@ -838,8 +836,8 @@ where
                 timestamp.clone(),
                 true,
                 0,
-                self.read_ids.clone(),
-                self.write_ids.clone(),
+                HashSet::new(),
+                self.state_ids.clone(),
                 move || {
                     O::on_watermark(&mut ctx);
                 },
@@ -875,8 +873,7 @@ where
     left_read_stream: Option<ReadStream<T>>,
     right_read_stream: Option<ReadStream<U>>,
     write_stream: WriteStream<V>,
-    read_ids: HashSet<StreamId>,
-    write_ids: HashSet<StreamId>,
+    state_ids: HashSet<Uuid>,
     helper: Option<OperatorExecutorHelper>,
 }
 
@@ -901,12 +898,9 @@ where
             config,
             operator: operator_fn(),
             state: Arc::new(Mutex::new(state_fn())),
-            read_ids: vec![left_read_stream.id(), right_read_stream.id()]
-                .into_iter()
-                .collect(),
+            state_ids: vec![Uuid::new_deterministic()].into_iter().collect(),
             left_read_stream: Some(left_read_stream),
             right_read_stream: Some(right_read_stream),
-            write_ids: vec![write_stream.id()].into_iter().collect(),
             write_stream,
             helper: Some(OperatorExecutorHelper::new(operator_id)),
         }
@@ -1049,8 +1043,8 @@ where
             msg.timestamp().clone(),
             false,
             0,
-            self.read_ids.clone(),
-            self.write_ids.clone(),
+            HashSet::new(),
+            self.state_ids.clone(),
             move || O::on_left_data_stateful(&mut ctx, msg.data().unwrap()),
         )
     }
@@ -1082,8 +1076,8 @@ where
             msg.timestamp().clone(),
             false,
             0,
-            self.read_ids.clone(),
-            self.write_ids.clone(),
+            HashSet::new(),
+            self.state_ids.clone(),
             move || O::on_right_data_stateful(&mut ctx, msg.data().unwrap()),
         )
     }
@@ -1102,8 +1096,8 @@ where
                 timestamp.clone(),
                 true,
                 127,
-                self.read_ids.clone(),
-                self.write_ids.clone(),
+                HashSet::new(),
+                self.state_ids.clone(),
                 move || {
                     O::on_watermark(&mut ctx);
                     write_stream_copy
@@ -1116,8 +1110,8 @@ where
                 timestamp.clone(),
                 true,
                 0,
-                self.read_ids.clone(),
-                self.write_ids.clone(),
+                HashSet::new(),
+                self.state_ids.clone(),
                 move || O::on_watermark(&mut ctx),
             )
         }
@@ -1139,8 +1133,7 @@ where
     left_write_stream: WriteStream<U>,
     right_write_stream: WriteStream<V>,
     helper: Option<OperatorExecutorHelper>,
-    read_ids: HashSet<StreamId>,
-    write_ids: HashSet<StreamId>,
+    state_ids: HashSet<Uuid>,
 }
 
 impl<O, S, T, U, V> OneInTwoOutExecutor<O, S, T, U, V>
@@ -1164,10 +1157,7 @@ where
             config,
             operator: operator_fn(),
             state: Arc::new(Mutex::new(state_fn())),
-            read_ids: vec![read_stream.id()].into_iter().collect(),
-            write_ids: vec![left_write_stream.id(), right_write_stream.id()]
-                .into_iter()
-                .collect(),
+            state_ids: vec![Uuid::new_deterministic()].into_iter().collect(),
             read_stream: Some(read_stream),
             left_write_stream,
             right_write_stream,
@@ -1320,8 +1310,8 @@ where
             msg.timestamp().clone(),
             false,
             0,
-            self.read_ids.clone(),
-            self.write_ids.clone(),
+            HashSet::new(),
+            self.state_ids.clone(),
             move || O::on_data_stateful(&mut ctx, msg.data().unwrap()),
         )
     }
@@ -1343,8 +1333,8 @@ where
                 timestamp.clone(),
                 true,
                 127,
-                self.read_ids.clone(),
-                self.write_ids.clone(),
+                HashSet::new(),
+                self.state_ids.clone(),
                 move || {
                     O::on_watermark(&mut ctx);
                     left_write_stream_copy
@@ -1360,8 +1350,8 @@ where
                 timestamp.clone(),
                 true,
                 0,
-                self.read_ids.clone(),
-                self.write_ids.clone(),
+                HashSet::new(),
+                self.state_ids.clone(),
                 move || {
                     O::on_watermark(&mut ctx);
                 },
