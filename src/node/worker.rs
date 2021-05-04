@@ -27,7 +27,8 @@ pub(crate) enum OperatorExecutorNotification {
 
 #[derive(Clone, Debug)]
 pub(crate) enum WorkerNotification {
-    DestroyedOperator(OperatorId), } 
+    DestroyedOperator(OperatorId),
+}
 async fn process_events(lattice: &ExecutionLattice) {
     while let Some((event, event_id)) = lattice.get_event().await {
         (event.callback)();

@@ -61,10 +61,12 @@ pub trait Sink<S: State, T: Data>: Send + Sync {
 
 pub struct SinkContext {
     pub timestamp: Timestamp,
+    pub config: OperatorConfig,
 }
 
 pub struct StatefulSinkContext<S: State> {
     pub timestamp: Timestamp,
+    pub config: OperatorConfig,
     // Hacky...
     pub state: Arc<Mutex<S>>,
 }
@@ -97,8 +99,7 @@ pub struct OneInOneOutSetupContext {
     pub read_stream_id: StreamId,
 }
 
-impl OneInOneOutSetupContext
-{
+impl OneInOneOutSetupContext {
     pub fn new(read_stream_id: StreamId) -> Self {
         OneInOneOutSetupContext {
             deadlines: Vec::new(),
@@ -107,8 +108,7 @@ impl OneInOneOutSetupContext
     }
 }
 
-impl SetupContextT for OneInOneOutSetupContext
-{
+impl SetupContextT for OneInOneOutSetupContext {
     fn add_deadline(&mut self, deadline: Deadline) {
         self.deadlines.push(deadline);
     }
@@ -124,6 +124,7 @@ impl SetupContextT for OneInOneOutSetupContext
 
 pub struct OneInOneOutContext<U: Data> {
     pub timestamp: Timestamp,
+    pub config: OperatorConfig,
     pub write_stream: WriteStream<U>,
 }
 
@@ -133,6 +134,7 @@ where
     V: Data + for<'a> Deserialize<'a>,
 {
     pub timestamp: Timestamp,
+    pub config: OperatorConfig,
     pub write_stream: WriteStream<V>,
     // Hacky...
     pub state: Arc<Mutex<S>>,
@@ -173,11 +175,13 @@ where
 
 pub struct TwoInOneOutContext<U: Data> {
     pub timestamp: Timestamp,
+    pub config: OperatorConfig,
     pub write_stream: WriteStream<U>,
 }
 
 pub struct StatefulTwoInOneOutContext<S: State, U: Data> {
     pub timestamp: Timestamp,
+    pub config: OperatorConfig,
     pub write_stream: WriteStream<U>,
     pub state: Arc<Mutex<S>>,
 }
@@ -206,12 +210,14 @@ pub trait OneInTwoOut<S: State, T: Data, U: Data, V: Data>: Send + Sync {
 
 pub struct OneInTwoOutContext<U: Data, V: Data> {
     pub timestamp: Timestamp,
+    pub config: OperatorConfig,
     pub left_write_stream: WriteStream<U>,
     pub right_write_stream: WriteStream<V>,
 }
 
 pub struct StatefulOneInTwoOutContext<S: State, U: Data, V: Data> {
     pub timestamp: Timestamp,
+    pub config: OperatorConfig,
     pub left_write_stream: WriteStream<U>,
     pub right_write_stream: WriteStream<V>,
     pub state: Arc<Mutex<S>>,

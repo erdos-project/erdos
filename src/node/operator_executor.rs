@@ -578,6 +578,7 @@ where
     fn stateless_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent {
         let mut ctx = SinkContext {
             timestamp: msg.timestamp().clone(),
+            config: self.config.clone(),
         };
         OperatorEvent::new(
             msg.timestamp().clone(),
@@ -593,6 +594,7 @@ where
     fn stateful_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent {
         let mut ctx = StatefulSinkContext {
             timestamp: msg.timestamp().clone(),
+            config: self.config.clone(),
             state: Arc::clone(&self.state),
         };
         OperatorEvent::new(
@@ -609,6 +611,7 @@ where
     fn watermark_cb_event(&self, timestamp: &Timestamp) -> OperatorEvent {
         let mut ctx = StatefulSinkContext {
             timestamp: timestamp.clone(),
+            config: self.config.clone(),
             state: Arc::clone(&self.state),
         };
         OperatorEvent::new(
@@ -779,6 +782,7 @@ where
     fn stateless_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent {
         let mut ctx = OneInOneOutContext {
             timestamp: msg.timestamp().clone(),
+            config: self.config.clone(),
             write_stream: self.write_stream.clone(),
         };
         OperatorEvent::new(
@@ -795,6 +799,7 @@ where
     fn stateful_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent {
         let mut ctx = StatefulOneInOneOutContext {
             timestamp: msg.timestamp().clone(),
+            config: self.config.clone(),
             write_stream: self.write_stream.clone(),
             state: Arc::clone(&self.state),
         };
@@ -812,6 +817,7 @@ where
     fn watermark_cb_event(&self, timestamp: &Timestamp) -> OperatorEvent {
         let mut ctx = StatefulOneInOneOutContext {
             timestamp: timestamp.clone(),
+            config: self.config.clone(),
             write_stream: self.write_stream.clone(),
             state: Arc::clone(&self.state),
         };
@@ -1020,6 +1026,7 @@ where
     fn left_stateless_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent {
         let mut ctx = TwoInOneOutContext {
             timestamp: msg.timestamp().clone(),
+            config: self.config.clone(),
             write_stream: self.write_stream.clone(),
         };
         OperatorEvent::new(
@@ -1036,6 +1043,7 @@ where
     fn left_stateful_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent {
         let mut ctx = StatefulTwoInOneOutContext {
             timestamp: msg.timestamp().clone(),
+            config: self.config.clone(),
             write_stream: self.write_stream.clone(),
             state: Arc::clone(&self.state),
         };
@@ -1053,6 +1061,7 @@ where
     fn right_stateless_cb_event(&self, msg: Arc<Message<U>>) -> OperatorEvent {
         let mut ctx = TwoInOneOutContext {
             timestamp: msg.timestamp().clone(),
+            config: self.config.clone(),
             write_stream: self.write_stream.clone(),
         };
         OperatorEvent::new(
@@ -1069,6 +1078,7 @@ where
     fn right_stateful_cb_event(&self, msg: Arc<Message<U>>) -> OperatorEvent {
         let mut ctx = StatefulTwoInOneOutContext {
             timestamp: msg.timestamp().clone(),
+            config: self.config.clone(),
             write_stream: self.write_stream.clone(),
             state: Arc::clone(&self.state),
         };
@@ -1086,6 +1096,7 @@ where
     fn watermark_cb_event(&self, timestamp: &Timestamp) -> OperatorEvent {
         let mut ctx = StatefulTwoInOneOutContext {
             timestamp: timestamp.clone(),
+            config: self.config.clone(),
             write_stream: self.write_stream.clone(),
             state: Arc::clone(&self.state),
         };
@@ -1285,6 +1296,7 @@ where
     fn stateless_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent {
         let mut ctx = OneInTwoOutContext {
             timestamp: msg.timestamp().clone(),
+            config: self.config.clone(),
             left_write_stream: self.left_write_stream.clone(),
             right_write_stream: self.right_write_stream.clone(),
         };
@@ -1302,6 +1314,7 @@ where
     fn stateful_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent {
         let mut ctx = StatefulOneInTwoOutContext {
             timestamp: msg.timestamp().clone(),
+            config: self.config.clone(),
             left_write_stream: self.left_write_stream.clone(),
             right_write_stream: self.right_write_stream.clone(),
             state: Arc::clone(&self.state),
@@ -1320,6 +1333,7 @@ where
     fn watermark_cb_event(&self, timestamp: &Timestamp) -> OperatorEvent {
         let mut ctx = StatefulOneInTwoOutContext {
             timestamp: timestamp.clone(),
+            config: self.config.clone(),
             left_write_stream: self.left_write_stream.clone(),
             right_write_stream: self.right_write_stream.clone(),
             state: Arc::clone(&self.state),
