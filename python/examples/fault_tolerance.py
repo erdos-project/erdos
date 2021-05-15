@@ -1,6 +1,5 @@
 import erdos
 import time
-from collections import deque
 from erdos.operators import map
 from utils import Marking, Status, Conn, send_data
 from buffer import Buffer
@@ -57,7 +56,11 @@ class SourceOp(erdos.Operator):
         count = 0
         while True:
             timestamp = erdos.Timestamp(coordinates=[count])
-            payload = [erdos.Message(timestamp, count)] * 2
+            payload = [
+                erdos.Message(timestamp, count),
+                erdos.Message(timestamp, count + 1),
+                erdos.Message(timestamp, count + 2)
+            ]
             msg = erdos.Message(timestamp, payload)
             print("{name}: sending {msg}".format(msg=msg,
                                                  name=self.config.name))
@@ -120,19 +123,24 @@ class IngressOp(erdos.Operator):
     def src_watermark_callback(self, timestamp: erdos.Timestamp,
                                write_stream: erdos.WriteStream):
         # After getting watermark from SourceOp, sends data to consumers
-        print("{name}: received watermark at timestamp {timestamp}".format(
-            timestamp=timestamp, name=self.config.name))
+        print(
+            "{name}: received watermark at timestamp {timestamp} from SourceOp"
+            .format(timestamp=timestamp, name=self.config.name))
 
-        data_tuples = self.buffer.upstream_watermark(timestamp)
-        send_data(data_tuples, write_stream, sender=self.config.name)
+        data_tuples = self.buffer.watermark(timestamp)
+        send_data(data_tuples,
+                  write_downstream=write_stream,
+                  sender=self.config.name)
 
     def ack_watermark_callback(self, timestamp):
         print("{name}: received primary & secondary watermarks at {timestamp}".
               format(timestamp=timestamp, name=self.config.name))
         # Clears buffer of messages <= timestamp
         print("QUEUE BEFORE", self.buffer)
-        self.buffer.ack(timestamp, Marking.PRIM, self.delete)
-        self.buffer.ack(timestamp, Marking.SEC, self.delete)
+        # self.buffer.add_dest_ack(timestamp, {Marking.PROD, Marking.SEC})
+        self.buffer.watermark(timestamp, clear=True)
+        # self.buffer.ack(timestamp, Marking.PRIM, self.delete)
+        # self.buffer.ack(timestamp, Marking.SEC, self.delete)
         print("QUEUE AFTER", self.buffer)
 
 
@@ -173,9 +181,11 @@ class SConsOp(erdos.Operator):
 
     def watermark_callback(self, timestamp, write_stream,
                            write_watermark_stream):
+        print("{name}: received watermark from IngressOp".format(
+            name=self.config.name))
         print(self.config.name + " QUEUE BEFORE " + str(timestamp),
               self.buffer)
-        data_tuples = self.buffer.upstream_watermark(timestamp, clear=True)
+        data_tuples = self.buffer.watermark(timestamp, clear=True)
         send_data(data_tuples, write_stream, write_watermark_stream,
                   self.config.name)
         print(self.config.name + " QUEUE AFTER " + str(timestamp), self.buffer)
@@ -213,7 +223,7 @@ class SProdPOp(erdos.Operator):
         print("{name}: received watermark at timestamp {ts} from SConsPOp".
               format(ts=timestamp, name=self.config.name))
         print(self.config.name + " QUEUE BEFORE", self.buffer)
-        data_tuples = self.buffer.upstream_watermark(timestamp, clear=True)
+        data_tuples = self.buffer.watermark(timestamp, clear=True)
         send_data(data_tuples, write_stream, sender=self.config.name)
         print(self.config.name + " QUEUE AFTER", self.buffer)
 
@@ -255,7 +265,7 @@ class SProdSOp(erdos.Operator):
         print("{name}: received watermark from EgressOp".format(
             name=self.config.name))
         print(self.config.name + " QUEUE BEFORE", self.buffer)
-        data_tuples = self.buffer.upstream_watermark(timestamp, clear=True)
+        data_tuples = self.buffer.watermark(timestamp, clear=True)
         send_data(data_tuples, sender=self.config.name)
         print(self.config.name + " QUEUE AFTER", self.buffer)
 
@@ -299,7 +309,7 @@ class EgressOp(erdos.Operator):
             "{name}: received watermark at timestamp {timestamp} from SProdPOp"
             .format(timestamp=timestamp, name=self.config.name))
         print("EGRESS OP: BEFORE BUFFER", self.buffer)
-        data_tuples = self.buffer.upstream_watermark(timestamp)
+        data_tuples = self.buffer.watermark(timestamp)
         for msg, marking in data_tuples:
             print("{name}: sending {msg} to DestOp".format(
                 msg=msg, name=self.config.name))
@@ -320,7 +330,7 @@ class EgressOp(erdos.Operator):
             "{name}: received watermark at timestamp {timestamp} from DestOp".
             format(timestamp=timestamp, name=self.config.name))
         print("EGRESS OP: BEFORE BUFFER", self.buffer)
-        self.buffer.upstream_watermark(timestamp, clear=True)
+        self.buffer.watermark(timestamp, clear=True)
         print("EGRESS OP: AFTER BUFFER", self.buffer)
 
 
@@ -338,16 +348,18 @@ def main():
     watermark_src_stream = erdos.LoopStream()
 
     # Data comes out of SourceOp
-    (source_stream, ) = erdos.connect(SourceOp,
-                                      erdos.OperatorConfig(name="SourceOp"),
-                                      [watermark_src_stream])
+    (source_stream, ) = erdos.connect(
+        SourceOp, erdos.OperatorConfig(name="SourceOp", flow_watermarks=False),
+        [watermark_src_stream])
 
     primary_cons_watermark_stream = erdos.LoopStream()
     secondary_cons_watermark_stream = erdos.LoopStream()
 
     # Data flows into IngressOp and out of IngressOp again
     (ingress_stream, watermark_stream) = erdos.connect(
-        IngressOp, erdos.OperatorConfig(name="IngressOp"), [
+        IngressOp, erdos.OperatorConfig(name="IngressOp",
+                                        flow_watermarks=False),
+        [
             source_stream, primary_cons_watermark_stream,
             secondary_cons_watermark_stream
         ])
@@ -356,13 +368,15 @@ def main():
 
     # Data comes into primary SConsOp and out of primary SConsOp
     (primary_cons_stream, primary_watermark_stream) = erdos.connect(
-        SConsOp, erdos.OperatorConfig(name="SConsPOp"), [ingress_stream])
+        SConsOp, erdos.OperatorConfig(name="SConsPOp", flow_watermarks=False),
+        [ingress_stream])
 
     primary_cons_watermark_stream.set(primary_watermark_stream)
 
     # Data comes into secondary SConsOp and out of secondary SConsOp
     (secondary_cons_stream, secondary_watermark_stream) = erdos.connect(
-        SConsOp, erdos.OperatorConfig(name="SConsSOp"), [ingress_stream])
+        SConsOp, erdos.OperatorConfig(name="SConsSOp", flow_watermarks=False),
+        [ingress_stream])
 
     secondary_cons_watermark_stream.set(secondary_watermark_stream)
 
@@ -383,25 +397,27 @@ def main():
     # Data from intermediate operators and goes into SProdPOp
     # and sends data out to EgressOp
     (primary_prod_stream, ) = erdos.connect(
-        SProdPOp, erdos.OperatorConfig(name="SProdPOp"), [primary_map_stream])
+        SProdPOp, erdos.OperatorConfig(name="SProdPOp", flow_watermarks=False),
+        [primary_map_stream])
 
     # Data from Ingress passed into EgressOp and EgressOp
     # returns WatermarkMessage
     dest_watermark_stream = erdos.LoopStream()
     (egress_watermark_stream, egress_dest_stream) = erdos.connect(
-        EgressOp, erdos.OperatorConfig(name="EgressOp"),
+        EgressOp, erdos.OperatorConfig(name="EgressOp", flow_watermarks=False),
         [primary_prod_stream, dest_watermark_stream])
 
     # EgressOp sends Watermark to SProdSOp to clear its buffer of messages.
     # Also SProdSOp receives data from secondary intermediate operators
-    erdos.connect(SProdSOp, erdos.OperatorConfig(name="SProdSOp"),
+    erdos.connect(SProdSOp,
+                  erdos.OperatorConfig(name="SProdSOp", flow_watermarks=False),
                   [secondary_map_stream, egress_watermark_stream])
 
     # Data from EgressOp flows into DestOp and DestOp
     # sends WatermarkMessage back to EgressOp to clear its buffer
-    (watermark_stream, ) = erdos.connect(DestOp,
-                                         erdos.OperatorConfig(name="DestOp"),
-                                         [egress_dest_stream])
+    (watermark_stream, ) = erdos.connect(
+        DestOp, erdos.OperatorConfig(name="DestOp", flow_watermarks=False),
+        [egress_dest_stream])
     dest_watermark_stream.set(watermark_stream)
 
     # stream = erdos.ExtractStream(primary_cons_watermark_stream)
