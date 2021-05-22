@@ -90,9 +90,11 @@ class IngressOp(erdos.Operator):
         self.buffer = Buffer()
         self.conn = dict.fromkeys([Marking.PRIM, Marking.SEC],
                                   {Conn.SEND, Conn.ACK})
+        self.status = {}
         self.delete = {Marking.PROD, Marking.PRIM, Marking.SEC}
         self.dest = Marking.PRIM
-        self.status = Status.ACTIVE
+        self.status[Marking.PRIM] = Status.ACTIVE
+        self.status[Marking.SEC] = Status.ACTIVE
 
         # Gets watermarks from SourceOp
         read_stream.add_watermark_callback(self.src_watermark_callback,
@@ -137,10 +139,7 @@ class IngressOp(erdos.Operator):
               format(timestamp=timestamp, name=self.config.name))
         # Clears buffer of messages <= timestamp
         print("QUEUE BEFORE", self.buffer)
-        # self.buffer.add_dest_ack(timestamp, {Marking.PROD, Marking.SEC})
         self.buffer.watermark(timestamp, clear=True)
-        # self.buffer.ack(timestamp, Marking.PRIM, self.delete)
-        # self.buffer.ack(timestamp, Marking.SEC, self.delete)
         print("QUEUE AFTER", self.buffer)
 
 
@@ -155,13 +154,14 @@ class SConsOp(erdos.Operator):
                  write_stream: erdos.WriteStream,
                  write_watermark_stream: erdos.WriteStream):
         self.buffer = Buffer()
-        self.status = Status.ACTIVE
         self.conn = {}
+        self.status = {}
         if self.config.name == "SConsPOp":
-            self.conn[Marking.PRIM] = Conn.SEND
+            self.dest = Marking.PRIM
         elif self.config.name == "SConsSOp":
-            self.conn[Marking.SEC] = Conn.SEND
-        self.dest = Marking.PRIM
+            self.dest = Marking.SEC
+        self.conn[self.dest] = Conn.SEND
+        self.status[self.dest] = Status.ACTIVE
         self.delete = {Marking.PROD}
         # Gets watermarks from IngressOp
         read_stream.add_watermark_callback(
@@ -201,10 +201,11 @@ class SProdPOp(erdos.Operator):
                  write_stream: erdos.WriteStream):
         self.buffer = Buffer()
         self.conn = {}
+        self.status = {}
         self.conn[Marking.PRIM] = Conn.SEND
         self.delete = {Marking.PROD}
         self.dest = Marking.PRIM
-        self.status = Status.ACTIVE
+        self.status[self.dest] = Status.ACTIVE
         # Gets watermarks from SConsPOp
         read_stream.add_watermark_callback(self.watermark_callback,
                                            [write_stream])
@@ -239,9 +240,10 @@ class SProdSOp(erdos.Operator):
         self.buffer = Buffer()
         self.conn = {}
         self.conn[Marking.PRIM] = Conn.ACK  # data is not forwarded
-        self.delete = {Marking.PRIM, Marking.SEC, Marking.PROD}
+        self.delete = {Marking.PRIM, Marking.PROD}
         self.dest = Marking.PRIM
-        self.status = Status.ACTIVE
+        self.status = {}
+        self.status[self.dest] = Status.ACTIVE
         read_stream.add_callback(self.callback)
         read_stream.add_watermark_callback(self.watermark_callback)
         egress_watermark_stream.add_watermark_callback(
@@ -284,13 +286,15 @@ class EgressOp(erdos.Operator):
                  write_stream: erdos.WriteStream):
         self.buffer = Buffer()
         self.conn = {}
-        self.status = Status.ACTIVE
+        self.status = {}
+        self.dest = Marking.PRIM
+        self.status[self.dest] = Status.ACTIVE
+        
         read_stream.add_callback(self.callback)
         read_stream.add_watermark_callback(
             self.watermark_callback, [write_stream, write_watermark_stream])
         dest_watermark_stream.add_watermark_callback(
             self.ack_watermark_callback)
-        # self.delete = {Marking.PROD, Marking.}
 
     @staticmethod
     def connect(read_stream, dest_watermark_stream):
@@ -420,22 +424,7 @@ def main():
         [egress_dest_stream])
     dest_watermark_stream.set(watermark_stream)
 
-    # stream = erdos.ExtractStream(primary_cons_watermark_stream)
-
-    erdos.run(graph_filename="graph.gv")
-
-    # while True:
-    #     print("{name}: received {recv_msg}".format(recv_msg=stream.read()))
-
-    # Need to maintain buffer for acks in case they come before data is
-    # received in SProdS from secondary pipeline
-
-    # Buffer B : { {sn, tuple, mark}, … }
-    # delete = { Marking.PROD | Marking.PRIM | Marking.SEC }
-    # status[Marking.PRIM] = { Status.ACTIVE,Status.DEAD,Status.STDBY,
-    # Status.PAUSE }
-    # conn[Marking.PRIM] = { Conn.SEND | Conn.RECV | Conn.ACK | Conn.PAUSE }
-    # dest = { Marking.PRIM, Marking.SEC }
+    erdos.run(graph_filename="graph.gv")f
 
 
 if __name__ == "__main__":
