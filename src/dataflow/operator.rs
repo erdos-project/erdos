@@ -12,13 +12,7 @@ use crate::{
         deadlines::Deadline, graph::default_graph, stream::StreamId, Data, Message, ReadStream,
         State, Timestamp, WriteStream,
     },
-    node::{
-        operator_executor::{
-            OneInOneOutExecutor, OneInTwoOutExecutor, OperatorExecutorT, SinkExecutor,
-            SourceExecutor, TwoInOneOutExecutor,
-        },
-        NodeId,
-    },
+    node::NodeId,
     scheduler::channel_manager::ChannelManager,
     OperatorId, Uuid,
 };

@@ -31,7 +31,7 @@ use crate::{
     OperatorId, Uuid,
 };
 
-use super::worker::{OperatorExecutorNotification, WorkerNotification};
+use super::super::worker::{OperatorExecutorNotification, WorkerNotification};
 
 pub(crate) trait OperatorExecutorT: Send {
     /// Returns a future for OperatorExecutor::execute().

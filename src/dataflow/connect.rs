@@ -10,7 +10,7 @@ use crate::{
         Timestamp, WriteStream,
     },
     node::{
-        operator_executor::{
+        operator_executors::{
             OneInOneOutExecutor, OneInTwoOutExecutor, OperatorExecutorT, SinkExecutor,
             SourceExecutor, TwoInOneOutExecutor,
         },

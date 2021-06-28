@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::{
-    communication::ControlMessage, node::operator_executor::OperatorExecutorT,
+    communication::ControlMessage, node::operator_executors::OperatorExecutorT,
     scheduler::channel_manager::ChannelManager,
 };
 
