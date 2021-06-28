@@ -1,10 +1,5 @@
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-    thread,
-};
+use std::{collections::HashSet, sync::Arc, thread};
 
-use futures::future;
 use futures_util::stream::StreamExt;
 use slog;
 use tokio::{
@@ -61,6 +56,7 @@ pub struct Node {
     shutdown_rx: Option<Receiver<()>>,
 }
 
+#[allow(dead_code)]
 impl Node {
     /// Creates a new node.
     pub fn new(config: Configuration) -> Self {

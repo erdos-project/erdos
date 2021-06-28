@@ -2,8 +2,7 @@ use serde::Deserialize;
 use std::{future::Future, pin::Pin, sync::Arc};
 use tokio::{
     self,
-    stream::StreamExt,
-    sync::{broadcast, mpsc, Mutex},
+    sync::{broadcast, mpsc},
 };
 
 use crate::{
@@ -28,7 +27,7 @@ where
 {
     config: OperatorConfig,
     operator: O,
-    state: S,
+    _state: S,
     write_stream: WriteStream<T>,
     helper: OperatorExecutorHelper,
 }
@@ -49,7 +48,7 @@ where
         Self {
             config,
             operator: operator_fn(),
-            state: state_fn(),
+            _state: state_fn(),
             write_stream,
             helper: OperatorExecutorHelper::new(operator_id),
         }

@@ -15,12 +15,9 @@
 //! The streams an operator reads from and writes to are automatically passed
 //! to the `Operator::new` function.
 
-use std::{marker::PhantomData, sync::Arc};
+use std::marker::PhantomData;
 
-use crate::{
-    dataflow::{Data, Message},
-    node::operator_event::OperatorEvent,
-};
+use crate::dataflow::{Data, Message};
 
 // Private submodules
 mod extract_stream;
@@ -65,6 +62,7 @@ pub struct Stream<D: Data> {
     phantom: PhantomData<D>,
 }
 
+#[allow(dead_code)]
 impl<D: Data> Stream<D> {
     pub(crate) fn new() -> Self {
         let id = StreamId::new_deterministic();

@@ -2,7 +2,6 @@ use serde::Deserialize;
 use std::{collections::HashSet, future::Future, pin::Pin, sync::Arc};
 use tokio::{
     self,
-    stream::StreamExt,
     sync::{broadcast, mpsc, Mutex},
 };
 

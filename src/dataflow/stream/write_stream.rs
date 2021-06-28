@@ -7,10 +7,7 @@ use serde::Deserialize;
 
 use crate::{
     communication::{Pusher, SendEndpoint},
-    dataflow::{
-        deadlines::{CondFn, ConditionContext},
-        Data, Message, Timestamp,
-    },
+    dataflow::{deadlines::ConditionContext, Data, Message, Timestamp},
 };
 
 use super::{errors::WriteStreamError, StreamId, StreamT, WriteStreamT};

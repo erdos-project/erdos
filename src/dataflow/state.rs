@@ -2,12 +2,6 @@
 
 // TODO: keep around messages. Add an iterator over messages.
 // Add set_timestamp and set_access_context to State.
-use std::{
-    collections::BTreeMap,
-    ops::Bound::{Excluded, Unbounded},
-};
-
-use crate::dataflow::Timestamp;
 
 /// Trait that must be implemented by stream state.
 pub trait State: 'static + Clone + Send + Sync {}
@@ -20,6 +14,7 @@ pub struct AccessError(&'static str);
 
 /// In what context is the operator accessed.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[allow(dead_code)]
 pub(crate) enum AccessContext {
     /// In either `Operator::new` when the `TimeVersionedState` is created.
     /// Gives access to `TimeVersionedState::set_history_size` and

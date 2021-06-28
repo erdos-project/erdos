@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, fmt::Debug};
+use std::fmt::Debug;
 
 use abomonation_derive::Abomonation;
 use serde::{Deserialize, Serialize};

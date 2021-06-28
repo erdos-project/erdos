@@ -2,19 +2,14 @@ use serde::Deserialize;
 use std::{collections::HashSet, future::Future, pin::Pin, sync::Arc};
 use tokio::{
     self,
-    stream::StreamExt,
     sync::{broadcast, mpsc, Mutex},
 };
 
 use crate::{
     dataflow::{
-        deadlines::DeadlineEvent,
-        operator::{
-            OneInOneOutSetupContext, OperatorConfig, StatefulTwoInOneOutContext, TwoInOneOut,
-            TwoInOneOutContext,
-        },
+        operator::{OperatorConfig, StatefulTwoInOneOutContext, TwoInOneOut, TwoInOneOutContext},
         stream::WriteStreamT,
-        Data, Message, ReadStream, State, StreamT, Timestamp, WriteStream,
+        Data, Message, ReadStream, State, Timestamp, WriteStream,
     },
     node::{
         lattice::ExecutionLattice,

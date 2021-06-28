@@ -1,23 +1,15 @@
 use std::sync::{Arc, Mutex};
 
-use futures::channel;
 use serde::Deserialize;
 
 use crate::{
-    communication::RecvEndpoint,
-    dataflow::{
-        graph::default_graph, operator::*, Data, Message, ReadStream, State, Stream, StreamT,
-        Timestamp, WriteStream,
-    },
-    node::{
-        operator_executors::{
-            OneInOneOutExecutor, OneInTwoOutExecutor, OperatorExecutorT, SinkExecutor,
-            SourceExecutor, TwoInOneOutExecutor,
-        },
-        NodeId,
+    dataflow::{graph::default_graph, operator::*, Data, State, Stream, StreamT},
+    node::operator_executors::{
+        OneInOneOutExecutor, OneInTwoOutExecutor, OperatorExecutorT, SinkExecutor, SourceExecutor,
+        TwoInOneOutExecutor,
     },
     scheduler::channel_manager::ChannelManager,
-    OperatorId, Uuid,
+    OperatorId,
 };
 
 pub fn connect_source<O, S, T>(

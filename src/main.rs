@@ -1,7 +1,6 @@
-#[macro_use]
 extern crate erdos;
 
-use std::{sync::Arc, thread, time::Duration};
+use std::{thread, time::Duration};
 
 use erdos::dataflow::deadlines::*;
 use erdos::dataflow::operator::*;
@@ -57,7 +56,7 @@ impl SquareOperatorDeadlineContext {
 }
 
 impl DeadlineContext for SquareOperatorDeadlineContext {
-    fn calculate_deadline(&self, ctx: &ConditionContext) -> Duration {
+    fn calculate_deadline(&self, _ctx: &ConditionContext) -> Duration {
         Duration::new(1, 0)
     }
 }
@@ -71,7 +70,7 @@ impl SquareOperatorHandlerContext {
 }
 
 impl HandlerContextT for SquareOperatorHandlerContext {
-    fn invoke_handler(&mut self, ctx: &ConditionContext, current_timestamp: &Timestamp) {
+    fn invoke_handler(&mut self, ctx: &ConditionContext, _current_timestamp: &Timestamp) {
         println!("Handled {:?} errors.", ctx);
     }
 }
@@ -107,13 +106,14 @@ impl OneInOneOut<(), usize, usize> for SquareOperator {
         );
     }
 
-    fn on_data_stateful(ctx: &mut StatefulOneInOneOutContext<(), usize>, data: &usize) {}
+    fn on_data_stateful(_ctx: &mut StatefulOneInOneOutContext<(), usize>, _data: &usize) {}
 
-    fn on_watermark(ctx: &mut StatefulOneInOneOutContext<(), usize>) {}
+    fn on_watermark(_ctx: &mut StatefulOneInOneOutContext<(), usize>) {}
 }
 
 struct SumOperator {}
 
+#[allow(dead_code)]
 impl SumOperator {
     pub fn new() -> Self {
         Self {}
@@ -121,7 +121,7 @@ impl SumOperator {
 }
 
 impl OneInOneOut<usize, usize, usize> for SumOperator {
-    fn on_data(ctx: &mut OneInOneOutContext<usize>, data: &usize) {}
+    fn on_data(_ctx: &mut OneInOneOutContext<usize>, _data: &usize) {}
 
     // Proof of concept that state "works", although it is mis-implemented.
     // Also need to fix the lattice.
@@ -141,7 +141,7 @@ impl OneInOneOut<usize, usize, usize> for SumOperator {
         slog::info!(logger, "SumOperator @ {:?}: sent {}", ctx.timestamp, state);
     }
 
-    fn on_watermark(ctx: &mut StatefulOneInOneOutContext<usize, usize>) {}
+    fn on_watermark(_ctx: &mut StatefulOneInOneOutContext<usize, usize>) {}
 }
 
 struct SinkOperator {}
@@ -191,6 +191,7 @@ impl Sink<(usize, usize), usize> for SinkOperator {
 
 struct JoinSumOperator {}
 
+#[allow(dead_code)]
 impl JoinSumOperator {
     pub fn new() -> Self {
         Self {}
@@ -242,6 +243,7 @@ impl TwoInOneOut<usize, usize, usize, usize> for JoinSumOperator {
 
 struct EvenOddOperator {}
 
+#[allow(dead_code)]
 impl EvenOddOperator {
     pub fn new() -> Self {
         Self {}
@@ -273,9 +275,9 @@ impl OneInTwoOut<(), usize, usize, usize> for EvenOddOperator {
         }
     }
 
-    fn on_data_stateful(ctx: &mut StatefulOneInTwoOutContext<(), usize, usize>, data: &usize) {}
+    fn on_data_stateful(_ctx: &mut StatefulOneInTwoOutContext<(), usize, usize>, _data: &usize) {}
 
-    fn on_watermark(ctx: &mut StatefulOneInTwoOutContext<(), usize, usize>) {}
+    fn on_watermark(_ctx: &mut StatefulOneInTwoOutContext<(), usize, usize>) {}
 }
 
 fn main() {

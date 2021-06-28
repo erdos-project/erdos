@@ -6,7 +6,7 @@ use serde::Deserialize;
 
 use crate::{
     dataflow::{
-        stream::{ExtractStream, IngestStream, LoopStream, StreamId, StreamT, WriteStream},
+        stream::{ExtractStream, IngestStream, LoopStream, StreamId, StreamT},
         Data,
     },
     node::NodeId,
@@ -35,6 +35,7 @@ pub(crate) struct Graph {
     stream_aliases: HashMap<StreamId, StreamId>,
 }
 
+#[allow(dead_code)]
 impl Graph {
     pub fn new() -> Self {
         Self {

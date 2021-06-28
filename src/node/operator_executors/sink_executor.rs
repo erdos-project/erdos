@@ -2,7 +2,6 @@ use serde::Deserialize;
 use std::{collections::HashSet, future::Future, pin::Pin, sync::Arc};
 use tokio::{
     self,
-    stream::StreamExt,
     sync::{broadcast, mpsc, Mutex},
 };
 
@@ -78,8 +77,7 @@ where
         tokio::task::block_in_place(|| self.operator.run(self.read_stream.as_mut().unwrap()));
 
         // Run the setup method.
-        let mut setup_context =
-            OneInOneOutSetupContext::new(self.read_stream.as_ref().unwrap().id());
+        let setup_context = OneInOneOutSetupContext::new(self.read_stream.as_ref().unwrap().id());
 
         let read_stream: ReadStream<T> = self.read_stream.take().unwrap();
         let process_stream_fut = helper.process_stream(

@@ -29,8 +29,7 @@ use futures_intrusive::buffer::GrowingHeapBuf;
 use serde::Deserialize;
 use tokio::{
     self,
-    stream::StreamExt,
-    sync::{broadcast, mpsc, Mutex},
+    sync::{broadcast, mpsc},
 };
 
 use crate::{
@@ -119,7 +118,7 @@ where
 
     /// Disarms a deadline by returning true if the given deadline should be disarmed, or false
     /// otherwise.
-    fn disarm_deadline(&self, deadline_event: &DeadlineEvent) -> bool {
+    fn disarm_deadline(&self, _deadline_event: &DeadlineEvent) -> bool {
         true
     }
 }
@@ -155,7 +154,7 @@ where
 pub struct OperatorExecutorHelper {
     operator_id: OperatorId,
     lattice: Arc<ExecutionLattice>,
-    event_runner_handles: Option<Vec<tokio::task::JoinHandle<()>>>,
+    _event_runner_handles: Option<Vec<tokio::task::JoinHandle<()>>>,
     deadline_queue: DelayQueue<DeadlineEvent, GrowingHeapBuf<DeadlineEvent>>,
     deadline_queue_rx: Receiver<DeadlineEvent>,
     // For active deadlines.
@@ -168,7 +167,7 @@ impl OperatorExecutorHelper {
         OperatorExecutorHelper {
             operator_id,
             lattice: Arc::new(ExecutionLattice::new()),
-            event_runner_handles: None,
+            _event_runner_handles: None,
             deadline_queue,
             deadline_queue_rx,
             stream_timestamp_to_key_map: HashMap::new(),

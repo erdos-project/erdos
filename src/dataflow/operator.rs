@@ -1,20 +1,15 @@
-use std::marker::PhantomData;
 use std::slice::Iter;
 use std::sync::Arc;
 
-use futures::channel;
 use serde::Deserialize;
 use tokio::sync::Mutex;
 
 use crate::{
-    communication::RecvEndpoint,
     dataflow::{
-        deadlines::Deadline, graph::default_graph, stream::StreamId, Data, Message, ReadStream,
-        State, Timestamp, WriteStream,
+        deadlines::Deadline, stream::StreamId, Data, ReadStream, State, Timestamp, WriteStream,
     },
     node::NodeId,
-    scheduler::channel_manager::ChannelManager,
-    OperatorId, Uuid,
+    OperatorId,
 };
 
 pub trait SetupContextT: Send + Sync {
@@ -27,6 +22,7 @@ pub trait SetupContextT: Send + Sync {
  * Source: sends data with type T                                            *
  *****************************************************************************/
 
+#[allow(unused_variables)]
 pub trait Source<S, T>: Send
 where
     S: State,
@@ -41,6 +37,7 @@ where
  * Sink: receives data with type T                                           *
  *****************************************************************************/
 
+#[allow(unused_variables)]
 pub trait Sink<S: State, T: Data>: Send + Sync {
     fn run(&mut self, read_stream: &mut ReadStream<T>) {}
 
@@ -69,6 +66,7 @@ pub struct StatefulSinkContext<S: State> {
  * OneInOneOut: receives T, sends U                                          *
  *****************************************************************************/
 
+#[allow(unused_variables)]
 pub trait OneInOneOut<S, T, U>: Send + Sync
 where
     S: State,
@@ -138,6 +136,7 @@ where
  * TwoInOneOut: receives T, receives U, sends V                              *
  *****************************************************************************/
 
+#[allow(unused_variables)]
 pub trait TwoInOneOut<S, T, U, V>: Send + Sync
 where
     S: State,
@@ -184,6 +183,7 @@ pub struct StatefulTwoInOneOutContext<S: State, U: Data> {
  * OneInTwoOut: receives T, sends U, sends V                                 *
  *****************************************************************************/
 
+#[allow(unused_variables)]
 pub trait OneInTwoOut<S: State, T: Data, U: Data, V: Data>: Send + Sync {
     fn run(
         &mut self,
