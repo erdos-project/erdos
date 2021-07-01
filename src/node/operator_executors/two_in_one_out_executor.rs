@@ -1,8 +1,13 @@
 use serde::Deserialize;
-use std::{collections::HashSet, future::Future, pin::Pin, sync::Arc};
+use std::{
+    collections::HashSet,
+    future::Future,
+    pin::Pin,
+    sync::{Arc, Mutex},
+};
 use tokio::{
     self,
-    sync::{broadcast, mpsc, Mutex},
+    sync::{broadcast, mpsc},
 };
 
 use crate::{

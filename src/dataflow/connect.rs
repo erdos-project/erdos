@@ -3,10 +3,13 @@ use std::sync::{Arc, Mutex};
 use serde::Deserialize;
 
 use crate::{
-    dataflow::{graph::default_graph, operator::*, Data, State, Stream, StreamT},
+    dataflow::{
+        graph::default_graph, operator::*, Data, ReadOnlyState, State, Stream, StreamT,
+        WriteableState,
+    },
     node::operator_executors::{
-        OneInOneOutExecutor, OneInTwoOutExecutor, OperatorExecutorT, SinkExecutor, SourceExecutor,
-        TwoInOneOutExecutor,
+        OneInOneOutExecutor, OneInTwoOutExecutor, OperatorExecutorT, ReadOnlySinkExecutor,
+        SinkExecutor, SourceExecutor, TwoInOneOutExecutor, WriteableSinkExecutor,
     },
     scheduler::channel_manager::ChannelManager,
     OperatorId,
@@ -58,6 +61,93 @@ where
     default_graph::add_operator_stream(config.id, &write_stream);
 
     write_stream
+}
+
+pub fn connect_read_only_sink<O, S, T, U, V>(
+    operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
+    state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
+    mut config: OperatorConfig,
+    read_stream: &impl StreamT<T>,
+) where
+    O: 'static + ReadOnlySink<S, T, U, V>,
+    S: ReadOnlyState<U, V>,
+    T: Data + for<'a> Deserialize<'a>,
+    U: 'static + Send + Sync,
+    V: 'static + Send + Sync,
+{
+    config.id = OperatorId::new_deterministic();
+
+    let read_stream_ids = vec![read_stream.id()];
+
+    let read_stream_ids_copy = read_stream_ids.clone();
+    let config_copy = config.clone();
+
+    let op_runner =
+        move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
+            let mut channel_manager = channel_manager.lock().unwrap();
+
+            let read_stream = channel_manager
+                .take_read_stream(read_stream_ids_copy[0])
+                .unwrap();
+            Box::new(ReadOnlySinkExecutor::new(
+                config_copy.clone(),
+                operator_fn.clone(),
+                state_fn.clone(),
+                read_stream,
+            ))
+        };
+
+    default_graph::add_operator(
+        config.id,
+        config.name,
+        config.node_id,
+        read_stream_ids,
+        vec![],
+        op_runner,
+    );
+}
+
+pub fn connect_writeable_sink<O, S, T, U>(
+    operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
+    state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
+    mut config: OperatorConfig,
+    read_stream: &impl StreamT<T>,
+) where
+    O: 'static + WriteableSink<S, T, U>,
+    S: WriteableState<U>,
+    T: Data + for<'a> Deserialize<'a>,
+    U: 'static + Send + Sync,
+{
+    config.id = OperatorId::new_deterministic();
+
+    let read_stream_ids = vec![read_stream.id()];
+
+    let read_stream_ids_copy = read_stream_ids.clone();
+    let config_copy = config.clone();
+
+    let op_runner =
+        move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
+            let mut channel_manager = channel_manager.lock().unwrap();
+
+            let read_stream = channel_manager
+                .take_read_stream(read_stream_ids_copy[0])
+                .unwrap();
+            Box::new(WriteableSinkExecutor::new(
+                config_copy.clone(),
+                operator_fn.clone(),
+                state_fn.clone(),
+                read_stream,
+            ))
+        };
+
+    default_graph::add_operator(
+        config.id,
+        config.name,
+        config.node_id,
+        read_stream_ids,
+        vec![],
+        op_runner,
+    );
 }
 
 pub fn connect_sink<O, S, T>(

@@ -1,12 +1,15 @@
-use std::slice::Iter;
-use std::sync::Arc;
+use std::{
+    marker::PhantomData,
+    slice::Iter,
+    sync::{Arc, Mutex},
+};
 
 use serde::Deserialize;
-use tokio::sync::Mutex;
 
 use crate::{
     dataflow::{
-        deadlines::Deadline, stream::StreamId, Data, ReadStream, State, Timestamp, WriteStream,
+        deadlines::Deadline, stream::StreamId, Data, ReadOnlyState, ReadStream, State, Timestamp,
+        WriteStream, WriteableState,
     },
     node::NodeId,
     OperatorId,
@@ -33,9 +36,82 @@ where
     fn destroy(&mut self) {}
 }
 
-/*****************************************************************************
- * Sink: receives data with type T                                           *
- *****************************************************************************/
+/*************************************************************************************************
+ * ReadOnlySink: receives data with type T, and enables message callbacks to execute in parallel *
+ * by only allowing append access in the message callbacks and writable access to the state in   *
+ * the watermark callbacks.                                                                      *
+ ************************************************************************************************/
+
+#[allow(unused_variables)]
+pub trait ReadOnlySink<S: ReadOnlyState<U, V>, T: Data, U, V>: Send + Sync {
+    fn run(&mut self, read_stream: &mut ReadStream<T>) {}
+
+    fn destroy(&mut self) {}
+
+    fn on_data(&self, ctx: &ReadOnlySinkContext<S, U, V>, data: &T);
+
+    fn on_watermark(&self, ctx: &mut ReadOnlySinkContext<S, U, V>);
+}
+
+pub struct ReadOnlySinkContext<'a, S: ReadOnlyState<T, U>, T, U> {
+    pub timestamp: Timestamp,
+    pub config: OperatorConfig,
+    pub state: &'a S,
+    phantomdata_t: PhantomData<T>,
+    phantomdata_u: PhantomData<U>,
+}
+
+impl<'a, S, T, U> ReadOnlySinkContext<'a, S, T, U>
+where
+    S: 'static + ReadOnlyState<T, U>,
+{
+    pub fn new(timestamp: Timestamp, config: OperatorConfig, state: &'a S) -> Self {
+        Self {
+            timestamp,
+            config,
+            state,
+            phantomdata_t: PhantomData,
+            phantomdata_u: PhantomData,
+        }
+    }
+}
+
+/*************************************************************************************************
+ * WriteableSink: receives data with type T, and enables message callbacks to have mutable       *
+ * access to the operator state, but all callbacks are sequentialized.                           *
+ ************************************************************************************************/
+
+#[allow(unused_variables)]
+pub trait WriteableSink<S: WriteableState<U>, T: Data, U>: Send + Sync {
+    fn run(&mut self, read_stream: &mut ReadStream<T>) {}
+
+    fn destroy(&mut self) {}
+
+    fn on_data(&mut self, ctx: &mut WriteableSinkContext<S, U>, data: &T);
+
+    fn on_watermark(&mut self, ctx: &mut WriteableSinkContext<S, U>);
+}
+
+pub struct WriteableSinkContext<'a, S: WriteableState<T>, T> {
+    pub timestamp: Timestamp,
+    pub config: OperatorConfig,
+    pub state: &'a S,
+    phantomdata_t: PhantomData<T>,
+}
+
+impl<'a, S, T> WriteableSinkContext<'a, S, T>
+where
+    S: 'static + WriteableState<T>,
+{
+    pub fn new(timestamp: Timestamp, config: OperatorConfig, state: &'a S) -> Self {
+        Self {
+            timestamp,
+            config,
+            state,
+            phantomdata_t: PhantomData,
+        }
+    }
+}
 
 #[allow(unused_variables)]
 pub trait Sink<S: State, T: Data>: Send + Sync {

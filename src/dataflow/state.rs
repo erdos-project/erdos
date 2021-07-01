@@ -1,11 +1,34 @@
 //! Structures and traits for states added to streams.
 
+use crate::dataflow::Timestamp;
+
 // TODO: keep around messages. Add an iterator over messages.
 // Add set_timestamp and set_access_context to State.
 
 /// Trait that must be implemented by stream state.
 pub trait State: 'static + Clone + Send + Sync {}
 impl<T: 'static + Clone + Send + Sync> State for T {}
+
+
+// TODO (Sukrit): Do these state traits also require a way to read the state for a given timestamp?
+
+/// Trait that must be implemented by a state structure that is used in a Writeable operator.
+/// This structure must implement a `commit` method that commits the final state for a given
+/// timestamp `t`.
+pub trait WriteableState<T>: 'static + Clone + Send + Sync {
+    fn commit(&self, state: &T, timestamp: &Timestamp);
+}
+
+
+/// Trait that must be implemented by a state structure that is used in a ReadOnly operator.
+/// This state structure must implement an `append` method that enables message callbacks to add
+/// intermediate state to the structure, and a `commit` method that commits the final state for a
+/// given timestamp t.
+pub trait ReadOnlyState<S, T>: 'static + Clone + Send + Sync {
+    fn append(&self, data: &S);
+
+    fn commit(&self, state: &T, timestamp: &Timestamp);
+}
 
 /// Error thrown upon an invalid attempt to access a portion of the
 /// [`TimeVersionedState`].

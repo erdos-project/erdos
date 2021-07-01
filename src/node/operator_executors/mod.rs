@@ -76,14 +76,11 @@ pub trait OneInMessageProcessorT<T>: Send + Sync
 where
     T: Data + for<'a> Deserialize<'a>,
 {
-    /// Generates an OperatorEvent for a stateless callback.
-    fn stateless_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent;
-
-    /// Generates an OperatorEvent for a stateful callback.
-    fn stateful_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent;
+    /// Generates an OperatorEvent for a message callback.
+    fn message_cb_event(&mut self, msg: Arc<Message<T>>) -> OperatorEvent;
 
     /// Generates an OperatorEvent for a watermark callback.
-    fn watermark_cb_event(&self, timestamp: &Timestamp) -> OperatorEvent;
+    fn watermark_cb_event(&mut self, timestamp: &Timestamp) -> OperatorEvent;
 
     /// Generates a DeadlineEvent for arming a deadline.
     fn arm_deadlines(
@@ -210,7 +207,7 @@ impl OperatorExecutorHelper {
     async fn process_stream<T>(
         &mut self,
         mut read_stream: ReadStream<T>,
-        message_processor: &dyn OneInMessageProcessorT<T>,
+        message_processor: &mut dyn OneInMessageProcessorT<T>,
         notifier_tx: &tokio::sync::broadcast::Sender<EventNotification>,
         setup_context: &dyn SetupContextT,
     ) where
@@ -273,14 +270,11 @@ impl OperatorExecutorHelper {
 
                             // Stateless callback.
                             let msg_ref = Arc::clone(&msg);
-                            let stateless_data_event = message_processor.stateless_cb_event(
+                            let stateless_data_event = message_processor.message_cb_event(
                                 msg_ref,
                             );
 
-                            // Stateful callback
-                            let msg_ref = Arc::clone(&msg);
-                            let stateful_data_event = message_processor.stateful_cb_event(msg_ref);
-                            vec![stateless_data_event, stateful_data_event]
+                            vec![stateless_data_event]
                         },
 
                         // Watermark

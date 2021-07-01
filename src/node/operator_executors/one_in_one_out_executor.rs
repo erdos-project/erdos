@@ -1,8 +1,13 @@
 use serde::Deserialize;
-use std::{collections::HashSet, future::Future, pin::Pin, sync::Arc};
+use std::{
+    collections::HashSet,
+    future::Future,
+    pin::Pin,
+    sync::{Arc, Mutex},
+};
 use tokio::{
     self,
-    sync::{broadcast, mpsc, Mutex},
+    sync::{broadcast, mpsc},
 };
 
 use crate::{
@@ -95,7 +100,7 @@ where
         let read_stream: ReadStream<T> = self.read_stream.take().unwrap();
         let process_stream_fut = helper.process_stream(
             read_stream,
-            &(*self),
+            &mut (*self),
             &channel_to_event_runners,
             &setup_context,
         );
@@ -178,7 +183,7 @@ where
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
-    fn stateless_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent {
+    fn message_cb_event(&mut self, msg: Arc<Message<T>>) -> OperatorEvent {
         let mut ctx = OneInOneOutContext {
             timestamp: msg.timestamp().clone(),
             config: self.config.clone(),
@@ -194,26 +199,8 @@ where
         )
     }
 
-    // Generates an OperatorEvent for a stateful callback.
-    fn stateful_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent {
-        let mut ctx = StatefulOneInOneOutContext {
-            timestamp: msg.timestamp().clone(),
-            config: self.config.clone(),
-            write_stream: self.write_stream.clone(),
-            state: Arc::clone(&self.state),
-        };
-        OperatorEvent::new(
-            msg.timestamp().clone(),
-            false,
-            0,
-            HashSet::new(),
-            self.state_ids.clone(),
-            move || O::on_data_stateful(&mut ctx, msg.data().unwrap()),
-        )
-    }
-
     // Generates an OperatorEvent for a watermark callback.
-    fn watermark_cb_event(&self, timestamp: &Timestamp) -> OperatorEvent {
+    fn watermark_cb_event(&mut self, timestamp: &Timestamp) -> OperatorEvent {
         let mut ctx = StatefulOneInOneOutContext {
             timestamp: timestamp.clone(),
             config: self.config.clone(),
