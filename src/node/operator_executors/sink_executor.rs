@@ -21,7 +21,7 @@ use crate::{
     },
     node::{
         lattice::ExecutionLattice,
-        operator_event::OperatorEvent,
+        operator_event::{OperatorEvent, OperatorType},
         operator_executors::{OneInMessageProcessorT, OperatorExecutorHelper, OperatorExecutorT},
         worker::{EventNotification, OperatorExecutorNotification, WorkerNotification},
     },
@@ -199,6 +199,7 @@ where
                     msg.data().unwrap(),
                 )
             },
+            OperatorType::ReadOnly,
         )
     }
 
@@ -217,6 +218,7 @@ where
             HashSet::new(),
             self.state_ids.clone(),
             move || operator.on_watermark(&mut ReadOnlySinkContext::new(time, config, &state)),
+            OperatorType::ReadOnly,
         )
     }
 }
@@ -388,6 +390,7 @@ where
                     msg.data().unwrap(),
                 )
             },
+            OperatorType::Writeable,
         )
     }
 
@@ -412,6 +415,7 @@ where
                     .unwrap()
                     .on_watermark(&mut WriteableSinkContext::new(time, config, &state))
             },
+            OperatorType::Writeable,
         )
     }
 }
@@ -555,6 +559,7 @@ where
             HashSet::new(),
             HashSet::new(),
             move || O::on_data(&mut ctx, msg.data().unwrap()),
+            OperatorType::ReadOnly,
         )
     }
 
@@ -572,6 +577,7 @@ where
             HashSet::new(),
             self.state_ids.clone(),
             move || O::on_watermark(&mut ctx),
+            OperatorType::ReadOnly,
         )
     }
 }

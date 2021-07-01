@@ -2,6 +2,14 @@ use std::{cmp::Ordering, collections::HashSet, fmt};
 
 use crate::{dataflow::Timestamp, Uuid};
 
+/// `OperatorType` is an enum that enumerates the type of operators in Rust.
+/// The different operator types have different execution semantics for the message and watermark
+/// callbacks dictated by the `Ord` trait on the `OperatorEvent`.
+pub enum OperatorType {
+    ReadOnly,
+    Writeable,
+}
+
 /// `OperatorEvent` is a structure that encapsulates a particular invocation of the
 /// callback in response to a message or watermark. These events are processed according to the
 /// partial order defined by the `PartialOrd` trait, where `x < y` implies `x` *precedes* `y`.
@@ -31,6 +39,8 @@ pub struct OperatorEvent {
     pub read_ids: HashSet<Uuid>,
     /// IDs of items the event requires write access to.
     pub write_ids: HashSet<Uuid>,
+    /// The type of the operator for which this event is for.
+    operator_type: OperatorType,
 }
 
 impl OperatorEvent {
@@ -41,6 +51,7 @@ impl OperatorEvent {
         read_ids: HashSet<Uuid>,
         write_ids: HashSet<Uuid>,
         callback: impl FnOnce() + 'static,
+        operator_type: OperatorType,
     ) -> Self {
         Self {
             priority,
@@ -49,6 +60,7 @@ impl OperatorEvent {
             read_ids,
             write_ids,
             callback: Box::new(callback),
+            operator_type,
         }
     }
 }
@@ -121,45 +133,114 @@ fn resolve_access_conflicts(x: &OperatorEvent, y: &OperatorEvent) -> Ordering {
 /// Ordering used in the lattice where `self < other` implies `self` *precedes* other.
 impl Ord for OperatorEvent {
     fn cmp(&self, other: &OperatorEvent) -> Ordering {
-        match (self.is_watermark_callback, other.is_watermark_callback) {
-            (true, true) => {
-                // Both of the events are watermarks, so the watermark with the lower timestamp
-                // should run first. Ties are broken by first by dependencies to ensure
-                // that writes to state occur before reads, and then by priority where a smaller
-                // number is higher priority.
-                match self.timestamp.cmp(&other.timestamp) {
-                    Ordering::Equal => match resolve_access_conflicts(&self, other) {
-                        // Prioritize other.
-                        Ordering::Equal => Ordering::Greater,
-                        ord => ord,
-                    },
-                    ord => ord,
+        match self.operator_type {
+            OperatorType::ReadOnly => {
+                match (self.is_watermark_callback, other.is_watermark_callback) {
+                    (true, true) => {
+                        // Both of the events are watermarks, so the watermark with the lower
+                        // timestamp should run first. Ties are broken by first by dependencies to
+                        // ensure that writes to state occur before reads, and then by priority
+                        // where a smaller number is higher priority.
+                        match self.timestamp.cmp(&other.timestamp) {
+                            Ordering::Equal => match resolve_access_conflicts(&self, other) {
+                                // Prioritize other.
+                                Ordering::Equal => Ordering::Greater,
+                                ord => ord,
+                            },
+                            ord => ord,
+                        }
+                    }
+                    (true, false) => {
+                        // `self` is a watermark, and `other` is a normal message callback.
+                        // TODO: can compare dependencies to increase parallelism and order on a
+                        // more fine-grained level.
+                        match self.timestamp.cmp(&other.timestamp) {
+                            Ordering::Greater => {
+                                // `self` timestamp is greater than `other`, execute `other` first.
+                                Ordering::Greater
+                            }
+                            Ordering::Equal => {
+                                // `self` timestamp is equal to `other`, execute `other` first.
+                                Ordering::Greater
+                            }
+                            Ordering::Less => {
+                                // `self` timestamp is less than `other`, run them in any order.
+                                // Assume state is time-versioned, so dependency issues should not
+                                // arise.
+                                Ordering::Equal
+                            }
+                        }
+                    }
+                    (false, true) => other.cmp(self).reverse(),
+                    // Neither of the events are watermark callbacks.
+                    // If they have no WW, RW, or WR conflicts, they can run concurrently.
+                    (false, false) => resolve_access_conflicts(&self, other),
                 }
             }
-            (true, false) => {
-                // `self` is a watermark, and `other` is a normal message callback.
-                // TODO: can compare dependencies to increase parallelism and order on a more
-                // fine-grained level.
-                match self.timestamp.cmp(&other.timestamp) {
-                    Ordering::Greater => {
-                        // `self` timestamp is greater than `other`, execute `other` first.
-                        Ordering::Greater
+            OperatorType::Writeable => {
+                match (self.is_watermark_callback, other.is_watermark_callback) {
+                    (true, true) => {
+                        // Both of the events are watermarks, so the watermark with the lower
+                        // timestamp should run first. If equal, break ties by running `self`.
+                        match self.timestamp.cmp(&other.timestamp) {
+                            Ordering::Equal => Ordering::Less,
+                            ord => ord,
+                        }
                     }
-                    Ordering::Equal => {
-                        // `self` timestamp is equal to `other`, execute `other` first.
-                        Ordering::Greater
+                    (true, false) => {
+                        // `self` is a watermark, and `other` is a normal message callback.
+                        match self.timestamp.cmp(&other.timestamp) {
+                            Ordering::Greater => {
+                                // `self` timestamp is greater than `other`, execute `other` first.
+                                Ordering::Greater
+                            }
+                            Ordering::Equal => {
+                                // `self` timestamp is equal to `other`, execute `other` first.
+                                Ordering::Greater
+                            }
+                            Ordering::Less => {
+                                // `self` timestamp is less than `other`, execute `self` first.
+                                Ordering::Less
+                            }
+                        }
                     }
-                    Ordering::Less => {
-                        // `self` timestamp is less than `other`, run them in any order.
-                        // Assume state is time-versioned, so dependency issues should not arise.
-                        Ordering::Equal
+                    (false, true) => {
+                        // `self` is a message callback, and `other` is a watermark callback.
+                        match self.timestamp.cmp(&other.timestamp) {
+                            Ordering::Greater => {
+                                // `self` timestamp is greater than `other`, execute `other` first.
+                                Ordering::Greater
+                            }
+                            Ordering::Equal => {
+                                // `self` timestamp is equal to `other`, execute `self` first.
+                                Ordering::Less
+                            }
+                            Ordering::Less => {
+                                // `self` timestamp is less than `other`, execute `self` first.
+                                Ordering::Less
+                            }
+                        }
+                    }
+                    (false, false) => {
+                        // Both `self` and `other` are message callbacks, execute the one with a
+                        // lower timestamp first, and break ties by prioritizing `self`.
+                        match self.timestamp.cmp(&other.timestamp) {
+                            Ordering::Greater => {
+                                // `self` timestamp is greater than `other`, execute `other` first.
+                                Ordering::Greater
+                            }
+                            Ordering::Equal => {
+                                // The timestamps are equal, prioritize `self`.
+                                Ordering::Less
+                            }
+                            Ordering::Less => {
+                                // `self` timestamp is less than `other`, execute `self` first.
+                                Ordering::Less
+                            }
+                        }
                     }
                 }
             }
-            (false, true) => other.cmp(self).reverse(),
-            // Neither of the events are watermark callbacks.
-            // If they have no WW, RW, or WR conflicts, they can run concurrently.
-            (false, false) => resolve_access_conflicts(&self, other),
         }
     }
 }

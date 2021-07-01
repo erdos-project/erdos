@@ -21,7 +21,7 @@ use crate::{
     },
     node::{
         lattice::ExecutionLattice,
-        operator_event::OperatorEvent,
+        operator_event::{OperatorEvent, OperatorType},
         operator_executors::{OneInMessageProcessorT, OperatorExecutorHelper, OperatorExecutorT},
         worker::{EventNotification, OperatorExecutorNotification, WorkerNotification},
     },
@@ -205,6 +205,7 @@ where
             HashSet::new(),
             HashSet::new(),
             move || O::on_data(&mut ctx, msg.data().unwrap()),
+            OperatorType::ReadOnly,
         )
     }
 
@@ -237,6 +238,7 @@ where
                         .send(Message::new_watermark(timestamp_copy_right))
                         .ok();
                 },
+                OperatorType::ReadOnly,
             )
         } else {
             OperatorEvent::new(
@@ -248,6 +250,7 @@ where
                 move || {
                     O::on_watermark(&mut ctx);
                 },
+                OperatorType::ReadOnly,
             )
         }
     }
