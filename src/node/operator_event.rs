@@ -101,35 +101,6 @@ impl PartialEq for OperatorEvent {
     }
 }
 
-// TODO: we can allow appends to occur in parallel.
-/// `x < y` implies `x` *precedes* `y`.
-fn resolve_access_conflicts(x: &OperatorEvent, y: &OperatorEvent) -> Ordering {
-    let has_ww_conflicts = !x.write_ids.is_disjoint(&y.write_ids);
-    if has_ww_conflicts {
-        match x.priority.cmp(&y.priority) {
-            Ordering::Equal => {
-                // Prioritize events with less dependencies
-                let x_num_dependencies = x.read_ids.len() + x.write_ids.len();
-                let y_num_dependencies = y.read_ids.len() + y.write_ids.len();
-                x_num_dependencies.cmp(&y_num_dependencies)
-            }
-            ord => ord,
-        }
-    } else {
-        let has_rw_conflicts = !x.read_ids.is_disjoint(&y.write_ids);
-        let has_wr_conflicts = !x.write_ids.is_disjoint(&y.read_ids);
-        match (has_rw_conflicts, has_wr_conflicts) {
-            (true, true) => {
-                panic!("A circular dependency between OperatorEvents should never happen.")
-            }
-            // Prioritize writes.
-            (true, false) => Ordering::Greater,
-            (false, true) => Ordering::Less,
-            (false, false) => x.priority.cmp(&y.priority),
-        }
-    }
-}
-
 /// Ordering used in the lattice where `self < other` implies `self` *precedes* other.
 impl Ord for OperatorEvent {
     fn cmp(&self, other: &OperatorEvent) -> Ordering {
@@ -138,17 +109,8 @@ impl Ord for OperatorEvent {
                 match (self.is_watermark_callback, other.is_watermark_callback) {
                     (true, true) => {
                         // Both of the events are watermarks, so the watermark with the lower
-                        // timestamp should run first. Ties are broken by first by dependencies to
-                        // ensure that writes to state occur before reads, and then by priority
-                        // where a smaller number is higher priority.
-                        match self.timestamp.cmp(&other.timestamp) {
-                            Ordering::Equal => match resolve_access_conflicts(&self, other) {
-                                // Prioritize other.
-                                Ordering::Equal => Ordering::Greater,
-                                ord => ord,
-                            },
-                            ord => ord,
-                        }
+                        // timestamp should run first.
+                        self.timestamp.cmp(&other.timestamp)
                     }
                     (true, false) => {
                         // `self` is a watermark, and `other` is a normal message callback.
@@ -172,20 +134,16 @@ impl Ord for OperatorEvent {
                         }
                     }
                     (false, true) => other.cmp(self).reverse(),
-                    // Neither of the events are watermark callbacks.
-                    // If they have no WW, RW, or WR conflicts, they can run concurrently.
-                    (false, false) => resolve_access_conflicts(&self, other),
+                    // Neither of the callbacks are watermark callbacks, run in parallel.
+                    (false, false) => Ordering::Equal,
                 }
             }
             OperatorType::Writeable => {
                 match (self.is_watermark_callback, other.is_watermark_callback) {
                     (true, true) => {
                         // Both of the events are watermarks, so the watermark with the lower
-                        // timestamp should run first. If equal, break ties by running `self`.
-                        match self.timestamp.cmp(&other.timestamp) {
-                            Ordering::Equal => Ordering::Less,
-                            ord => ord,
-                        }
+                        // timestamp should run first.
+                        self.timestamp.cmp(&other.timestamp)
                     }
                     (true, false) => {
                         // `self` is a watermark, and `other` is a normal message callback.
@@ -204,23 +162,7 @@ impl Ord for OperatorEvent {
                             }
                         }
                     }
-                    (false, true) => {
-                        // `self` is a message callback, and `other` is a watermark callback.
-                        match self.timestamp.cmp(&other.timestamp) {
-                            Ordering::Greater => {
-                                // `self` timestamp is greater than `other`, execute `other` first.
-                                Ordering::Greater
-                            }
-                            Ordering::Equal => {
-                                // `self` timestamp is equal to `other`, execute `self` first.
-                                Ordering::Less
-                            }
-                            Ordering::Less => {
-                                // `self` timestamp is less than `other`, execute `self` first.
-                                Ordering::Less
-                            }
-                        }
-                    }
+                    (false, true) => other.cmp(self).reverse(),
                     (false, false) => {
                         // Both `self` and `other` are message callbacks, execute the one with a
                         // lower timestamp first, and break ties by prioritizing `self`.
