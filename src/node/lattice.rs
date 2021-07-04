@@ -114,7 +114,7 @@ impl PartialOrd for RunnableEvent {
 }
 
 /// `ExecutionLattice` is a data structure that maintains [`OperatorEvent`]s in a
-/// [dependency graph](https://en.wikipedia.org/wiki/Dependency_graph) according to the partial 
+/// [dependency graph](https://en.wikipedia.org/wiki/Dependency_graph) according to the partial
 /// order defined.
 ///
 /// Events can be added to the lattice using the `add_events` function, and retrieved using the
@@ -134,9 +134,9 @@ impl PartialOrd for RunnableEvent {
 ///
 ///     // Add two events of timestamp 1 and 2 to the lattice with empty callbacks.
 ///     events = vec![
-///         OperatorEvent::new(Timestamp::Time(vec![1]), 
+///         OperatorEvent::new(Timestamp::Time(vec![1]),
 ///             true, 0, HashSet::new(), HashSet::new(), || ())
-///         OperatorEvent::new(Timestamp::Time(vec![2]), 
+///         OperatorEvent::new(Timestamp::Time(vec![2]),
 ///             true, 0, HashSet::new(), HashSet::new(), || ())
 ///     ];
 ///     lattice.add_events(events).await;
@@ -184,7 +184,7 @@ impl ExecutionLattice {
 
     /// Add a batch of events to the lattice.
     ///
-    /// This function moves the passed events into the lattice, and inserts the appropriate edges 
+    /// This function moves the passed events into the lattice, and inserts the appropriate edges
     /// to existing events in the graph based on the partial order defined in [`OperatorEvent`].
     pub async fn add_events(&self, events: Vec<OperatorEvent>) {
         // Take locks over everything.
@@ -192,15 +192,15 @@ impl ExecutionLattice {
         let mut leaves = self.leaves.lock().await;
         let mut run_queue = self.run_queue.lock().await;
 
-        // If add_events becomes a bottleneck, look into changing the insertion algorithm to 
-        // perform only 1 DFS instead of 1 per event. This could lead to more complex code to deal 
+        // If add_events becomes a bottleneck, look into changing the insertion algorithm to
+        // perform only 1 DFS instead of 1 per event. This could lead to more complex code to deal
         // with dependency interactions among the batch of inserted events.
         for added_event in events {
-            // Begins a DFS from each leaf, traversing the graph in the opposite direction of the 
-            // edges.  The purpose of this search is to find where new edges representing 
+            // Begins a DFS from each leaf, traversing the graph in the opposite direction of the
+            // edges.  The purpose of this search is to find where new edges representing
             // dependencies must be added for the new event.
-            // If the DFS becomes a performance bottleneck, consider searching from the roots of 
-            // the forest as an optimization under the assumption that newly inserted events will 
+            // If the DFS becomes a performance bottleneck, consider searching from the roots of
+            // the forest as an optimization under the assumption that newly inserted events will
             // likely depend on blocked already-inserted events.
             let mut dfs_from_leaf = DfsPostOrder::empty(Reversed(&*forest));
             // Caches preceding events to avoid adding redundant dependencies.
@@ -214,16 +214,16 @@ impl ExecutionLattice {
             let mut demoted_leaves: Vec<NodeIndex> = Vec::new();
             // These edges are redundant and must be removed.
             let mut redundant_edges: Vec<EdgeIndex> = Vec::new();
-            // Iterate through the forest with a DFS from each leaf to figure out where to add 
+            // Iterate through the forest with a DFS from each leaf to figure out where to add
             // dependency edges.
             'dfs_leaves: for leaf in leaves.iter() {
                 // Begin a reverse postorder DFS from the specified leaf.
                 dfs_from_leaf.move_to(leaf.node_index);
                 while let Some(visited_node_idx) = dfs_from_leaf.next(Reversed(&*forest)) {
-                    // If any of the current node's parents already precede the added event, then 
-                    // the current node also precedes the added event. Due to the reverse 
-                    // post-order DFS from the leaves, the added event must already depend on an 
-                    // ancenstor of the current node so we can skip this node because the 
+                    // If any of the current node's parents already precede the added event, then
+                    // the current node also precedes the added event. Due to the reverse
+                    // post-order DFS from the leaves, the added event must already depend on an
+                    // ancenstor of the current node so we can skip this node because the
                     // dependency is already established.
                     for parent in forest.neighbors_directed(visited_node_idx, Direction::Incoming) {
                         if preceding_events.contains(&parent) {
@@ -238,8 +238,8 @@ impl ExecutionLattice {
                         match added_event.cmp(visited_event) {
                             Ordering::Less => {
                                 // The visited event depends on the added event.
-                                // Add a dependency to the added event if the current node is a 
-                                // leaf.  Otherwise, the dependency is resolved in the current 
+                                // Add a dependency to the added event if the current node is a
+                                // leaf.  Otherwise, the dependency is resolved in the current
                                 // node's descendants.
                                 if forest
                                     .neighbors_directed(visited_node_idx, Direction::Outgoing)
@@ -256,7 +256,7 @@ impl ExecutionLattice {
                             }
                             Ordering::Equal => {
                                 // There are no dependencies between current event and added event.
-                                // Add dependencies from the parents of the visited node to the 
+                                // Add dependencies from the parents of the visited node to the
                                 // added event.
                                 for parent_idx in
                                     forest.neighbors_directed(visited_node_idx, Direction::Incoming)
@@ -274,8 +274,8 @@ impl ExecutionLattice {
                                 // The added event depends on the visited event.
                                 children.insert(visited_node_idx);
                                 preceding_events.insert(visited_node_idx);
-                                // Add dependencies from the parents of the visited node to the 
-                                // added event.  Also, note edges that become redundant for 
+                                // Add dependencies from the parents of the visited node to the
+                                // added event.  Also, note edges that become redundant for
                                 // removal.
                                 for parent_idx in
                                     forest.neighbors_directed(visited_node_idx, Direction::Incoming)
@@ -328,9 +328,9 @@ impl ExecutionLattice {
             }
 
             // Clean up the leaves and the run queue, if any.
-            // TODO (Sukrit) :: BinaryHeap does not provide a way to remove an element that is not 
-            // at the top of the heap. So, this particularly costly implementation clones the 
-            // elements out of the earlier run_queue, clears the run_queue and initializes it 
+            // TODO (Sukrit) :: BinaryHeap does not provide a way to remove an element that is not
+            // at the top of the heap. So, this particularly costly implementation clones the
+            // elements out of the earlier run_queue, clears the run_queue and initializes it
             // afresh with the set difference of the old run_queue and the nodes to remove.
             // Since the invocation of this code is hopefully rare, we can optimize it later.
             if demoted_leaves.len() > 0 {
@@ -344,7 +344,7 @@ impl ExecutionLattice {
                 }
             }
 
-            // If the added event depends on no others, then we can safely create a new leaf in the 
+            // If the added event depends on no others, then we can safely create a new leaf in the
             // forest and add the event to the run queue.
             if preceding_events.is_empty() {
                 leaves.push(RunnableEvent::new(event_idx).with_timestamp(event_timestamp.clone()));
@@ -356,7 +356,8 @@ impl ExecutionLattice {
             slog::warn!(
                 crate::TERMINAL_LOGGER,
                 "{} operator events queued in lattice. Increase number of operator executors or \
-                decrease incoming message frequency to reduce load.", forest.node_count()
+                decrease incoming message frequency to reduce load.",
+                forest.node_count()
             )
         }
     }
