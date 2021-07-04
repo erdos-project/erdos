@@ -54,9 +54,9 @@ pub trait ReadOnlySink<S: ReadOnlyState<U, V>, T: Data, U, V>: Send + Sync {
 }
 
 pub struct ReadOnlySinkContext<'a, S: ReadOnlyState<T, U>, T, U> {
-    pub timestamp: Timestamp,
-    pub config: OperatorConfig,
-    pub state: &'a S,
+    timestamp: Timestamp,
+    config: OperatorConfig,
+    state: &'a S,
     phantomdata_t: PhantomData<T>,
     phantomdata_u: PhantomData<U>,
 }
@@ -73,6 +73,18 @@ where
             phantomdata_t: PhantomData,
             phantomdata_u: PhantomData,
         }
+    }
+
+    pub fn get_timestamp(&self) -> &Timestamp {
+        &self.timestamp
+    }
+
+    pub fn get_operator_config(&self) -> &OperatorConfig {
+        &self.config
+    }
+
+    pub fn get_state(&self) -> &S {
+        &self.state
     }
 }
 
@@ -93,9 +105,9 @@ pub trait WriteableSink<S: WriteableState<U>, T: Data, U>: Send + Sync {
 }
 
 pub struct WriteableSinkContext<'a, S: WriteableState<T>, T> {
-    pub timestamp: Timestamp,
-    pub config: OperatorConfig,
-    pub state: &'a S,
+    timestamp: Timestamp,
+    config: OperatorConfig,
+    state: &'a S,
     phantomdata_t: PhantomData<T>,
 }
 
@@ -110,6 +122,18 @@ where
             state,
             phantomdata_t: PhantomData,
         }
+    }
+
+    pub fn get_timestamp(&self) -> &Timestamp {
+        &self.timestamp
+    }
+
+    pub fn get_operator_config(&self) -> &OperatorConfig {
+        &self.config
+    }
+
+    pub fn get_state(&self) -> &S {
+        &self.state
     }
 }
 
