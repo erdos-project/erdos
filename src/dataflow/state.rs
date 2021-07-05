@@ -15,8 +15,8 @@ impl<T: 'static + Clone + Send + Sync> State for T {}
 /// Trait that must be implemented by a state structure that is used in a Writeable operator.
 /// This structure must implement a `commit` method that commits the final state for a given
 /// timestamp `t`.
-pub trait WriteableState<T>: 'static + Clone + Send + Sync {
-    fn commit(&self, state: &T, timestamp: &Timestamp);
+pub trait WriteableState<T>: 'static + Send + Sync {
+    fn commit(&mut self, state: &T, timestamp: &Timestamp);
 }
 
 

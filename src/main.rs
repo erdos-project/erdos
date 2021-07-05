@@ -1,6 +1,6 @@
 extern crate erdos;
 
-use std::{thread, time::Duration};
+use std::{collections::HashMap, thread, time::Duration};
 
 use erdos::dataflow::deadlines::*;
 use erdos::dataflow::operator::*;
@@ -152,40 +152,51 @@ impl SinkOperator {
     }
 }
 
-impl Sink<(usize, usize), usize> for SinkOperator {
-    fn on_data(ctx: &mut SinkContext, data: &usize) {
+struct SinkOperatorState {
+    message_counter: HashMap<Timestamp, usize>,
+}
+
+impl SinkOperatorState {
+    fn new() -> Self {
+        Self {
+            message_counter: HashMap::new(),
+        }
+    }
+
+    fn increment_message_count(&mut self, timestamp: &Timestamp) {
+        let count = self.message_counter.entry(timestamp.clone()).or_insert(0);
+        *count += 1;
+    }
+
+    fn get_message_count(&self, timestamp: &Timestamp) -> usize {
+        *self.message_counter.get(timestamp).unwrap_or_else(|| &0)
+    }
+}
+
+impl WriteableState<usize> for SinkOperatorState {
+    fn commit(&mut self, _state: &usize, _timestamp: &Timestamp) {}
+}
+
+impl WriteableSink<SinkOperatorState, usize, usize> for SinkOperator {
+    fn on_data(&mut self, ctx: &mut WriteableSinkContext<SinkOperatorState, usize>, data: &usize) {
+        let timestamp = ctx.get_timestamp().clone();
         slog::info!(
             erdos::get_terminal_logger(),
-            "SinkOperator @ {:?}: received {}",
-            ctx.timestamp,
+            "SinkOperator @ {:?}: Received {}",
+            timestamp,
             data
-        )
+        );
+        ctx.get_state().increment_message_count(&timestamp);
     }
 
-    fn on_data_stateful(ctx: &mut StatefulSinkContext<(usize, usize)>, _data: &usize) {
-        // State := number of messages and watermarks received.
-        let mut state = ctx.state.try_lock().unwrap();
-        state.0 += 1;
+    fn on_watermark(&mut self, ctx: &mut WriteableSinkContext<SinkOperatorState, usize>) {
+        let timestamp = ctx.get_timestamp().clone();
         slog::info!(
             erdos::get_terminal_logger(),
-            "SinkOperator @ {:?}: received {} data messages, {} watermarks",
-            ctx.timestamp,
-            state.0,
-            state.1,
-        )
-    }
-
-    fn on_watermark(ctx: &mut StatefulSinkContext<(usize, usize)>) {
-        // State := number of messages and watermarks received.
-        let mut state = ctx.state.try_lock().unwrap();
-        state.1 += 1;
-        slog::info!(
-            erdos::get_terminal_logger(),
-            "SinkOperator @ {:?}: received {} data messages, {} watermarks",
-            ctx.timestamp,
-            state.0,
-            state.1,
-        )
+            "SinkOperator @ {:?}: Received {} data messages.",
+            timestamp,
+            ctx.get_state().get_message_count(&timestamp),
+        );
     }
 }
 
@@ -298,7 +309,12 @@ fn main() {
     //    erdos::connect_one_in_one_out(SumOperator::new, || 0, sum_config, &square_stream);
 
     let sink_config = OperatorConfig::new().name("SinkOperator");
-    erdos::connect_sink(SinkOperator::new, || (0, 0), sink_config, &square_stream);
+    erdos::connect_writeable_sink(
+        SinkOperator::new,
+        SinkOperatorState::new,
+        sink_config,
+        &square_stream,
+    );
 
     //let join_sum_config = OperatorConfig::new().name("JoinSumOperator");
     //let join_stream = erdos::connect_two_in_one_out(

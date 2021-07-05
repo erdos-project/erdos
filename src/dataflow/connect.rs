@@ -8,9 +8,8 @@ use crate::{
         WriteableState,
     },
     node::operator_executors::{
-        NewSinkExecutor, OneInOneOutExecutor, OneInTwoOutExecutor, OperatorExecutorT,
-        ReadOnlySinkMessageProcessor, SinkExecutor, SourceExecutor, TwoInOneOutExecutor,
-        WriteableSinkMessageProcessor,
+        OneInOneOutExecutor, OneInTwoOutExecutor, OperatorExecutorT, ReadOnlySinkMessageProcessor,
+        SinkExecutor, SourceExecutor, TwoInOneOutExecutor, WriteableSinkMessageProcessor,
     },
     scheduler::channel_manager::ChannelManager,
     OperatorId,
@@ -91,7 +90,7 @@ pub fn connect_read_only_sink<O, S, T, U, V>(
                 .take_read_stream(read_stream_ids_copy[0])
                 .unwrap();
 
-            Box::new(NewSinkExecutor::new(
+            Box::new(SinkExecutor::new(
                 config_copy.clone(),
                 Box::new(ReadOnlySinkMessageProcessor::new(
                     config_copy.clone(),
@@ -138,7 +137,7 @@ pub fn connect_writeable_sink<O, S, T, U>(
                 .take_read_stream(read_stream_ids_copy[0])
                 .unwrap();
 
-            Box::new(NewSinkExecutor::new(
+            Box::new(SinkExecutor::new(
                 config_copy.clone(),
                 Box::new(WriteableSinkMessageProcessor::new(
                     config_copy.clone(),
@@ -147,50 +146,6 @@ pub fn connect_writeable_sink<O, S, T, U>(
                 )),
                 read_stream,
             ))
-        };
-
-    default_graph::add_operator(
-        config.id,
-        config.name,
-        config.node_id,
-        read_stream_ids,
-        vec![],
-        op_runner,
-    );
-}
-
-pub fn connect_sink<O, S, T>(
-    operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
-    state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
-    mut config: OperatorConfig,
-    read_stream: &impl StreamT<T>,
-) where
-    O: 'static + Sink<S, T>,
-    S: State,
-    T: Data + for<'a> Deserialize<'a>,
-{
-    config.id = OperatorId::new_deterministic();
-
-    let read_stream_ids = vec![read_stream.id()];
-
-    let read_stream_ids_copy = read_stream_ids.clone();
-    let config_copy = config.clone();
-    let op_runner =
-        move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
-            let mut channel_manager = channel_manager.lock().unwrap();
-
-            let read_stream = channel_manager
-                .take_read_stream(read_stream_ids_copy[0])
-                .unwrap();
-
-            let executor = SinkExecutor::new(
-                config_copy.clone(),
-                operator_fn.clone(),
-                state_fn.clone(),
-                read_stream,
-            );
-
-            Box::new(executor)
         };
 
     default_graph::add_operator(

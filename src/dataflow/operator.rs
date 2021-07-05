@@ -107,7 +107,7 @@ pub trait WriteableSink<S: WriteableState<U>, T: Data, U>: Send + Sync {
 pub struct WriteableSinkContext<'a, S: WriteableState<T>, T> {
     timestamp: Timestamp,
     config: OperatorConfig,
-    state: &'a S,
+    state: &'a mut S,
     phantomdata_t: PhantomData<T>,
 }
 
@@ -115,7 +115,7 @@ impl<'a, S, T> WriteableSinkContext<'a, S, T>
 where
     S: 'static + WriteableState<T>,
 {
-    pub fn new(timestamp: Timestamp, config: OperatorConfig, state: &'a S) -> Self {
+    pub fn new(timestamp: Timestamp, config: OperatorConfig, state: &'a mut S) -> Self {
         Self {
             timestamp,
             config,
@@ -132,34 +132,9 @@ where
         &self.config
     }
 
-    pub fn get_state(&self) -> &S {
-        &self.state
+    pub fn get_state(&mut self) -> &mut S {
+        &mut self.state
     }
-}
-
-#[allow(unused_variables)]
-pub trait Sink<S: State, T: Data>: Send + Sync {
-    fn run(&mut self, read_stream: &mut ReadStream<T>) {}
-
-    fn destroy(&mut self) {}
-
-    fn on_data(ctx: &mut SinkContext, data: &T);
-
-    fn on_data_stateful(ctx: &mut StatefulSinkContext<S>, data: &T);
-
-    fn on_watermark(ctx: &mut StatefulSinkContext<S>);
-}
-
-pub struct SinkContext {
-    pub timestamp: Timestamp,
-    pub config: OperatorConfig,
-}
-
-pub struct StatefulSinkContext<S: State> {
-    pub timestamp: Timestamp,
-    pub config: OperatorConfig,
-    // Hacky...
-    pub state: Arc<Mutex<S>>,
 }
 
 /*****************************************************************************
