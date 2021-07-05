@@ -76,6 +76,12 @@ pub trait OneInMessageProcessorT<T>: Send + Sync
 where
     T: Data + for<'a> Deserialize<'a>,
 {
+    /// Executes the `run` method inside the operator.
+    fn execute_run(&mut self, _read_stream: &mut ReadStream<T>) {}
+
+    /// Executes the `destroy` method inside the operator.
+    fn execute_destroy(&mut self) {}
+
     /// Generates an OperatorEvent for a message callback.
     fn message_cb_event(&mut self, msg: Arc<Message<T>>) -> OperatorEvent;
 

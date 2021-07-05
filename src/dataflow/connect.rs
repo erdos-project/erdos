@@ -8,8 +8,9 @@ use crate::{
         WriteableState,
     },
     node::operator_executors::{
-        OneInOneOutExecutor, OneInTwoOutExecutor, OperatorExecutorT, ReadOnlySinkExecutor,
-        SinkExecutor, SourceExecutor, TwoInOneOutExecutor, WriteableSinkExecutor,
+        NewSinkExecutor, OneInOneOutExecutor, OneInTwoOutExecutor, OperatorExecutorT,
+        ReadOnlySinkMessageProcessor, SinkExecutor, SourceExecutor, TwoInOneOutExecutor,
+        WriteableSinkMessageProcessor,
     },
     scheduler::channel_manager::ChannelManager,
     OperatorId,
@@ -89,10 +90,14 @@ pub fn connect_read_only_sink<O, S, T, U, V>(
             let read_stream = channel_manager
                 .take_read_stream(read_stream_ids_copy[0])
                 .unwrap();
-            Box::new(ReadOnlySinkExecutor::new(
+
+            Box::new(NewSinkExecutor::new(
                 config_copy.clone(),
-                operator_fn.clone(),
-                state_fn.clone(),
+                Box::new(ReadOnlySinkMessageProcessor::new(
+                    config_copy.clone(),
+                    operator_fn.clone(),
+                    state_fn.clone(),
+                )),
                 read_stream,
             ))
         };
@@ -132,10 +137,14 @@ pub fn connect_writeable_sink<O, S, T, U>(
             let read_stream = channel_manager
                 .take_read_stream(read_stream_ids_copy[0])
                 .unwrap();
-            Box::new(WriteableSinkExecutor::new(
+
+            Box::new(NewSinkExecutor::new(
                 config_copy.clone(),
-                operator_fn.clone(),
-                state_fn.clone(),
+                Box::new(WriteableSinkMessageProcessor::new(
+                    config_copy.clone(),
+                    operator_fn.clone(),
+                    state_fn.clone(),
+                )),
                 read_stream,
             ))
         };

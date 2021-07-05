@@ -28,52 +28,31 @@ use crate::{
     OperatorId, Uuid,
 };
 
-/*************************************************************************************************
- * ReadOnlySinkExecutor                                                                          *
- ************************************************************************************************/
-
-pub struct ReadOnlySinkExecutor<O, S, T, U, V>
+pub struct NewSinkExecutor<T>
 where
-    O: 'static + ReadOnlySink<S, T, U, V>,
-    S: ReadOnlyState<U, V>,
-    T: Data + for<'a> Deserialize<'a>,
-    U: 'static + Send + Sync,
-    V: 'static + Send + Sync,
+    T: Data + for<'b> Deserialize<'b>,
 {
     config: OperatorConfig,
-    operator: Arc<O>,
-    state: Arc<S>,
-    read_stream: Option<ReadStream<T>>,
+    executor: Box<dyn OneInMessageProcessorT<T>>,
     helper: Option<OperatorExecutorHelper>,
-    state_ids: HashSet<Uuid>,
-    phantom_u: PhantomData<U>,
-    phantom_v: PhantomData<V>,
+    read_stream: Option<ReadStream<T>>,
 }
 
-impl<O, S, T, U, V> ReadOnlySinkExecutor<O, S, T, U, V>
+impl<T> NewSinkExecutor<T>
 where
-    O: 'static + ReadOnlySink<S, T, U, V>,
-    S: ReadOnlyState<U, V>,
-    T: Data + for<'a> Deserialize<'a>,
-    U: 'static + Send + Sync,
-    V: 'static + Send + Sync,
+    T: Data + for<'b> Deserialize<'b>,
 {
     pub fn new(
         config: OperatorConfig,
-        operator_fn: impl Fn() -> O + Send,
-        state_fn: impl Fn() -> S + Send,
+        executor: Box<dyn OneInMessageProcessorT<T>>,
         read_stream: ReadStream<T>,
     ) -> Self {
         let operator_id = config.id;
         Self {
             config,
-            operator: Arc::new(operator_fn()),
-            state: Arc::new(state_fn()),
-            state_ids: vec![Uuid::new_deterministic()].into_iter().collect(),
+            executor,
             read_stream: Some(read_stream),
             helper: Some(OperatorExecutorHelper::new(operator_id)),
-            phantom_u: PhantomData,
-            phantom_v: PhantomData,
         }
     }
 
@@ -83,9 +62,12 @@ where
         channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
         channel_to_event_runners: broadcast::Sender<EventNotification>,
     ) {
+        // Synchronize the operator with the rest of the dataflow graph.
         let mut helper = self.helper.take().unwrap();
         helper.synchronize().await;
 
+        // Execute the `run` method.
+        let mut read_stream: ReadStream<T> = self.read_stream.take().unwrap();
         slog::debug!(
             crate::TERMINAL_LOGGER,
             "Node {}: Running Operator {}",
@@ -94,21 +76,22 @@ where
         );
 
         tokio::task::block_in_place(|| {
-            Arc::get_mut(&mut self.operator)
-                .unwrap()
-                .run(self.read_stream.as_mut().unwrap())
+            self.executor.execute_run(&mut read_stream);
         });
 
-        // Run the setup method.
-        let setup_context = OneInOneOutSetupContext::new(self.read_stream.as_ref().unwrap().id());
+        // Run the `setup` method.
+        let setup_context = OneInOneOutSetupContext::new(read_stream.id());
+        // TODO (Sukrit): Implement deadlines and `setup` method for the `Sink` operators.
 
-        let read_stream: ReadStream<T> = self.read_stream.take().unwrap();
+        // Process messages on the incoming stream.
         let process_stream_fut = helper.process_stream(
             read_stream,
-            &mut (*self),
+            &mut (*self.executor),
             &channel_to_event_runners,
             &setup_context,
         );
+
+        // Shutdown and cleanup.
         loop {
             tokio::select! {
                 _ = process_stream_fut => break,
@@ -121,19 +104,20 @@ where
                         }
                         Err(e) => {
                             slog::error!(
-                                crate::get_terminal_logger(),
-                                "Operator executor {}: error receiving notifications {:?}",
+                                crate::TERMINAL_LOGGER,
+                                "Sink Executor {}: error receiving notifications {:?}",
                                 self.operator_id(),
                                 e,
-                            );
+                                );
                             break;
                         }
                     }
                 }
-            };
+            }
         }
 
-        tokio::task::block_in_place(|| Arc::get_mut(&mut self.operator).unwrap().destroy());
+        // Invoke the `destroy` method.
+        tokio::task::block_in_place(|| self.executor.execute_destroy());
 
         channel_to_worker
             .send(WorkerNotification::DestroyedOperator(self.operator_id()))
@@ -141,13 +125,9 @@ where
     }
 }
 
-impl<O, S, T, U, V> OperatorExecutorT for ReadOnlySinkExecutor<O, S, T, U, V>
+impl<T> OperatorExecutorT for NewSinkExecutor<T>
 where
-    O: ReadOnlySink<S, T, U, V>,
-    S: ReadOnlyState<U, V>,
-    T: Data + for<'a> Deserialize<'a>,
-    U: 'static + Send + Sync,
-    V: 'static + Send + Sync,
+    T: Data + for<'b> Deserialize<'b>,
 {
     fn execute<'a>(
         &'a mut self,
@@ -171,7 +151,7 @@ where
     }
 }
 
-impl<O, S, T, U, V> OneInMessageProcessorT<T> for ReadOnlySinkExecutor<O, S, T, U, V>
+pub struct ReadOnlySinkMessageProcessor<O, S, T, U, V>
 where
     O: 'static + ReadOnlySink<S, T, U, V>,
     S: ReadOnlyState<U, V>,
@@ -179,7 +159,56 @@ where
     U: 'static + Send + Sync,
     V: 'static + Send + Sync,
 {
-    // Generates an OperatorEvent for a message callback.
+    config: OperatorConfig,
+    operator: Arc<O>,
+    state: Arc<S>,
+    state_ids: HashSet<Uuid>,
+    phantom_t: PhantomData<T>,
+    phantom_u: PhantomData<U>,
+    phantom_v: PhantomData<V>,
+}
+
+impl<O, S, T, U, V> ReadOnlySinkMessageProcessor<O, S, T, U, V>
+where
+    O: 'static + ReadOnlySink<S, T, U, V>,
+    S: ReadOnlyState<U, V>,
+    T: Data + for<'a> Deserialize<'a>,
+    U: 'static + Send + Sync,
+    V: 'static + Send + Sync,
+{
+    pub fn new(
+        config: OperatorConfig,
+        operator_fn: impl Fn() -> O + Send,
+        state_fn: impl Fn() -> S + Send,
+    ) -> Self {
+        Self {
+            config,
+            operator: Arc::new(operator_fn()),
+            state: Arc::new(state_fn()),
+            state_ids: vec![Uuid::new_deterministic()].into_iter().collect(),
+            phantom_t: PhantomData,
+            phantom_u: PhantomData,
+            phantom_v: PhantomData,
+        }
+    }
+}
+
+impl<O, S, T, U, V> OneInMessageProcessorT<T> for ReadOnlySinkMessageProcessor<O, S, T, U, V>
+where
+    O: 'static + ReadOnlySink<S, T, U, V>,
+    S: ReadOnlyState<U, V>,
+    T: Data + for<'a> Deserialize<'a>,
+    U: 'static + Send + Sync,
+    V: 'static + Send + Sync,
+{
+    fn execute_run(&mut self, read_stream: &mut ReadStream<T>) {
+        Arc::get_mut(&mut self.operator).unwrap().run(read_stream);
+    }
+
+    fn execute_destroy(&mut self) {
+        Arc::get_mut(&mut self.operator).unwrap().destroy();
+    }
+
     fn message_cb_event(&mut self, msg: Arc<Message<T>>) -> OperatorEvent {
         // Clone the reference to the operator and the state.
         let operator = Arc::clone(&self.operator);
@@ -188,7 +217,7 @@ where
         let config = self.config.clone();
 
         OperatorEvent::new(
-            msg.timestamp().clone(),
+            time.clone(),
             false,
             0,
             HashSet::new(),
@@ -203,16 +232,15 @@ where
         )
     }
 
-    // Generates an OperatorEvent for a watermark callback.
     fn watermark_cb_event(&mut self, timestamp: &Timestamp) -> OperatorEvent {
         // Clone the reference to the operator and the state.
         let operator = Arc::clone(&self.operator);
         let state = Arc::clone(&self.state);
-        let config = self.config.clone();
         let time = timestamp.clone();
+        let config = self.config.clone();
 
         OperatorEvent::new(
-            timestamp.clone(),
+            time.clone(),
             true,
             0,
             HashSet::new(),
@@ -223,11 +251,7 @@ where
     }
 }
 
-/*************************************************************************************************
- * WriteableSinkExecutor                                                                         *
- ************************************************************************************************/
-
-pub struct WriteableSinkExecutor<O, S, T, U>
+pub struct WriteableSinkMessageProcessor<O, S, T, U>
 where
     O: 'static + WriteableSink<S, T, U>,
     S: WriteableState<U>,
@@ -237,13 +261,12 @@ where
     config: OperatorConfig,
     operator: Arc<Mutex<O>>,
     state: Arc<S>,
-    read_stream: Option<ReadStream<T>>,
-    helper: Option<OperatorExecutorHelper>,
     state_ids: HashSet<Uuid>,
+    phantom_t: PhantomData<T>,
     phantom_u: PhantomData<U>,
 }
 
-impl<O, S, T, U> WriteableSinkExecutor<O, S, T, U>
+impl<O, S, T, U> WriteableSinkMessageProcessor<O, S, T, U>
 where
     O: 'static + WriteableSink<S, T, U>,
     S: WriteableState<U>,
@@ -254,132 +277,41 @@ where
         config: OperatorConfig,
         operator_fn: impl Fn() -> O + Send,
         state_fn: impl Fn() -> S + Send,
-        read_stream: ReadStream<T>,
     ) -> Self {
-        let operator_id = config.id;
         Self {
             config,
             operator: Arc::new(Mutex::new(operator_fn())),
             state: Arc::new(state_fn()),
             state_ids: vec![Uuid::new_deterministic()].into_iter().collect(),
-            read_stream: Some(read_stream),
-            helper: Some(OperatorExecutorHelper::new(operator_id)),
+            phantom_t: PhantomData,
             phantom_u: PhantomData,
         }
     }
-
-    pub(crate) async fn execute(
-        &mut self,
-        mut channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
-        channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
-        channel_to_event_runners: broadcast::Sender<EventNotification>,
-    ) {
-        let mut helper = self.helper.take().unwrap();
-        helper.synchronize().await;
-
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
-            "Node {}: Running Operator {}",
-            self.config.node_id,
-            self.config.get_name(),
-        );
-
-        tokio::task::block_in_place(|| {
-            self.operator
-                .lock()
-                .unwrap()
-                .run(self.read_stream.as_mut().unwrap())
-        });
-
-        // Run the setup method.
-        let setup_context = OneInOneOutSetupContext::new(self.read_stream.as_ref().unwrap().id());
-
-        let read_stream: ReadStream<T> = self.read_stream.take().unwrap();
-        let process_stream_fut = helper.process_stream(
-            read_stream,
-            &mut (*self),
-            &channel_to_event_runners,
-            &setup_context,
-        );
-        loop {
-            tokio::select! {
-                _ = process_stream_fut => break,
-                notification_result = channel_from_worker.recv() => {
-                    match notification_result {
-                        Ok(notification) => {
-                            match notification {
-                                OperatorExecutorNotification::Shutdown => { break; }
-                            }
-                        }
-                        Err(e) => {
-                            slog::error!(
-                                crate::get_terminal_logger(),
-                                "Operator executor {}: error receiving notifications {:?}",
-                                self.operator_id(),
-                                e,
-                            );
-                            break;
-                        }
-                    }
-                }
-            };
-        }
-
-        tokio::task::block_in_place(|| self.operator.lock().unwrap().destroy());
-
-        channel_to_worker
-            .send(WorkerNotification::DestroyedOperator(self.operator_id()))
-            .unwrap();
-    }
 }
 
-impl<O, S, T, U> OperatorExecutorT for WriteableSinkExecutor<O, S, T, U>
-where
-    O: WriteableSink<S, T, U>,
-    S: WriteableState<U>,
-    T: Data + for<'a> Deserialize<'a>,
-    U: 'static + Send + Sync,
-{
-    fn execute<'a>(
-        &'a mut self,
-        channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
-        channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
-        channel_to_event_runners: broadcast::Sender<EventNotification>,
-    ) -> Pin<Box<dyn Future<Output = ()> + 'a + Send>> {
-        Box::pin(self.execute(
-            channel_from_worker,
-            channel_to_worker,
-            channel_to_event_runners,
-        ))
-    }
-
-    fn lattice(&self) -> Arc<ExecutionLattice> {
-        Arc::clone(&self.helper.as_ref().unwrap().lattice)
-    }
-
-    fn operator_id(&self) -> OperatorId {
-        self.config.id
-    }
-}
-
-impl<O, S, T, U> OneInMessageProcessorT<T> for WriteableSinkExecutor<O, S, T, U>
+impl<O, S, T, U> OneInMessageProcessorT<T> for WriteableSinkMessageProcessor<O, S, T, U>
 where
     O: 'static + WriteableSink<S, T, U>,
     S: WriteableState<U>,
     T: Data + for<'a> Deserialize<'a>,
     U: 'static + Send + Sync,
 {
-    // Generates an OperatorEvent for a message callback.
+    fn execute_run(&mut self, read_stream: &mut ReadStream<T>) {
+        self.operator.lock().unwrap().run(read_stream);
+    }
+
+    fn execute_destroy(&mut self) {
+        self.operator.lock().unwrap().destroy();
+    }
+
     fn message_cb_event(&mut self, msg: Arc<Message<T>>) -> OperatorEvent {
-        // We do an unchecked get_mut here since the ordering is supposed to be enforced by the
-        // lattice.
         let operator = Arc::clone(&self.operator);
         let state = Arc::clone(&self.state);
         let time = msg.timestamp().clone();
         let config = self.config.clone();
 
         OperatorEvent::new(
-            msg.timestamp().clone(),
+            time.clone(),
             false,
             0,
             HashSet::new(),
@@ -394,17 +326,14 @@ where
         )
     }
 
-    // Generates an OperatorEvent for a watermark callback.
     fn watermark_cb_event(&mut self, timestamp: &Timestamp) -> OperatorEvent {
-        // We do an unchecked get_mut here since the ordering is supposed to be enforced by the
-        // lattice.
         let operator = Arc::clone(&self.operator);
         let state = Arc::clone(&self.state);
         let config = self.config.clone();
         let time = timestamp.clone();
 
         OperatorEvent::new(
-            timestamp.clone(),
+            time.clone(),
             true,
             0,
             HashSet::new(),
