@@ -66,6 +66,10 @@ where
         let mut helper = self.helper.take().unwrap();
         helper.synchronize().await;
 
+        // Run the `setup` method.
+        let setup_context = OneInOneOutSetupContext::new(read_stream.id());
+        // TODO (Sukrit): Implement deadlines and `setup` method for the `Sink` operators.
+
         // Execute the `run` method.
         let mut read_stream: ReadStream<T> = self.read_stream.take().unwrap();
         slog::debug!(
@@ -78,10 +82,6 @@ where
         tokio::task::block_in_place(|| {
             self.executor.execute_run(&mut read_stream);
         });
-
-        // Run the `setup` method.
-        let setup_context = OneInOneOutSetupContext::new(read_stream.id());
-        // TODO (Sukrit): Implement deadlines and `setup` method for the `Sink` operators.
 
         // Process messages on the incoming stream.
         let process_stream_fut = helper.process_stream(
@@ -342,7 +342,11 @@ where
                 operator
                     .lock()
                     .unwrap()
-                    .on_watermark(&mut WriteableSinkContext::new(time, config, &mut state.lock().unwrap()))
+                    .on_watermark(&mut WriteableSinkContext::new(
+                        time,
+                        config,
+                        &mut state.lock().unwrap(),
+                    ))
             },
             OperatorType::Writeable,
         )
