@@ -67,11 +67,11 @@ where
         helper.synchronize().await;
 
         // Run the `setup` method.
+        let mut read_stream: ReadStream<T> = self.read_stream.take().unwrap();
         let setup_context = OneInOneOutSetupContext::new(read_stream.id());
         // TODO (Sukrit): Implement deadlines and `setup` method for the `Sink` operators.
 
         // Execute the `run` method.
-        let mut read_stream: ReadStream<T> = self.read_stream.take().unwrap();
         slog::debug!(
             crate::TERMINAL_LOGGER,
             "Node {}: Running Operator {}",
@@ -118,6 +118,9 @@ where
 
         // Invoke the `destroy` method.
         tokio::task::block_in_place(|| self.executor.execute_destroy());
+
+        // Return the helper.
+        self.helper.replace(helper);
 
         channel_to_worker
             .send(WorkerNotification::DestroyedOperator(self.operator_id()))
