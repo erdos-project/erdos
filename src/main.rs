@@ -2,7 +2,6 @@ extern crate erdos;
 
 use std::{collections::HashMap, thread, time::Duration};
 
-use erdos::dataflow::deadlines::*;
 use erdos::dataflow::operator::*;
 use erdos::dataflow::stream::WriteStreamT;
 use erdos::dataflow::*;
@@ -47,68 +46,49 @@ impl SquareOperator {
     }
 }
 
-struct SquareOperatorDeadlineContext {}
+struct SquareOperatorState {}
 
-impl SquareOperatorDeadlineContext {
-    pub fn new() -> Self {
+impl SquareOperatorState {
+    fn new() -> Self {
         Self {}
     }
 }
 
-impl DeadlineContext for SquareOperatorDeadlineContext {
-    fn calculate_deadline(&self, _ctx: &ConditionContext) -> Duration {
-        Duration::new(1, 0)
-    }
+impl WriteableState<()> for SquareOperatorState {
+    fn commit(&mut self, _state: &(), _timestamp: &Timestamp) {}
 }
 
-struct SquareOperatorHandlerContext {}
-
-impl SquareOperatorHandlerContext {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl HandlerContextT for SquareOperatorHandlerContext {
-    fn invoke_handler(&mut self, ctx: &ConditionContext, _current_timestamp: &Timestamp) {
-        println!("Handled {:?} errors.", ctx);
-    }
-}
-
-impl OneInOneOut<(), usize, usize> for SquareOperator {
-    fn setup(&mut self, ctx: &mut OneInOneOutSetupContext) {
-        println!("Executed setup!");
-        let deadline = TimestampDeadline::new(
-            SquareOperatorDeadlineContext::new(),
-            SquareOperatorHandlerContext::new(),
-        )
-        .on_read_stream(ctx.read_stream_id);
-        ctx.add_deadline(Deadline::TimestampDeadline(deadline));
-    }
-
-    fn on_data(ctx: &mut OneInOneOutContext<usize>, data: &usize) {
+impl WriteableOneInOneOut<SquareOperatorState, usize, usize, ()> for SquareOperator {
+    fn on_data(
+        &mut self,
+        ctx: &mut WriteableOneInOneOutContext<SquareOperatorState, usize, ()>,
+        data: &usize,
+    ) {
         thread::sleep(Duration::new(2, 0));
         let logger = erdos::get_terminal_logger();
         slog::info!(
             logger,
             "SquareOperator @ {:?}: received {}",
-            ctx.timestamp,
+            ctx.get_timestamp(),
             data
         );
-        ctx.write_stream
-            .send(Message::new_message(ctx.timestamp.clone(), data * data))
+        let timestamp = ctx.get_timestamp().clone();
+        ctx.get_write_stream()
+            .send(Message::new_message(timestamp, data * data))
             .unwrap();
         slog::info!(
             logger,
             "SquareOperator @ {:?}: sent {}",
-            ctx.timestamp,
+            ctx.get_timestamp(),
             data * data
         );
     }
 
-    fn on_data_stateful(_ctx: &mut StatefulOneInOneOutContext<(), usize>, _data: &usize) {}
-
-    fn on_watermark(_ctx: &mut StatefulOneInOneOutContext<(), usize>) {}
+    fn on_watermark(
+        &mut self,
+        _ctx: &mut WriteableOneInOneOutContext<SquareOperatorState, usize, ()>,
+    ) {
+    }
 }
 
 struct SumOperator {}
@@ -301,8 +281,12 @@ fn main() {
     let source_stream = erdos::connect_source(SourceOperator::new, || {}, source_config);
 
     let square_config = OperatorConfig::new().name("SquareOperator");
-    let square_stream =
-        erdos::connect_one_in_one_out(SquareOperator::new, || {}, square_config, &source_stream);
+    let square_stream = erdos::connect_writeable_one_in_one_out(
+        SquareOperator::new,
+        SquareOperatorState::new,
+        square_config,
+        &source_stream,
+    );
 
     //let sum_config = OperatorConfig::new().name("SumOperator");
     //let sum_stream =

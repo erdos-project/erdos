@@ -124,6 +124,10 @@ where
     fn disarm_deadline(&self, _deadline_event: &DeadlineEvent) -> bool {
         true
     }
+
+    /// Cleans up the write streams and any other data owned by the executor. 
+    /// This is invoked after the operator is destroyed.
+    fn cleanup(&mut self) {}
 }
 
 /// Trait that needs to be defined by the executors for an operator that processes two message

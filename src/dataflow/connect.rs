@@ -8,8 +8,10 @@ use crate::{
         WriteableState,
     },
     node::operator_executors::{
-        OneInOneOutExecutor, OneInTwoOutExecutor, OperatorExecutorT, ReadOnlySinkMessageProcessor,
-        SinkExecutor, SourceExecutor, TwoInOneOutExecutor, WriteableSinkMessageProcessor,
+        NewOneInOneOutExecutor, OneInTwoOutExecutor, OperatorExecutorT,
+        ReadOnlyOneInOneOutMessageProcessor, ReadOnlySinkMessageProcessor, SinkExecutor,
+        SourceExecutor, TwoInOneOutExecutor, WriteableOneInOneOutMessageProcessor,
+        WriteableSinkMessageProcessor,
     },
     scheduler::channel_manager::ChannelManager,
     OperatorId,
@@ -158,6 +160,125 @@ pub fn connect_writeable_sink<O, S, T, U>(
     );
 }
 
+pub fn connect_read_only_one_in_one_out<O, S, T, U, V, W>(
+    operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
+    state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
+    mut config: OperatorConfig,
+    read_stream: &impl StreamT<T>,
+) -> Stream<U>
+where
+    O: 'static + ReadOnlyOneInOneOut<S, T, U, V, W>,
+    S: ReadOnlyState<V, W>,
+    T: Data + for<'a> Deserialize<'a>,
+    U: Data + for<'a> Deserialize<'a>,
+    V: 'static + Send + Sync,
+    W: 'static + Send + Sync,
+{
+    config.id = OperatorId::new_deterministic();
+    let write_stream = Stream::new();
+
+    let read_stream_ids = vec![read_stream.id()];
+    let write_stream_ids = vec![write_stream.id()];
+
+    let read_stream_ids_copy = read_stream_ids.clone();
+    let write_stream_ids_copy = write_stream_ids.clone();
+    let config_copy = config.clone();
+    let op_runner =
+        move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
+            let mut channel_manager = channel_manager.lock().unwrap();
+
+            let read_stream = channel_manager
+                .take_read_stream(read_stream_ids_copy[0])
+                .unwrap();
+            let write_stream = channel_manager
+                .get_write_stream(write_stream_ids_copy[0])
+                .unwrap();
+
+            Box::new(NewOneInOneOutExecutor::new(
+                config_copy.clone(),
+                Box::new(ReadOnlyOneInOneOutMessageProcessor::new(
+                    config_copy.clone(),
+                    operator_fn.clone(),
+                    state_fn.clone(),
+                    write_stream,
+                )),
+                read_stream,
+            ))
+        };
+
+    default_graph::add_operator(
+        config.id,
+        config.name,
+        config.node_id,
+        read_stream_ids,
+        write_stream_ids,
+        op_runner,
+    );
+    default_graph::add_operator_stream(config.id, &write_stream);
+
+    write_stream
+}
+
+pub fn connect_writeable_one_in_one_out<O, S, T, U, V>(
+    operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
+    state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
+    mut config: OperatorConfig,
+    read_stream: &impl StreamT<T>,
+) -> Stream<U>
+where
+    O: 'static + WriteableOneInOneOut<S, T, U, V>,
+    S: WriteableState<V>,
+    T: Data + for<'a> Deserialize<'a>,
+    U: Data + for<'a> Deserialize<'a>,
+    V: 'static + Send + Sync,
+{
+    config.id = OperatorId::new_deterministic();
+    let write_stream = Stream::new();
+
+    let read_stream_ids = vec![read_stream.id()];
+    let write_stream_ids = vec![write_stream.id()];
+
+    let read_stream_ids_copy = read_stream_ids.clone();
+    let write_stream_ids_copy = write_stream_ids.clone();
+    let config_copy = config.clone();
+
+    let op_runner =
+        move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
+            let mut channel_manager = channel_manager.lock().unwrap();
+
+            let read_stream = channel_manager
+                .take_read_stream(read_stream_ids_copy[0])
+                .unwrap();
+            let write_stream = channel_manager
+                .get_write_stream(write_stream_ids_copy[0])
+                .unwrap();
+
+            Box::new(NewOneInOneOutExecutor::new(
+                config_copy.clone(),
+                Box::new(WriteableOneInOneOutMessageProcessor::new(
+                    config_copy.clone(),
+                    operator_fn.clone(),
+                    state_fn.clone(),
+                    write_stream,
+                )),
+                read_stream,
+            ))
+        };
+
+    default_graph::add_operator(
+        config.id,
+        config.name,
+        config.node_id,
+        read_stream_ids,
+        write_stream_ids,
+        op_runner,
+    );
+    default_graph::add_operator_stream(config.id, &write_stream);
+
+    write_stream
+}
+
+/*
 pub fn connect_one_in_one_out<O, S, T, U>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
@@ -212,7 +333,7 @@ where
     default_graph::add_operator_stream(config.id, &write_stream);
 
     write_stream
-}
+}*/
 
 pub fn connect_two_in_one_out<O, S, T, U, V>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,

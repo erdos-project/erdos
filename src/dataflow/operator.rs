@@ -113,7 +113,7 @@ pub struct WriteableSinkContext<'a, S: WriteableState<T>, T> {
 
 impl<'a, S, T> WriteableSinkContext<'a, S, T>
 where
-    S: 'static + WriteableState<T>,
+    S: WriteableState<T>,
 {
     pub fn new(timestamp: Timestamp, config: OperatorConfig, state: &'a mut S) -> Self {
         Self {
@@ -134,6 +134,149 @@ where
 
     pub fn get_state(&mut self) -> &mut S {
         &mut self.state
+    }
+}
+
+/*************************************************************************************************
+ * ReadOnlyOneInOneOut: Receives data with type T, and enables message callbacks to execute in   *
+ * parallel by allowing append access in the message callbacks, and writable access to the state *
+ * in the watermark along with the ability to send messages on the write stream.                 *
+ ************************************************************************************************/
+
+#[allow(unused_variables)]
+pub trait ReadOnlyOneInOneOut<S, T, U, V, W>: Send + Sync
+where
+    S: ReadOnlyState<V, W>,
+    T: Data + for<'a> Deserialize<'a>,
+    U: Data + for<'a> Deserialize<'a>,
+{
+    fn run(&mut self, read_stream: &mut ReadStream<T>, write_stream: &mut WriteStream<U>) {}
+
+    fn destroy(&mut self) {}
+
+    fn on_data(&self, ctx: &ReadOnlyOneInOneOutContext<S, U, V, W>, data: &T);
+
+    fn on_watermark(&self, ctx: &mut ReadOnlyOneInOneOutContext<S, U, V, W>);
+}
+
+pub struct ReadOnlyOneInOneOutContext<'a, S, T, U, V>
+where
+    S: ReadOnlyState<U, V>,
+    T: Data + for<'b> Deserialize<'b>,
+{
+    timestamp: Timestamp,
+    config: OperatorConfig,
+    state: &'a S,
+    write_stream: WriteStream<T>,
+    phantom_u: PhantomData<U>,
+    phantom_v: PhantomData<V>,
+}
+
+impl<'a, S, T, U, V> ReadOnlyOneInOneOutContext<'a, S, T, U, V>
+where
+    S: ReadOnlyState<U, V>,
+    T: Data + for<'b> Deserialize<'b>,
+{
+    pub fn new(
+        timestamp: Timestamp,
+        config: OperatorConfig,
+        state: &'a S,
+        write_stream: WriteStream<T>,
+    ) -> Self {
+        Self {
+            timestamp,
+            config,
+            state,
+            write_stream,
+            phantom_u: PhantomData,
+            phantom_v: PhantomData,
+        }
+    }
+
+    pub fn get_timestamp(&self) -> &Timestamp {
+        &self.timestamp
+    }
+
+    pub fn get_operator_config(&self) -> &OperatorConfig {
+        &self.config
+    }
+
+    pub fn get_state(&self) -> &S {
+        &self.state
+    }
+
+    pub fn get_write_stream(&mut self) -> &mut WriteStream<T> {
+        &mut self.write_stream
+    }
+}
+
+/**************************************************************************************************
+ * WriteableOneInOneOut: Receives data with type T, and enables message callbacks to have mutable *
+ * access to the operator state, but all callbacks are sequentialized.                            *
+ *************************************************************************************************/
+
+#[allow(unused_variables)]
+pub trait WriteableOneInOneOut<S, T, U, V>: Send + Sync
+where
+    S: WriteableState<V>,
+    T: Data + for<'a> Deserialize<'a>,
+    U: Data + for<'a> Deserialize<'a>,
+{
+    fn run(&mut self, read_stream: &mut ReadStream<T>, write_stream: &mut WriteStream<U>) {}
+
+    fn destroy(&mut self) {}
+
+    fn on_data(&mut self, ctx: &mut WriteableOneInOneOutContext<S, U, V>, data: &T);
+
+    fn on_watermark(&mut self, ctx: &mut WriteableOneInOneOutContext<S, U, V>);
+}
+
+pub struct WriteableOneInOneOutContext<'a, S, T, U>
+where
+    S: WriteableState<U>,
+    T: Data + for<'b> Deserialize<'b>,
+{
+    timestamp: Timestamp,
+    config: OperatorConfig,
+    state: &'a mut S,
+    write_stream: WriteStream<T>,
+    phantom_u: PhantomData<U>,
+}
+
+impl<'a, S, T, U> WriteableOneInOneOutContext<'a, S, T, U>
+where
+    S: WriteableState<U>,
+    T: Data + for<'b> Deserialize<'b>,
+{
+    pub fn new(
+        timestamp: Timestamp,
+        config: OperatorConfig,
+        state: &'a mut S,
+        write_stream: WriteStream<T>,
+    ) -> Self {
+        Self {
+            timestamp,
+            config,
+            state,
+            write_stream,
+            phantom_u: PhantomData,
+        }
+    }
+
+    pub fn get_timestamp(&self) -> &Timestamp {
+        &self.timestamp
+    }
+
+    pub fn get_operator_config(&self) -> &OperatorConfig {
+        &self.config
+    }
+
+    pub fn get_state(&mut self) -> &mut S {
+        &mut self.state
+    }
+
+    pub fn get_write_stream(&mut self) -> &mut WriteStream<T> {
+        &mut self.write_stream
     }
 }
 
