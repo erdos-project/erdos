@@ -8,7 +8,7 @@ use std::{
 use crate::{
     dataflow::{
         operator::{OperatorConfig, ParallelSink, ParallelSinkContext, Sink, SinkContext},
-        Data, Message, ReadOnlyState, ReadStream, Timestamp, WriteableState,
+        AppendableStateT, Data, Message, ReadStream, Timestamp, StateT,
     },
     node::{
         operator_event::{OperatorEvent, OperatorType},
@@ -17,13 +17,12 @@ use crate::{
     Uuid,
 };
 
-pub struct ParallelSinkMessageProcessor<O, S, T, U, V>
+pub struct ParallelSinkMessageProcessor<O, S, T, U>
 where
-    O: 'static + ParallelSink<S, T, U, V>,
-    S: ReadOnlyState<U, V>,
+    O: 'static + ParallelSink<S, T, U>,
+    S: AppendableStateT<U>,
     T: Data + for<'a> Deserialize<'a>,
     U: 'static + Send + Sync,
-    V: 'static + Send + Sync,
 {
     config: OperatorConfig,
     operator: Arc<O>,
@@ -31,16 +30,14 @@ where
     state_ids: HashSet<Uuid>,
     phantom_t: PhantomData<T>,
     phantom_u: PhantomData<U>,
-    phantom_v: PhantomData<V>,
 }
 
-impl<O, S, T, U, V> ParallelSinkMessageProcessor<O, S, T, U, V>
+impl<O, S, T, U> ParallelSinkMessageProcessor<O, S, T, U>
 where
-    O: 'static + ParallelSink<S, T, U, V>,
-    S: ReadOnlyState<U, V>,
+    O: 'static + ParallelSink<S, T, U>,
+    S: AppendableStateT<U>,
     T: Data + for<'a> Deserialize<'a>,
     U: 'static + Send + Sync,
-    V: 'static + Send + Sync,
 {
     pub fn new(
         config: OperatorConfig,
@@ -54,18 +51,16 @@ where
             state_ids: vec![Uuid::new_deterministic()].into_iter().collect(),
             phantom_t: PhantomData,
             phantom_u: PhantomData,
-            phantom_v: PhantomData,
         }
     }
 }
 
-impl<O, S, T, U, V> OneInMessageProcessorT<T> for ParallelSinkMessageProcessor<O, S, T, U, V>
+impl<O, S, T, U> OneInMessageProcessorT<T> for ParallelSinkMessageProcessor<O, S, T, U>
 where
-    O: 'static + ParallelSink<S, T, U, V>,
-    S: ReadOnlyState<U, V>,
+    O: 'static + ParallelSink<S, T, U>,
+    S: AppendableStateT<U>,
     T: Data + for<'a> Deserialize<'a>,
     U: 'static + Send + Sync,
-    V: 'static + Send + Sync,
 {
     fn execute_run(&mut self, read_stream: &mut ReadStream<T>) {
         Arc::get_mut(&mut self.operator).unwrap().run(read_stream);
@@ -117,27 +112,24 @@ where
     }
 }
 
-pub struct SinkMessageProcessor<O, S, T, U>
+pub struct SinkMessageProcessor<O, S, T>
 where
-    O: 'static + Sink<S, T, U>,
-    S: WriteableState<U>,
+    O: 'static + Sink<S, T>,
+    S: StateT,
     T: Data + for<'a> Deserialize<'a>,
-    U: 'static + Send + Sync,
 {
     config: OperatorConfig,
     operator: Arc<Mutex<O>>,
     state: Arc<Mutex<S>>,
     state_ids: HashSet<Uuid>,
     phantom_t: PhantomData<T>,
-    phantom_u: PhantomData<U>,
 }
 
-impl<O, S, T, U> SinkMessageProcessor<O, S, T, U>
+impl<O, S, T> SinkMessageProcessor<O, S, T>
 where
-    O: 'static + Sink<S, T, U>,
-    S: WriteableState<U>,
+    O: 'static + Sink<S, T>,
+    S: StateT,
     T: Data + for<'a> Deserialize<'a>,
-    U: 'static + Send + Sync,
 {
     pub fn new(
         config: OperatorConfig,
@@ -150,17 +142,15 @@ where
             state: Arc::new(Mutex::new(state_fn())),
             state_ids: vec![Uuid::new_deterministic()].into_iter().collect(),
             phantom_t: PhantomData,
-            phantom_u: PhantomData,
         }
     }
 }
 
-impl<O, S, T, U> OneInMessageProcessorT<T> for SinkMessageProcessor<O, S, T, U>
+impl<O, S, T> OneInMessageProcessorT<T> for SinkMessageProcessor<O, S, T>
 where
-    O: 'static + Sink<S, T, U>,
-    S: WriteableState<U>,
+    O: 'static + Sink<S, T>,
+    S: StateT,
     T: Data + for<'a> Deserialize<'a>,
-    U: 'static + Send + Sync,
 {
     fn execute_run(&mut self, read_stream: &mut ReadStream<T>) {
         self.operator.lock().unwrap().run(read_stream);

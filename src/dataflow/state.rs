@@ -15,8 +15,8 @@ impl<T: 'static + Clone + Send + Sync> State for T {}
 /// Trait that must be implemented by a state structure that is used in a Writeable operator.
 /// This structure must implement a `commit` method that commits the final state for a given
 /// timestamp `t`.
-pub trait WriteableState<T>: 'static + Send + Sync {
-    fn commit(&mut self, state: &T, timestamp: &Timestamp);
+pub trait StateT: 'static + Send + Sync {
+    fn commit(&mut self, timestamp: &Timestamp);
 }
 
 
@@ -24,10 +24,10 @@ pub trait WriteableState<T>: 'static + Send + Sync {
 /// This state structure must implement an `append` method that enables message callbacks to add
 /// intermediate state to the structure, and a `commit` method that commits the final state for a
 /// given timestamp t.
-pub trait ReadOnlyState<S, T>: 'static + Clone + Send + Sync {
+pub trait AppendableStateT<S>: 'static + Clone + Send + Sync {
     fn append(&self, data: &S);
 
-    fn commit(&self, state: &T, timestamp: &Timestamp);
+    fn commit(&self, timestamp: &Timestamp);
 }
 
 /// Error thrown upon an invalid attempt to access a portion of the

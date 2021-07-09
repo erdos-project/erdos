@@ -4,8 +4,7 @@ use serde::Deserialize;
 
 use crate::{
     dataflow::{
-        graph::default_graph, operator::*, Data, ReadOnlyState, State, Stream, StreamT,
-        WriteableState,
+        graph::default_graph, operator::*, Data, StateT, State, Stream, StreamT, AppendableStateT
     },
     node::operator_executors::{
         OneInExecutor, OneInOneOutMessageProcessor, OneInTwoOutExecutor, OperatorExecutorT,
@@ -64,17 +63,16 @@ where
     write_stream
 }
 
-pub fn connect_parallel_sink<O, S, T, U, V>(
+pub fn connect_parallel_sink<O, S, T, U>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
     read_stream: &impl StreamT<T>,
 ) where
-    O: 'static + ParallelSink<S, T, U, V>,
-    S: ReadOnlyState<U, V>,
+    O: 'static + ParallelSink<S, T, U>,
+    S: AppendableStateT<U>,
     T: Data + for<'a> Deserialize<'a>,
     U: 'static + Send + Sync,
-    V: 'static + Send + Sync,
 {
     config.id = OperatorId::new_deterministic();
 
@@ -112,16 +110,15 @@ pub fn connect_parallel_sink<O, S, T, U, V>(
     );
 }
 
-pub fn connect_sink<O, S, T, U>(
+pub fn connect_sink<O, S, T>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
     read_stream: &impl StreamT<T>,
 ) where
-    O: 'static + Sink<S, T, U>,
-    S: WriteableState<U>,
+    O: 'static + Sink<S, T>,
+    S: StateT,
     T: Data + for<'a> Deserialize<'a>,
-    U: 'static + Send + Sync,
 {
     config.id = OperatorId::new_deterministic();
 
@@ -159,19 +156,18 @@ pub fn connect_sink<O, S, T, U>(
     );
 }
 
-pub fn connect_parallel_only_one_in_one_out<O, S, T, U, V, W>(
+pub fn connect_parallel_only_one_in_one_out<O, S, T, U, V>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
     read_stream: &impl StreamT<T>,
 ) -> Stream<U>
 where
-    O: 'static + ParallelOneInOneOut<S, T, U, V, W>,
-    S: ReadOnlyState<V, W>,
+    O: 'static + ParallelOneInOneOut<S, T, U, V>,
+    S: AppendableStateT<V>,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: 'static + Send + Sync,
-    W: 'static + Send + Sync,
 {
     config.id = OperatorId::new_deterministic();
     let write_stream = Stream::new();
@@ -218,18 +214,17 @@ where
     write_stream
 }
 
-pub fn connect_one_in_one_out<O, S, T, U, V>(
+pub fn connect_one_in_one_out<O, S, T, U>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
     read_stream: &impl StreamT<T>,
 ) -> Stream<U>
 where
-    O: 'static + OneInOneOut<S, T, U, V>,
-    S: WriteableState<V>,
+    O: 'static + OneInOneOut<S, T, U>,
+    S: StateT,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
-    V: 'static + Send + Sync,
 {
     config.id = OperatorId::new_deterministic();
     let write_stream = Stream::new();

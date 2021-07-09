@@ -54,14 +54,14 @@ impl SquareOperatorState {
     }
 }
 
-impl WriteableState<()> for SquareOperatorState {
-    fn commit(&mut self, _state: &(), _timestamp: &Timestamp) {}
+impl StateT for SquareOperatorState {
+    fn commit(&mut self, _timestamp: &Timestamp) {}
 }
 
-impl OneInOneOut<SquareOperatorState, usize, usize, ()> for SquareOperator {
+impl OneInOneOut<SquareOperatorState, usize, usize> for SquareOperator {
     fn on_data(
         &mut self,
-        ctx: &mut OneInOneOutContext<SquareOperatorState, usize, ()>,
+        ctx: &mut OneInOneOutContext<SquareOperatorState, usize>,
         data: &usize,
     ) {
         thread::sleep(Duration::new(2, 0));
@@ -84,7 +84,7 @@ impl OneInOneOut<SquareOperatorState, usize, usize, ()> for SquareOperator {
         );
     }
 
-    fn on_watermark(&mut self, _ctx: &mut OneInOneOutContext<SquareOperatorState, usize, ()>) {}
+    fn on_watermark(&mut self, _ctx: &mut OneInOneOutContext<SquareOperatorState, usize>) {}
 }
 
 struct SumOperator {}
@@ -115,14 +115,14 @@ impl SumOperatorState {
     }
 }
 
-impl WriteableState<usize> for SumOperatorState {
-    fn commit(&mut self, _state: &usize, _timestamp: &Timestamp) {}
+impl StateT for SumOperatorState {
+    fn commit(&mut self, _timestamp: &Timestamp) {}
 }
 
-impl OneInOneOut<SumOperatorState, usize, usize, usize> for SumOperator {
+impl OneInOneOut<SumOperatorState, usize, usize> for SumOperator {
     fn on_data(
         &mut self,
-        ctx: &mut OneInOneOutContext<SumOperatorState, usize, usize>,
+        ctx: &mut OneInOneOutContext<SumOperatorState, usize>,
         data: &usize,
     ) {
         slog::info!(
@@ -146,7 +146,7 @@ impl OneInOneOut<SumOperatorState, usize, usize, usize> for SumOperator {
         );
     }
 
-    fn on_watermark(&mut self, _ctx: &mut OneInOneOutContext<SumOperatorState, usize, usize>) {}
+    fn on_watermark(&mut self, _ctx: &mut OneInOneOutContext<SumOperatorState, usize>) {}
 }
 
 struct SinkOperator {}
@@ -178,12 +178,12 @@ impl SinkOperatorState {
     }
 }
 
-impl WriteableState<usize> for SinkOperatorState {
-    fn commit(&mut self, _state: &usize, _timestamp: &Timestamp) {}
+impl StateT for SinkOperatorState {
+    fn commit(&mut self, _timestamp: &Timestamp) {}
 }
 
-impl Sink<SinkOperatorState, usize, usize> for SinkOperator {
-    fn on_data(&mut self, ctx: &mut SinkContext<SinkOperatorState, usize>, data: &usize) {
+impl Sink<SinkOperatorState, usize> for SinkOperator {
+    fn on_data(&mut self, ctx: &mut SinkContext<SinkOperatorState>, data: &usize) {
         let timestamp = ctx.get_timestamp().clone();
         slog::info!(
             erdos::get_terminal_logger(),
@@ -194,7 +194,7 @@ impl Sink<SinkOperatorState, usize, usize> for SinkOperator {
         ctx.get_state().increment_message_count(&timestamp);
     }
 
-    fn on_watermark(&mut self, ctx: &mut SinkContext<SinkOperatorState, usize>) {
+    fn on_watermark(&mut self, ctx: &mut SinkContext<SinkOperatorState>) {
         let timestamp = ctx.get_timestamp().clone();
         slog::info!(
             erdos::get_terminal_logger(),

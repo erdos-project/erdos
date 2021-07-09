@@ -12,7 +12,7 @@ use crate::{
             ParallelOneInOneOutContext,
         },
         stream::WriteStreamT,
-        Data, Message, ReadOnlyState, ReadStream, Timestamp, WriteStream, WriteableState,
+        AppendableStateT, Data, Message, ReadStream, StateT, Timestamp, WriteStream,
     },
     node::{
         operator_event::{OperatorEvent, OperatorType},
@@ -21,14 +21,13 @@ use crate::{
     Uuid,
 };
 
-pub struct ParallelOneInOneOutMessageProcessor<O, S, T, U, V, W>
+pub struct ParallelOneInOneOutMessageProcessor<O, S, T, U, V>
 where
-    O: 'static + ParallelOneInOneOut<S, T, U, V, W>,
-    S: ReadOnlyState<V, W>,
+    O: 'static + ParallelOneInOneOut<S, T, U, V>,
+    S: AppendableStateT<V>,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: 'static + Send + Sync,
-    W: 'static + Send + Sync,
 {
     config: OperatorConfig,
     operator: Arc<O>,
@@ -37,17 +36,15 @@ where
     write_stream: WriteStream<U>,
     phantom_t: PhantomData<T>,
     phantom_v: PhantomData<V>,
-    phantom_w: PhantomData<W>,
 }
 
-impl<O, S, T, U, V, W> ParallelOneInOneOutMessageProcessor<O, S, T, U, V, W>
+impl<O, S, T, U, V> ParallelOneInOneOutMessageProcessor<O, S, T, U, V>
 where
-    O: 'static + ParallelOneInOneOut<S, T, U, V, W>,
-    S: ReadOnlyState<V, W>,
+    O: 'static + ParallelOneInOneOut<S, T, U, V>,
+    S: AppendableStateT<V>,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: 'static + Send + Sync,
-    W: 'static + Send + Sync,
 {
     pub fn new(
         config: OperatorConfig,
@@ -63,20 +60,17 @@ where
             write_stream,
             phantom_t: PhantomData,
             phantom_v: PhantomData,
-            phantom_w: PhantomData,
         }
     }
 }
 
-impl<O, S, T, U, V, W> OneInMessageProcessorT<T>
-    for ParallelOneInOneOutMessageProcessor<O, S, T, U, V, W>
+impl<O, S, T, U, V> OneInMessageProcessorT<T> for ParallelOneInOneOutMessageProcessor<O, S, T, U, V>
 where
-    O: 'static + ParallelOneInOneOut<S, T, U, V, W>,
-    S: ReadOnlyState<V, W>,
+    O: 'static + ParallelOneInOneOut<S, T, U, V>,
+    S: AppendableStateT<V>,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: 'static + Send + Sync,
-    W: 'static + Send + Sync,
 {
     fn execute_run(&mut self, read_stream: &mut ReadStream<T>) {
         Arc::get_mut(&mut self.operator)
@@ -174,10 +168,10 @@ where
     }
 }
 
-pub struct OneInOneOutMessageProcessor<O, S, T, U, V>
+pub struct OneInOneOutMessageProcessor<O, S, T, U>
 where
-    O: 'static + OneInOneOut<S, T, U, V>,
-    S: WriteableState<V>,
+    O: 'static + OneInOneOut<S, T, U>,
+    S: StateT,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
@@ -187,13 +181,12 @@ where
     state_ids: HashSet<Uuid>,
     write_stream: WriteStream<U>,
     phantom_t: PhantomData<T>,
-    phantom_v: PhantomData<V>,
 }
 
-impl<O, S, T, U, V> OneInOneOutMessageProcessor<O, S, T, U, V>
+impl<O, S, T, U> OneInOneOutMessageProcessor<O, S, T, U>
 where
-    O: 'static + OneInOneOut<S, T, U, V>,
-    S: WriteableState<V>,
+    O: 'static + OneInOneOut<S, T, U>,
+    S: StateT,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
@@ -210,18 +203,16 @@ where
             state_ids: vec![Uuid::new_deterministic()].into_iter().collect(),
             write_stream,
             phantom_t: PhantomData,
-            phantom_v: PhantomData,
         }
     }
 }
 
-impl<O, S, T, U, V> OneInMessageProcessorT<T> for OneInOneOutMessageProcessor<O, S, T, U, V>
+impl<O, S, T, U> OneInMessageProcessorT<T> for OneInOneOutMessageProcessor<O, S, T, U>
 where
-    O: 'static + OneInOneOut<S, T, U, V>,
-    S: WriteableState<V>,
+    O: 'static + OneInOneOut<S, T, U>,
+    S: StateT,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
-    V: 'static + Send + Sync,
 {
     fn execute_run(&mut self, read_stream: &mut ReadStream<T>) {
         self.operator

@@ -8,8 +8,8 @@ use serde::Deserialize;
 
 use crate::{
     dataflow::{
-        deadlines::Deadline, stream::StreamId, Data, ReadOnlyState, ReadStream, State, Timestamp,
-        WriteStream, WriteableState,
+        deadlines::Deadline, stream::StreamId, AppendableStateT, Data, ReadStream, State, StateT,
+        Timestamp, WriteStream,
     },
     node::NodeId,
     OperatorId,
@@ -43,27 +43,26 @@ where
  ************************************************************************************************/
 
 #[allow(unused_variables)]
-pub trait ParallelSink<S: ReadOnlyState<U, V>, T: Data, U, V>: Send + Sync {
+pub trait ParallelSink<S: AppendableStateT<U>, T: Data, U>: Send + Sync {
     fn run(&mut self, read_stream: &mut ReadStream<T>) {}
 
     fn destroy(&mut self) {}
 
-    fn on_data(&self, ctx: &ParallelSinkContext<S, U, V>, data: &T);
+    fn on_data(&self, ctx: &ParallelSinkContext<S, U>, data: &T);
 
-    fn on_watermark(&self, ctx: &mut ParallelSinkContext<S, U, V>);
+    fn on_watermark(&self, ctx: &mut ParallelSinkContext<S, U>);
 }
 
-pub struct ParallelSinkContext<'a, S: ReadOnlyState<T, U>, T, U> {
+pub struct ParallelSinkContext<'a, S: AppendableStateT<T>, T> {
     timestamp: Timestamp,
     config: OperatorConfig,
     state: &'a S,
     phantomdata_t: PhantomData<T>,
-    phantomdata_u: PhantomData<U>,
 }
 
-impl<'a, S, T, U> ParallelSinkContext<'a, S, T, U>
+impl<'a, S, T> ParallelSinkContext<'a, S, T>
 where
-    S: 'static + ReadOnlyState<T, U>,
+    S: 'static + AppendableStateT<T>,
 {
     pub fn new(timestamp: Timestamp, config: OperatorConfig, state: &'a S) -> Self {
         Self {
@@ -71,7 +70,6 @@ where
             config,
             state,
             phantomdata_t: PhantomData,
-            phantomdata_u: PhantomData,
         }
     }
 
@@ -94,33 +92,31 @@ where
  ************************************************************************************************/
 
 #[allow(unused_variables)]
-pub trait Sink<S: WriteableState<U>, T: Data, U>: Send + Sync {
+pub trait Sink<S: StateT, T: Data>: Send + Sync {
     fn run(&mut self, read_stream: &mut ReadStream<T>) {}
 
     fn destroy(&mut self) {}
 
-    fn on_data(&mut self, ctx: &mut SinkContext<S, U>, data: &T);
+    fn on_data(&mut self, ctx: &mut SinkContext<S>, data: &T);
 
-    fn on_watermark(&mut self, ctx: &mut SinkContext<S, U>);
+    fn on_watermark(&mut self, ctx: &mut SinkContext<S>);
 }
 
-pub struct SinkContext<'a, S: WriteableState<T>, T> {
+pub struct SinkContext<'a, S: StateT> {
     timestamp: Timestamp,
     config: OperatorConfig,
     state: &'a mut S,
-    phantomdata_t: PhantomData<T>,
 }
 
-impl<'a, S, T> SinkContext<'a, S, T>
+impl<'a, S> SinkContext<'a, S>
 where
-    S: WriteableState<T>,
+    S: StateT,
 {
     pub fn new(timestamp: Timestamp, config: OperatorConfig, state: &'a mut S) -> Self {
         Self {
             timestamp,
             config,
             state,
-            phantomdata_t: PhantomData,
         }
     }
 
@@ -144,9 +140,9 @@ where
  ************************************************************************************************/
 
 #[allow(unused_variables)]
-pub trait ParallelOneInOneOut<S, T, U, V, W>: Send + Sync
+pub trait ParallelOneInOneOut<S, T, U, V>: Send + Sync
 where
-    S: ReadOnlyState<V, W>,
+    S: AppendableStateT<V>,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
@@ -154,14 +150,14 @@ where
 
     fn destroy(&mut self) {}
 
-    fn on_data(&self, ctx: &ParallelOneInOneOutContext<S, U, V, W>, data: &T);
+    fn on_data(&self, ctx: &ParallelOneInOneOutContext<S, U, V>, data: &T);
 
-    fn on_watermark(&self, ctx: &mut ParallelOneInOneOutContext<S, U, V, W>);
+    fn on_watermark(&self, ctx: &mut ParallelOneInOneOutContext<S, U, V>);
 }
 
-pub struct ParallelOneInOneOutContext<'a, S, T, U, V>
+pub struct ParallelOneInOneOutContext<'a, S, T, U>
 where
-    S: ReadOnlyState<U, V>,
+    S: AppendableStateT<U>,
     T: Data + for<'b> Deserialize<'b>,
 {
     timestamp: Timestamp,
@@ -169,12 +165,11 @@ where
     state: &'a S,
     write_stream: WriteStream<T>,
     phantom_u: PhantomData<U>,
-    phantom_v: PhantomData<V>,
 }
 
-impl<'a, S, T, U, V> ParallelOneInOneOutContext<'a, S, T, U, V>
+impl<'a, S, T, U> ParallelOneInOneOutContext<'a, S, T, U>
 where
-    S: ReadOnlyState<U, V>,
+    S: AppendableStateT<U>,
     T: Data + for<'b> Deserialize<'b>,
 {
     pub fn new(
@@ -189,7 +184,6 @@ where
             state,
             write_stream,
             phantom_u: PhantomData,
-            phantom_v: PhantomData,
         }
     }
 
@@ -216,9 +210,9 @@ where
  *************************************************************************************************/
 
 #[allow(unused_variables)]
-pub trait OneInOneOut<S, T, U, V>: Send + Sync
+pub trait OneInOneOut<S, T, U>: Send + Sync
 where
-    S: WriteableState<V>,
+    S: StateT,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
@@ -226,26 +220,25 @@ where
 
     fn destroy(&mut self) {}
 
-    fn on_data(&mut self, ctx: &mut OneInOneOutContext<S, U, V>, data: &T);
+    fn on_data(&mut self, ctx: &mut OneInOneOutContext<S, U>, data: &T);
 
-    fn on_watermark(&mut self, ctx: &mut OneInOneOutContext<S, U, V>);
+    fn on_watermark(&mut self, ctx: &mut OneInOneOutContext<S, U>);
 }
 
-pub struct OneInOneOutContext<'a, S, T, U>
+pub struct OneInOneOutContext<'a, S, T>
 where
-    S: WriteableState<U>,
+    S: StateT,
     T: Data + for<'b> Deserialize<'b>,
 {
     timestamp: Timestamp,
     config: OperatorConfig,
     state: &'a mut S,
     write_stream: WriteStream<T>,
-    phantom_u: PhantomData<U>,
 }
 
-impl<'a, S, T, U> OneInOneOutContext<'a, S, T, U>
+impl<'a, S, T> OneInOneOutContext<'a, S, T>
 where
-    S: WriteableState<U>,
+    S: StateT,
     T: Data + for<'b> Deserialize<'b>,
 {
     pub fn new(
@@ -259,7 +252,6 @@ where
             config,
             state,
             write_stream,
-            phantom_u: PhantomData,
         }
     }
 
