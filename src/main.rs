@@ -58,10 +58,10 @@ impl WriteableState<()> for SquareOperatorState {
     fn commit(&mut self, _state: &(), _timestamp: &Timestamp) {}
 }
 
-impl WriteableOneInOneOut<SquareOperatorState, usize, usize, ()> for SquareOperator {
+impl OneInOneOut<SquareOperatorState, usize, usize, ()> for SquareOperator {
     fn on_data(
         &mut self,
-        ctx: &mut WriteableOneInOneOutContext<SquareOperatorState, usize, ()>,
+        ctx: &mut OneInOneOutContext<SquareOperatorState, usize, ()>,
         data: &usize,
     ) {
         thread::sleep(Duration::new(2, 0));
@@ -84,11 +84,7 @@ impl WriteableOneInOneOut<SquareOperatorState, usize, usize, ()> for SquareOpera
         );
     }
 
-    fn on_watermark(
-        &mut self,
-        _ctx: &mut WriteableOneInOneOutContext<SquareOperatorState, usize, ()>,
-    ) {
-    }
+    fn on_watermark(&mut self, _ctx: &mut OneInOneOutContext<SquareOperatorState, usize, ()>) {}
 }
 
 struct SumOperator {}
@@ -100,28 +96,57 @@ impl SumOperator {
     }
 }
 
-impl OneInOneOut<usize, usize, usize> for SumOperator {
-    fn on_data(_ctx: &mut OneInOneOutContext<usize>, _data: &usize) {}
+struct SumOperatorState {
+    counter: usize,
+}
 
-    // Proof of concept that state "works", although it is mis-implemented.
-    // Also need to fix the lattice.
-    fn on_data_stateful(ctx: &mut StatefulOneInOneOutContext<usize, usize>, data: &usize) {
-        let logger = erdos::get_terminal_logger();
-        slog::info!(
-            logger,
-            "SumOperator @ {:?}: received {}",
-            ctx.timestamp,
-            data
-        );
-        let mut state = ctx.state.try_lock().unwrap();
-        *state += data;
-        ctx.write_stream
-            .send(Message::new_message(ctx.timestamp.clone(), *state))
-            .unwrap();
-        slog::info!(logger, "SumOperator @ {:?}: sent {}", ctx.timestamp, state);
+#[allow(dead_code)]
+impl SumOperatorState {
+    fn new() -> Self {
+        Self { counter: 0 }
     }
 
-    fn on_watermark(_ctx: &mut StatefulOneInOneOutContext<usize, usize>) {}
+    fn increment_counter(&mut self, value: usize) {
+        self.counter += value;
+    }
+
+    fn get_counter(&self) -> usize {
+        self.counter
+    }
+}
+
+impl WriteableState<usize> for SumOperatorState {
+    fn commit(&mut self, _state: &usize, _timestamp: &Timestamp) {}
+}
+
+impl OneInOneOut<SumOperatorState, usize, usize, usize> for SumOperator {
+    fn on_data(
+        &mut self,
+        ctx: &mut OneInOneOutContext<SumOperatorState, usize, usize>,
+        data: &usize,
+    ) {
+        slog::info!(
+            erdos::get_terminal_logger(),
+            "SumOperator @ {:?}: Received {}",
+            ctx.get_timestamp(),
+            data
+        );
+
+        let timestamp = ctx.get_timestamp().clone();
+        ctx.get_state().increment_counter(*data);
+        let state = ctx.get_state().get_counter();
+        ctx.get_write_stream()
+            .send(Message::new_message(timestamp, state))
+            .unwrap();
+        slog::info!(
+            erdos::get_terminal_logger(),
+            "SumOperator @ {:?}: Sent {}",
+            ctx.get_timestamp(),
+            state
+        );
+    }
+
+    fn on_watermark(&mut self, _ctx: &mut OneInOneOutContext<SumOperatorState, usize, usize>) {}
 }
 
 struct SinkOperator {}
@@ -157,8 +182,8 @@ impl WriteableState<usize> for SinkOperatorState {
     fn commit(&mut self, _state: &usize, _timestamp: &Timestamp) {}
 }
 
-impl WriteableSink<SinkOperatorState, usize, usize> for SinkOperator {
-    fn on_data(&mut self, ctx: &mut WriteableSinkContext<SinkOperatorState, usize>, data: &usize) {
+impl Sink<SinkOperatorState, usize, usize> for SinkOperator {
+    fn on_data(&mut self, ctx: &mut SinkContext<SinkOperatorState, usize>, data: &usize) {
         let timestamp = ctx.get_timestamp().clone();
         slog::info!(
             erdos::get_terminal_logger(),
@@ -169,7 +194,7 @@ impl WriteableSink<SinkOperatorState, usize, usize> for SinkOperator {
         ctx.get_state().increment_message_count(&timestamp);
     }
 
-    fn on_watermark(&mut self, ctx: &mut WriteableSinkContext<SinkOperatorState, usize>) {
+    fn on_watermark(&mut self, ctx: &mut SinkContext<SinkOperatorState, usize>) {
         let timestamp = ctx.get_timestamp().clone();
         slog::info!(
             erdos::get_terminal_logger(),
@@ -281,7 +306,7 @@ fn main() {
     let source_stream = erdos::connect_source(SourceOperator::new, || {}, source_config);
 
     let square_config = OperatorConfig::new().name("SquareOperator");
-    let square_stream = erdos::connect_writeable_one_in_one_out(
+    let square_stream = erdos::connect_one_in_one_out(
         SquareOperator::new,
         SquareOperatorState::new,
         square_config,
@@ -289,11 +314,15 @@ fn main() {
     );
 
     //let sum_config = OperatorConfig::new().name("SumOperator");
-    //let sum_stream =
-    //    erdos::connect_one_in_one_out(SumOperator::new, || 0, sum_config, &square_stream);
+    //let sum_stream = erdos::connect_one_in_one_out(
+    //    SumOperator::new,
+    //    SumOperatorState::new,
+    //    sum_config,
+    //    &square_stream,
+    //);
 
     let sink_config = OperatorConfig::new().name("SinkOperator");
-    erdos::connect_writeable_sink(
+    erdos::connect_sink(
         SinkOperator::new,
         SinkOperatorState::new,
         sink_config,

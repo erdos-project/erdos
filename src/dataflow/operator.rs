@@ -43,17 +43,17 @@ where
  ************************************************************************************************/
 
 #[allow(unused_variables)]
-pub trait ReadOnlySink<S: ReadOnlyState<U, V>, T: Data, U, V>: Send + Sync {
+pub trait ParallelSink<S: ReadOnlyState<U, V>, T: Data, U, V>: Send + Sync {
     fn run(&mut self, read_stream: &mut ReadStream<T>) {}
 
     fn destroy(&mut self) {}
 
-    fn on_data(&self, ctx: &ReadOnlySinkContext<S, U, V>, data: &T);
+    fn on_data(&self, ctx: &ParallelSinkContext<S, U, V>, data: &T);
 
-    fn on_watermark(&self, ctx: &mut ReadOnlySinkContext<S, U, V>);
+    fn on_watermark(&self, ctx: &mut ParallelSinkContext<S, U, V>);
 }
 
-pub struct ReadOnlySinkContext<'a, S: ReadOnlyState<T, U>, T, U> {
+pub struct ParallelSinkContext<'a, S: ReadOnlyState<T, U>, T, U> {
     timestamp: Timestamp,
     config: OperatorConfig,
     state: &'a S,
@@ -61,7 +61,7 @@ pub struct ReadOnlySinkContext<'a, S: ReadOnlyState<T, U>, T, U> {
     phantomdata_u: PhantomData<U>,
 }
 
-impl<'a, S, T, U> ReadOnlySinkContext<'a, S, T, U>
+impl<'a, S, T, U> ParallelSinkContext<'a, S, T, U>
 where
     S: 'static + ReadOnlyState<T, U>,
 {
@@ -94,24 +94,24 @@ where
  ************************************************************************************************/
 
 #[allow(unused_variables)]
-pub trait WriteableSink<S: WriteableState<U>, T: Data, U>: Send + Sync {
+pub trait Sink<S: WriteableState<U>, T: Data, U>: Send + Sync {
     fn run(&mut self, read_stream: &mut ReadStream<T>) {}
 
     fn destroy(&mut self) {}
 
-    fn on_data(&mut self, ctx: &mut WriteableSinkContext<S, U>, data: &T);
+    fn on_data(&mut self, ctx: &mut SinkContext<S, U>, data: &T);
 
-    fn on_watermark(&mut self, ctx: &mut WriteableSinkContext<S, U>);
+    fn on_watermark(&mut self, ctx: &mut SinkContext<S, U>);
 }
 
-pub struct WriteableSinkContext<'a, S: WriteableState<T>, T> {
+pub struct SinkContext<'a, S: WriteableState<T>, T> {
     timestamp: Timestamp,
     config: OperatorConfig,
     state: &'a mut S,
     phantomdata_t: PhantomData<T>,
 }
 
-impl<'a, S, T> WriteableSinkContext<'a, S, T>
+impl<'a, S, T> SinkContext<'a, S, T>
 where
     S: WriteableState<T>,
 {
@@ -144,7 +144,7 @@ where
  ************************************************************************************************/
 
 #[allow(unused_variables)]
-pub trait ReadOnlyOneInOneOut<S, T, U, V, W>: Send + Sync
+pub trait ParallelOneInOneOut<S, T, U, V, W>: Send + Sync
 where
     S: ReadOnlyState<V, W>,
     T: Data + for<'a> Deserialize<'a>,
@@ -154,12 +154,12 @@ where
 
     fn destroy(&mut self) {}
 
-    fn on_data(&self, ctx: &ReadOnlyOneInOneOutContext<S, U, V, W>, data: &T);
+    fn on_data(&self, ctx: &ParallelOneInOneOutContext<S, U, V, W>, data: &T);
 
-    fn on_watermark(&self, ctx: &mut ReadOnlyOneInOneOutContext<S, U, V, W>);
+    fn on_watermark(&self, ctx: &mut ParallelOneInOneOutContext<S, U, V, W>);
 }
 
-pub struct ReadOnlyOneInOneOutContext<'a, S, T, U, V>
+pub struct ParallelOneInOneOutContext<'a, S, T, U, V>
 where
     S: ReadOnlyState<U, V>,
     T: Data + for<'b> Deserialize<'b>,
@@ -172,7 +172,7 @@ where
     phantom_v: PhantomData<V>,
 }
 
-impl<'a, S, T, U, V> ReadOnlyOneInOneOutContext<'a, S, T, U, V>
+impl<'a, S, T, U, V> ParallelOneInOneOutContext<'a, S, T, U, V>
 where
     S: ReadOnlyState<U, V>,
     T: Data + for<'b> Deserialize<'b>,
@@ -216,7 +216,7 @@ where
  *************************************************************************************************/
 
 #[allow(unused_variables)]
-pub trait WriteableOneInOneOut<S, T, U, V>: Send + Sync
+pub trait OneInOneOut<S, T, U, V>: Send + Sync
 where
     S: WriteableState<V>,
     T: Data + for<'a> Deserialize<'a>,
@@ -226,12 +226,12 @@ where
 
     fn destroy(&mut self) {}
 
-    fn on_data(&mut self, ctx: &mut WriteableOneInOneOutContext<S, U, V>, data: &T);
+    fn on_data(&mut self, ctx: &mut OneInOneOutContext<S, U, V>, data: &T);
 
-    fn on_watermark(&mut self, ctx: &mut WriteableOneInOneOutContext<S, U, V>);
+    fn on_watermark(&mut self, ctx: &mut OneInOneOutContext<S, U, V>);
 }
 
-pub struct WriteableOneInOneOutContext<'a, S, T, U>
+pub struct OneInOneOutContext<'a, S, T, U>
 where
     S: WriteableState<U>,
     T: Data + for<'b> Deserialize<'b>,
@@ -243,7 +243,7 @@ where
     phantom_u: PhantomData<U>,
 }
 
-impl<'a, S, T, U> WriteableOneInOneOutContext<'a, S, T, U>
+impl<'a, S, T, U> OneInOneOutContext<'a, S, T, U>
 where
     S: WriteableState<U>,
     T: Data + for<'b> Deserialize<'b>,
@@ -280,30 +280,6 @@ where
     }
 }
 
-/*****************************************************************************
- * OneInOneOut: receives T, sends U                                          *
- *****************************************************************************/
-
-#[allow(unused_variables)]
-pub trait OneInOneOut<S, T, U>: Send + Sync
-where
-    S: State,
-    T: Data + for<'a> Deserialize<'a>,
-    U: Data + for<'a> Deserialize<'a>,
-{
-    fn setup(&mut self, ctx: &mut OneInOneOutSetupContext) {}
-
-    fn run(&mut self, read_stream: &mut ReadStream<T>, write_stream: &mut WriteStream<U>) {}
-
-    fn destroy(&mut self) {}
-
-    fn on_data(ctx: &mut OneInOneOutContext<U>, data: &T);
-
-    fn on_data_stateful(ctx: &mut StatefulOneInOneOutContext<S, U>, data: &T);
-
-    fn on_watermark(ctx: &mut StatefulOneInOneOutContext<S, U>);
-}
-
 pub struct OneInOneOutSetupContext {
     pub(crate) deadlines: Vec<Deadline>,
     pub read_stream_id: StreamId,
@@ -330,24 +306,6 @@ impl SetupContextT for OneInOneOutSetupContext {
     fn num_deadlines(&self) -> usize {
         self.deadlines.len()
     }
-}
-
-pub struct OneInOneOutContext<U: Data> {
-    pub timestamp: Timestamp,
-    pub config: OperatorConfig,
-    pub write_stream: WriteStream<U>,
-}
-
-pub struct StatefulOneInOneOutContext<S, V>
-where
-    S: State,
-    V: Data + for<'a> Deserialize<'a>,
-{
-    pub timestamp: Timestamp,
-    pub config: OperatorConfig,
-    pub write_stream: WriteStream<V>,
-    // Hacky...
-    pub state: Arc<Mutex<S>>,
 }
 
 /*****************************************************************************

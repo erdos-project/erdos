@@ -8,10 +8,9 @@ use crate::{
         WriteableState,
     },
     node::operator_executors::{
-        NewOneInOneOutExecutor, OneInTwoOutExecutor, OperatorExecutorT,
-        ReadOnlyOneInOneOutMessageProcessor, ReadOnlySinkMessageProcessor, SinkExecutor,
-        SourceExecutor, TwoInOneOutExecutor, WriteableOneInOneOutMessageProcessor,
-        WriteableSinkMessageProcessor,
+        OneInOneOutExecutor, OneInOneOutMessageProcessor, OneInTwoOutExecutor, OperatorExecutorT,
+        ParallelOneInOneOutMessageProcessor, ParallelSinkMessageProcessor, SinkExecutor,
+        SinkMessageProcessor, SourceExecutor, TwoInOneOutExecutor,
     },
     scheduler::channel_manager::ChannelManager,
     OperatorId,
@@ -65,13 +64,13 @@ where
     write_stream
 }
 
-pub fn connect_read_only_sink<O, S, T, U, V>(
+pub fn connect_parallel_sink<O, S, T, U, V>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
     read_stream: &impl StreamT<T>,
 ) where
-    O: 'static + ReadOnlySink<S, T, U, V>,
+    O: 'static + ParallelSink<S, T, U, V>,
     S: ReadOnlyState<U, V>,
     T: Data + for<'a> Deserialize<'a>,
     U: 'static + Send + Sync,
@@ -94,7 +93,7 @@ pub fn connect_read_only_sink<O, S, T, U, V>(
 
             Box::new(SinkExecutor::new(
                 config_copy.clone(),
-                Box::new(ReadOnlySinkMessageProcessor::new(
+                Box::new(ParallelSinkMessageProcessor::new(
                     config_copy.clone(),
                     operator_fn.clone(),
                     state_fn.clone(),
@@ -113,13 +112,13 @@ pub fn connect_read_only_sink<O, S, T, U, V>(
     );
 }
 
-pub fn connect_writeable_sink<O, S, T, U>(
+pub fn connect_sink<O, S, T, U>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
     read_stream: &impl StreamT<T>,
 ) where
-    O: 'static + WriteableSink<S, T, U>,
+    O: 'static + Sink<S, T, U>,
     S: WriteableState<U>,
     T: Data + for<'a> Deserialize<'a>,
     U: 'static + Send + Sync,
@@ -141,7 +140,7 @@ pub fn connect_writeable_sink<O, S, T, U>(
 
             Box::new(SinkExecutor::new(
                 config_copy.clone(),
-                Box::new(WriteableSinkMessageProcessor::new(
+                Box::new(SinkMessageProcessor::new(
                     config_copy.clone(),
                     operator_fn.clone(),
                     state_fn.clone(),
@@ -160,14 +159,14 @@ pub fn connect_writeable_sink<O, S, T, U>(
     );
 }
 
-pub fn connect_read_only_one_in_one_out<O, S, T, U, V, W>(
+pub fn connect_parallel_only_one_in_one_out<O, S, T, U, V, W>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
     read_stream: &impl StreamT<T>,
 ) -> Stream<U>
 where
-    O: 'static + ReadOnlyOneInOneOut<S, T, U, V, W>,
+    O: 'static + ParallelOneInOneOut<S, T, U, V, W>,
     S: ReadOnlyState<V, W>,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
@@ -194,9 +193,9 @@ where
                 .get_write_stream(write_stream_ids_copy[0])
                 .unwrap();
 
-            Box::new(NewOneInOneOutExecutor::new(
+            Box::new(OneInOneOutExecutor::new(
                 config_copy.clone(),
-                Box::new(ReadOnlyOneInOneOutMessageProcessor::new(
+                Box::new(ParallelOneInOneOutMessageProcessor::new(
                     config_copy.clone(),
                     operator_fn.clone(),
                     state_fn.clone(),
@@ -219,14 +218,14 @@ where
     write_stream
 }
 
-pub fn connect_writeable_one_in_one_out<O, S, T, U, V>(
+pub fn connect_one_in_one_out<O, S, T, U, V>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
     read_stream: &impl StreamT<T>,
 ) -> Stream<U>
 where
-    O: 'static + WriteableOneInOneOut<S, T, U, V>,
+    O: 'static + OneInOneOut<S, T, U, V>,
     S: WriteableState<V>,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
@@ -253,9 +252,9 @@ where
                 .get_write_stream(write_stream_ids_copy[0])
                 .unwrap();
 
-            Box::new(NewOneInOneOutExecutor::new(
+            Box::new(OneInOneOutExecutor::new(
                 config_copy.clone(),
-                Box::new(WriteableOneInOneOutMessageProcessor::new(
+                Box::new(OneInOneOutMessageProcessor::new(
                     config_copy.clone(),
                     operator_fn.clone(),
                     state_fn.clone(),

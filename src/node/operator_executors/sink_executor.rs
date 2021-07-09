@@ -14,8 +14,8 @@ use tokio::{
 use crate::{
     dataflow::{
         operator::{
-            OneInOneOutSetupContext, OperatorConfig, ReadOnlySink, ReadOnlySinkContext,
-            WriteableSink, WriteableSinkContext,
+            OneInOneOutSetupContext, OperatorConfig, ParallelSink, ParallelSinkContext, Sink,
+            SinkContext,
         },
         Data, Message, ReadOnlyState, ReadStream, StreamT, Timestamp, WriteableState,
     },
@@ -154,9 +154,9 @@ where
     }
 }
 
-pub struct ReadOnlySinkMessageProcessor<O, S, T, U, V>
+pub struct ParallelSinkMessageProcessor<O, S, T, U, V>
 where
-    O: 'static + ReadOnlySink<S, T, U, V>,
+    O: 'static + ParallelSink<S, T, U, V>,
     S: ReadOnlyState<U, V>,
     T: Data + for<'a> Deserialize<'a>,
     U: 'static + Send + Sync,
@@ -171,9 +171,9 @@ where
     phantom_v: PhantomData<V>,
 }
 
-impl<O, S, T, U, V> ReadOnlySinkMessageProcessor<O, S, T, U, V>
+impl<O, S, T, U, V> ParallelSinkMessageProcessor<O, S, T, U, V>
 where
-    O: 'static + ReadOnlySink<S, T, U, V>,
+    O: 'static + ParallelSink<S, T, U, V>,
     S: ReadOnlyState<U, V>,
     T: Data + for<'a> Deserialize<'a>,
     U: 'static + Send + Sync,
@@ -196,9 +196,9 @@ where
     }
 }
 
-impl<O, S, T, U, V> OneInMessageProcessorT<T> for ReadOnlySinkMessageProcessor<O, S, T, U, V>
+impl<O, S, T, U, V> OneInMessageProcessorT<T> for ParallelSinkMessageProcessor<O, S, T, U, V>
 where
-    O: 'static + ReadOnlySink<S, T, U, V>,
+    O: 'static + ParallelSink<S, T, U, V>,
     S: ReadOnlyState<U, V>,
     T: Data + for<'a> Deserialize<'a>,
     U: 'static + Send + Sync,
@@ -227,11 +227,11 @@ where
             HashSet::new(),
             move || {
                 operator.on_data(
-                    &ReadOnlySinkContext::new(time, config, &state),
+                    &ParallelSinkContext::new(time, config, &state),
                     msg.data().unwrap(),
                 )
             },
-            OperatorType::ReadOnly,
+            OperatorType::Parallel,
         )
     }
 
@@ -248,15 +248,15 @@ where
             0,
             HashSet::new(),
             self.state_ids.clone(),
-            move || operator.on_watermark(&mut ReadOnlySinkContext::new(time, config, &state)),
-            OperatorType::ReadOnly,
+            move || operator.on_watermark(&mut ParallelSinkContext::new(time, config, &state)),
+            OperatorType::Parallel,
         )
     }
 }
 
-pub struct WriteableSinkMessageProcessor<O, S, T, U>
+pub struct SinkMessageProcessor<O, S, T, U>
 where
-    O: 'static + WriteableSink<S, T, U>,
+    O: 'static + Sink<S, T, U>,
     S: WriteableState<U>,
     T: Data + for<'a> Deserialize<'a>,
     U: 'static + Send + Sync,
@@ -269,9 +269,9 @@ where
     phantom_u: PhantomData<U>,
 }
 
-impl<O, S, T, U> WriteableSinkMessageProcessor<O, S, T, U>
+impl<O, S, T, U> SinkMessageProcessor<O, S, T, U>
 where
-    O: 'static + WriteableSink<S, T, U>,
+    O: 'static + Sink<S, T, U>,
     S: WriteableState<U>,
     T: Data + for<'a> Deserialize<'a>,
     U: 'static + Send + Sync,
@@ -292,9 +292,9 @@ where
     }
 }
 
-impl<O, S, T, U> OneInMessageProcessorT<T> for WriteableSinkMessageProcessor<O, S, T, U>
+impl<O, S, T, U> OneInMessageProcessorT<T> for SinkMessageProcessor<O, S, T, U>
 where
-    O: 'static + WriteableSink<S, T, U>,
+    O: 'static + Sink<S, T, U>,
     S: WriteableState<U>,
     T: Data + for<'a> Deserialize<'a>,
     U: 'static + Send + Sync,
@@ -321,11 +321,11 @@ where
             HashSet::new(),
             move || {
                 operator.lock().unwrap().on_data(
-                    &mut WriteableSinkContext::new(time, config, &mut state.lock().unwrap()),
+                    &mut SinkContext::new(time, config, &mut state.lock().unwrap()),
                     msg.data().unwrap(),
                 )
             },
-            OperatorType::Writeable,
+            OperatorType::Sequential,
         )
     }
 
@@ -345,13 +345,13 @@ where
                 operator
                     .lock()
                     .unwrap()
-                    .on_watermark(&mut WriteableSinkContext::new(
+                    .on_watermark(&mut SinkContext::new(
                         time,
                         config,
                         &mut state.lock().unwrap(),
                     ))
             },
-            OperatorType::Writeable,
+            OperatorType::Sequential,
         )
     }
 }

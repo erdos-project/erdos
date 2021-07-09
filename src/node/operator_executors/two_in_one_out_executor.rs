@@ -196,7 +196,7 @@ where
             HashSet::new(),
             HashSet::new(),
             move || O::on_left_data(&mut ctx, msg.data().unwrap()),
-            OperatorType::ReadOnly,
+            OperatorType::Parallel,
         )
     }
 
@@ -215,7 +215,7 @@ where
             HashSet::new(),
             self.state_ids.clone(),
             move || O::on_left_data_stateful(&mut ctx, msg.data().unwrap()),
-            OperatorType::ReadOnly,
+            OperatorType::Parallel,
         )
     }
 
@@ -233,7 +233,7 @@ where
             HashSet::new(),
             HashSet::new(),
             move || O::on_right_data(&mut ctx, msg.data().unwrap()),
-            OperatorType::ReadOnly,
+            OperatorType::Parallel,
         )
     }
 
@@ -252,7 +252,7 @@ where
             HashSet::new(),
             self.state_ids.clone(),
             move || O::on_right_data_stateful(&mut ctx, msg.data().unwrap()),
-            OperatorType::ReadOnly,
+            OperatorType::Parallel,
         )
     }
 
@@ -279,7 +279,7 @@ where
                         .send(Message::new_watermark(timestamp_copy))
                         .ok();
                 },
-                OperatorType::ReadOnly,
+                OperatorType::Parallel,
             )
         } else {
             OperatorEvent::new(
@@ -289,7 +289,7 @@ where
                 HashSet::new(),
                 self.state_ids.clone(),
                 move || O::on_watermark(&mut ctx),
-                OperatorType::ReadOnly,
+                OperatorType::Parallel,
             )
         }
     }

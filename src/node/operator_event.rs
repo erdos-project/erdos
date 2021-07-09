@@ -6,8 +6,8 @@ use crate::{dataflow::Timestamp, Uuid};
 /// The different operator types have different execution semantics for the message and watermark
 /// callbacks dictated by the `Ord` trait on the `OperatorEvent`.
 pub enum OperatorType {
-    ReadOnly,
-    Writeable,
+    Parallel,
+    Sequential,
 }
 
 /// `OperatorEvent` is a structure that encapsulates a particular invocation of the
@@ -105,7 +105,7 @@ impl PartialEq for OperatorEvent {
 impl Ord for OperatorEvent {
     fn cmp(&self, other: &OperatorEvent) -> Ordering {
         match self.operator_type {
-            OperatorType::ReadOnly => {
+            OperatorType::Parallel => {
                 match (self.is_watermark_callback, other.is_watermark_callback) {
                     (true, true) => {
                         // Both of the events are watermarks, so the watermark with the lower
@@ -138,7 +138,7 @@ impl Ord for OperatorEvent {
                     (false, false) => Ordering::Equal,
                 }
             }
-            OperatorType::Writeable => {
+            OperatorType::Sequential => {
                 match (self.is_watermark_callback, other.is_watermark_callback) {
                     (true, true) => {
                         // Both of the events are watermarks, so the watermark with the lower

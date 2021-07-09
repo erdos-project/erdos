@@ -205,7 +205,7 @@ where
             HashSet::new(),
             HashSet::new(),
             move || O::on_data(&mut ctx, msg.data().unwrap()),
-            OperatorType::ReadOnly,
+            OperatorType::Parallel,
         )
     }
 
@@ -238,7 +238,7 @@ where
                         .send(Message::new_watermark(timestamp_copy_right))
                         .ok();
                 },
-                OperatorType::ReadOnly,
+                OperatorType::Parallel,
             )
         } else {
             OperatorEvent::new(
@@ -250,7 +250,7 @@ where
                 move || {
                     O::on_watermark(&mut ctx);
                 },
-                OperatorType::ReadOnly,
+                OperatorType::Parallel,
             )
         }
     }
