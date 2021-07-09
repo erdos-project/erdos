@@ -1,161 +1,25 @@
 use serde::Deserialize;
 use std::{
     collections::HashSet,
-    future::Future,
     marker::PhantomData,
-    pin::Pin,
     sync::{Arc, Mutex},
-};
-use tokio::{
-    self,
-    sync::{broadcast, mpsc},
 };
 
 use crate::{
     dataflow::{
         operator::{
-            OneInOneOut, OneInOneOutContext, OneInOneOutSetupContext, OperatorConfig,
-            ParallelOneInOneOut, ParallelOneInOneOutContext,
+            OneInOneOut, OneInOneOutContext, OperatorConfig, ParallelOneInOneOut,
+            ParallelOneInOneOutContext,
         },
         stream::WriteStreamT,
-        Data, Message, ReadOnlyState, ReadStream, StreamT, Timestamp, WriteStream, WriteableState,
+        Data, Message, ReadOnlyState, ReadStream, Timestamp, WriteStream, WriteableState,
     },
     node::{
-        lattice::ExecutionLattice,
         operator_event::{OperatorEvent, OperatorType},
-        operator_executors::{OneInMessageProcessorT, OperatorExecutorHelper, OperatorExecutorT},
-        worker::{EventNotification, OperatorExecutorNotification, WorkerNotification},
+        operator_executors::OneInMessageProcessorT,
     },
-    OperatorId, Uuid,
+    Uuid,
 };
-
-pub struct OneInOneOutExecutor<T>
-where
-    T: Data + for<'a> Deserialize<'a>,
-{
-    config: OperatorConfig,
-    executor: Box<dyn OneInMessageProcessorT<T>>,
-    helper: Option<OperatorExecutorHelper>,
-    read_stream: Option<ReadStream<T>>,
-}
-
-impl<T> OneInOneOutExecutor<T>
-where
-    T: Data + for<'a> Deserialize<'a>,
-{
-    pub fn new(
-        config: OperatorConfig,
-        executor: Box<dyn OneInMessageProcessorT<T>>,
-        read_stream: ReadStream<T>,
-    ) -> Self {
-        let operator_id = config.id;
-        Self {
-            config,
-            executor,
-            read_stream: Some(read_stream),
-            helper: Some(OperatorExecutorHelper::new(operator_id)),
-        }
-    }
-
-    pub(crate) async fn execute(
-        &mut self,
-        mut channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
-        channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
-        channel_to_event_runners: broadcast::Sender<EventNotification>,
-    ) {
-        // Synchronize the operator with the rest of the dataflow graph.
-        let mut helper = self.helper.take().unwrap();
-        helper.synchronize().await;
-
-        // Run the `setup` method.
-        let mut read_stream: ReadStream<T> = self.read_stream.take().unwrap();
-        let setup_context = OneInOneOutSetupContext::new(read_stream.id());
-        // TODO (Sukrit): Implement deadlines and `setup` method for the new OneInOneOut operators.
-
-        // Execute the `run` method.
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
-            "Node {}: Running Operator {}",
-            self.config.node_id,
-            self.config.get_name(),
-        );
-
-        tokio::task::block_in_place(|| {
-            self.executor.execute_run(&mut read_stream);
-        });
-
-        // Process messages on the incoming stream.
-        let process_stream_fut = helper.process_stream(
-            read_stream,
-            &mut (*self.executor),
-            &channel_to_event_runners,
-            &setup_context,
-        );
-
-        // Shutdown.
-        loop {
-            tokio::select! {
-                _ = process_stream_fut => break,
-                notification_result = channel_from_worker.recv() => {
-                    match notification_result {
-                        Ok(notification) => {
-                            match notification {
-                                OperatorExecutorNotification::Shutdown => { break; }
-                            }
-                        }
-                        Err(e) => {
-                            slog::error!(
-                                crate::TERMINAL_LOGGER,
-                                "OneInOneOut Executor {}: error receiving notifications {:?}",
-                                self.operator_id(),
-                                e,
-                            );
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
-        // Invoke the `destroy` method.
-        tokio::task::block_in_place(|| self.executor.execute_destroy());
-
-        // Return the helper.
-        self.helper.replace(helper);
-
-        // Ask the executor to cleanup and notify the worker.
-        self.executor.cleanup();
-        channel_to_worker
-            .send(WorkerNotification::DestroyedOperator(self.operator_id()))
-            .unwrap();
-    }
-}
-
-impl<T> OperatorExecutorT for OneInOneOutExecutor<T>
-where
-    T: Data + for<'a> Deserialize<'a>,
-{
-    fn execute<'a>(
-        &'a mut self,
-        channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
-        channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
-        channel_to_event_runners: broadcast::Sender<EventNotification>,
-    ) -> Pin<Box<dyn Future<Output = ()> + 'a + Send>> {
-        Box::pin(self.execute(
-            channel_from_worker,
-            channel_to_worker,
-            channel_to_event_runners,
-        ))
-    }
-
-    fn lattice(&self) -> Arc<ExecutionLattice> {
-        Arc::clone(&self.helper.as_ref().unwrap().lattice)
-    }
-
-    fn operator_id(&self) -> OperatorId {
-        self.config.id
-    }
-}
 
 pub struct ParallelOneInOneOutMessageProcessor<O, S, T, U, V, W>
 where

@@ -8,9 +8,9 @@ use crate::{
         WriteableState,
     },
     node::operator_executors::{
-        OneInOneOutExecutor, OneInOneOutMessageProcessor, OneInTwoOutExecutor, OperatorExecutorT,
-        ParallelOneInOneOutMessageProcessor, ParallelSinkMessageProcessor, SinkExecutor,
-        SinkMessageProcessor, SourceExecutor, TwoInOneOutExecutor,
+        OneInExecutor, OneInOneOutMessageProcessor, OneInTwoOutExecutor, OperatorExecutorT,
+        ParallelOneInOneOutMessageProcessor, ParallelSinkMessageProcessor, SinkMessageProcessor,
+        SourceExecutor, TwoInOneOutExecutor,
     },
     scheduler::channel_manager::ChannelManager,
     OperatorId,
@@ -91,7 +91,7 @@ pub fn connect_parallel_sink<O, S, T, U, V>(
                 .take_read_stream(read_stream_ids_copy[0])
                 .unwrap();
 
-            Box::new(SinkExecutor::new(
+            Box::new(OneInExecutor::new(
                 config_copy.clone(),
                 Box::new(ParallelSinkMessageProcessor::new(
                     config_copy.clone(),
@@ -138,7 +138,7 @@ pub fn connect_sink<O, S, T, U>(
                 .take_read_stream(read_stream_ids_copy[0])
                 .unwrap();
 
-            Box::new(SinkExecutor::new(
+            Box::new(OneInExecutor::new(
                 config_copy.clone(),
                 Box::new(SinkMessageProcessor::new(
                     config_copy.clone(),
@@ -193,7 +193,7 @@ where
                 .get_write_stream(write_stream_ids_copy[0])
                 .unwrap();
 
-            Box::new(OneInOneOutExecutor::new(
+            Box::new(OneInExecutor::new(
                 config_copy.clone(),
                 Box::new(ParallelOneInOneOutMessageProcessor::new(
                     config_copy.clone(),
@@ -252,7 +252,7 @@ where
                 .get_write_stream(write_stream_ids_copy[0])
                 .unwrap();
 
-            Box::new(OneInOneOutExecutor::new(
+            Box::new(OneInExecutor::new(
                 config_copy.clone(),
                 Box::new(OneInOneOutMessageProcessor::new(
                     config_copy.clone(),

@@ -7,24 +7,24 @@
 //! TODO (Sukrit): Define how to utilize the OperatorExecutorT and OneInMessageProcessorT traits.
 
 // Export the executors outside.
-mod source_executor;
-mod sink_executor;
 mod one_in_one_out_executor;
-mod two_in_one_out_executor;
 mod one_in_two_out_executor;
+mod sink_executor;
+mod source_executor;
+mod two_in_one_out_executor;
 
-pub use source_executor::*;
-pub use sink_executor::*;
 pub use one_in_one_out_executor::*;
-pub use two_in_one_out_executor::*;
 pub use one_in_two_out_executor::*;
+pub use sink_executor::*;
+pub use source_executor::*;
+pub use two_in_one_out_executor::*;
 
 /* ***********************************************************************************************
  * Imports for the traits.
  * ***********************************************************************************************/
 use std::{cmp, collections::HashMap, future::Future, pin::Pin, sync::Arc, time::Duration};
 
-use futures_delay_queue::{delay_queue, DelayHandle, DelayQueue, Receiver,};
+use futures_delay_queue::{delay_queue, DelayHandle, DelayQueue, Receiver};
 use futures_intrusive::buffer::GrowingHeapBuf;
 use serde::Deserialize;
 use tokio::{
@@ -35,7 +35,7 @@ use tokio::{
 use crate::{
     dataflow::{
         deadlines::{Deadline, DeadlineEvent},
-        operator::SetupContextT,
+        operator::{OneInOneOutSetupContext, OperatorConfig, SetupContextT},
         stream::StreamId,
         Data, Message, ReadStream, StreamT, Timestamp,
     },
@@ -125,7 +125,7 @@ where
         true
     }
 
-    /// Cleans up the write streams and any other data owned by the executor. 
+    /// Cleans up the write streams and any other data owned by the executor.
     /// This is invoked after the operator is destroyed.
     fn cleanup(&mut self) {}
 }
@@ -152,6 +152,137 @@ where
 
     /// Generates an OperatorEvent for a watermark callback.
     fn watermark_cb_event(&self, timestamp: &Timestamp) -> OperatorEvent;
+}
+
+/* ***********************************************************************************************
+ * Executors for the different operator types.
+ * ***********************************************************************************************/
+
+pub struct OneInExecutor<T>
+where
+    T: Data + for<'a> Deserialize<'a>,
+{
+    config: OperatorConfig,
+    processor: Box<dyn OneInMessageProcessorT<T>>,
+    helper: Option<OperatorExecutorHelper>,
+    read_stream: Option<ReadStream<T>>,
+}
+
+impl<T> OneInExecutor<T>
+where
+    T: Data + for<'a> Deserialize<'a>,
+{
+    pub fn new(
+        config: OperatorConfig,
+        processor: Box<dyn OneInMessageProcessorT<T>>,
+        read_stream: ReadStream<T>,
+    ) -> Self {
+        let operator_id = config.id;
+        Self {
+            config,
+            processor,
+            read_stream: Some(read_stream),
+            helper: Some(OperatorExecutorHelper::new(operator_id)),
+        }
+    }
+
+    pub(crate) async fn execute(
+        &mut self,
+        mut channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
+        channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
+        channel_to_event_runners: broadcast::Sender<EventNotification>,
+    ) {
+        // Synchronize the operator with the rest of the dataflow graph.
+        let mut helper = self.helper.take().unwrap();
+        helper.synchronize().await;
+
+        // Run the `setup` method.
+        let mut read_stream: ReadStream<T> = self.read_stream.take().unwrap();
+        let setup_context = OneInOneOutSetupContext::new(read_stream.id());
+        // TODO (Sukrit): Implement deadlines and `setup` method for the operators.
+
+        // Execute the `run` method.
+        slog::debug!(
+            crate::TERMINAL_LOGGER,
+            "Node {}: Running Operator {}",
+            self.config.node_id,
+            self.config.get_name()
+        );
+        tokio::task::block_in_place(|| {
+            self.processor.execute_run(&mut read_stream);
+        });
+
+        // Process messages on the incoming stream.
+        let process_stream_fut = helper.process_stream(
+            read_stream,
+            &mut (*self.processor),
+            &channel_to_event_runners,
+            &setup_context,
+        );
+
+        // Shutdown.
+        loop {
+            tokio::select! {
+                _ = process_stream_fut => break,
+                notification_result = channel_from_worker.recv() => {
+                    match notification_result {
+                        Ok(notification) => {
+                            match notification {
+                                OperatorExecutorNotification::Shutdown => { break; }
+                            }
+                        }
+                        Err(e) => {
+                            slog::error!(
+                                crate::TERMINAL_LOGGER,
+                                "OneInExecutor {}: Error receiving notifications {:?}",
+                                self.operator_id(),
+                                e
+                            );
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Invoke the `destroy` method.
+        tokio::task::block_in_place(|| self.processor.execute_destroy());
+
+        // Return the helper.
+        self.helper.replace(helper);
+
+        // Ask the executor to cleanup and notify the worker.
+        self.processor.cleanup();
+        channel_to_worker
+            .send(WorkerNotification::DestroyedOperator(self.operator_id()))
+            .unwrap();
+    }
+}
+
+impl<T> OperatorExecutorT for OneInExecutor<T>
+where
+    T: Data + for<'a> Deserialize<'a>,
+{
+    fn execute<'a>(
+        &'a mut self,
+        channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
+        channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
+        channel_to_event_runners: broadcast::Sender<EventNotification>,
+    ) -> Pin<Box<dyn Future<Output = ()> + 'a + Send>> {
+        Box::pin(self.execute(
+            channel_from_worker,
+            channel_to_worker,
+            channel_to_event_runners,
+        ))
+    }
+
+    fn lattice(&self) -> Arc<ExecutionLattice> {
+        Arc::clone(&self.helper.as_ref().unwrap().lattice)
+    }
+
+    fn operator_id(&self) -> OperatorId {
+        self.config.id
+    }
 }
 
 /* ***********************************************************************************************
