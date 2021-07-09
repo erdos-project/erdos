@@ -164,7 +164,7 @@ where
 {
     config: OperatorConfig,
     processor: Box<dyn OneInMessageProcessorT<T>>,
-    helper: Option<OperatorExecutorHelper>,
+    helper: OperatorExecutorHelper,
     read_stream: Option<ReadStream<T>>,
 }
 
@@ -182,7 +182,7 @@ where
             config,
             processor,
             read_stream: Some(read_stream),
-            helper: Some(OperatorExecutorHelper::new(operator_id)),
+            helper: OperatorExecutorHelper::new(operator_id),
         }
     }
 
@@ -193,8 +193,7 @@ where
         channel_to_event_runners: broadcast::Sender<EventNotification>,
     ) {
         // Synchronize the operator with the rest of the dataflow graph.
-        let mut helper = self.helper.take().unwrap();
-        helper.synchronize().await;
+        self.helper.synchronize().await;
 
         // Run the `setup` method.
         let mut read_stream: ReadStream<T> = self.read_stream.take().unwrap();
@@ -213,7 +212,7 @@ where
         });
 
         // Process messages on the incoming stream.
-        let process_stream_fut = helper.process_stream(
+        let process_stream_fut = self.helper.process_stream(
             read_stream,
             &mut (*self.processor),
             &channel_to_event_runners,
@@ -248,9 +247,6 @@ where
         // Invoke the `destroy` method.
         tokio::task::block_in_place(|| self.processor.execute_destroy());
 
-        // Return the helper.
-        self.helper.replace(helper);
-
         // Ask the executor to cleanup and notify the worker.
         self.processor.cleanup();
         channel_to_worker
@@ -277,7 +273,7 @@ where
     }
 
     fn lattice(&self) -> Arc<ExecutionLattice> {
-        Arc::clone(&self.helper.as_ref().unwrap().lattice)
+        Arc::clone(&self.helper.lattice)
     }
 
     fn operator_id(&self) -> OperatorId {
