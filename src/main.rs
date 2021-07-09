@@ -59,11 +59,7 @@ impl StateT for SquareOperatorState {
 }
 
 impl OneInOneOut<SquareOperatorState, usize, usize> for SquareOperator {
-    fn on_data(
-        &mut self,
-        ctx: &mut OneInOneOutContext<SquareOperatorState, usize>,
-        data: &usize,
-    ) {
+    fn on_data(&mut self, ctx: &mut OneInOneOutContext<SquareOperatorState, usize>, data: &usize) {
         thread::sleep(Duration::new(2, 0));
         let logger = erdos::get_terminal_logger();
         slog::info!(
@@ -120,11 +116,7 @@ impl StateT for SumOperatorState {
 }
 
 impl OneInOneOut<SumOperatorState, usize, usize> for SumOperator {
-    fn on_data(
-        &mut self,
-        ctx: &mut OneInOneOutContext<SumOperatorState, usize>,
-        data: &usize,
-    ) {
+    fn on_data(&mut self, ctx: &mut OneInOneOutContext<SumOperatorState, usize>, data: &usize) {
         slog::info!(
             erdos::get_terminal_logger(),
             "SumOperator @ {:?}: Received {}",
@@ -266,34 +258,50 @@ impl EvenOddOperator {
     }
 }
 
-impl OneInTwoOut<(), usize, usize, usize> for EvenOddOperator {
-    fn on_data(ctx: &mut OneInTwoOutContext<usize, usize>, data: &usize) {
+struct EvenOddOperatorState {}
+
+#[allow(dead_code)]
+impl EvenOddOperatorState {
+    fn new() -> Self {
+        Self {}
+    }
+}
+
+impl StateT for EvenOddOperatorState {
+    fn commit(&mut self, _timestamp: &Timestamp) {}
+}
+
+impl OneInTwoOut<EvenOddOperatorState, usize, usize, usize> for EvenOddOperator {
+    fn on_data(
+        &mut self,
+        ctx: &mut OneInTwoOutContext<EvenOddOperatorState, usize, usize>,
+        data: &usize,
+    ) {
+        let time = ctx.get_timestamp().clone();
         if data % 2 == 0 {
             slog::info!(
                 erdos::get_terminal_logger(),
                 "EvenOddOperator @ {:?}: sending even number {} on left stream",
-                ctx.timestamp,
+                ctx.get_timestamp(),
                 data,
             );
-            ctx.left_write_stream
-                .send(Message::new_message(ctx.timestamp.clone(), *data))
+            ctx.get_left_write_stream()
+                .send(Message::new_message(time, *data))
                 .unwrap();
         } else {
             slog::info!(
                 erdos::get_terminal_logger(),
                 "EvenOddOperator @ {:?}: sending odd number {} on right stream",
-                ctx.timestamp,
+                ctx.get_timestamp(),
                 data,
             );
-            ctx.right_write_stream
-                .send(Message::new_message(ctx.timestamp.clone(), *data))
+            ctx.get_right_write_stream()
+                .send(Message::new_message(time, *data))
                 .unwrap();
         }
     }
 
-    fn on_data_stateful(_ctx: &mut StatefulOneInTwoOutContext<(), usize, usize>, _data: &usize) {}
-
-    fn on_watermark(_ctx: &mut StatefulOneInTwoOutContext<(), usize, usize>) {}
+    fn on_watermark(&mut self, _ctx: &mut OneInTwoOutContext<EvenOddOperatorState, usize, usize>) {}
 }
 
 fn main() {

@@ -347,12 +347,20 @@ pub struct StatefulTwoInOneOutContext<S: State, U: Data> {
     pub state: Arc<Mutex<S>>,
 }
 
-/*****************************************************************************
- * OneInTwoOut: receives T, sends U, sends V                                 *
- *****************************************************************************/
+/*************************************************************************************************
+ * ParallelOneInTwoOut: receives data with type T, and enables message callbacks to execute in   *
+ * parallel by only allowing append access in the message callbacks and writable access to the   *
+ * state in the watermark callbacks.                                                             *
+ ************************************************************************************************/
 
 #[allow(unused_variables)]
-pub trait OneInTwoOut<S: State, T: Data, U: Data, V: Data>: Send + Sync {
+pub trait ParallelOneInTwoOut<S, T, U, V, W>: Send + Sync
+where
+    S: AppendableStateT<W>,
+    T: Data + for<'a> Deserialize<'a>,
+    U: Data + for<'a> Deserialize<'a>,
+    V: Data + for<'a> Deserialize<'a>,
+{
     fn run(
         &mut self,
         read_stream: &mut ReadStream<T>,
@@ -363,26 +371,151 @@ pub trait OneInTwoOut<S: State, T: Data, U: Data, V: Data>: Send + Sync {
 
     fn destroy(&mut self) {}
 
-    fn on_data(ctx: &mut OneInTwoOutContext<U, V>, data: &T);
+    fn on_data(&self, ctx: &ParallelOneInTwoOutContext<S, U, V, W>, data: &T);
 
-    fn on_data_stateful(ctx: &mut StatefulOneInTwoOutContext<S, U, V>, data: &T);
-
-    fn on_watermark(ctx: &mut StatefulOneInTwoOutContext<S, U, V>);
+    fn on_watermark(&self, ctx: &mut ParallelOneInTwoOutContext<S, U, V, W>);
 }
 
-pub struct OneInTwoOutContext<U: Data, V: Data> {
-    pub timestamp: Timestamp,
-    pub config: OperatorConfig,
-    pub left_write_stream: WriteStream<U>,
-    pub right_write_stream: WriteStream<V>,
+pub struct ParallelOneInTwoOutContext<'a, S, T, U, V>
+where
+    S: AppendableStateT<V>,
+    T: Data + for<'b> Deserialize<'b>,
+    U: Data + for<'b> Deserialize<'b>,
+{
+    timestamp: Timestamp,
+    config: OperatorConfig,
+    state: &'a S,
+    left_write_stream: WriteStream<T>,
+    right_write_stream: WriteStream<U>,
+    phantom_v: PhantomData<V>,
 }
 
-pub struct StatefulOneInTwoOutContext<S: State, U: Data, V: Data> {
-    pub timestamp: Timestamp,
-    pub config: OperatorConfig,
-    pub left_write_stream: WriteStream<U>,
-    pub right_write_stream: WriteStream<V>,
-    pub state: Arc<Mutex<S>>,
+impl<'a, S, T, U, V> ParallelOneInTwoOutContext<'a, S, T, U, V>
+where
+    S: AppendableStateT<V>,
+    T: Data + for<'b> Deserialize<'b>,
+    U: Data + for<'b> Deserialize<'b>,
+{
+    pub fn new(
+        timestamp: Timestamp,
+        config: OperatorConfig,
+        state: &'a S,
+        left_write_stream: WriteStream<T>,
+        right_write_stream: WriteStream<U>,
+    ) -> Self {
+        Self {
+            timestamp,
+            config,
+            state,
+            left_write_stream,
+            right_write_stream,
+            phantom_v: PhantomData,
+        }
+    }
+
+    pub fn get_timestamp(&self) -> &Timestamp {
+        &self.timestamp
+    }
+
+    pub fn get_operator_config(&self) -> &OperatorConfig {
+        &self.config
+    }
+
+    pub fn get_state(&self) -> &S {
+        &self.state
+    }
+
+    pub fn get_left_write_stream(&mut self) -> &mut WriteStream<T> {
+        &mut self.left_write_stream
+    }
+
+    pub fn get_right_write_stream(&mut self) -> &mut WriteStream<U> {
+        &mut self.right_write_stream
+    }
+}
+
+/**************************************************************************************************
+ * OneInTwoOut: Receives data with type T, and enables message callbacks to have mutable          *
+ * access to the operator state, but all callbacks are sequentialized.                            *
+ *************************************************************************************************/
+
+#[allow(unused_variables)]
+pub trait OneInTwoOut<S, T, U, V>: Send + Sync
+where
+    S: StateT,
+    T: Data + for<'a> Deserialize<'a>,
+    U: Data + for<'a> Deserialize<'a>,
+    V: Data + for<'a> Deserialize<'a>,
+{
+    fn run(
+        &mut self,
+        read_stream: &mut ReadStream<T>,
+        left_write_stream: &mut WriteStream<U>,
+        right_write_stream: &mut WriteStream<V>,
+    ) {
+    }
+
+    fn destroy(&mut self) {}
+
+    fn on_data(&mut self, ctx: &mut OneInTwoOutContext<S, U, V>, data: &T);
+
+    fn on_watermark(&mut self, ctx: &mut OneInTwoOutContext<S, U, V>);
+}
+
+pub struct OneInTwoOutContext<'a, S, T, U>
+where
+    S: StateT,
+    T: Data + for<'b> Deserialize<'b>,
+    U: Data + for<'b> Deserialize<'b>,
+{
+    timestamp: Timestamp,
+    config: OperatorConfig,
+    state: &'a mut S,
+    left_write_stream: WriteStream<T>,
+    right_write_stream: WriteStream<U>,
+}
+
+impl<'a, S, T, U> OneInTwoOutContext<'a, S, T, U>
+where
+    S: StateT,
+    T: Data + for<'b> Deserialize<'b>,
+    U: Data + for<'b> Deserialize<'b>,
+{
+    pub fn new(
+        timestamp: Timestamp,
+        config: OperatorConfig,
+        state: &'a mut S,
+        left_write_stream: WriteStream<T>,
+        right_write_stream: WriteStream<U>,
+    ) -> Self {
+        Self {
+            timestamp,
+            config,
+            state,
+            left_write_stream,
+            right_write_stream,
+        }
+    }
+
+    pub fn get_timestamp(&self) -> &Timestamp {
+        &self.timestamp
+    }
+
+    pub fn get_operator_config(&self) -> &OperatorConfig {
+        &self.config
+    }
+
+    pub fn get_state(&mut self) -> &mut S {
+        &mut self.state
+    }
+
+    pub fn get_left_write_stream(&mut self) -> &mut WriteStream<T> {
+        &mut self.left_write_stream
+    }
+
+    pub fn get_right_write_stream(&mut self) -> &mut WriteStream<U> {
+        &mut self.right_write_stream
+    }
 }
 
 #[derive(Clone)]
