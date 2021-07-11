@@ -1,52 +1,230 @@
 use serde::Deserialize;
 use std::{
     collections::HashSet,
-    future::Future,
-    pin::Pin,
+    marker::PhantomData,
     sync::{Arc, Mutex},
-};
-use tokio::{
-    self,
-    sync::{broadcast, mpsc},
 };
 
 use crate::{
     dataflow::{
-        operator::{OperatorConfig, StatefulTwoInOneOutContext, TwoInOneOut, TwoInOneOutContext},
+        operator::{
+            OperatorConfig, ParallelTwoInOneOut, ParallelTwoInOneOutContext, TwoInOneOut,
+            TwoInOneOutContext,
+        },
         stream::WriteStreamT,
-        Data, Message, ReadStream, State, Timestamp, WriteStream,
+        AppendableStateT, Data, Message, ReadStream, StateT, Timestamp, WriteStream,
     },
     node::{
-        lattice::ExecutionLattice,
         operator_event::{OperatorEvent, OperatorType},
-        operator_executors::{OperatorExecutorHelper, OperatorExecutorT, TwoInMessageProcessorT},
-        worker::{EventNotification, OperatorExecutorNotification, WorkerNotification},
+        operator_executors::TwoInMessageProcessorT,
     },
-    OperatorId, Uuid,
+    Uuid,
 };
 
-pub struct TwoInOneOutExecutor<O, S, T, U, V>
+pub struct ParallelTwoInOneOutMessageProcessor<O, S, T, U, V, W>
 where
-    O: TwoInOneOut<S, T, U, V>,
-    S: State,
+    O: 'static + ParallelTwoInOneOut<S, T, U, V, W>,
+    S: AppendableStateT<W>,
+    T: Data + for<'a> Deserialize<'a>,
+    U: Data + for<'a> Deserialize<'a>,
+    V: Data + for<'a> Deserialize<'a>,
+    W: 'static + Send + Sync,
+{
+    config: OperatorConfig,
+    operator: Arc<O>,
+    state: Arc<S>,
+    state_ids: HashSet<Uuid>,
+    write_stream: WriteStream<V>,
+    phantom_t: PhantomData<T>,
+    phantom_u: PhantomData<U>,
+    phantom_w: PhantomData<W>,
+}
+
+impl<O, S, T, U, V, W> ParallelTwoInOneOutMessageProcessor<O, S, T, U, V, W>
+where
+    O: 'static + ParallelTwoInOneOut<S, T, U, V, W>,
+    S: AppendableStateT<W>,
+    T: Data + for<'a> Deserialize<'a>,
+    U: Data + for<'a> Deserialize<'a>,
+    V: Data + for<'a> Deserialize<'a>,
+    W: 'static + Send + Sync,
+{
+    pub fn new(
+        config: OperatorConfig,
+        operator_fn: impl Fn() -> O + Send,
+        state_fn: impl Fn() -> S + Send,
+        write_stream: WriteStream<V>,
+    ) -> Self {
+        Self {
+            config,
+            operator: Arc::new(operator_fn()),
+            state: Arc::new(state_fn()),
+            state_ids: vec![Uuid::new_deterministic()].into_iter().collect(),
+            write_stream,
+            phantom_t: PhantomData,
+            phantom_u: PhantomData,
+            phantom_w: PhantomData,
+        }
+    }
+}
+
+impl<O, S, T, U, V, W> TwoInMessageProcessorT<T, U>
+    for ParallelTwoInOneOutMessageProcessor<O, S, T, U, V, W>
+where
+    O: 'static + ParallelTwoInOneOut<S, T, U, V, W>,
+    S: AppendableStateT<W>,
+    T: Data + for<'a> Deserialize<'a>,
+    U: Data + for<'a> Deserialize<'a>,
+    V: Data + for<'a> Deserialize<'a>,
+    W: 'static + Send + Sync,
+{
+    fn execute_run(
+        &mut self,
+        left_read_stream: &mut ReadStream<T>,
+        right_read_stream: &mut ReadStream<U>,
+    ) {
+        Arc::get_mut(&mut self.operator).unwrap().run(
+            left_read_stream,
+            right_read_stream,
+            &mut self.write_stream,
+        );
+    }
+
+    fn execute_destroy(&mut self) {
+        Arc::get_mut(&mut self.operator).unwrap().destroy();
+    }
+
+    fn cleanup(&mut self) {
+        if !self.write_stream.is_closed() {
+            self.write_stream
+                .send(Message::new_watermark(Timestamp::Top))
+                .expect(&format!(
+                    "[ParallelTwoInOneOut] Error sending Top watermark for operator {}",
+                    self.config.get_name(),
+                ));
+        }
+    }
+
+    fn left_message_cb_event(&mut self, msg: Arc<Message<T>>) -> OperatorEvent {
+        // Clone the reference to the operator and the state.
+        let operator = Arc::clone(&self.operator);
+        let state = Arc::clone(&self.state);
+        let time = msg.timestamp().clone();
+        let config = self.config.clone();
+        let write_stream = self.write_stream.clone();
+
+        OperatorEvent::new(
+            time.clone(),
+            false,
+            0,
+            HashSet::new(),
+            HashSet::new(),
+            move || {
+                operator.on_left_data(
+                    &ParallelTwoInOneOutContext::new(time, config, &state, write_stream),
+                    msg.data().unwrap(),
+                )
+            },
+            OperatorType::Parallel,
+        )
+    }
+
+    fn right_message_cb_event(&mut self, msg: Arc<Message<U>>) -> OperatorEvent {
+        // Clone the reference to the operator and the state.
+        let operator = Arc::clone(&self.operator);
+        let state = Arc::clone(&self.state);
+        let time = msg.timestamp().clone();
+        let config = self.config.clone();
+        let write_stream = self.write_stream.clone();
+
+        OperatorEvent::new(
+            time.clone(),
+            false,
+            0,
+            HashSet::new(),
+            HashSet::new(),
+            move || {
+                operator.on_right_data(
+                    &ParallelTwoInOneOutContext::new(time, config, &state, write_stream),
+                    msg.data().unwrap(),
+                )
+            },
+            OperatorType::Parallel,
+        )
+    }
+
+    fn watermark_cb_event(&mut self, timestamp: &Timestamp) -> OperatorEvent {
+        // Clone the reference to the operator and the state.
+        let operator = Arc::clone(&self.operator);
+        let state = Arc::clone(&self.state);
+        let time = timestamp.clone();
+        let config = self.config.clone();
+        let write_stream = self.write_stream.clone();
+
+        if self.config.flow_watermarks {
+            let mut write_stream_copy = self.write_stream.clone();
+            let time_copy = time.clone();
+            OperatorEvent::new(
+                time.clone(),
+                true,
+                127,
+                HashSet::new(),
+                self.state_ids.clone(),
+                move || {
+                    operator.on_watermark(&mut ParallelTwoInOneOutContext::new(
+                        time,
+                        config,
+                        &state,
+                        write_stream,
+                    ));
+                    write_stream_copy
+                        .send(Message::new_watermark(time_copy))
+                        .ok();
+                },
+                OperatorType::Parallel,
+            )
+        } else {
+            OperatorEvent::new(
+                time.clone(),
+                true,
+                0,
+                HashSet::new(),
+                self.state_ids.clone(),
+                move || {
+                    operator.on_watermark(&mut ParallelTwoInOneOutContext::new(
+                        time,
+                        config,
+                        &state,
+                        write_stream,
+                    ))
+                },
+                OperatorType::Parallel,
+            )
+        }
+    }
+}
+
+pub struct TwoInOneOutMessageProcessor<O, S, T, U, V>
+where
+    O: 'static + TwoInOneOut<S, T, U, V>,
+    S: StateT,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
 {
     config: OperatorConfig,
-    operator: O,
+    operator: Arc<Mutex<O>>,
     state: Arc<Mutex<S>>,
-    left_read_stream: Option<ReadStream<T>>,
-    right_read_stream: Option<ReadStream<U>>,
-    write_stream: WriteStream<V>,
     state_ids: HashSet<Uuid>,
-    helper: Option<OperatorExecutorHelper>,
+    write_stream: WriteStream<V>,
+    phantom_t: PhantomData<T>,
+    phantom_u: PhantomData<U>,
 }
 
-impl<O, S, T, U, V> TwoInOneOutExecutor<O, S, T, U, V>
+impl<O, S, T, U, V> TwoInOneOutMessageProcessor<O, S, T, U, V>
 where
-    O: TwoInOneOut<S, T, U, V>,
-    S: State,
+    O: 'static + TwoInOneOut<S, T, U, V>,
+    S: StateT,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
@@ -55,241 +233,165 @@ where
         config: OperatorConfig,
         operator_fn: impl Fn() -> O + Send,
         state_fn: impl Fn() -> S + Send,
-        left_read_stream: ReadStream<T>,
-        right_read_stream: ReadStream<U>,
         write_stream: WriteStream<V>,
     ) -> Self {
-        let operator_id = config.id;
         Self {
             config,
-            operator: operator_fn(),
+            operator: Arc::new(Mutex::new(operator_fn())),
             state: Arc::new(Mutex::new(state_fn())),
             state_ids: vec![Uuid::new_deterministic()].into_iter().collect(),
-            left_read_stream: Some(left_read_stream),
-            right_read_stream: Some(right_read_stream),
             write_stream,
-            helper: Some(OperatorExecutorHelper::new(operator_id)),
+            phantom_t: PhantomData,
+            phantom_u: PhantomData,
         }
     }
+}
 
-    pub(crate) async fn execute(
+impl<O, S, T, U, V> TwoInMessageProcessorT<T, U> for TwoInOneOutMessageProcessor<O, S, T, U, V>
+where
+    O: 'static + TwoInOneOut<S, T, U, V>,
+    S: StateT,
+    T: Data + for<'a> Deserialize<'a>,
+    U: Data + for<'a> Deserialize<'a>,
+    V: Data + for<'a> Deserialize<'a>,
+{
+    fn execute_run(
         &mut self,
-        mut channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
-        channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
-        channel_to_event_runners: broadcast::Sender<EventNotification>,
+        left_read_stream: &mut ReadStream<T>,
+        right_read_stream: &mut ReadStream<U>,
     ) {
-        let helper = self.helper.take().unwrap();
-        helper.synchronize().await;
-
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
-            "Node {}: running operator {}",
-            self.config.node_id,
-            self.config.get_name()
-        );
-
-        tokio::task::block_in_place(|| {
-            self.operator.run(
-                self.left_read_stream.as_mut().unwrap(),
-                self.right_read_stream.as_mut().unwrap(),
-                &mut self.write_stream,
-            )
-        });
-
-        let left_read_stream: ReadStream<T> = self.left_read_stream.take().unwrap();
-        let right_read_stream: ReadStream<U> = self.right_read_stream.take().unwrap();
-        let process_stream_fut = helper.process_two_streams(
+        self.operator.lock().unwrap().run(
             left_read_stream,
             right_read_stream,
-            &(*self),
-            &channel_to_event_runners,
+            &mut self.write_stream,
         );
+    }
 
-        loop {
-            tokio::select! {
-                _ = process_stream_fut => break,
-                notification_result = channel_from_worker.recv() => {
-                    match notification_result {
-                        Ok(notification) => {
-                            match notification {
-                                OperatorExecutorNotification::Shutdown => { break; }
-                            }
-                        }
-                        Err(e) => {
-                            slog::error!(crate::get_terminal_logger(),
-                            "Operator executor {}: error receiving notifications {:?}", self.operator_id(), e);
-                            break;
-                        }
-                    }
-                }
-            };
-        }
+    fn execute_destroy(&mut self) {
+        self.operator.lock().unwrap().destroy();
+    }
 
-        tokio::task::block_in_place(|| self.operator.destroy());
-
-        // Return the helper.
-        self.helper.replace(helper);
-
-        // Close the stream.
-        // TODO: check that the top watermark hasn't already been sent.
+    fn cleanup(&mut self) {
         if !self.write_stream.is_closed() {
             self.write_stream
                 .send(Message::new_watermark(Timestamp::Top))
-                .unwrap();
+                .expect(&format!(
+                    "[TwoInOneOut] Error sending Top watermark for operator {}",
+                    self.config.get_name(),
+                ));
         }
-
-        channel_to_worker
-            .send(WorkerNotification::DestroyedOperator(self.operator_id()))
-            .unwrap();
-    }
-}
-
-impl<O, S, T, U, V> OperatorExecutorT for TwoInOneOutExecutor<O, S, T, U, V>
-where
-    O: TwoInOneOut<S, T, U, V>,
-    S: State,
-    T: Data + for<'a> Deserialize<'a>,
-    U: Data + for<'a> Deserialize<'a>,
-    V: Data + for<'a> Deserialize<'a>,
-{
-    fn execute<'a>(
-        &'a mut self,
-        channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
-        channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
-        channel_to_event_runners: broadcast::Sender<EventNotification>,
-    ) -> Pin<Box<dyn Future<Output = ()> + 'a + Send>> {
-        Box::pin(self.execute(
-            channel_from_worker,
-            channel_to_worker,
-            channel_to_event_runners,
-        ))
     }
 
-    fn lattice(&self) -> Arc<ExecutionLattice> {
-        Arc::clone(&self.helper.as_ref().unwrap().lattice)
-    }
+    fn left_message_cb_event(&mut self, msg: Arc<Message<T>>) -> OperatorEvent {
+        // Clone the reference to the operator and the state.
+        let operator = Arc::clone(&self.operator);
+        let state = Arc::clone(&self.state);
+        let time = msg.timestamp().clone();
+        let config = self.config.clone();
+        let write_stream = self.write_stream.clone();
 
-    fn operator_id(&self) -> OperatorId {
-        self.config.id
-    }
-}
-
-impl<O, S, T, U, V> TwoInMessageProcessorT<T, U> for TwoInOneOutExecutor<O, S, T, U, V>
-where
-    O: TwoInOneOut<S, T, U, V>,
-    S: State,
-    T: Data + for<'a> Deserialize<'a>,
-    U: Data + for<'a> Deserialize<'a>,
-    V: Data + for<'a> Deserialize<'a>,
-{
-    // Generates an OperatorEvent for a stateless callback on the first stream.
-    fn left_stateless_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent {
-        let mut ctx = TwoInOneOutContext {
-            timestamp: msg.timestamp().clone(),
-            config: self.config.clone(),
-            write_stream: self.write_stream.clone(),
-        };
         OperatorEvent::new(
-            msg.timestamp().clone(),
+            time.clone(),
             false,
             0,
             HashSet::new(),
             HashSet::new(),
-            move || O::on_left_data(&mut ctx, msg.data().unwrap()),
-            OperatorType::Parallel,
+            move || {
+                operator.lock().unwrap().on_left_data(
+                    &mut TwoInOneOutContext::new(
+                        time,
+                        config,
+                        &mut state.lock().unwrap(),
+                        write_stream,
+                    ),
+                    msg.data().unwrap(),
+                )
+            },
+            OperatorType::Sequential,
         )
     }
 
-    // Generates an OperatorEvent for a stateful callback on the first stream.
-    fn left_stateful_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent {
-        let mut ctx = StatefulTwoInOneOutContext {
-            timestamp: msg.timestamp().clone(),
-            config: self.config.clone(),
-            write_stream: self.write_stream.clone(),
-            state: Arc::clone(&self.state),
-        };
-        OperatorEvent::new(
-            msg.timestamp().clone(),
-            false,
-            0,
-            HashSet::new(),
-            self.state_ids.clone(),
-            move || O::on_left_data_stateful(&mut ctx, msg.data().unwrap()),
-            OperatorType::Parallel,
-        )
-    }
+    fn right_message_cb_event(&mut self, msg: Arc<Message<U>>) -> OperatorEvent {
+        // Clone the reference to the operator and the state.
+        let operator = Arc::clone(&self.operator);
+        let state = Arc::clone(&self.state);
+        let time = msg.timestamp().clone();
+        let config = self.config.clone();
+        let write_stream = self.write_stream.clone();
 
-    // Generates an OperatorEvent for a stateless callback on the second stream.
-    fn right_stateless_cb_event(&self, msg: Arc<Message<U>>) -> OperatorEvent {
-        let mut ctx = TwoInOneOutContext {
-            timestamp: msg.timestamp().clone(),
-            config: self.config.clone(),
-            write_stream: self.write_stream.clone(),
-        };
         OperatorEvent::new(
-            msg.timestamp().clone(),
+            time.clone(),
             false,
             0,
             HashSet::new(),
             HashSet::new(),
-            move || O::on_right_data(&mut ctx, msg.data().unwrap()),
-            OperatorType::Parallel,
+            move || {
+                operator.lock().unwrap().on_right_data(
+                    &mut TwoInOneOutContext::new(
+                        time,
+                        config,
+                        &mut state.lock().unwrap(),
+                        write_stream,
+                    ),
+                    msg.data().unwrap(),
+                )
+            },
+            OperatorType::Sequential,
         )
     }
 
-    // Generates an OperatorEvent for a stateful callback on the second stream.
-    fn right_stateful_cb_event(&self, msg: Arc<Message<U>>) -> OperatorEvent {
-        let mut ctx = StatefulTwoInOneOutContext {
-            timestamp: msg.timestamp().clone(),
-            config: self.config.clone(),
-            write_stream: self.write_stream.clone(),
-            state: Arc::clone(&self.state),
-        };
-        OperatorEvent::new(
-            msg.timestamp().clone(),
-            false,
-            0,
-            HashSet::new(),
-            self.state_ids.clone(),
-            move || O::on_right_data_stateful(&mut ctx, msg.data().unwrap()),
-            OperatorType::Parallel,
-        )
-    }
+    fn watermark_cb_event(&mut self, timestamp: &Timestamp) -> OperatorEvent {
+        // Clone the reference to the operator and the state.
+        let operator = Arc::clone(&self.operator);
+        let state = Arc::clone(&self.state);
+        let time = timestamp.clone();
+        let config = self.config.clone();
+        let write_stream = self.write_stream.clone();
 
-    // Generates an OperatorEvent for a watermark callback.
-    fn watermark_cb_event(&self, timestamp: &Timestamp) -> OperatorEvent {
-        let mut ctx = StatefulTwoInOneOutContext {
-            timestamp: timestamp.clone(),
-            config: self.config.clone(),
-            write_stream: self.write_stream.clone(),
-            state: Arc::clone(&self.state),
-        };
         if self.config.flow_watermarks {
-            let timestamp_copy = timestamp.clone();
             let mut write_stream_copy = self.write_stream.clone();
+            let time_copy = time.clone();
             OperatorEvent::new(
-                timestamp.clone(),
+                time.clone(),
                 true,
                 127,
                 HashSet::new(),
                 self.state_ids.clone(),
                 move || {
-                    O::on_watermark(&mut ctx);
+                    operator
+                        .lock()
+                        .unwrap()
+                        .on_watermark(&mut TwoInOneOutContext::new(
+                            time,
+                            config,
+                            &mut state.lock().unwrap(),
+                            write_stream,
+                        ));
                     write_stream_copy
-                        .send(Message::new_watermark(timestamp_copy))
+                        .send(Message::new_watermark(time_copy))
                         .ok();
                 },
-                OperatorType::Parallel,
+                OperatorType::Sequential,
             )
         } else {
             OperatorEvent::new(
-                timestamp.clone(),
+                time.clone(),
                 true,
                 0,
                 HashSet::new(),
                 self.state_ids.clone(),
-                move || O::on_watermark(&mut ctx),
-                OperatorType::Parallel,
+                move || {
+                    operator
+                        .lock()
+                        .unwrap()
+                        .on_watermark(&mut TwoInOneOutContext::new(
+                            time,
+                            config,
+                            &mut state.lock().unwrap(),
+                            write_stream,
+                        ))
+                },
+                OperatorType::Sequential,
             )
         }
     }

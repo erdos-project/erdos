@@ -206,45 +206,75 @@ impl JoinSumOperator {
     }
 }
 
-impl TwoInOneOut<usize, usize, usize, usize> for JoinSumOperator {
-    fn on_left_data(_ctx: &mut TwoInOneOutContext<usize>, _data: &usize) {}
+struct JoinSumOperatorState {
+    sum: usize,
+}
 
-    fn on_left_data_stateful(ctx: &mut StatefulTwoInOneOutContext<usize, usize>, data: &usize) {
-        let mut state = ctx.state.try_lock().unwrap();
-        *state += data;
+#[allow(dead_code)]
+impl JoinSumOperatorState {
+    fn new() -> Self {
+        Self { sum: 0 }
+    }
+
+    fn add(&mut self, value: usize) {
+        self.sum += value;
+    }
+
+    fn get_sum(&self) -> usize {
+        self.sum
+    }
+}
+
+impl StateT for JoinSumOperatorState {
+    fn commit(&mut self, _timestamp: &Timestamp) {}
+}
+
+impl TwoInOneOut<JoinSumOperatorState, usize, usize, usize> for JoinSumOperator {
+    fn on_left_data(
+        &mut self,
+        ctx: &mut TwoInOneOutContext<JoinSumOperatorState, usize>,
+        data: &usize,
+    ) {
+        ctx.get_state().add(*data);
+        let state = ctx.get_state().get_sum();
+
         slog::info!(
             erdos::get_terminal_logger(),
-            "JoinSumOperator @ {:?}: received {} on left stream, sum is {}",
-            ctx.timestamp,
+            "JoinSumOperator @ {:?}: Received {} on left stream, sum is {}",
+            ctx.get_timestamp(),
             data,
-            state,
+            state
         );
     }
 
-    fn on_right_data(_ctx: &mut TwoInOneOutContext<usize>, _data: &usize) {}
+    fn on_right_data(
+        &mut self,
+        ctx: &mut TwoInOneOutContext<JoinSumOperatorState, usize>,
+        data: &usize,
+    ) {
+        ctx.get_state().add(*data);
+        let state = ctx.get_state().get_sum();
 
-    fn on_right_data_stateful(ctx: &mut StatefulTwoInOneOutContext<usize, usize>, data: &usize) {
-        let mut state = ctx.state.try_lock().unwrap();
-        *state += data;
         slog::info!(
             erdos::get_terminal_logger(),
-            "JoinSumOperator @ {:?}: received {} on right stream, sum is {}",
-            ctx.timestamp,
+            "JoinSumOperator @ {:?}: Received {} on right stream, sum is {}",
+            ctx.get_timestamp(),
             data,
-            state,
+            state
         );
     }
 
-    fn on_watermark(ctx: &mut StatefulTwoInOneOutContext<usize, usize>) {
-        let state = ctx.state.try_lock().unwrap();
+    fn on_watermark(&mut self, ctx: &mut TwoInOneOutContext<JoinSumOperatorState, usize>) {
+        let state = ctx.get_state().get_sum();
+        let time = ctx.get_timestamp().clone();
         slog::info!(
             erdos::get_terminal_logger(),
             "JoinSumOperator @ {:?}: received watermark, sending sum of {}",
-            ctx.timestamp,
+            time,
             state,
         );
-        ctx.write_stream
-            .send(Message::new_message(ctx.timestamp.clone(), *state))
+        ctx.get_write_stream()
+            .send(Message::new_message(time, state))
             .unwrap();
     }
 }
@@ -340,7 +370,7 @@ fn main() {
     //let join_sum_config = OperatorConfig::new().name("JoinSumOperator");
     //let join_stream = erdos::connect_two_in_one_out(
     //    JoinSumOperator::new,
-    //    || 0,
+    //    JoinSumOperatorState::new,
     //    join_sum_config,
     //    &source_stream,
     //    &sum_stream,

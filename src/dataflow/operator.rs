@@ -1,8 +1,4 @@
-use std::{
-    marker::PhantomData,
-    slice::Iter,
-    sync::{Arc, Mutex},
-};
+use std::{marker::PhantomData, slice::Iter};
 
 use serde::Deserialize;
 
@@ -305,9 +301,9 @@ impl SetupContextT for OneInOneOutSetupContext {
  *****************************************************************************/
 
 #[allow(unused_variables)]
-pub trait TwoInOneOut<S, T, U, V>: Send + Sync
+pub trait ParallelTwoInOneOut<S, T, U, V, W>: Send + Sync
 where
-    S: State,
+    S: AppendableStateT<W>,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
@@ -322,29 +318,132 @@ where
 
     fn destroy(&mut self) {}
 
-    fn on_left_data(ctx: &mut TwoInOneOutContext<V>, data: &T);
+    fn on_left_data(&self, ctx: &ParallelTwoInOneOutContext<S, V, W>, data: &T);
 
-    fn on_left_data_stateful(ctx: &mut StatefulTwoInOneOutContext<S, V>, data: &T);
+    fn on_right_data(&self, ctx: &ParallelTwoInOneOutContext<S, V, W>, data: &U);
 
-    fn on_right_data(ctx: &mut TwoInOneOutContext<V>, data: &U);
-
-    fn on_right_data_stateful(ctx: &mut StatefulTwoInOneOutContext<S, V>, data: &U);
-
-    /// Executes when min(left_watermark, right_watermark) advances.
-    fn on_watermark(ctx: &mut StatefulTwoInOneOutContext<S, V>);
+    fn on_watermark(&self, ctx: &mut ParallelTwoInOneOutContext<S, V, W>);
 }
 
-pub struct TwoInOneOutContext<U: Data> {
-    pub timestamp: Timestamp,
-    pub config: OperatorConfig,
-    pub write_stream: WriteStream<U>,
+pub struct ParallelTwoInOneOutContext<'a, S, T, U>
+where
+    S: AppendableStateT<U>,
+    T: Data + for<'b> Deserialize<'b>,
+{
+    timestamp: Timestamp,
+    config: OperatorConfig,
+    state: &'a S,
+    write_stream: WriteStream<T>,
+    phantom_u: PhantomData<U>,
 }
 
-pub struct StatefulTwoInOneOutContext<S: State, U: Data> {
-    pub timestamp: Timestamp,
-    pub config: OperatorConfig,
-    pub write_stream: WriteStream<U>,
-    pub state: Arc<Mutex<S>>,
+impl<'a, S, T, U> ParallelTwoInOneOutContext<'a, S, T, U>
+where
+    S: AppendableStateT<U>,
+    T: Data + for<'b> Deserialize<'b>,
+{
+    pub fn new(
+        timestamp: Timestamp,
+        config: OperatorConfig,
+        state: &'a S,
+        write_stream: WriteStream<T>,
+    ) -> Self {
+        Self {
+            timestamp,
+            config,
+            state,
+            write_stream,
+            phantom_u: PhantomData,
+        }
+    }
+
+    pub fn get_timestamp(&self) -> &Timestamp {
+        &self.timestamp
+    }
+
+    pub fn get_operator_config(&self) -> &OperatorConfig {
+        &self.config
+    }
+
+    pub fn get_state(&self) -> &S {
+        &self.state
+    }
+
+    pub fn get_write_stream(&mut self) -> &mut WriteStream<T> {
+        &mut self.write_stream
+    }
+}
+
+#[allow(unused_variables)]
+pub trait TwoInOneOut<S, T, U, V>: Send + Sync
+where
+    S: StateT,
+    T: Data + for<'a> Deserialize<'a>,
+    U: Data + for<'a> Deserialize<'a>,
+    V: Data + for<'a> Deserialize<'a>,
+{
+    fn run(
+        &mut self,
+        left_read_stream: &mut ReadStream<T>,
+        right_read_stream: &mut ReadStream<U>,
+        write_stream: &mut WriteStream<V>,
+    ) {
+    }
+
+    fn destroy(&mut self) {}
+
+    fn on_left_data(&mut self, ctx: &mut TwoInOneOutContext<S, V>, data: &T);
+
+    fn on_right_data(&mut self, ctx: &mut TwoInOneOutContext<S, V>, data: &U);
+
+    fn on_watermark(&mut self, ctx: &mut TwoInOneOutContext<S, V>);
+}
+
+pub struct TwoInOneOutContext<'a, S, T>
+where
+    S: StateT,
+    T: Data + for<'b> Deserialize<'b>,
+{
+    timestamp: Timestamp,
+    config: OperatorConfig,
+    state: &'a mut S,
+    write_stream: WriteStream<T>,
+}
+
+impl<'a, S, T> TwoInOneOutContext<'a, S, T>
+where
+    S: StateT,
+    T: Data + for<'b> Deserialize<'b>,
+{
+    pub fn new(
+        timestamp: Timestamp,
+        config: OperatorConfig,
+        state: &'a mut S,
+        write_stream: WriteStream<T>,
+    ) -> Self {
+        Self {
+            timestamp,
+            config,
+            state,
+            write_stream,
+        }
+    }
+
+    pub fn get_timestamp(&self) -> &Timestamp {
+        &self.timestamp
+    }
+
+    pub fn get_operator_config(&self) -> &OperatorConfig {
+        &self.config
+    }
+
+    pub fn get_state(&mut self) -> &mut S {
+        &mut self.state
+    }
+
+    pub fn get_write_stream(&mut self) -> &mut WriteStream<T> {
+        &mut self.write_stream
+    }
 }
 
 /*************************************************************************************************

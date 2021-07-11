@@ -138,20 +138,28 @@ where
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
-    /// Generates an OperatorEvent for a stateless callback on the first stream.
-    fn left_stateless_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent;
+    /// Executes the `run` method inside the operator.
+    fn execute_run(
+        &mut self,
+        _left_read_stream: &mut ReadStream<T>,
+        _right_read_stream: &mut ReadStream<U>,
+    ) {
+    }
 
-    /// Generates an OperatorEvent for a stateful callback on the first stream.
-    fn left_stateful_cb_event(&self, msg: Arc<Message<T>>) -> OperatorEvent;
+    /// Executes the `destroy` method inside the operator.
+    fn execute_destroy(&mut self) {}
+
+    /// Generates an OperatorEvent for a stateless callback on the first stream.
+    fn left_message_cb_event(&mut self, msg: Arc<Message<T>>) -> OperatorEvent;
 
     /// Generates an OperatorEvent for a stateless callback on the second stream.
-    fn right_stateless_cb_event(&self, msg: Arc<Message<U>>) -> OperatorEvent;
-
-    /// Generates an OperatorEvent for a stateful callback on the second stream.
-    fn right_stateful_cb_event(&self, msg: Arc<Message<U>>) -> OperatorEvent;
+    fn right_message_cb_event(&mut self, msg: Arc<Message<U>>) -> OperatorEvent;
 
     /// Generates an OperatorEvent for a watermark callback.
-    fn watermark_cb_event(&self, timestamp: &Timestamp) -> OperatorEvent;
+    fn watermark_cb_event(&mut self, timestamp: &Timestamp) -> OperatorEvent;
+
+    /// Cleans up the write streams and any other data owned by the executor.
+    fn cleanup(&mut self) {}
 }
 
 /* ***********************************************************************************************
@@ -258,6 +266,136 @@ where
 impl<T> OperatorExecutorT for OneInExecutor<T>
 where
     T: Data + for<'a> Deserialize<'a>,
+{
+    fn execute<'a>(
+        &'a mut self,
+        channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
+        channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
+        channel_to_event_runners: broadcast::Sender<EventNotification>,
+    ) -> Pin<Box<dyn Future<Output = ()> + 'a + Send>> {
+        Box::pin(self.execute(
+            channel_from_worker,
+            channel_to_worker,
+            channel_to_event_runners,
+        ))
+    }
+
+    fn lattice(&self) -> Arc<ExecutionLattice> {
+        Arc::clone(&self.helper.lattice)
+    }
+
+    fn operator_id(&self) -> OperatorId {
+        self.config.id
+    }
+}
+
+pub struct TwoInExecutor<T, U>
+where
+    T: Data + for<'a> Deserialize<'a>,
+    U: Data + for<'a> Deserialize<'a>,
+{
+    config: OperatorConfig,
+    processor: Box<dyn TwoInMessageProcessorT<T, U>>,
+    helper: OperatorExecutorHelper,
+    left_read_stream: Option<ReadStream<T>>,
+    right_read_stream: Option<ReadStream<U>>,
+}
+
+impl<T, U> TwoInExecutor<T, U>
+where
+    T: Data + for<'a> Deserialize<'a>,
+    U: Data + for<'a> Deserialize<'a>,
+{
+    pub fn new(
+        config: OperatorConfig,
+        processor: Box<dyn TwoInMessageProcessorT<T, U>>,
+        left_read_stream: ReadStream<T>,
+        right_read_stream: ReadStream<U>,
+    ) -> Self {
+        let operator_id = config.id;
+        Self {
+            config,
+            processor,
+            left_read_stream: Some(left_read_stream),
+            right_read_stream: Some(right_read_stream),
+            helper: OperatorExecutorHelper::new(operator_id),
+        }
+    }
+
+    pub(crate) async fn execute(
+        &mut self,
+        mut channel_from_worker: broadcast::Receiver<OperatorExecutorNotification>,
+        channel_to_worker: mpsc::UnboundedSender<WorkerNotification>,
+        channel_to_event_runners: broadcast::Sender<EventNotification>,
+    ) {
+        // Synchronize the operator with the rest of the dataflow graph.
+        self.helper.synchronize().await;
+
+        // Run the `setup` method.
+        let mut left_read_stream: ReadStream<T> = self.left_read_stream.take().unwrap();
+        let mut right_read_stream: ReadStream<U> = self.right_read_stream.take().unwrap();
+        // TODO (Sukrit): Implement deadlines and the `setup` method for the operators.
+
+        // Execute the `run` method.
+        slog::debug!(
+            crate::TERMINAL_LOGGER,
+            "Node {}: Running Operator {}",
+            self.config.node_id,
+            self.config.get_name()
+        );
+        tokio::task::block_in_place(|| {
+            self.processor
+                .execute_run(&mut left_read_stream, &mut right_read_stream);
+        });
+
+        // Process messages on the incoming streams.
+        let process_stream_fut = self.helper.process_two_streams(
+            left_read_stream,
+            right_read_stream,
+            &mut (*self.processor),
+            &channel_to_event_runners,
+        );
+
+        // Shutdown.
+        loop {
+            tokio::select! {
+                _ = process_stream_fut => break,
+                notification_result = channel_from_worker.recv() => {
+                    match notification_result {
+                        Ok(notification) => {
+                            match notification {
+                                OperatorExecutorNotification::Shutdown => { break; }
+                            }
+                        }
+                        Err(e) => {
+                            slog::error!(
+                                crate::TERMINAL_LOGGER,
+                                "TwoInExecutor {}: Error receiving notifications {:?}",
+                                self.operator_id(),
+                                e
+                            );
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Invoke the `destroy` method.
+        tokio::task::block_in_place(|| self.processor.execute_destroy());
+
+        // Ask the executor to cleanup and notify the worker.
+        self.processor.cleanup();
+        channel_to_worker
+            .send(WorkerNotification::DestroyedOperator(self.operator_id()))
+            .unwrap();
+    }
+}
+
+impl<T, U> OperatorExecutorT for TwoInExecutor<T, U>
+where
+    T: Data + for<'a> Deserialize<'a>,
+    U: Data + for<'a> Deserialize<'a>,
 {
     fn execute<'a>(
         &'a mut self,
@@ -444,7 +582,7 @@ impl OperatorExecutorHelper {
         &self,
         mut left_read_stream: ReadStream<T>,
         mut right_read_stream: ReadStream<U>,
-        message_processor: &dyn TwoInMessageProcessorT<T, U>,
+        message_processor: &mut dyn TwoInMessageProcessorT<T, U>,
         notifier_tx: &tokio::sync::broadcast::Sender<EventNotification>,
     ) where
         T: Data + for<'a> Deserialize<'a>,
@@ -461,14 +599,9 @@ impl OperatorExecutorHelper {
                         Some(_) => {
                             // Stateless callback.
                             let msg_ref = Arc::clone(&left_msg);
-                            let data_event = message_processor.left_stateless_cb_event(msg_ref);
+                            let data_event = message_processor.left_message_cb_event(msg_ref);
 
-                            // Stateful callback
-                            let msg_ref = Arc::clone(&left_msg);
-                            let stateful_data_event = message_processor.left_stateful_cb_event(
-                                msg_ref,
-                            );
-                            vec![data_event, stateful_data_event]
+                            vec![data_event]
                         }
                         // Watermark
                         None => {
@@ -493,14 +626,9 @@ impl OperatorExecutorHelper {
                         Some(_) => {
                             // Stateless callback.
                             let msg_ref = Arc::clone(&right_msg);
-                            let data_event = message_processor.right_stateless_cb_event(msg_ref);
+                            let data_event = message_processor.right_message_cb_event(msg_ref);
 
-                            // Stateful callback
-                            let msg_ref = Arc::clone(&right_msg);
-                            let stateful_data_event = message_processor.right_stateful_cb_event(
-                                msg_ref,
-                            );
-                            vec![data_event, stateful_data_event]
+                            vec![data_event]
                         }
                         // Watermark
                         None => {
