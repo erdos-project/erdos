@@ -77,10 +77,10 @@ where
     T: Data + for<'a> Deserialize<'a>,
 {
     /// Executes the `run` method inside the operator.
-    fn execute_run(&mut self, _read_stream: &mut ReadStream<T>) {}
+    fn execute_run(&mut self, _read_stream: &mut ReadStream<T>);
 
     /// Executes the `destroy` method inside the operator.
-    fn execute_destroy(&mut self) {}
+    fn execute_destroy(&mut self);
 
     /// Generates an OperatorEvent for a message callback.
     fn message_cb_event(&mut self, msg: Arc<Message<T>>) -> OperatorEvent;
@@ -144,11 +144,10 @@ where
         &mut self,
         _left_read_stream: &mut ReadStream<T>,
         _right_read_stream: &mut ReadStream<U>,
-    ) {
-    }
+    );
 
     /// Executes the `destroy` method inside the operator.
-    fn execute_destroy(&mut self) {}
+    fn execute_destroy(&mut self);
 
     /// Generates an OperatorEvent for a stateless callback on the first stream.
     fn left_message_cb_event(&mut self, msg: Arc<Message<T>>) -> OperatorEvent;
