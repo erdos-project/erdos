@@ -17,6 +17,12 @@ use crate::{
     Uuid,
 };
 
+/// Message Processor that defines the generation and execution of events for a ParallelSink
+/// operator, where
+/// O: An operator that implements the ParallelSink trait,
+/// S: A state structure that implements the AppendableStateT trait,
+/// T: Type of messages received on the read stream,
+/// U: Type of intermediate data appended to the state structure S.
 pub struct ParallelSinkMessageProcessor<O, S, T, U>
 where
     O: 'static + ParallelSink<S, T, U>,
@@ -118,6 +124,11 @@ where
     }
 }
 
+/// Message Processor that defines the generation and execution of events for a Sink operator,
+/// where
+/// O: An operator that implements the Sink trait,
+/// S: A state structure that implements the StateT trait,
+/// T: Type of messages received on the read stream,
 pub struct SinkMessageProcessor<O, S, T>
 where
     O: 'static + Sink<S, T>,

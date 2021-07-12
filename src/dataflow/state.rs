@@ -12,7 +12,7 @@ impl<T: 'static + Clone + Send + Sync> State for T {}
 
 // TODO (Sukrit): Do these state traits also require a way to read the state for a given timestamp?
 
-/// Trait that must be implemented by a state structure that is used in a Writeable operator.
+/// Trait that must be implemented by a state structure that is used in a Parallel operator.
 /// This structure must implement a `commit` method that commits the final state for a given
 /// timestamp `t`.
 pub trait StateT: 'static + Send + Sync {
@@ -20,7 +20,7 @@ pub trait StateT: 'static + Send + Sync {
 }
 
 
-/// Trait that must be implemented by a state structure that is used in a ReadOnly operator.
+/// Trait that must be implemented by a state structure that is used in a Sequential operator.
 /// This state structure must implement an `append` method that enables message callbacks to add
 /// intermediate state to the structure, and a `commit` method that commits the final state for a
 /// given timestamp t.

@@ -17,12 +17,16 @@ pub trait SetupContextT: Send + Sync {
     fn num_deadlines(&self) -> usize;
 }
 
-/*****************************************************************************
- * Source: sends data with type T                                            *
- *****************************************************************************/
+/*************************************************************************************************
+ * Source: sends data with type T                                                                *
+ ************************************************************************************************/
 
+/// The `Source` trait must be implemented by operators that generate data for the rest of the
+/// dataflow graph. Specifically, such an operator does not take an input read stream, but
+/// generates data on an output write stream. The operator must take control of its execution by
+/// implementing the `run` method, and generating output on the `write_stream` passed to it.
 #[allow(unused_variables)]
-pub trait Source<S, T>: Send
+pub trait Source<S, T>: Send + Sync
 where
     S: State,
     T: Data + for<'a> Deserialize<'a>,
@@ -33,11 +37,21 @@ where
 }
 
 /*************************************************************************************************
- * ReadOnlySink: receives data with type T, and enables message callbacks to execute in parallel *
+ * ParallelSink: receives data with type T, and enables message callbacks to execute in parallel *
  * by only allowing append access in the message callbacks and writable access to the state in   *
  * the watermark callbacks.                                                                      *
  ************************************************************************************************/
 
+/// The `ParallelSink` trait must be implemented by operators that consume data from their input
+/// read stream, and do not generate any output. The operator can either choose to consume data
+/// from its `read_stream` itself using the `run` method, or register for the `on_data` and
+/// `on_watermark` callbacks.
+///
+/// This trait differs from the `Sink` trait by allowing the `on_data` message callbacks to execute
+/// in parallel and append intermediate data to a state structure that can be utilized by the
+/// `on_watermark` method to generate the final, complete data. Note that while the message
+/// callbacks can execute in any order, the watermark callbacks execute sequentially and are
+/// ordered by the timestamp order.
 #[allow(unused_variables)]
 pub trait ParallelSink<S: AppendableStateT<U>, T: Data, U>: Send + Sync {
     fn run(&mut self, read_stream: &mut ReadStream<T>) {}
@@ -49,6 +63,9 @@ pub trait ParallelSink<S: AppendableStateT<U>, T: Data, U>: Send + Sync {
     fn on_watermark(&self, ctx: &mut ParallelSinkContext<S, U>);
 }
 
+/// A context structure made available to the callbacks of a `ParallelSink` operator. The context
+/// provides access to the current timestamp for which the callback is invoked along with the state
+/// of the operator.
 pub struct ParallelSinkContext<'a, S: AppendableStateT<T>, T> {
     timestamp: Timestamp,
     config: OperatorConfig,
@@ -69,24 +86,34 @@ where
         }
     }
 
+    /// Get the timestamp for which the callback was invoked.
     pub fn get_timestamp(&self) -> &Timestamp {
         &self.timestamp
     }
 
+    /// Get the configuration of the operator.
     pub fn get_operator_config(&self) -> &OperatorConfig {
         &self.config
     }
 
+    /// Get the state attached to the operator.
     pub fn get_state(&self) -> &S {
         &self.state
     }
 }
 
 /*************************************************************************************************
- * WriteableSink: receives data with type T, and enables message callbacks to have mutable       *
- * access to the operator state, but all callbacks are sequentialized.                           *
+ * Sink: receives data with type T, and enables message callbacks to have mutable access to the  *
+ * operator state, but all callbacks are sequentialized.                                         *
  ************************************************************************************************/
 
+/// The `Sink` trait must be implemented by operators that consume data from their input read
+/// stream, and do not generate any output. The operator can either choose to consume data
+/// from its `read_stream` itself using the `run` method, or register for the `on_data` and
+/// `on_watermark` callbacks.
+///
+/// The callbacks registered in this operator execute sequentially by timestamp order and are
+/// allowed to mutate state in both the message and the watermark callbacks.
 #[allow(unused_variables)]
 pub trait Sink<S: StateT, T: Data>: Send + Sync {
     fn run(&mut self, read_stream: &mut ReadStream<T>) {}
@@ -98,6 +125,9 @@ pub trait Sink<S: StateT, T: Data>: Send + Sync {
     fn on_watermark(&mut self, ctx: &mut SinkContext<S>);
 }
 
+/// A context structure made available to the callbacks of a `Sink` operator. The context provides
+/// access to the current timestamp for which the callback is invoked along with the state
+/// of the operator.
 pub struct SinkContext<'a, S: StateT> {
     timestamp: Timestamp,
     config: OperatorConfig,
@@ -116,25 +146,38 @@ where
         }
     }
 
+    /// Get the timestamp for which the callback was invoked.
     pub fn get_timestamp(&self) -> &Timestamp {
         &self.timestamp
     }
 
+    /// Get the configuration of the operator.
     pub fn get_operator_config(&self) -> &OperatorConfig {
         &self.config
     }
 
+    /// Get the state attached to the operator.
     pub fn get_state(&mut self) -> &mut S {
         &mut self.state
     }
 }
 
 /*************************************************************************************************
- * ReadOnlyOneInOneOut: Receives data with type T, and enables message callbacks to execute in   *
+ * ParallelOneInOneOut: Receives data with type T, and enables message callbacks to execute in   *
  * parallel by allowing append access in the message callbacks, and writable access to the state *
  * in the watermark along with the ability to send messages on the write stream.                 *
  ************************************************************************************************/
 
+/// The `ParallelOneInOneOut` trait must be implemented by operators that consume data from their
+/// input read stream, and generate output on an output write stream. The operator can either
+/// choose to consume data from its `read_stream` itself using the `run` method, or register for
+/// the `on_data` and `on_watermark` callbacks.
+///
+/// This trait differs from the `OneInOneOut` trait by allowing the `on_data` message callbacks to
+/// execute in parallel and append intermediate data to a state structure that can be utilized by
+/// the `on_watermark` method to generate the final, complete data. Note that while the message
+/// callbacks can execute in any order, the watermark callbacks execute sequentially and are
+/// ordered by the timestamp order.
 #[allow(unused_variables)]
 pub trait ParallelOneInOneOut<S, T, U, V>: Send + Sync
 where
@@ -151,6 +194,9 @@ where
     fn on_watermark(&self, ctx: &mut ParallelOneInOneOutContext<S, U, V>);
 }
 
+/// A context structure made available to the callbacks of a `ParallelOneInOneOut` operator. The
+/// context provides access to the current timestamp for which the callback is invoked along with
+/// the state of the operator and the write stream to send the outputs on.
 pub struct ParallelOneInOneOutContext<'a, S, T, U>
 where
     S: AppendableStateT<U>,
@@ -183,28 +229,39 @@ where
         }
     }
 
+    /// Get the timestamp for which the callback was invoked.
     pub fn get_timestamp(&self) -> &Timestamp {
         &self.timestamp
     }
 
+    /// Get the configuration of the operator.
     pub fn get_operator_config(&self) -> &OperatorConfig {
         &self.config
     }
 
+    /// Get the state attached to the operator.
     pub fn get_state(&self) -> &S {
         &self.state
     }
 
+    /// Get the write stream to send the output on.
     pub fn get_write_stream(&mut self) -> &mut WriteStream<T> {
         &mut self.write_stream
     }
 }
 
 /**************************************************************************************************
- * WriteableOneInOneOut: Receives data with type T, and enables message callbacks to have mutable *
- * access to the operator state, but all callbacks are sequentialized.                            *
+ * OneInOneOut: Receives data with type T, and enables message callbacks to have mutable access   *
+ * to the operator state, but all callbacks are sequentialized.                                   *
  *************************************************************************************************/
 
+/// The `OneInOneOut` trait must be implemented by operators that consume data from their input
+/// read stream, and generate output on an output write stream. The operator can either choose to
+/// consume data from its `read_stream` itself using the `run` method, or register for the
+/// `on_data` and `on_watermark` callbacks.
+///
+/// The callbacks registered in this operator execute sequentially by timestamp order and are
+/// allowed to mutate state in both the message and the watermark callbacks.
 #[allow(unused_variables)]
 pub trait OneInOneOut<S, T, U>: Send + Sync
 where
@@ -221,6 +278,9 @@ where
     fn on_watermark(&mut self, ctx: &mut OneInOneOutContext<S, U>);
 }
 
+/// A context structure made available to the callbacks of a `OneInOneOut` operator. The context
+/// provides access to the current timestamp for which the callback is invoked along with the
+/// state of the operator and the write stream to send the outputs on.
 pub struct OneInOneOutContext<'a, S, T>
 where
     S: StateT,
@@ -251,18 +311,22 @@ where
         }
     }
 
+    /// Get the timestamp for which the callback was invoked.
     pub fn get_timestamp(&self) -> &Timestamp {
         &self.timestamp
     }
 
+    /// Get the configuration of the operator.
     pub fn get_operator_config(&self) -> &OperatorConfig {
         &self.config
     }
 
+    /// Get the state attached to the operator.
     pub fn get_state(&mut self) -> &mut S {
         &mut self.state
     }
 
+    /// Get the write stream to send the output on.
     pub fn get_write_stream(&mut self) -> &mut WriteStream<T> {
         &mut self.write_stream
     }
@@ -296,10 +360,22 @@ impl SetupContextT for OneInOneOutSetupContext {
     }
 }
 
-/*****************************************************************************
- * TwoInOneOut: receives T, receives U, sends V                              *
- *****************************************************************************/
+/*************************************************************************************************
+ * ParallelTwoInOneOut: Receives data with type T and U, and enables message callbacks to        *
+ * execute in parallel by allowing append access in the message callbacks, and writable access   *
+ * to the state in the watermark along with the ability to send messages on the write stream.    *
+ ************************************************************************************************/
 
+/// The `ParallelTwoInOneOut` trait must be implemented by operators that consume data from two
+/// input read streams, and generate output on an output write stream. The operator can either
+/// choose to consume data from its `read_stream` itself using the `run` method, or register for
+/// the `on_data` and `on_watermark` callbacks.
+///
+/// This trait differs from the `TwoInOneOut` trait by allowing the `on_data` message callbacks to
+/// execute in parallel and append intermediate data to a state structure that can be utilized by
+/// the `on_watermark` method to generate the final, complete data. Note that while the message
+/// callbacks can execute in any order, the watermark callbacks execute sequentially and are
+/// ordered by the timestamp order.
 #[allow(unused_variables)]
 pub trait ParallelTwoInOneOut<S, T, U, V, W>: Send + Sync
 where
@@ -325,6 +401,9 @@ where
     fn on_watermark(&self, ctx: &mut ParallelTwoInOneOutContext<S, V, W>);
 }
 
+/// A context structure made available to the callbacks of a `ParallelTwoInOneOut` operator. The
+/// context provides access to the current timestamp for which the callback is invoked along with
+/// the state of the operator and the write stream to send the outputs on.
 pub struct ParallelTwoInOneOutContext<'a, S, T, U>
 where
     S: AppendableStateT<U>,
@@ -357,23 +436,39 @@ where
         }
     }
 
+    /// Get the timestamp for which the callback was invoked.
     pub fn get_timestamp(&self) -> &Timestamp {
         &self.timestamp
     }
 
+    /// Get the configuration of the operator.
     pub fn get_operator_config(&self) -> &OperatorConfig {
         &self.config
     }
 
+    /// Get the state attached to the operator.
     pub fn get_state(&self) -> &S {
         &self.state
     }
 
+    /// Get the write stream to send the output on.
     pub fn get_write_stream(&mut self) -> &mut WriteStream<T> {
         &mut self.write_stream
     }
 }
 
+/**************************************************************************************************
+ * TwoInOneOut: Receives data with type T and U, and enables message callbacks to have mutable    *
+ * access to the operator state, but all callbacks are sequentialized.                            *
+ *************************************************************************************************/
+
+/// The `TwoInOneOut` trait must be implemented by operators that consume data from their input
+/// read streams, and generate output on an output write stream. The operator can either choose to
+/// consume data from its `read_stream` itself using the `run` method, or register for the
+/// `on_data` and `on_watermark` callbacks.
+///
+/// The callbacks registered in this operator execute sequentially by timestamp order and are
+/// allowed to mutate state in both the message and the watermark callbacks.
 #[allow(unused_variables)]
 pub trait TwoInOneOut<S, T, U, V>: Send + Sync
 where
@@ -399,6 +494,9 @@ where
     fn on_watermark(&mut self, ctx: &mut TwoInOneOutContext<S, V>);
 }
 
+/// A context structure made available to the callbacks of a `TwoInOneOut` operator. The context
+/// provides access to the current timestamp for which the callback is invoked along with the
+/// state of the operator and the write stream to send the outputs on.
 pub struct TwoInOneOutContext<'a, S, T>
 where
     S: StateT,
@@ -429,18 +527,22 @@ where
         }
     }
 
+    /// Get the timestamp for which the callback was invoked.
     pub fn get_timestamp(&self) -> &Timestamp {
         &self.timestamp
     }
 
+    /// Get the configuration of the operator.
     pub fn get_operator_config(&self) -> &OperatorConfig {
         &self.config
     }
 
+    /// Get the state attached to the operator.
     pub fn get_state(&mut self) -> &mut S {
         &mut self.state
     }
 
+    /// Get the write stream to send the output on.
     pub fn get_write_stream(&mut self) -> &mut WriteStream<T> {
         &mut self.write_stream
     }
@@ -452,6 +554,16 @@ where
  * state in the watermark callbacks.                                                             *
  ************************************************************************************************/
 
+/// The `ParallelOneInTwoOut` trait must be implemented by operators that consume data from their
+/// input read stream, and generate output on two output write streams. The operator can either
+/// choose to consume data from its `read_stream` itself using the `run` method, or register for
+/// the `on_data` and `on_watermark` callbacks.
+///
+/// This trait differs from the `OneInTwoOut` trait by allowing the `on_data` message callbacks to
+/// execute in parallel and append intermediate data to a state structure that can be utilized by
+/// the `on_watermark` method to generate the final, complete data. Note that while the message
+/// callbacks can execute in any order, the watermark callbacks execute sequentially and are
+/// ordered by the timestamp order.
 #[allow(unused_variables)]
 pub trait ParallelOneInTwoOut<S, T, U, V, W>: Send + Sync
 where
@@ -475,6 +587,9 @@ where
     fn on_watermark(&self, ctx: &mut ParallelOneInTwoOutContext<S, U, V, W>);
 }
 
+/// A context structure made available to the callbacks of a `ParallelOneInTwoOut` operator. The
+/// context provides access to the current timestamp for which the callback is invoked along with
+/// the state of the operator and the write streams to send the outputs on.
 pub struct ParallelOneInTwoOutContext<'a, S, T, U, V>
 where
     S: AppendableStateT<V>,
@@ -512,22 +627,27 @@ where
         }
     }
 
+    /// Get the timestamp for which the callback was invoked.
     pub fn get_timestamp(&self) -> &Timestamp {
         &self.timestamp
     }
 
+    /// Get the configuration of the operator.
     pub fn get_operator_config(&self) -> &OperatorConfig {
         &self.config
     }
 
+    /// Get the state attached to the operator.
     pub fn get_state(&self) -> &S {
         &self.state
     }
 
+    /// Get the left write stream to send the output on.
     pub fn get_left_write_stream(&mut self) -> &mut WriteStream<T> {
         &mut self.left_write_stream
     }
 
+    /// Get the right write stream to send the output on.
     pub fn get_right_write_stream(&mut self) -> &mut WriteStream<U> {
         &mut self.right_write_stream
     }
@@ -538,6 +658,13 @@ where
  * access to the operator state, but all callbacks are sequentialized.                            *
  *************************************************************************************************/
 
+/// The `OneInTwoOut` trait must be implemented by operators that consume data from their input
+/// read stream, and generate output on two output write streams. The operator can either choose to
+/// consume data from its `read_stream` itself using the `run` method, or register for the
+/// `on_data` and `on_watermark` callbacks.
+///
+/// The callbacks registered in this operator execute sequentially by timestamp order and are
+/// allowed to mutate state in both the message and the watermark callbacks.
 #[allow(unused_variables)]
 pub trait OneInTwoOut<S, T, U, V>: Send + Sync
 where
@@ -561,6 +688,9 @@ where
     fn on_watermark(&mut self, ctx: &mut OneInTwoOutContext<S, U, V>);
 }
 
+/// A context structure made available to the callbacks of a `OneInTwoOut` operator. The context
+/// provides access to the current timestamp for which the callback is invoked along with the
+/// state of the operator and the write streams to send the outputs on.
 pub struct OneInTwoOutContext<'a, S, T, U>
 where
     S: StateT,
@@ -596,22 +726,27 @@ where
         }
     }
 
+    /// Get the timestamp for which the callback was invoked.
     pub fn get_timestamp(&self) -> &Timestamp {
         &self.timestamp
     }
 
+    /// Get the configuration of the operator.
     pub fn get_operator_config(&self) -> &OperatorConfig {
         &self.config
     }
 
+    /// Get the state attached to the operator.
     pub fn get_state(&mut self) -> &mut S {
         &mut self.state
     }
 
+    /// Get the left write stream to send the output on.
     pub fn get_left_write_stream(&mut self) -> &mut WriteStream<T> {
         &mut self.left_write_stream
     }
 
+    /// Get the right write stream to send the output on.
     pub fn get_right_write_stream(&mut self) -> &mut WriteStream<U> {
         &mut self.right_write_stream
     }

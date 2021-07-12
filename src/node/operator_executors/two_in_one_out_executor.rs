@@ -21,6 +21,14 @@ use crate::{
     Uuid,
 };
 
+/// Message Processor that defines the generation and execution of events for a ParallelTwoInOneOut
+/// operator, where
+/// O: An operator that implements the ParallelTwoInOneOut trait,
+/// S: A state structure that implements the AppendableStateT trait,
+/// T: Type of messages received on the left read stream,
+/// U: Type of messages received on the right read stream,
+/// V: Type of messages sent on the write stream,
+/// W: Type of intermediate data appended to the state structure S.
 pub struct ParallelTwoInOneOutMessageProcessor<O, S, T, U, V, W>
 where
     O: 'static + ParallelTwoInOneOut<S, T, U, V, W>,
@@ -214,6 +222,13 @@ where
     }
 }
 
+/// Message Processor that defines the generation and execution of events for a TwoInOneOut
+/// operator, where
+/// O: An operator that implements the TwoInOneOut trait,
+/// S: A state structure that implements the StateT trait,
+/// T: Type of messages received on the left read stream,
+/// U: Type of messages received on the right read stream,
+/// V: Type of messages sent on the write stream,
 pub struct TwoInOneOutMessageProcessor<O, S, T, U, V>
 where
     O: 'static + TwoInOneOut<S, T, U, V>,

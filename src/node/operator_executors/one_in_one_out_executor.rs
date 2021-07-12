@@ -21,6 +21,13 @@ use crate::{
     Uuid,
 };
 
+/// Message Processor that defines the generation and execution of events for a ParallelOneInOneOut
+/// operator, where
+/// O: An operator that implements the ParallelOneInOneOut trait,
+/// S: A state structure that implements the AppendableStateT trait,
+/// T: Type of messages received on the read stream,
+/// U: Type of messages sent on the write stream,
+/// V: Type of intermediate data appended to the state structure S.
 pub struct ParallelOneInOneOutMessageProcessor<O, S, T, U, V>
 where
     O: 'static + ParallelOneInOneOut<S, T, U, V>,
@@ -178,6 +185,12 @@ where
     }
 }
 
+/// Message Processor that defines the generation and execution of events for a OneInOneOut 
+/// operator, where
+/// O: An operator that implements the OneInOneOut trait,
+/// S: A state structure that implements the StateT trait,
+/// T: Type of messages received on the read stream,
+/// U: Type of messages sent on the write stream,
 pub struct OneInOneOutMessageProcessor<O, S, T, U>
 where
     O: 'static + OneInOneOut<S, T, U>,

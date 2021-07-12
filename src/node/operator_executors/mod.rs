@@ -70,8 +70,8 @@ pub(crate) trait OperatorExecutorT: Send {
 }
 
 /// Trait that needs to be defined by the executors for an operator that processes a single message
-/// stream. This trait is used by the OperatorExecutorHelper to invoke the executor when a message
-/// is received on the channel from the worker.
+/// stream. This trait is used by the executors to invoke the callback corresponding to the event
+/// occurring in the system.
 pub trait OneInMessageProcessorT<T>: Send + Sync
 where
     T: Data + for<'a> Deserialize<'a>,
@@ -131,8 +131,9 @@ where
 }
 
 /// Trait that needs to be defined by the executors for an operator that processes two message
-/// streams. This trait is used by the OperatorExecutorHelper to invoke the executor when a message
-/// is received on the channel from the worker for either of the two streams.
+/// streams. This trait is used by the executors to invoke the callback corresponding to the event
+/// occurring in the system. (T is the datatype of the first stream, and U is the datatype of the
+/// second stream)
 pub trait TwoInMessageProcessorT<T, U>: Send + Sync
 where
     T: Data + for<'a> Deserialize<'a>,
@@ -166,6 +167,7 @@ where
  * Executors for the different operator types.
  * ***********************************************************************************************/
 
+/// Executor that executes operators that process messages on a single read stream of type T.
 pub struct OneInExecutor<T>
 where
     T: Data + for<'a> Deserialize<'a>,
@@ -289,6 +291,7 @@ where
     }
 }
 
+/// Executor that executes operators that process messages on two read streams of type T and U.
 pub struct TwoInExecutor<T, U>
 where
     T: Data + for<'a> Deserialize<'a>,
