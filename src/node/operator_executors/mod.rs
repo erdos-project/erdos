@@ -428,7 +428,6 @@ where
 pub struct OperatorExecutorHelper {
     operator_id: OperatorId,
     lattice: Arc<ExecutionLattice>,
-    _event_runner_handles: Option<Vec<tokio::task::JoinHandle<()>>>,
     deadline_queue: DelayQueue<DeadlineEvent, GrowingHeapBuf<DeadlineEvent>>,
     deadline_queue_rx: Receiver<DeadlineEvent>,
     // For active deadlines.
@@ -441,7 +440,6 @@ impl OperatorExecutorHelper {
         OperatorExecutorHelper {
             operator_id,
             lattice: Arc::new(ExecutionLattice::new()),
-            _event_runner_handles: None,
             deadline_queue,
             deadline_queue_rx,
             stream_timestamp_to_key_map: HashMap::new(),
