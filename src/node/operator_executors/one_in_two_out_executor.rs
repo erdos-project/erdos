@@ -154,6 +154,7 @@ where
         if self.config.flow_watermarks {
             let mut left_write_stream_copy = self.left_write_stream.clone();
             let mut right_write_stream_copy = self.right_write_stream.clone();
+            let time_copy = time.clone();
             let time_copy_left = time.clone();
             let time_copy_right = time.clone();
             OperatorEvent::new(
@@ -163,6 +164,7 @@ where
                 HashSet::new(),
                 self.state_ids.clone(),
                 move || {
+                    // Invoke the watermark method.
                     operator.on_watermark(&mut ParallelOneInTwoOutContext::new(
                         time,
                         config,
@@ -170,12 +172,17 @@ where
                         left_write_stream,
                         right_write_stream,
                     ));
+
+                    // Send a watermark.
                     left_write_stream_copy
                         .send(Message::new_watermark(time_copy_left))
                         .ok();
                     right_write_stream_copy
                         .send(Message::new_watermark(time_copy_right))
                         .ok();
+
+                    // Commit the state.
+                    state.commit(&time_copy);
                 },
                 OperatorType::Parallel,
             )
@@ -187,13 +194,17 @@ where
                 HashSet::new(),
                 self.state_ids.clone(),
                 move || {
+                    // Invoke the watermark method.
                     operator.on_watermark(&mut ParallelOneInTwoOutContext::new(
-                        time,
+                        time.clone(),
                         config,
                         &state,
                         left_write_stream,
                         right_write_stream,
-                    ))
+                    ));
+
+                    // Commit the state.
+                    state.commit(&time);
                 },
                 OperatorType::Parallel,
             )
@@ -329,6 +340,7 @@ where
         if self.config.flow_watermarks {
             let mut left_write_stream_copy = self.left_write_stream.clone();
             let mut right_write_stream_copy = self.right_write_stream.clone();
+            let time_copy = time.clone();
             let time_copy_left = time.clone();
             let time_copy_right = time.clone();
             OperatorEvent::new(
@@ -338,22 +350,29 @@ where
                 HashSet::new(),
                 self.state_ids.clone(),
                 move || {
+                    // Take a lock on the state and the operator and invoke the callback.
+                    let mutable_state = &mut state.lock().unwrap();
                     operator
                         .lock()
                         .unwrap()
                         .on_watermark(&mut OneInTwoOutContext::new(
                             time,
                             config,
-                            &mut state.lock().unwrap(),
+                            mutable_state,
                             left_write_stream,
                             right_write_stream,
                         ));
+
+                    // Send a watermark.
                     left_write_stream_copy
                         .send(Message::new_watermark(time_copy_left))
                         .ok();
                     right_write_stream_copy
                         .send(Message::new_watermark(time_copy_right))
                         .ok();
+
+                    // Commit the state.
+                    mutable_state.commit(&time_copy);
                 },
                 OperatorType::Sequential,
             )
@@ -365,16 +384,21 @@ where
                 HashSet::new(),
                 self.state_ids.clone(),
                 move || {
+                    // Take a lock on the state and the operator and invoke the callback.
+                    let mutable_state = &mut state.lock().unwrap();
                     operator
                         .lock()
                         .unwrap()
                         .on_watermark(&mut OneInTwoOutContext::new(
-                            time,
+                            time.clone(),
                             config,
                             &mut state.lock().unwrap(),
                             left_write_stream,
                             right_write_stream,
-                        ))
+                        ));
+
+                    // Commit the state.
+                    mutable_state.commit(&time);
                 },
                 OperatorType::Sequential,
             )

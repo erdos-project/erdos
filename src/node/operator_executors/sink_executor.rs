@@ -8,7 +8,7 @@ use std::{
 use crate::{
     dataflow::{
         operator::{OperatorConfig, ParallelSink, ParallelSinkContext, Sink, SinkContext},
-        AppendableStateT, Data, Message, ReadStream, Timestamp, StateT,
+        AppendableStateT, Data, Message, ReadStream, StateT, Timestamp,
     },
     node::{
         operator_event::{OperatorEvent, OperatorType},
@@ -106,7 +106,13 @@ where
             0,
             HashSet::new(),
             self.state_ids.clone(),
-            move || operator.on_watermark(&mut ParallelSinkContext::new(time, config, &state)),
+            move || {
+                // Invoke the watermark method.
+                operator.on_watermark(&mut ParallelSinkContext::new(time.clone(), config, &state));
+
+                // Commit the state
+                state.commit(&time);
+            },
             OperatorType::Parallel,
         )
     }
@@ -195,11 +201,16 @@ where
             HashSet::new(),
             self.state_ids.clone(),
             move || {
+                // Take a lock on the state and the operator and invoke the callback.
+                let mutable_state = &mut state.lock().unwrap();
                 operator.lock().unwrap().on_watermark(&mut SinkContext::new(
-                    time,
+                    time.clone(),
                     config,
-                    &mut state.lock().unwrap(),
-                ))
+                    mutable_state,
+                ));
+
+                // Commit the state.
+                mutable_state.commit(&time);
             },
             OperatorType::Sequential,
         )
