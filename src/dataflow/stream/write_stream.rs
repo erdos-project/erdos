@@ -7,10 +7,7 @@ use serde::Deserialize;
 
 use crate::{
     communication::{Pusher, SendEndpoint},
-    dataflow::{
-        deadlines::{CondFn, ConditionContext},
-        Data, Message, Timestamp,
-    },
+    dataflow::{deadlines::ConditionContext, Data, Message, Timestamp},
 };
 
 use super::{errors::WriteStreamError, StreamId, StreamT, WriteStreamT};
@@ -170,6 +167,7 @@ impl<D: Data> WriteStream<D> {
     }
 
     /// Gets the statistics of the WriteStream.
+    #[allow(dead_code)]
     pub(crate) fn get_statistics(&self) -> Arc<Mutex<WriteStreamStatistics>> {
         Arc::clone(&self.stats)
     }
@@ -302,6 +300,7 @@ impl WriteStreamStatistics {
     }
 
     /// Get the ConditionContext saved in the stream.
+    #[allow(dead_code)]
     pub(crate) fn get_condition_context(&self) -> &ConditionContext {
         &self.condition_context
     }

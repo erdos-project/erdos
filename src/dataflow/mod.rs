@@ -11,12 +11,13 @@ pub mod time;
 pub mod deadlines;
 pub mod state;
 pub mod stream;
+pub mod context;
 
 // Public exports
 pub use deadlines::TimestampDeadline;
 pub use message::{Data, Message, TimestampedData};
 pub use operator::OperatorConfig;
-pub use state::State;
+pub use state::{StateT, State, AppendableStateT};
 pub use stream::{LoopStream, ReadStream, Stream, StreamT, WriteStream};
 pub use time::Timestamp;
 

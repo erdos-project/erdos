@@ -20,7 +20,7 @@ pub(crate) mod operator_event;
 
 // Public submodules
 #[doc(hidden)]
-pub mod operator_executor;
+pub mod operator_executors;
 
 // Public exports
 pub use node::{Node, NodeHandle, NodeId};

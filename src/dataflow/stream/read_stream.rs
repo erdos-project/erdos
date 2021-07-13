@@ -1,18 +1,13 @@
-use std::{cell::RefCell, rc::Rc, sync::Arc};
-
-use serde::Deserialize;
+use std::sync::Arc;
 
 use crate::{
     communication::{RecvEndpoint, TryRecvError},
-    dataflow::{
-        deadlines::{CondFn, ConditionContext},
-        Data, Message, State, Timestamp,
-    },
+    dataflow::{deadlines::ConditionContext, Data, Message, Timestamp},
 };
 
 use super::{
     errors::{ReadError, TryReadError},
-    IngestStream, LoopStream, StreamId, StreamT, WriteStream,
+    StreamId, StreamT,
 };
 
 /// A [`ReadStream`] allows operators to read data from a corresponding [`WriteStream`].

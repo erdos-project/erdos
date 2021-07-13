@@ -148,6 +148,7 @@ pub(crate) struct ChannelManager {
     stream_entries: HashMap<StreamId, Box<dyn StreamEndpointsT>>,
 }
 
+#[allow(dead_code)]
 impl ChannelManager {
     /// Creates transport channels between connected operators on this node, transport channels
     /// for operators with streams containing dataflow channels to other nodes, and transport

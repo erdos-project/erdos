@@ -100,6 +100,7 @@ pub struct TimestampDeadline {
     read_stream_ids: HashSet<StreamId>,
 }
 
+#[allow(dead_code)]
 impl TimestampDeadline {
     pub fn new(
         deadline_context: impl DeadlineContext + 'static,

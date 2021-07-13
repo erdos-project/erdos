@@ -7,7 +7,7 @@ use tokio::{
 
 use crate::OperatorId;
 
-use super::{lattice::ExecutionLattice, operator_executor::OperatorExecutorT};
+use super::{lattice::ExecutionLattice, operator_executors::OperatorExecutorT};
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum EventNotification {
