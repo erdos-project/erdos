@@ -7,10 +7,8 @@ use std::{
 
 use crate::{
     dataflow::{
-        operator::{
-            OneInTwoOut, OneInTwoOutContext, OperatorConfig, ParallelOneInTwoOut,
-            ParallelOneInTwoOutContext,
-        },
+        context::{OneInTwoOutContext, ParallelOneInTwoOutContext},
+        operator::{OneInTwoOut, OperatorConfig, ParallelOneInTwoOut},
         stream::WriteStreamT,
         AppendableStateT, Data, Message, ReadStream, StateT, Timestamp, WriteStream,
     },
@@ -221,7 +219,7 @@ where
     }
 }
 
-/// Message Processor that defines the generation and execution of events for a OneInTwoOut 
+/// Message Processor that defines the generation and execution of events for a OneInTwoOut
 /// operator, where
 /// O: An operator that implements the OneInTwoOut trait,
 /// S: A state structure that implements the StateT trait,

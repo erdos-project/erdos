@@ -2,6 +2,7 @@ extern crate erdos;
 
 use std::{collections::HashMap, thread, time::Duration};
 
+use erdos::dataflow::context::*;
 use erdos::dataflow::operator::*;
 use erdos::dataflow::stream::WriteStreamT;
 use erdos::dataflow::*;

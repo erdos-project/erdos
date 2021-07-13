@@ -7,7 +7,8 @@ use std::{
 
 use crate::{
     dataflow::{
-        operator::{OperatorConfig, ParallelSink, ParallelSinkContext, Sink, SinkContext},
+        context::{ParallelSinkContext, SinkContext},
+        operator::{OperatorConfig, ParallelSink, Sink},
         AppendableStateT, Data, Message, ReadStream, StateT, Timestamp,
     },
     node::{

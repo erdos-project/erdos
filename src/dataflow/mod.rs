@@ -11,6 +11,7 @@ pub mod time;
 pub mod deadlines;
 pub mod state;
 pub mod stream;
+pub mod context;
 
 // Public exports
 pub use deadlines::TimestampDeadline;

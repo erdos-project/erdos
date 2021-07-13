@@ -7,10 +7,8 @@ use std::{
 
 use crate::{
     dataflow::{
-        operator::{
-            OperatorConfig, ParallelTwoInOneOut, ParallelTwoInOneOutContext, TwoInOneOut,
-            TwoInOneOutContext,
-        },
+        context::{ParallelTwoInOneOutContext, TwoInOneOutContext},
+        operator::{OperatorConfig, ParallelTwoInOneOut, TwoInOneOut},
         stream::WriteStreamT,
         AppendableStateT, Data, Message, ReadStream, StateT, Timestamp, WriteStream,
     },
