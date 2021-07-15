@@ -37,7 +37,7 @@ impl RunnableEvent {
         }
     }
 
-    /// Add a timestamp to the event.
+    /// Adds a `Timestamp` to the event.
     pub fn with_timestamp(mut self, timestamp: Timestamp) -> Self {
         self.timestamp = Some(timestamp);
         self
@@ -197,7 +197,7 @@ impl ExecutionLattice {
         // with dependency interactions among the batch of inserted events.
         for added_event in events {
             // Begins a DFS from each leaf, traversing the graph in the opposite direction of the
-            // edges.  The purpose of this search is to find where new edges representing
+            // edges. The purpose of this search is to find where new edges representing
             // dependencies must be added for the new event.
             // If the DFS becomes a performance bottleneck, consider searching from the roots of
             // the forest as an optimization under the assumption that newly inserted events will
