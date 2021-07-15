@@ -6,8 +6,10 @@ pub(crate) mod endpoints_manager;
 // Public exports
 pub mod channel_manager;
 
-/// Schedules a dataflow graph. Assigns operators to nodes and updates channels.
-/// After running this method, there should be no unscheduled channels remaining.
+/// Schedules a dataflow graph. Assigns operators to nodes and updates channels, deciding what
+/// type of channels (e.g., `Channel::InterThread`, `Channel::InterNode`) to use depending on
+/// the location of the operators. After running this method, there should be no unscheduled
+/// channels remaining.
 pub(crate) fn schedule(graph: &Graph) -> Graph {
     let mut scheduled_graph = graph.clone();
     for stream in scheduled_graph.get_streams_ref_mut() {
