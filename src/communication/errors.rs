@@ -62,7 +62,8 @@ impl From<CodecError> for CommunicationError {
     }
 }
 
-/// Error that is raised by the `MessageCodec` when messages cannot be encoded or decoded.
+/// Error that is raised by the `MessageCodec` or `ControlMessageCodec` when messages cannot
+/// be encoded or decoded.
 #[derive(Debug)]
 pub enum CodecError {
     IoError(io::Error),

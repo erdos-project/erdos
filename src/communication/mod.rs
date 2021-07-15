@@ -44,6 +44,7 @@ pub(crate) use pusher::{Pusher, PusherT};
 // Crate-wide exports
 pub(crate) use endpoints::{RecvEndpoint, SendEndpoint};
 
+/// Message sent between nodes in order to coordinate node and operator initialization.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ControlMessage {
     AllOperatorsInitializedOnNode(NodeId),

@@ -28,6 +28,7 @@ pub trait PusherT: Send {
 /// Internal structure used to send data on a collection of [`SendEndpoint`]s.
 #[derive(Clone)]
 pub struct Pusher<D: Debug + Clone + Send> {
+    // TODO: We might want to order the endpoints by the priority of their tasks.
     endpoints: Vec<SendEndpoint<D>>,
 }
 

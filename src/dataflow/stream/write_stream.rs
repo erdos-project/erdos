@@ -10,7 +10,7 @@ use crate::{
     dataflow::{deadlines::ConditionContext, Data, Message, Timestamp},
 };
 
-use super::{errors::WriteStreamError, StreamId, StreamT, WriteStreamT};
+use super::{errors::SendError, StreamId, StreamT, WriteStreamT};
 
 // TODO (Sukrit) :: This example needs to be fixed after we enable attaching WriteStreams to
 // callbacks for normal read streams.
@@ -130,12 +130,12 @@ impl<D: Data> WriteStream<D> {
     ///
     /// # Arguments
     /// * `msg` - The message to be sent on the stream.
-    fn update_statistics(&mut self, msg: &Message<D>) -> Result<(), WriteStreamError> {
+    fn update_statistics(&mut self, msg: &Message<D>) -> Result<(), SendError> {
         match msg {
             Message::TimestampedData(td) => {
                 let mut stats = self.stats.lock().unwrap();
                 if td.timestamp < *stats.low_watermark() {
-                    return Err(WriteStreamError::TimestampError);
+                    return Err(SendError::TimestampError);
                 }
                 // Increment the message count.
                 stats
@@ -145,7 +145,7 @@ impl<D: Data> WriteStream<D> {
             Message::Watermark(msg_watermark) => {
                 let mut stats = self.stats.lock().unwrap();
                 if msg_watermark < stats.low_watermark() {
-                    return Err(WriteStreamError::TimestampError);
+                    return Err(SendError::TimestampError);
                 }
                 slog::debug!(
                     crate::TERMINAL_LOGGER,
@@ -212,7 +212,7 @@ impl<D: Data> StreamT<D> for WriteStream<D> {
 }
 
 impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
-    fn send(&mut self, msg: Message<D>) -> Result<(), WriteStreamError> {
+    fn send(&mut self, msg: Message<D>) -> Result<(), SendError> {
         // Check if the stream was closed before, and return an error.
         if self.is_closed() {
             slog::warn!(
@@ -221,7 +221,7 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
                 self.name(),
                 self.id(),
             );
-            return Err(WriteStreamError::Closed);
+            return Err(SendError::Closed);
         }
 
         // Close the stream later if the message being sent represents the top watermark.
@@ -241,7 +241,7 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
         let msg_arc = Arc::new(msg);
 
         match self.pusher.as_mut() {
-            Some(pusher) => pusher.send(msg_arc).map_err(WriteStreamError::from)?,
+            Some(pusher) => pusher.send(msg_arc).map_err(SendError::from)?,
             None => {
                 slog::debug!(
                     crate::TERMINAL_LOGGER,

@@ -2,20 +2,16 @@ use pyo3::create_exception;
 use pyo3::{exceptions, prelude::*};
 
 use crate::{
-    dataflow::stream::{errors::WriteStreamError, StreamT, WriteStreamT},
+    dataflow::stream::{errors::SendError, StreamT, WriteStreamT},
     dataflow::{Message, WriteStream},
     python::PyMessage,
 };
 
 // Define errors that can be raised by a write stream.
-create_exception!(WriteStreamError, TimestampError, exceptions::PyException);
-create_exception!(WriteStreamError, ClosedError, exceptions::PyException);
-create_exception!(WriteStreamError, IOError, exceptions::PyException);
-create_exception!(
-    WriteStreamError,
-    SerializationError,
-    exceptions::PyException
-);
+create_exception!(SendError, TimestampError, exceptions::PyException);
+create_exception!(SendError, ClosedError, exceptions::PyException);
+create_exception!(SendError, IOError, exceptions::PyException);
+create_exception!(SendError, SerializationError, exceptions::PyException);
 
 /// The internal Python abstraction over a `WriteStream`.
 ///
@@ -35,10 +31,10 @@ impl PyWriteStream {
         self.write_stream.send(Message::from(msg)).map_err(|e| {
             let error_str = format!("Error sending message on {}", self.write_stream.id());
             match e {
-                WriteStreamError::TimestampError => TimestampError::new_err(error_str),
-                WriteStreamError::Closed => ClosedError::new_err(error_str),
-                WriteStreamError::IOError => IOError::new_err(error_str),
-                WriteStreamError::SerializationError => SerializationError::new_err(error_str),
+                SendError::TimestampError => TimestampError::new_err(error_str),
+                SendError::Closed => ClosedError::new_err(error_str),
+                SendError::IOError => IOError::new_err(error_str),
+                SendError::SerializationError => SerializationError::new_err(error_str),
             }
         })
     }

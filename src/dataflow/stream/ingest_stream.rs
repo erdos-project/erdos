@@ -11,7 +11,7 @@ use crate::{
     scheduler::channel_manager::ChannelManager,
 };
 
-use super::{errors::WriteStreamError, StreamId, StreamT, WriteStream, WriteStreamT};
+use super::{errors::SendError, StreamId, StreamT, WriteStream, WriteStreamT};
 
 /// An [`IngestStream`] enables drivers to inject data into a running ERDOS application.
 ///
@@ -129,7 +129,7 @@ where
     ///
     /// # Arguments
     /// * `msg` - The message to be sent on the stream.
-    pub fn send(&mut self, msg: Message<D>) -> Result<(), WriteStreamError> {
+    pub fn send(&mut self, msg: Message<D>) -> Result<(), SendError> {
         if !self.is_closed() {
             loop {
                 {
@@ -147,7 +147,7 @@ where
                 self.name(),
                 self.id(),
             );
-            return Err(WriteStreamError::Closed);
+            return Err(SendError::Closed);
         }
     }
 }
@@ -174,7 +174,7 @@ where
     for<'a> D: Data + Deserialize<'a>,
 {
     /// Blocks until write stream is available
-    fn send(&mut self, msg: Message<D>) -> Result<(), WriteStreamError> {
+    fn send(&mut self, msg: Message<D>) -> Result<(), SendError> {
         self.send(msg)
     }
 }
