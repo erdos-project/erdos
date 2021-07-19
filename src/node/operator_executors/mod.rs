@@ -34,10 +34,8 @@ use tokio::{
 
 use crate::{
     dataflow::{
-        deadlines::{Deadline, DeadlineEvent},
-        operator::{OneInOneOutSetupContext, OperatorConfig, SetupContextT},
-        stream::StreamId,
-        Data, Message, ReadStream, StreamT, Timestamp,
+        context::SetupContext, deadlines::DeadlineEvent, operator::OperatorConfig,
+        stream::StreamId, Data, Message, ReadStream, Timestamp,
     },
     node::{
         lattice::ExecutionLattice,
@@ -76,8 +74,14 @@ pub trait OneInMessageProcessorT<T>: Send + Sync
 where
     T: Data + for<'a> Deserialize<'a>,
 {
+    /// Executes the `setup` method inside the operator.
+    // TODO (Sukrit): Stopgap to prevent compilation errors. Remove once deadline API is decided.
+    fn execute_setup(&mut self, _read_stream: &mut ReadStream<T>) -> SetupContext {
+        SetupContext::new(Vec::new(), Vec::new())
+    }
+
     /// Executes the `run` method inside the operator.
-    fn execute_run(&mut self, _read_stream: &mut ReadStream<T>);
+    fn execute_run(&mut self, read_stream: &mut ReadStream<T>);
 
     /// Executes the `destroy` method inside the operator.
     fn execute_destroy(&mut self);
@@ -91,32 +95,12 @@ where
     /// Generates a DeadlineEvent for arming a deadline.
     fn arm_deadlines(
         &self,
-        setup_context: &dyn SetupContextT,
+        setup_context: &mut SetupContext,
         read_stream: &ReadStream<T>,
         timestamp: Timestamp,
     ) -> Vec<DeadlineEvent> {
-        let mut deadline_event_vec = Vec::new();
-        for deadline in setup_context.get_deadlines() {
-            match deadline {
-                Deadline::TimestampDeadline(d) => {
-                    if d.constrained_on_read_stream(read_stream.id())
-                        && d.start_condition(read_stream.get_condition_context(), &timestamp)
-                    {
-                        // Compute the deadline for the timestamp.
-                        let deadline_duration =
-                            d.calculate_deadline(read_stream.get_condition_context());
-                        deadline_event_vec.push(DeadlineEvent::new(
-                            read_stream.id(),
-                            timestamp.clone(),
-                            deadline_duration,
-                            d.get_handler(),
-                            d.get_end_condition_fn(),
-                        ));
-                    }
-                }
-            }
-        }
-        deadline_event_vec
+        // TODO (Sukrit): Remove this default implementation later.
+        vec![]
     }
 
     /// Disarms a deadline by returning true if the given deadline should be disarmed, or false
@@ -206,7 +190,8 @@ where
 
         // Run the `setup` method.
         let mut read_stream: ReadStream<T> = self.read_stream.take().unwrap();
-        let setup_context = OneInOneOutSetupContext::new(read_stream.id());
+        let mut setup_context =
+            tokio::task::block_in_place(|| self.processor.execute_setup(&mut read_stream));
         // TODO (Sukrit): Implement deadlines and `setup` method for the operators.
 
         // Execute the `run` method.
@@ -225,7 +210,7 @@ where
             read_stream,
             &mut (*self.processor),
             &channel_to_event_runners,
-            &setup_context,
+            &mut setup_context,
         );
 
         // Shutdown.
@@ -484,7 +469,7 @@ impl OperatorExecutorHelper {
         mut read_stream: ReadStream<T>,
         message_processor: &mut dyn OneInMessageProcessorT<T>,
         notifier_tx: &tokio::sync::broadcast::Sender<EventNotification>,
-        setup_context: &dyn SetupContextT,
+        setup_context: &mut SetupContext,
     ) where
         T: Data + for<'a> Deserialize<'a>,
     {

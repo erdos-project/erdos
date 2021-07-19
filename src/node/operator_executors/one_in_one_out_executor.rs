@@ -7,9 +7,10 @@ use std::{
 
 use crate::{
     dataflow::{
-        context::{OneInOneOutContext, ParallelOneInOneOutContext},
+        context::{OneInOneOutContext, ParallelOneInOneOutContext, SetupContext},
+        deadlines::DeadlineEvent,
         operator::{OneInOneOut, OperatorConfig, ParallelOneInOneOut},
-        stream::WriteStreamT,
+        stream::{StreamT, WriteStreamT},
         AppendableStateT, Data, Message, ReadStream, StateT, Timestamp, WriteStream,
     },
     node::{
@@ -235,6 +236,13 @@ where
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
+    fn execute_setup(&mut self, read_stream: &mut ReadStream<T>) -> SetupContext {
+        let mut setup_context =
+            SetupContext::new(vec![read_stream.id()], vec![self.write_stream.id()]);
+        self.operator.lock().unwrap().setup(&mut setup_context);
+        setup_context
+    }
+
     fn execute_run(&mut self, read_stream: &mut ReadStream<T>) {
         self.operator
             .lock()
@@ -352,5 +360,32 @@ where
                 OperatorType::Sequential,
             )
         }
+    }
+
+    fn arm_deadlines(
+        &self,
+        setup_context: &mut SetupContext,
+        read_stream: &ReadStream<T>,
+        timestamp: Timestamp,
+    ) -> Vec<DeadlineEvent> {
+        let mut deadline_events = Vec::new();
+        let state = Arc::clone(&self.state);
+        for deadline in setup_context.get_deadlines() {
+            if deadline.is_constrained_on_read_stream(read_stream.id())
+                && deadline.invoke_start_condition(read_stream.get_condition_context(), &timestamp)
+            {
+                // Compute the deadline for the timestamp.
+                let deadline_duration =
+                    deadline.calculate_deadline(&(*state.lock().unwrap()), &timestamp);
+                deadline_events.push(DeadlineEvent::new(
+                    read_stream.id(),
+                    timestamp.clone(),
+                    deadline_duration,
+                    deadline.get_handler(),
+                    deadline.get_end_condition_fn(),
+                ));
+            }
+        }
+        deadline_events
     }
 }

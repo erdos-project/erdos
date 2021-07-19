@@ -1,10 +1,55 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, sync::Arc};
 
 use serde::Deserialize;
 
 use crate::dataflow::{
-    operator::OperatorConfig, AppendableStateT, Data, StateT, Timestamp, WriteStream,
+    deadlines::DeadlineT, operator::OperatorConfig, stream::StreamId, AppendableStateT, Data,
+    StateT, Timestamp, WriteStream,
 };
+
+/*************************************************************************************************
+ * SetupContext: Provided to an operator's `setup` method, and allows the operators to register  *
+ * deadlines.                                                                                    *
+ ************************************************************************************************/
+
+/// A `SetupContext` is made available to an operator's `setup` method, and allows the operators to
+/// register deadlines for events along with their corresponding handlers.
+pub struct SetupContext {
+    deadlines: Vec<Arc<dyn DeadlineT>>,
+    // TODO (Sukrit): Can we provide a better interface than ReadStream and WriteStream IDs?
+    read_stream_ids: Vec<StreamId>,
+    write_stream_ids: Vec<StreamId>,
+}
+
+impl SetupContext {
+    pub fn new(read_stream_ids: Vec<StreamId>, write_stream_ids: Vec<StreamId>) -> Self {
+        Self {
+            deadlines: Vec::new(),
+            read_stream_ids,
+            write_stream_ids,
+        }
+    }
+
+    /// Register a deadline with the system.
+    pub fn add_deadline<S: DeadlineT + 'static>(&mut self, deadline: S) {
+        self.deadlines.push(Arc::new(deadline));
+    }
+
+    /// Get the deadlines registered in this context.
+    pub(crate) fn get_deadlines(&mut self) -> &mut Vec<Arc<dyn DeadlineT>> {
+        &mut self.deadlines
+    }
+
+    /// Get the identifiers of the read streams of this operator.
+    pub fn get_read_stream_ids(&self) -> &Vec<StreamId> {
+        &self.read_stream_ids
+    }
+
+    /// Get the identifiers of the write streams of this operator.
+    pub fn get_write_stream_ids(&self) -> &Vec<StreamId> {
+        &self.write_stream_ids
+    }
+}
 
 /*************************************************************************************************
  * ParallelSinkContext: Provides access to the state registered with a ParallelSink operator in  *

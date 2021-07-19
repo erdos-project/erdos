@@ -1,8 +1,14 @@
 extern crate erdos;
 
-use std::{collections::HashMap, thread, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+    thread,
+    time::Duration,
+};
 
 use erdos::dataflow::context::*;
+use erdos::dataflow::deadlines::*;
 use erdos::dataflow::operator::*;
 use erdos::dataflow::stream::WriteStreamT;
 use erdos::dataflow::*;
@@ -39,11 +45,15 @@ impl Source<(), usize> for SourceOperator {
     }
 }
 
-struct SquareOperator {}
+struct SquareOperator {
+    deadline_ctx: Arc<Mutex<DeadlineCtx>>,
+}
 
 impl SquareOperator {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            deadline_ctx: Arc::new(Mutex::new(DeadlineCtx::new())),
+        }
     }
 }
 
@@ -59,7 +69,47 @@ impl StateT for SquareOperatorState {
     fn commit(&mut self, _timestamp: &Timestamp) {}
 }
 
+struct DeadlineCtx {
+    val: usize,
+}
+
+impl DeadlineCtx {
+    pub fn new() -> Self {
+        Self { val: 0 }
+    }
+
+    pub fn increment(&mut self) {
+        self.val += 1;
+    }
+
+    pub fn deadline(&mut self) -> Duration {
+        self.increment();
+        Duration::new(5, 0)
+    }
+}
+
+struct HandlerCtx {}
+
+impl HandlerCtx {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl HandlerContextT for HandlerCtx {
+    fn invoke_handler(&mut self, _ctx: &ConditionContext, _timestamp: &Timestamp) {}
+}
+
 impl OneInOneOut<SquareOperatorState, usize, usize> for SquareOperator {
+    fn setup(&mut self, ctx: &mut SetupContext) {
+        let deadline_ctx = Arc::clone(&self.deadline_ctx);
+        let handler = HandlerCtx::new();
+        ctx.add_deadline(TimestampDeadline::new_with_static_deadline(
+            move |_s: SquareOperatorState, _t| -> Duration { deadline_ctx.lock().unwrap().deadline() },
+            handler,
+        ));
+    }
+
     fn on_data(&mut self, ctx: &mut OneInOneOutContext<SquareOperatorState, usize>, data: &usize) {
         thread::sleep(Duration::new(2, 0));
         let logger = erdos::get_terminal_logger();
