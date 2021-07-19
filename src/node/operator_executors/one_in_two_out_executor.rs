@@ -75,7 +75,7 @@ where
     }
 }
 
-impl<O, S, T, U, V, W> OneInMessageProcessorT<T>
+impl<O, S, T, U, V, W> OneInMessageProcessorT<S, T>
     for ParallelOneInTwoOutMessageProcessor<O, S, T, U, V, W>
 where
     O: 'static + ParallelOneInTwoOut<S, T, U, V, W>,
@@ -270,7 +270,7 @@ where
     }
 }
 
-impl<O, S, T, U, V> OneInMessageProcessorT<T> for OneInTwoOutMessageProcessor<O, S, T, U, V>
+impl<O, S, T, U, V> OneInMessageProcessorT<S, T> for OneInTwoOutMessageProcessor<O, S, T, U, V>
 where
     O: 'static + OneInTwoOut<S, T, U, V>,
     S: StateT,

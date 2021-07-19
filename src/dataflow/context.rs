@@ -14,14 +14,14 @@ use crate::dataflow::{
 
 /// A `SetupContext` is made available to an operator's `setup` method, and allows the operators to
 /// register deadlines for events along with their corresponding handlers.
-pub struct SetupContext {
-    deadlines: Vec<Arc<dyn DeadlineT>>,
+pub struct SetupContext<S> {
+    deadlines: Vec<Arc<dyn DeadlineT<S>>>,
     // TODO (Sukrit): Can we provide a better interface than ReadStream and WriteStream IDs?
     read_stream_ids: Vec<StreamId>,
     write_stream_ids: Vec<StreamId>,
 }
 
-impl SetupContext {
+impl<S> SetupContext<S> {
     pub fn new(read_stream_ids: Vec<StreamId>, write_stream_ids: Vec<StreamId>) -> Self {
         Self {
             deadlines: Vec::new(),
@@ -31,12 +31,12 @@ impl SetupContext {
     }
 
     /// Register a deadline with the system.
-    pub fn add_deadline<S: DeadlineT + 'static>(&mut self, deadline: S) {
+    pub fn add_deadline(&mut self, deadline: impl DeadlineT<S> + 'static) {
         self.deadlines.push(Arc::new(deadline));
     }
 
     /// Get the deadlines registered in this context.
-    pub(crate) fn get_deadlines(&mut self) -> &mut Vec<Arc<dyn DeadlineT>> {
+    pub(crate) fn get_deadlines(&mut self) -> &mut Vec<Arc<dyn DeadlineT<S>>> {
         &mut self.deadlines
     }
 

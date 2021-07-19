@@ -39,7 +39,7 @@ pub trait HandlerContextT: Send + Sync {
  * Deadline: Define the different types of deadlines available to operators.                     *
  ************************************************************************************************/
 
-pub trait DeadlineT: Send + Sync {
+pub trait DeadlineT<S>: Send + Sync {
     fn is_constrained_on_read_stream(&self, stream_id: StreamId) -> bool;
 
     fn invoke_start_condition(
@@ -48,7 +48,7 @@ pub trait DeadlineT: Send + Sync {
         timestamp: &Timestamp,
     ) -> bool;
 
-    fn calculate_deadline(&self, state: &impl StateT, timestamp: &Timestamp) -> Duration;
+    fn calculate_deadline(&self, state: &S, timestamp: &Timestamp) -> Duration;
 
     fn get_handler(&self) -> Arc<Mutex<dyn HandlerContextT>>;
 
@@ -156,7 +156,7 @@ where
     }
 }
 
-impl<S> DeadlineT for TimestampDeadline<S>
+impl<S> DeadlineT<S> for TimestampDeadline<S>
 where
     S: StateT,
 {
@@ -176,7 +176,7 @@ where
         (self.start_condition_fn)(condition_context, timestamp)
     }
 
-    fn calculate_deadline(&self, state: &dyn StateT, timestamp: &Timestamp) -> Duration {
+    fn calculate_deadline(&self, state: &S, timestamp: &Timestamp) -> Duration {
         // TODO (Sukrit): invoke the deadline function.
         (self.deadline_fn.lock().unwrap())(state, timestamp)
     }

@@ -101,11 +101,13 @@ impl HandlerContextT for HandlerCtx {
 }
 
 impl OneInOneOut<SquareOperatorState, usize, usize> for SquareOperator {
-    fn setup(&mut self, ctx: &mut SetupContext) {
+    fn setup(&mut self, ctx: &mut SetupContext<SquareOperatorState>) {
         let deadline_ctx = Arc::clone(&self.deadline_ctx);
         let handler = HandlerCtx::new();
         ctx.add_deadline(TimestampDeadline::new_with_static_deadline(
-            move |_s: SquareOperatorState, _t| -> Duration { deadline_ctx.lock().unwrap().deadline() },
+            move |_s: &SquareOperatorState, _t: &Timestamp| -> Duration {
+                deadline_ctx.lock().unwrap().deadline()
+            },
             handler,
         ));
     }

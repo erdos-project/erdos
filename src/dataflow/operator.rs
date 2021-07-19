@@ -126,7 +126,7 @@ where
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
-    fn setup(&mut self, setup_context: &mut SetupContext) {}
+    fn setup(&mut self, setup_context: &mut SetupContext<S>) {}
 
     fn run(&mut self, read_stream: &mut ReadStream<T>, write_stream: &mut WriteStream<U>) {}
 

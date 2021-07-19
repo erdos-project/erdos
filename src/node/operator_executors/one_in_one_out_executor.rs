@@ -70,7 +70,8 @@ where
     }
 }
 
-impl<O, S, T, U, V> OneInMessageProcessorT<T> for ParallelOneInOneOutMessageProcessor<O, S, T, U, V>
+impl<O, S, T, U, V> OneInMessageProcessorT<S, T>
+    for ParallelOneInOneOutMessageProcessor<O, S, T, U, V>
 where
     O: 'static + ParallelOneInOneOut<S, T, U, V>,
     S: AppendableStateT<V>,
@@ -229,14 +230,14 @@ where
     }
 }
 
-impl<O, S, T, U> OneInMessageProcessorT<T> for OneInOneOutMessageProcessor<O, S, T, U>
+impl<O, S, T, U> OneInMessageProcessorT<S, T> for OneInOneOutMessageProcessor<O, S, T, U>
 where
     O: 'static + OneInOneOut<S, T, U>,
     S: StateT,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
-    fn execute_setup(&mut self, read_stream: &mut ReadStream<T>) -> SetupContext {
+    fn execute_setup(&mut self, read_stream: &mut ReadStream<T>) -> SetupContext<S> {
         let mut setup_context =
             SetupContext::new(vec![read_stream.id()], vec![self.write_stream.id()]);
         self.operator.lock().unwrap().setup(&mut setup_context);
@@ -364,7 +365,7 @@ where
 
     fn arm_deadlines(
         &self,
-        setup_context: &mut SetupContext,
+        setup_context: &mut SetupContext<S>,
         read_stream: &ReadStream<T>,
         timestamp: Timestamp,
     ) -> Vec<DeadlineEvent> {

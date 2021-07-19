@@ -70,13 +70,13 @@ pub(crate) trait OperatorExecutorT: Send {
 /// Trait that needs to be defined by the executors for an operator that processes a single message
 /// stream. This trait is used by the executors to invoke the callback corresponding to the event
 /// occurring in the system.
-pub trait OneInMessageProcessorT<T>: Send + Sync
+pub trait OneInMessageProcessorT<S, T>: Send + Sync
 where
     T: Data + for<'a> Deserialize<'a>,
 {
     /// Executes the `setup` method inside the operator.
     // TODO (Sukrit): Stopgap to prevent compilation errors. Remove once deadline API is decided.
-    fn execute_setup(&mut self, _read_stream: &mut ReadStream<T>) -> SetupContext {
+    fn execute_setup(&mut self, _read_stream: &mut ReadStream<T>) -> SetupContext<S> {
         SetupContext::new(Vec::new(), Vec::new())
     }
 
@@ -95,9 +95,9 @@ where
     /// Generates a DeadlineEvent for arming a deadline.
     fn arm_deadlines(
         &self,
-        setup_context: &mut SetupContext,
-        read_stream: &ReadStream<T>,
-        timestamp: Timestamp,
+        _setup_context: &mut SetupContext<S>,
+        _read_stream: &ReadStream<T>,
+        _timestamp: Timestamp,
     ) -> Vec<DeadlineEvent> {
         // TODO (Sukrit): Remove this default implementation later.
         vec![]
@@ -151,23 +151,23 @@ where
  * ***********************************************************************************************/
 
 /// Executor that executes operators that process messages on a single read stream of type T.
-pub struct OneInExecutor<T>
+pub struct OneInExecutor<S, T>
 where
     T: Data + for<'a> Deserialize<'a>,
 {
     config: OperatorConfig,
-    processor: Box<dyn OneInMessageProcessorT<T>>,
+    processor: Box<dyn OneInMessageProcessorT<S, T>>,
     helper: OperatorExecutorHelper,
     read_stream: Option<ReadStream<T>>,
 }
 
-impl<T> OneInExecutor<T>
+impl<S, T> OneInExecutor<S, T>
 where
     T: Data + for<'a> Deserialize<'a>,
 {
     pub fn new(
         config: OperatorConfig,
-        processor: Box<dyn OneInMessageProcessorT<T>>,
+        processor: Box<dyn OneInMessageProcessorT<S, T>>,
         read_stream: ReadStream<T>,
     ) -> Self {
         let operator_id = config.id;
@@ -249,7 +249,7 @@ where
     }
 }
 
-impl<T> OperatorExecutorT for OneInExecutor<T>
+impl<S, T> OperatorExecutorT for OneInExecutor<S, T>
 where
     T: Data + for<'a> Deserialize<'a>,
 {
@@ -464,12 +464,12 @@ impl OperatorExecutorHelper {
         }
     }
 
-    async fn process_stream<T>(
+    async fn process_stream<S, T>(
         &mut self,
         mut read_stream: ReadStream<T>,
-        message_processor: &mut dyn OneInMessageProcessorT<T>,
+        message_processor: &mut dyn OneInMessageProcessorT<S, T>,
         notifier_tx: &tokio::sync::broadcast::Sender<EventNotification>,
-        setup_context: &mut SetupContext,
+        setup_context: &mut SetupContext<S>,
     ) where
         T: Data + for<'a> Deserialize<'a>,
     {

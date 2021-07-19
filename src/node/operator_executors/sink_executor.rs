@@ -62,7 +62,7 @@ where
     }
 }
 
-impl<O, S, T, U> OneInMessageProcessorT<T> for ParallelSinkMessageProcessor<O, S, T, U>
+impl<O, S, T, U> OneInMessageProcessorT<S, T> for ParallelSinkMessageProcessor<O, S, T, U>
 where
     O: 'static + ParallelSink<S, T, U>,
     S: AppendableStateT<U>,
@@ -164,7 +164,7 @@ where
     }
 }
 
-impl<O, S, T> OneInMessageProcessorT<T> for SinkMessageProcessor<O, S, T>
+impl<O, S, T> OneInMessageProcessorT<S, T> for SinkMessageProcessor<O, S, T>
 where
     O: 'static + Sink<S, T>,
     S: StateT,
