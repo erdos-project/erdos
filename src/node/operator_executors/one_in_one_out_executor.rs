@@ -8,7 +8,7 @@ use std::{
 use crate::{
     dataflow::{
         context::{OneInOneOutContext, ParallelOneInOneOutContext, SetupContext},
-        deadlines::DeadlineEvent,
+        deadlines::{DeadlineEvent, DeadlineId},
         operator::{OneInOneOut, OperatorConfig, ParallelOneInOneOut},
         stream::{StreamT, WriteStreamT},
         AppendableStateT, Data, Message, ReadStream, StateT, Timestamp, WriteStream,
@@ -382,11 +382,20 @@ where
                     read_stream.id(),
                     timestamp.clone(),
                     deadline_duration,
-                    deadline.get_handler(),
                     deadline.get_end_condition_fn(),
+                    deadline.get_id(),
                 ));
             }
         }
         deadline_events
+    }
+
+    fn invoke_handler(
+        &self,
+        setup_context: &mut SetupContext<S>,
+        deadline_id: DeadlineId,
+        timestamp: Timestamp,
+    ) {
+        setup_context.invoke_handler(deadline_id, &mut (*self.state.lock().unwrap()), &timestamp);
     }
 }

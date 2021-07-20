@@ -88,27 +88,20 @@ impl DeadlineCtx {
     }
 }
 
-struct HandlerCtx {}
-
-impl HandlerCtx {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl HandlerContextT for HandlerCtx {
-    fn invoke_handler(&mut self, _ctx: &ConditionContext, _timestamp: &Timestamp) {}
-}
-
 impl OneInOneOut<SquareOperatorState, usize, usize> for SquareOperator {
     fn setup(&mut self, ctx: &mut SetupContext<SquareOperatorState>) {
         let deadline_ctx = Arc::clone(&self.deadline_ctx);
-        let handler = HandlerCtx::new();
-        ctx.add_deadline(TimestampDeadline::new_with_static_deadline(
+        ctx.add_deadline(TimestampDeadline::new(
             move |_s: &SquareOperatorState, _t: &Timestamp| -> Duration {
                 deadline_ctx.lock().unwrap().deadline()
             },
-            handler,
+            |_s: &SquareOperatorState, _t: &Timestamp| {
+                slog::info!(
+                    erdos::get_terminal_logger(),
+                    "SquareOperator @ {:?}: Missed deadline.",
+                    _t
+                );
+            },
         ));
     }
 

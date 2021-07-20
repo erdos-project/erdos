@@ -6,6 +6,13 @@ use std::{
 use tokio::time::Duration;
 
 /*************************************************************************************************
+ * DeadlineId: The identifier assigned to each deadline in order to enable handler invocation.   *
+ ************************************************************************************************/
+
+/// The identifier assigned to each deadline installed in a SetupContext.
+pub type DeadlineId = crate::Uuid;
+
+/*************************************************************************************************
  * CondFn: The type of the start and end condition functions invoked by the different types of   *
  * deadlines to decide when to initiate and finish the deadline.                                 *
  ************************************************************************************************/
@@ -19,21 +26,21 @@ pub trait CondFn: Fn(&ConditionContext, &Timestamp) -> bool + Send + Sync {}
 impl<F: Fn(&ConditionContext, &Timestamp) -> bool + Send + Sync> CondFn for F {}
 
 /*************************************************************************************************
- * DeadlineContext: A DeadlineContext defines the duration between the start and the end         *
- * condition that an operator should be restricted to.                                           *
+ * DeadlineFn: A DeadlineFn defines the duration between the start and the end condition that an *
+ * operator should be restricted to.                                                             *
  ************************************************************************************************/
 
-/// A trait that defines the deadline function for static deadlines.
+/// A trait that defines the deadline function.
 pub trait DeadlineFn<S>: FnMut(&S, &Timestamp) -> Duration + Send + Sync {}
 impl<S, F: FnMut(&S, &Timestamp) -> Duration + Send + Sync> DeadlineFn<S> for F {}
 
 /*************************************************************************************************
- * A HandlerFn
+ * HandlerFn: A HandlerFn is invoked in case of a missed deadline.                               *
  ************************************************************************************************/
 
-pub trait HandlerContextT: Send + Sync {
-    fn invoke_handler(&mut self, ctx: &ConditionContext, current_timestamp: &Timestamp);
-}
+/// A trait that defines the handler function, which is invoked in the case of a missed deadline.
+pub trait HandlerFn<S>: FnMut(&S, &Timestamp) + Send + Sync {}
+impl<S, F: FnMut(&S, &Timestamp) + Send + Sync> HandlerFn<S> for F {}
 
 /*************************************************************************************************
  * Deadline: Define the different types of deadlines available to operators.                     *
@@ -50,9 +57,11 @@ pub trait DeadlineT<S>: Send + Sync {
 
     fn calculate_deadline(&self, state: &S, timestamp: &Timestamp) -> Duration;
 
-    fn get_handler(&self) -> Arc<Mutex<dyn HandlerContextT>>;
-
     fn get_end_condition_fn(&self) -> Arc<dyn CondFn>;
+
+    fn get_id(&self) -> DeadlineId;
+
+    fn invoke_handler(&self, state: &mut S, timestamp: &Timestamp);
 }
 
 /*************************************************************************************************
@@ -67,8 +76,9 @@ where
     start_condition_fn: Arc<dyn CondFn>,
     end_condition_fn: Arc<dyn CondFn>,
     deadline_fn: Arc<Mutex<dyn DeadlineFn<S>>>,
-    handler_context: Arc<Mutex<dyn HandlerContextT>>,
+    handler_fn: Arc<Mutex<dyn HandlerFn<S>>>,
     read_stream_ids: HashSet<StreamId>,
+    id: DeadlineId,
 }
 
 #[allow(dead_code)]
@@ -76,16 +86,17 @@ impl<S> TimestampDeadline<S>
 where
     S: StateT,
 {
-    pub fn new_with_static_deadline(
+    pub fn new(
         deadline_fn: impl DeadlineFn<S> + 'static,
-        handler_context: impl HandlerContextT + 'static,
+        handler_fn: impl HandlerFn<S> + 'static,
     ) -> Self {
         Self {
             start_condition_fn: Arc::new(TimestampDeadline::<S>::default_start_condition),
             end_condition_fn: Arc::new(TimestampDeadline::<S>::default_end_condition),
             deadline_fn: Arc::new(Mutex::new(deadline_fn)),
-            handler_context: Arc::new(Mutex::new(handler_context)),
+            handler_fn: Arc::new(Mutex::new(handler_fn)),
             read_stream_ids: HashSet::new(),
+            id: DeadlineId::new_deterministic(),
         }
     }
 
@@ -119,11 +130,6 @@ where
     ) -> bool {
         (self.end_condition_fn)(condition_context, current_timestamp)
     }
-
-    /*
-    pub(crate) fn calculate_deadline(&mut self, condition_context: &ConditionContext) -> Duration {
-        (self.deadline_fn.lock().unwrap())()
-    }*/
 
     /// The default start condition of TimestampDeadlines.
     fn default_start_condition(
@@ -164,10 +170,6 @@ where
         self.read_stream_ids.contains(&stream_id)
     }
 
-    fn get_handler(&self) -> Arc<Mutex<dyn HandlerContextT>> {
-        Arc::clone(&self.handler_context)
-    }
-
     fn invoke_start_condition(
         &self,
         condition_context: &ConditionContext,
@@ -177,12 +179,19 @@ where
     }
 
     fn calculate_deadline(&self, state: &S, timestamp: &Timestamp) -> Duration {
-        // TODO (Sukrit): invoke the deadline function.
         (self.deadline_fn.lock().unwrap())(state, timestamp)
     }
 
     fn get_end_condition_fn(&self) -> Arc<dyn CondFn> {
         Arc::clone(&self.end_condition_fn)
+    }
+
+    fn get_id(&self) -> DeadlineId {
+        self.id
+    }
+
+    fn invoke_handler(&self, state: &mut S, timestamp: &Timestamp) {
+        (self.handler_fn.lock().unwrap())(state, timestamp)
     }
 }
 
@@ -194,8 +203,8 @@ pub struct DeadlineEvent {
     pub stream_id: StreamId,
     pub timestamp: Timestamp,
     pub duration: Duration,
-    pub handler: Arc<Mutex<dyn HandlerContextT>>,
     pub end_condition: Arc<dyn CondFn>,
+    pub id: DeadlineId,
 }
 
 impl DeadlineEvent {
@@ -203,15 +212,15 @@ impl DeadlineEvent {
         stream_id: StreamId,
         timestamp: Timestamp,
         duration: Duration,
-        handler: Arc<Mutex<dyn HandlerContextT>>,
         end_condition: Arc<dyn CondFn>,
+        id: DeadlineId,
     ) -> Self {
         Self {
             stream_id,
             timestamp,
             duration,
-            handler,
             end_condition,
+            id,
         }
     }
 }

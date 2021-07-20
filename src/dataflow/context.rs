@@ -1,10 +1,12 @@
-use std::{marker::PhantomData, sync::Arc};
+use std::{collections::HashMap, iter::Iterator, marker::PhantomData, sync::Arc};
 
 use serde::Deserialize;
 
 use crate::dataflow::{
-    deadlines::DeadlineT, operator::OperatorConfig, stream::StreamId, AppendableStateT, Data,
-    StateT, Timestamp, WriteStream,
+    deadlines::{DeadlineId, DeadlineT},
+    operator::OperatorConfig,
+    stream::StreamId,
+    AppendableStateT, Data, StateT, Timestamp, WriteStream,
 };
 
 /*************************************************************************************************
@@ -15,7 +17,7 @@ use crate::dataflow::{
 /// A `SetupContext` is made available to an operator's `setup` method, and allows the operators to
 /// register deadlines for events along with their corresponding handlers.
 pub struct SetupContext<S> {
-    deadlines: Vec<Arc<dyn DeadlineT<S>>>,
+    deadlines: HashMap<DeadlineId, Arc<dyn DeadlineT<S>>>,
     // TODO (Sukrit): Can we provide a better interface than ReadStream and WriteStream IDs?
     read_stream_ids: Vec<StreamId>,
     write_stream_ids: Vec<StreamId>,
@@ -24,7 +26,7 @@ pub struct SetupContext<S> {
 impl<S> SetupContext<S> {
     pub fn new(read_stream_ids: Vec<StreamId>, write_stream_ids: Vec<StreamId>) -> Self {
         Self {
-            deadlines: Vec::new(),
+            deadlines: HashMap::new(),
             read_stream_ids,
             write_stream_ids,
         }
@@ -32,12 +34,13 @@ impl<S> SetupContext<S> {
 
     /// Register a deadline with the system.
     pub fn add_deadline(&mut self, deadline: impl DeadlineT<S> + 'static) {
-        self.deadlines.push(Arc::new(deadline));
+        let deadline_id = deadline.get_id();
+        self.deadlines.insert(deadline_id, Arc::new(deadline));
     }
 
     /// Get the deadlines registered in this context.
-    pub(crate) fn get_deadlines(&mut self) -> &mut Vec<Arc<dyn DeadlineT<S>>> {
-        &mut self.deadlines
+    pub(crate) fn get_deadlines(&mut self) -> impl Iterator<Item = &mut Arc<dyn DeadlineT<S>>> {
+        self.deadlines.values_mut()
     }
 
     /// Get the identifiers of the read streams of this operator.
@@ -48,6 +51,19 @@ impl<S> SetupContext<S> {
     /// Get the identifiers of the write streams of this operator.
     pub fn get_write_stream_ids(&self) -> &Vec<StreamId> {
         &self.write_stream_ids
+    }
+
+    /// Invokes the handler for the given Deadline with the given state.
+    pub(crate) fn invoke_handler(
+        &self,
+        deadline_id: DeadlineId,
+        state: &mut S,
+        timestamp: &Timestamp,
+    ) {
+        self.deadlines
+            .get(&deadline_id)
+            .unwrap()
+            .invoke_handler(state, timestamp);
     }
 }
 

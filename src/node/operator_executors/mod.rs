@@ -34,8 +34,11 @@ use tokio::{
 
 use crate::{
     dataflow::{
-        context::SetupContext, deadlines::DeadlineEvent, operator::OperatorConfig,
-        stream::StreamId, Data, Message, ReadStream, Timestamp,
+        context::SetupContext,
+        deadlines::{DeadlineEvent, DeadlineId},
+        operator::OperatorConfig,
+        stream::StreamId,
+        Data, Message, ReadStream, Timestamp,
     },
     node::{
         lattice::ExecutionLattice,
@@ -112,6 +115,14 @@ where
     /// Cleans up the write streams and any other data owned by the executor.
     /// This is invoked after the operator is destroyed.
     fn cleanup(&mut self) {}
+
+    fn invoke_handler(
+        &self,
+        _setup_context: &mut SetupContext<S>,
+        _deadline_id: DeadlineId,
+        _timestamp: Timestamp,
+    ) {
+    }
 }
 
 /// Trait that needs to be defined by the executors for an operator that processes two message
@@ -485,12 +496,12 @@ impl OperatorExecutorHelper {
                     // TODO (Sukrit): The handler is invoked in the thread of the OperatorExecutor.
                     // This may be an issue for long-running handlers since they block the
                     // processing of future messages. We can spawn these as a separate task.
-                    // let deadline_event = event.unwrap().into_inner();
                     if !message_processor.disarm_deadline(&deadline_event) {
                         // Invoke the handler.
-                        deadline_event.handler.lock().unwrap().invoke_handler(
-                            &read_stream.get_condition_context(),
-                            &deadline_event.timestamp.clone()
+                        message_processor.invoke_handler(
+                            setup_context,
+                            deadline_event.id,
+                            deadline_event.timestamp.clone(),
                         );
                     }
 
