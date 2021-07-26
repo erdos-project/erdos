@@ -15,7 +15,8 @@ use crate::dataflow::{
  ************************************************************************************************/
 
 /// A `SetupContext` is made available to an operator's `setup` method, and allows the operators to
-/// register deadlines for events along with their corresponding handlers.
+/// register deadlines for events along with their corresponding handlers. The generic type `S` is
+/// the State registered with the operator.
 pub struct SetupContext<S> {
     deadlines: HashMap<DeadlineId, Arc<dyn DeadlineT<S>>>,
     // TODO (Sukrit): Can we provide a better interface than ReadStream and WriteStream IDs?
@@ -23,6 +24,7 @@ pub struct SetupContext<S> {
     write_stream_ids: Vec<StreamId>,
 }
 
+#[allow(dead_code)]
 impl<S> SetupContext<S> {
     pub fn new(read_stream_ids: Vec<StreamId>, write_stream_ids: Vec<StreamId>) -> Self {
         Self {
@@ -44,12 +46,12 @@ impl<S> SetupContext<S> {
     }
 
     /// Get the identifiers of the read streams of this operator.
-    pub fn get_read_stream_ids(&self) -> &Vec<StreamId> {
+    pub(crate) fn get_read_stream_ids(&self) -> &Vec<StreamId> {
         &self.read_stream_ids
     }
 
     /// Get the identifiers of the write streams of this operator.
-    pub fn get_write_stream_ids(&self) -> &Vec<StreamId> {
+    pub(crate) fn get_write_stream_ids(&self) -> &Vec<StreamId> {
         &self.write_stream_ids
     }
 

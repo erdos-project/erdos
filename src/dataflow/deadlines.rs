@@ -30,7 +30,9 @@ impl<F: Fn(&ConditionContext, &Timestamp) -> bool + Send + Sync> CondFn for F {}
  * operator should be restricted to.                                                             *
  ************************************************************************************************/
 
-/// A trait that defines the deadline function.
+/// A trait that defines the deadline function. This function receives access to the State of the
+/// operator along with the current timestamp, and must calculate the time after which the deadline
+/// expires.
 pub trait DeadlineFn<S>: FnMut(&S, &Timestamp) -> Duration + Send + Sync {}
 impl<S, F: FnMut(&S, &Timestamp) -> Duration + Send + Sync> DeadlineFn<S> for F {}
 
