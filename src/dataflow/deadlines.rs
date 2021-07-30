@@ -5,17 +5,8 @@ use std::{
 };
 use tokio::time::Duration;
 
-/*************************************************************************************************
- * DeadlineId: The identifier assigned to each deadline in order to enable handler invocation.   *
- ************************************************************************************************/
-
 /// The identifier assigned to each deadline installed in a SetupContext.
 pub type DeadlineId = crate::Uuid;
-
-/*************************************************************************************************
- * CondFn: The type of the start and end condition functions invoked by the different types of   *
- * deadlines to decide when to initiate and finish the deadline.                                 *
- ************************************************************************************************/
 
 /// `CondFn` defines the type of the start and end condition functions.
 /// Each function receives the `ConditionContext` that contains the information necessary for the
@@ -25,29 +16,17 @@ pub type DeadlineId = crate::Uuid;
 pub trait CondFn: Fn(&ConditionContext, &Timestamp) -> bool + Send + Sync {}
 impl<F: Fn(&ConditionContext, &Timestamp) -> bool + Send + Sync> CondFn for F {}
 
-/*************************************************************************************************
- * DeadlineFn: A DeadlineFn defines the duration between the start and the end condition that an *
- * operator should be restricted to.                                                             *
- ************************************************************************************************/
-
 /// A trait that defines the deadline function. This function receives access to the State of the
 /// operator along with the current timestamp, and must calculate the time after which the deadline
 /// expires.
 pub trait DeadlineFn<S>: FnMut(&S, &Timestamp) -> Duration + Send + Sync {}
 impl<S, F: FnMut(&S, &Timestamp) -> Duration + Send + Sync> DeadlineFn<S> for F {}
 
-/*************************************************************************************************
- * HandlerFn: A HandlerFn is invoked in case of a missed deadline.                               *
- ************************************************************************************************/
-
 /// A trait that defines the handler function, which is invoked in the case of a missed deadline.
 pub trait HandlerFn<S>: FnMut(&S, &Timestamp) + Send + Sync {}
 impl<S, F: FnMut(&S, &Timestamp) + Send + Sync> HandlerFn<S> for F {}
 
-/*************************************************************************************************
- * Deadline: Define the different types of deadlines available to operators.                     *
- ************************************************************************************************/
-
+/// A trait implemented by the different types of deadlines available to operators. 
 pub trait DeadlineT<S>: Send + Sync {
     fn is_constrained_on_read_stream(&self, stream_id: StreamId) -> bool;
 
@@ -66,11 +45,8 @@ pub trait DeadlineT<S>: Send + Sync {
     fn invoke_handler(&self, state: &mut S, timestamp: &Timestamp);
 }
 
-/*************************************************************************************************
- * TimestampDeadline: A deadline that constrains the duration between the start and the end      *
- * conditons for a particular timestamp.                                                         *
- ************************************************************************************************/
-
+/// A TimestampDeadline constrains the duration between the start and end conditions for a
+/// particular timestamp.
 pub struct TimestampDeadline<S>
 where
     S: StateT,
@@ -227,6 +203,9 @@ impl DeadlineEvent {
     }
 }
 
+/// A ConditionContext contains the count of the number of messages received on a stream along with
+/// the status of the watermark for each timestamp. This data is made available to the start and
+/// end condition functions to decide when to trigger the beginning and completion of deadlines.
 #[derive(Debug)]
 pub struct ConditionContext {
     message_count: HashMap<(StreamId, Timestamp), usize>,
