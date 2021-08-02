@@ -22,13 +22,13 @@ impl PyMessage {
             ));
         }
         let msg = if is_top_watermark {
-            Message::new_watermark(Timestamp::top())
+            Message::new_watermark(Timestamp::Top)
         } else {
             match (timestamp_coordinates, data) {
                 (Some(t), Some(d)) => {
-                    Message::new_message(Timestamp::new(t), Vec::from(d.as_bytes()))
+                    Message::new_message(Timestamp::Time(t), Vec::from(d.as_bytes()))
                 }
-                (Some(t), None) => Message::new_watermark(Timestamp::new(t)),
+                (Some(t), None) => Message::new_watermark(Timestamp::Time(t)),
                 (_, _) => unreachable!(),
             }
         };
@@ -46,9 +46,10 @@ impl PyMessage {
 
     #[getter(timestamp)]
     fn timestamp(&self) -> Option<Vec<u64>> {
-        match &self.msg {
-            Message::TimestampedData(d) => Some(d.timestamp.time.clone()),
-            Message::Watermark(t) => Some(t.time.clone()),
+        match &self.msg.timestamp() {
+            Timestamp::Top => None,
+            Timestamp::Time(d) => Some(d.clone()),
+            Timestamp::Bottom => None,
         }
     }
 
