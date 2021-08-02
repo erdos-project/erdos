@@ -2,8 +2,10 @@ use pyo3::create_exception;
 use pyo3::{exceptions, prelude::*, types::PyBytes};
 
 use crate::{
-    dataflow::stream::errors::{ReadError, TryReadError},
-    dataflow::ReadStream,
+    dataflow::stream::{
+        errors::{ReadError, TryReadError},
+        ReadStream, StreamId, StreamT,
+    },
     python::PyMessage,
 };
 
@@ -21,19 +23,6 @@ pub struct PyReadStream {
 
 #[pymethods]
 impl PyReadStream {
-    #[new]
-    fn new(obj: &PyRawObject, name: Option<String>) {
-        let read_stream = match name {
-            Some(_name) => Self {
-                read_stream: ReadStream::new_with_name(_name),
-            },
-            None => Self {
-                read_stream: ReadStream::new(),
-            },
-        };
-        obj.init(read_stream);
-    }
-
     fn is_closed(&self) -> bool {
         self.read_stream.is_closed()
     }
@@ -45,8 +34,8 @@ impl PyReadStream {
             Err(e) => {
                 let error_str = format!(
                     "Error reading from {} (ID: {})",
-                    self.read_stream.get_name(),
-                    self.read_stream.get_id()
+                    self.read_stream.name(),
+                    self.read_stream.id()
                 );
                 match e {
                     ReadError::SerializationError => Err(SerializationError::py_err(error_str)),
@@ -63,8 +52,8 @@ impl PyReadStream {
             Err(e) => {
                 let error_str = format!(
                     "Error reading from {} (ID: {})",
-                    self.read_stream.get_name(),
-                    self.read_stream.get_id()
+                    self.read_stream.name(),
+                    self.read_stream.id()
                 );
                 match e {
                     TryReadError::SerializationError => Err(SerializationError::py_err(error_str)),
@@ -73,37 +62,6 @@ impl PyReadStream {
                     TryReadError::Empty => Ok(None),
                 }
             }
-        }
-    }
-
-    pub fn add_callback(&self, callback: PyObject) {
-        self.read_stream.add_callback(move |_timestamp, data| {
-            let gil = Python::acquire_gil();
-            let py = gil.python();
-            let py_bytes = PyBytes::new(py, &data[..]);
-            match callback.call1(py, (py_bytes,)) {
-                Ok(_) => (),
-                Err(e) => e.print(py),
-            };
-        })
-    }
-
-    pub fn add_watermark_callback(&self, callback: PyObject) {
-        self.read_stream.add_watermark_callback(move |timestamp| {
-            let gil = Python::acquire_gil();
-            let py = gil.python();
-            match callback.call1(py, (timestamp.time.clone(), timestamp.is_top())) {
-                Ok(_) => (),
-                Err(e) => e.print(py),
-            };
-        });
-    }
-}
-
-impl From<&PyWriteStream> for PyReadStream {
-    fn from(py_write_stream: &PyWriteStream) -> Self {
-        Self {
-            read_stream: ReadStream::from(&py_write_stream.write_stream),
         }
     }
 }

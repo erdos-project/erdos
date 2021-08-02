@@ -89,59 +89,6 @@ class ReadStream(object):
             return None
         return _parse_message(internal_msg)
 
-    def add_callback(self, callback: Callable, write_streams=None):
-        """Adds a callback to the stream.
-
-        Args:
-            callback: A callback that takes a message and a sequence of
-                :py:class:`WriteStream` s.
-            write_streams: Write streams passed to the callback.
-        """
-        if write_streams is None:
-            write_streams = []
-
-        cb_name = callback.__name__ if "__name__" in dir(callback) else "None"
-
-        logger.debug("Adding callback {name} to the input stream {_input}, "
-                     "and passing the output streams: {_output}".format(
-                         name=cb_name,
-                         _input=self._name,
-                         _output=list(map(attrgetter("_name"),
-                                          write_streams))))
-
-        def internal_callback(serialized):
-            msg = pickle.loads(serialized)
-            callback(msg, *write_streams)
-
-        self._py_read_stream.add_callback(internal_callback)
-
-    def add_watermark_callback(self, callback: Callable, write_streams=None):
-        """Adds a watermark callback to the stream.
-
-        Args:
-            callback: A callback that takes a message and a sequence of
-                :py:class:`WriteStream` s.
-            write_streams: Write streams passed to the callback.
-        """
-        if write_streams is None:
-            write_streams = []
-
-        cb_name = callback.__name__ if "__name__" in dir(callback) else "None"
-
-        logger.debug(
-            "Adding watermark callback {name} to the input stream "
-            "{_input}, and passing the output streams: {_output}".format(
-                name=cb_name,
-                _input=self._name,
-                _output=list(map(attrgetter("_name"), write_streams))))
-
-        def internal_watermark_callback(coordinates, is_top):
-            timestamp = Timestamp(coordinates=coordinates, is_top=is_top)
-            callback(timestamp, *write_streams)
-
-        self._py_read_stream.add_watermark_callback(
-            internal_watermark_callback)
-
 
 class WriteStream(object):
     """ A :py:class:`WriteStream` allows an :py:class:`Operator` to send

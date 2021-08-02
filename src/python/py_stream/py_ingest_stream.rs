@@ -2,7 +2,7 @@ use pyo3::{exceptions, prelude::*};
 
 use crate::{
     dataflow::{
-        stream::{IngestStream, ReadStream},
+        stream::{IngestStream, ReadStream, StreamT},
         Message,
     },
     node::NodeId,
@@ -39,13 +39,9 @@ impl PyIngestStream {
         self.ingest_stream.send(Message::from(msg)).map_err(|e| {
             exceptions::Exception::py_err(format!(
                 "Error sending message on ingest stream {}: {:?}",
-                self.ingest_stream.get_id(),
+                self.ingest_stream.id(),
                 e
             ))
         })
-    }
-
-    fn to_py_read_stream(&self) -> PyReadStream {
-        PyReadStream::from(ReadStream::from(&self.ingest_stream))
     }
 }

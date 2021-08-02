@@ -21,8 +21,4 @@ impl PyLoopStream {
     fn set(&self, read_stream: &PyReadStream) {
         self.loop_stream.set(&read_stream.read_stream);
     }
-
-    fn to_py_read_stream(&self) -> PyReadStream {
-        PyReadStream::from(ReadStream::from(&self.loop_stream))
-    }
 }
