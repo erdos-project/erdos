@@ -1,11 +1,11 @@
 use pyo3::{exceptions, prelude::*};
 
 use crate::{
-    dataflow::stream::{errors::TryReadError, ExtractStream},
+    dataflow::stream::{errors::TryReadError, ExtractStream, Stream, StreamT},
     python::PyMessage,
 };
 
-use super::PyReadStream;
+use super::PyStream;
 
 #[pyclass]
 pub struct PyExtractStream {
@@ -15,17 +15,13 @@ pub struct PyExtractStream {
 #[pymethods]
 impl PyExtractStream {
     #[new]
-    fn new(obj: &PyRawObject, py_read_stream: &PyReadStream, name: Option<String>) {
+    fn new(obj: &PyRawObject, py_stream: &PyStream, name: Option<String>) {
         let extract_stream = match name {
             Some(_name) => Self {
-                extract_stream: ExtractStream::new_with_name(
-                    0,
-                    &py_read_stream.read_stream,
-                    &_name,
-                ),
+                extract_stream: ExtractStream::new_with_name(0, &py_stream.stream, &_name),
             },
             None => Self {
-                extract_stream: ExtractStream::new(0, &py_read_stream.read_stream),
+                extract_stream: ExtractStream::new(0, &py_stream.stream),
             },
         };
         obj.init(extract_stream);
@@ -41,7 +37,7 @@ impl PyExtractStream {
             Ok(msg) => Ok(PyMessage::from(msg)),
             Err(e) => Err(exceptions::Exception::py_err(format!(
                 "Unable to to read from stream {}: {:?}",
-                self.extract_stream.get_id(),
+                self.extract_stream.id(),
                 e
             ))),
         }
@@ -53,7 +49,7 @@ impl PyExtractStream {
             Err(TryReadError::Empty) => Ok(None),
             Err(e) => Err(exceptions::Exception::py_err(format!(
                 "Unable to to read from stream {}: {:?}",
-                self.extract_stream.get_id(),
+                self.extract_stream.id(),
                 e
             ))),
         }

@@ -249,8 +249,6 @@ impl<D: Data> StreamT<D> for ReadStream<D> {
     }
 
     /// Get the name of the stream.
-    /// Returns a [`String`] version of the ID if the stream was not constructed with
-    /// [`new_with_name`](ReadStream::new_with_name).
     fn name(&self) -> &str {
         &self.name
     }
