@@ -449,7 +449,7 @@ impl OperatorExecutorHelper {
     async fn synchronize(&self) {
         // TODO: replace this with a synchronization step
         // that ensures all operators are ready to run.
-        tokio::time::delay_for(Duration::from_secs(1)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
 
     // Arms the given `DeadlineEvents` by installing them into a DeadlineQueue.
