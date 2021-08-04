@@ -1,5 +1,7 @@
 use std::{fmt::Debug, sync::Arc};
-use tokio::sync::mpsc;
+
+use futures::FutureExt;
+use tokio::{sync::mpsc, task::unconstrained};
 
 use crate::{
     communication::{CommunicationError, InterProcessMessage, Serializable, TryRecvError},
@@ -36,7 +38,7 @@ pub enum RecvEndpoint<D: Clone + Send + Debug> {
 }
 
 impl<D: Clone + Send + Debug> RecvEndpoint<D> {
-    /// Aync read of a new message.
+    /// Async read of a new message.
     pub async fn read(&mut self) -> Result<D, CommunicationError> {
         match self {
             Self::InterThread(receiver) => receiver
@@ -49,7 +51,12 @@ impl<D: Clone + Send + Debug> RecvEndpoint<D> {
     /// Non-blocking read of a new message. Returns `TryRecvError::Empty` if no message is available.
     pub fn try_read(&mut self) -> Result<D, TryRecvError> {
         match self {
-            Self::InterThread(receiver) => receiver.try_recv().map_err(TryRecvError::from),
+            // See https://github.com/tokio-rs/tokio/issues/3350.
+            Self::InterThread(rx) => match unconstrained(rx.recv()).now_or_never() {
+                Some(Some(msg)) => Ok(msg),
+                Some(None) => Err(TryRecvError::Disconnected),
+                None => Err(TryRecvError::Empty),
+            },
         }
     }
 }

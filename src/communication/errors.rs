@@ -92,12 +92,3 @@ pub enum TryRecvError {
     /// Failed to serialize/deserialize data.
     BincodeError(bincode::Error),
 }
-
-impl From<mpsc::error::TryRecvError> for TryRecvError {
-    fn from(e: mpsc::error::TryRecvError) -> Self {
-        match e {
-            mpsc::error::TryRecvError::Closed => TryRecvError::Disconnected,
-            mpsc::error::TryRecvError::Empty => TryRecvError::Empty,
-        }
-    }
-}

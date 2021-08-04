@@ -86,9 +86,8 @@ impl Node {
             self.dataflow_graph = Some(default_graph::clone());
         }
         // Build a runtime with n threads.
-        let mut runtime = Builder::new()
-            .threaded_scheduler()
-            .core_threads(self.config.num_worker_threads)
+        let runtime = Builder::new_multi_thread()
+            .worker_threads(self.config.num_worker_threads)
             .thread_name(format!("node-{}", self.id))
             .enable_all()
             .build()
@@ -458,7 +457,7 @@ impl NodeHandle {
         self.thread_handle.join().map_err(|e| format!("{:?}", e))
     }
     /// Blocks until the [`Node`] shuts down.
-    pub fn shutdown(mut self) -> Result<(), String> {
+    pub fn shutdown(self) -> Result<(), String> {
         // Error indicates node is already shutting down.
         self.shutdown_tx.try_send(()).ok();
         self.thread_handle.join().map_err(|e| format!("{:?}", e))
