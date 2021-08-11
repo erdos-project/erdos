@@ -8,9 +8,9 @@ use std::{
 use crate::{
     dataflow::{
         context::{OneInOneOutContext, ParallelOneInOneOutContext, SetupContext},
-        deadlines::{DeadlineEvent, DeadlineId},
+        deadlines::{ConditionContext, DeadlineEvent, DeadlineId},
         operator::{OneInOneOut, OperatorConfig, ParallelOneInOneOut},
-        stream::{StreamT, WriteStreamT},
+        stream::{StreamId, StreamT, WriteStreamT},
         AppendableStateT, Data, Message, ReadStream, StateT, Timestamp, WriteStream,
     },
     node::{
@@ -366,20 +366,25 @@ where
     fn arm_deadlines(
         &self,
         setup_context: &mut SetupContext<S>,
-        read_stream: &ReadStream<T>,
+        read_stream_id: StreamId,
+        condition_context: &ConditionContext,
         timestamp: Timestamp,
     ) -> Vec<DeadlineEvent> {
         let mut deadline_events = Vec::new();
         let state = Arc::clone(&self.state);
         for deadline in setup_context.get_deadlines() {
-            if deadline.is_constrained_on_read_stream(read_stream.id())
-                && deadline.invoke_start_condition(read_stream.get_condition_context(), &timestamp)
+            if deadline.is_constrained_on_read_stream(read_stream_id)
+                && deadline.invoke_start_condition(
+                    vec![read_stream_id],
+                    condition_context,
+                    &timestamp,
+                )
             {
                 // Compute the deadline for the timestamp.
                 let deadline_duration =
                     deadline.calculate_deadline(&(*state.lock().unwrap()), &timestamp);
                 deadline_events.push(DeadlineEvent::new(
-                    read_stream.id(),
+                    read_stream_id,
                     timestamp.clone(),
                     deadline_duration,
                     deadline.get_end_condition_fn(),

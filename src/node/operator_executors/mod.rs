@@ -35,9 +35,9 @@ use tokio::{
 use crate::{
     dataflow::{
         context::SetupContext,
-        deadlines::{DeadlineEvent, DeadlineId},
+        deadlines::{ConditionContext, DeadlineEvent, DeadlineId},
         operator::OperatorConfig,
-        stream::StreamId,
+        stream::{StreamId, StreamT},
         Data, Message, ReadStream, Timestamp,
     },
     node::{
@@ -99,7 +99,8 @@ where
     fn arm_deadlines(
         &self,
         _setup_context: &mut SetupContext<S>,
-        _read_stream: &ReadStream<T>,
+        _read_stream_id: StreamId,
+        _condition_context: &ConditionContext,
         _timestamp: Timestamp,
     ) -> Vec<DeadlineEvent> {
         // TODO (Sukrit): Remove this default implementation later.
@@ -484,6 +485,8 @@ impl OperatorExecutorHelper {
     ) where
         T: Data + for<'a> Deserialize<'a>,
     {
+        // Create a ConditionContext for the stream.
+        let mut condition_context = ConditionContext::new();
         loop {
             tokio::select! {
                 // DelayQueue returns `None` if the queue is empty. This means that if there are no
@@ -525,6 +528,10 @@ impl OperatorExecutorHelper {
                                 key, deadline_event.stream_id, deadline_event.timestamp);
                         }
                     }
+                    condition_context.clear_state(
+                        deadline_event.stream_id,
+                        deadline_event.timestamp.clone(),
+                    );
                 },
                 // If there is a message on the ReadStream, then increment the messgae counts for
                 // the given timestamp, evaluate the start and end condition and install / disarm
@@ -536,20 +543,30 @@ impl OperatorExecutorHelper {
                     let events = match msg.data() {
                         // Data message
                         Some(_) => {
-                            // TODO : Check if an event for both the stateful and the stateless
-                            // callback is needed.
+                            // Increment message count.
+                            condition_context.increment_msg_count(
+                                read_stream.id(),
+                                msg.timestamp().clone(),
+                            );
 
-                            // Stateless callback.
+                            // Create an OperatorEvent for the callback.
                             let msg_ref = Arc::clone(&msg);
-                            let stateless_data_event = message_processor.message_cb_event(
+                            let data_event = message_processor.message_cb_event(
                                 msg_ref,
                             );
 
-                            vec![stateless_data_event]
+                            vec![data_event]
                         },
 
                         // Watermark
                         None => {
+                            // Update watermark status.
+                            condition_context.notify_watermark_arrival(
+                                read_stream.id(),
+                                msg.timestamp().clone(),
+                            );
+
+                            // Create an OperatorEvent for the callback.
                             let watermark_event = message_processor.watermark_cb_event(
                                 msg.timestamp());
                             vec![watermark_event]
@@ -559,7 +576,8 @@ impl OperatorExecutorHelper {
                     // Arm deadlines and install them into the executor.
                     let deadline_events = message_processor.arm_deadlines(
                         setup_context,
-                        &read_stream,
+                        read_stream.id(),
+                        &condition_context,
                         msg.timestamp().clone()
                     );
                     self.manage_deadlines(deadline_events);
