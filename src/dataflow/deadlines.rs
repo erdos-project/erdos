@@ -139,8 +139,15 @@ where
             current_timestamp,
             condition_context,
         );
-        // TODO (Sukrit): Implement the end condition function.
-        false
+        // If the watermark for the given timestamp has been sent on all the streams, end the
+        // deadline.
+        for stream_id in stream_ids {
+            if condition_context.get_watermark_status(stream_id, current_timestamp.clone()) == false
+            {
+                return false;
+            }
+        }
+        true
     }
 }
 
@@ -250,6 +257,13 @@ impl ConditionContext {
         match self.message_count.get(&(stream_id, timestamp)) {
             Some(v) => *v,
             None => 0,
+        }
+    }
+
+    pub fn get_watermark_status(&self, stream_id: StreamId, timestamp: Timestamp) -> bool {
+        match self.watermark_status.get(&(stream_id, timestamp)) {
+            Some(v) => *v,
+            None => false,
         }
     }
 }
