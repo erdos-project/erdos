@@ -7,9 +7,10 @@ use std::{
 
 use crate::{
     dataflow::{
-        context::{OneInTwoOutContext, ParallelOneInTwoOutContext},
+        context::{OneInTwoOutContext, ParallelOneInTwoOutContext, SetupContext},
+        deadlines::{ConditionContext, DeadlineEvent},
         operator::{OneInTwoOut, OperatorConfig, ParallelOneInTwoOut},
-        stream::WriteStreamT,
+        stream::{StreamId, WriteStreamT},
         AppendableStateT, Data, Message, ReadStream, StateT, Timestamp, WriteStream,
     },
     node::{
@@ -217,6 +218,37 @@ where
             )
         }
     }
+
+    fn arm_deadlines(
+        &self,
+        setup_context: &mut SetupContext<S>,
+        read_stream_id: StreamId,
+        condition_context: &ConditionContext,
+        timestamp: Timestamp,
+    ) -> Vec<DeadlineEvent> {
+        let mut deadline_events = Vec::new();
+        let state = Arc::clone(&self.state);
+        for deadline in setup_context.get_deadlines() {
+            if deadline.is_constrained_on_read_stream(read_stream_id)
+                && deadline.invoke_start_condition(
+                    vec![read_stream_id],
+                    condition_context,
+                    &timestamp,
+                )
+            {
+                // Compute the deadline for the timestamp.
+                let deadline_duration = deadline.calculate_deadline(&state, &timestamp);
+                deadline_events.push(DeadlineEvent::new(
+                    read_stream_id,
+                    timestamp.clone(),
+                    deadline_duration,
+                    deadline.get_end_condition_fn(),
+                    deadline.get_id(),
+                ));
+            }
+        }
+        deadline_events
+    }
 }
 
 /// Message Processor that defines the generation and execution of events for a OneInTwoOut
@@ -417,5 +449,37 @@ where
                 OperatorType::Sequential,
             )
         }
+    }
+
+    fn arm_deadlines(
+        &self,
+        setup_context: &mut SetupContext<S>,
+        read_stream_id: StreamId,
+        condition_context: &ConditionContext,
+        timestamp: Timestamp,
+    ) -> Vec<DeadlineEvent> {
+        let mut deadline_events = Vec::new();
+        let state = Arc::clone(&self.state);
+        for deadline in setup_context.get_deadlines() {
+            if deadline.is_constrained_on_read_stream(read_stream_id)
+                && deadline.invoke_start_condition(
+                    vec![read_stream_id],
+                    condition_context,
+                    &timestamp,
+                )
+            {
+                // Compute the deadline for the timestamp.
+                let deadline_duration =
+                    deadline.calculate_deadline(&(*state.lock().unwrap()), &timestamp);
+                deadline_events.push(DeadlineEvent::new(
+                    read_stream_id,
+                    timestamp.clone(),
+                    deadline_duration,
+                    deadline.get_end_condition_fn(),
+                    deadline.get_id(),
+                ));
+            }
+        }
+        deadline_events
     }
 }

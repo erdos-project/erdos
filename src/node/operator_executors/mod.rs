@@ -98,14 +98,11 @@ where
     /// Generates a DeadlineEvent for arming a deadline.
     fn arm_deadlines(
         &self,
-        _setup_context: &mut SetupContext<S>,
-        _read_stream_id: StreamId,
-        _condition_context: &ConditionContext,
-        _timestamp: Timestamp,
-    ) -> Vec<DeadlineEvent> {
-        // TODO (Sukrit): Remove this default implementation later.
-        vec![]
-    }
+        setup_context: &mut SetupContext<S>,
+        read_stream_id: StreamId,
+        condition_context: &ConditionContext,
+        timestamp: Timestamp,
+    ) -> Vec<DeadlineEvent>;
 
     /// Disarms a deadline by returning true if the given deadline should be disarmed, or false
     /// otherwise.
