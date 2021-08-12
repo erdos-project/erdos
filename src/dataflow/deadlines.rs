@@ -45,7 +45,7 @@ pub trait DeadlineT<S>: Send + Sync {
 
     fn get_id(&self) -> DeadlineId;
 
-    fn invoke_handler(&self, state: &mut S, timestamp: &Timestamp);
+    fn invoke_handler(&self, state: &S, timestamp: &Timestamp);
 }
 
 /// A TimestampDeadline constrains the duration between the start and end conditions for a
@@ -193,7 +193,7 @@ where
         self.id
     }
 
-    fn invoke_handler(&self, state: &mut S, timestamp: &Timestamp) {
+    fn invoke_handler(&self, state: &S, timestamp: &Timestamp) {
         (self.handler_fn.lock().unwrap())(state, timestamp)
     }
 }

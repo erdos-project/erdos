@@ -8,7 +8,7 @@ use std::{
 use crate::{
     dataflow::{
         context::{OneInTwoOutContext, ParallelOneInTwoOutContext, SetupContext},
-        deadlines::{ConditionContext, DeadlineEvent},
+        deadlines::{ConditionContext, DeadlineEvent, DeadlineId},
         operator::{OneInTwoOut, OperatorConfig, ParallelOneInTwoOut},
         stream::{StreamId, StreamT, WriteStreamT},
         AppendableStateT, Data, Message, ReadStream, StateT, Timestamp, WriteStream,
@@ -275,6 +275,15 @@ where
         }
         false
     }
+
+    fn invoke_handler(
+        &self,
+        setup_context: &mut SetupContext<S>,
+        deadline_id: DeadlineId,
+        timestamp: Timestamp,
+    ) {
+        setup_context.invoke_handler(deadline_id, &(*self.state), &timestamp);
+    }
 }
 
 /// Message Processor that defines the generation and execution of events for a OneInTwoOut
@@ -533,5 +542,14 @@ where
             );
         }
         false
+    }
+
+    fn invoke_handler(
+        &self,
+        setup_context: &mut SetupContext<S>,
+        deadline_id: DeadlineId,
+        timestamp: Timestamp,
+    ) {
+        setup_context.invoke_handler(deadline_id, &(*self.state.lock().unwrap()), &timestamp);
     }
 }

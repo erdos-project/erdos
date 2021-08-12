@@ -8,7 +8,7 @@ use std::{
 use crate::{
     dataflow::{
         context::{ParallelSinkContext, SetupContext, SinkContext},
-        deadlines::{ConditionContext, DeadlineEvent},
+        deadlines::{ConditionContext, DeadlineEvent, DeadlineId},
         operator::{OperatorConfig, ParallelSink, Sink},
         stream::StreamId,
         AppendableStateT, Data, Message, ReadStream, StateT, Timestamp,
@@ -164,6 +164,15 @@ where
         // Check if the state has been committed for the given timestamp.
         self.state.get_last_committed_timestamp() >= deadline_event.timestamp
     }
+
+    fn invoke_handler(
+        &self,
+        setup_context: &mut SetupContext<S>,
+        deadline_id: DeadlineId,
+        timestamp: Timestamp,
+    ) {
+        setup_context.invoke_handler(deadline_id, &(*self.state), &timestamp);
+    }
 }
 
 /// Message Processor that defines the generation and execution of events for a Sink operator,
@@ -307,5 +316,14 @@ where
     fn disarm_deadline(&self, deadline_event: &DeadlineEvent) -> bool {
         // Check if the state has been committed for the given timestamp.
         self.state.lock().unwrap().get_last_committed_timestamp() >= deadline_event.timestamp
+    }
+
+    fn invoke_handler(
+        &self,
+        setup_context: &mut SetupContext<S>,
+        deadline_id: DeadlineId,
+        timestamp: Timestamp,
+    ) {
+        setup_context.invoke_handler(deadline_id, &(*self.state.lock().unwrap()), &timestamp);
     }
 }

@@ -230,6 +230,15 @@ where
         }
         false
     }
+
+    fn invoke_handler(
+        &self,
+        setup_context: &mut SetupContext<S>,
+        deadline_id: DeadlineId,
+        timestamp: Timestamp,
+    ) {
+        setup_context.invoke_handler(deadline_id, &(*self.state), &timestamp);
+    }
 }
 
 /// Message Processor that defines the generation and execution of events for a OneInOneOut
@@ -464,6 +473,6 @@ where
         deadline_id: DeadlineId,
         timestamp: Timestamp,
     ) {
-        setup_context.invoke_handler(deadline_id, &mut (*self.state.lock().unwrap()), &timestamp);
+        setup_context.invoke_handler(deadline_id, &(*self.state.lock().unwrap()), &timestamp);
     }
 }

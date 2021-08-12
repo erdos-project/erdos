@@ -112,13 +112,13 @@ where
     /// This is invoked after the operator is destroyed.
     fn cleanup(&mut self) {}
 
+    /// Invokes the handler for the given DeadlineId in case of a missed deadline.
     fn invoke_handler(
         &self,
-        _setup_context: &mut SetupContext<S>,
-        _deadline_id: DeadlineId,
-        _timestamp: Timestamp,
-    ) {
-    }
+        setup_context: &mut SetupContext<S>,
+        deadline_id: DeadlineId,
+        timestamp: Timestamp,
+    );
 }
 
 /// Trait that needs to be defined by the executors for an operator that processes two message

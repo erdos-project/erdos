@@ -56,12 +56,7 @@ impl<S> SetupContext<S> {
     }
 
     /// Invokes the handler for the given Deadline with the given state.
-    pub(crate) fn invoke_handler(
-        &self,
-        deadline_id: DeadlineId,
-        state: &mut S,
-        timestamp: &Timestamp,
-    ) {
+    pub(crate) fn invoke_handler(&self, deadline_id: DeadlineId, state: &S, timestamp: &Timestamp) {
         self.deadlines
             .get(&deadline_id)
             .unwrap()
