@@ -106,9 +106,7 @@ where
 
     /// Disarms a deadline by returning true if the given deadline should be disarmed, or false
     /// otherwise.
-    fn disarm_deadline(&self, _deadline_event: &DeadlineEvent) -> bool {
-        true
-    }
+    fn disarm_deadline(&self, deadline_event: &DeadlineEvent) -> bool;
 
     /// Cleans up the write streams and any other data owned by the executor.
     /// This is invoked after the operator is destroyed.
@@ -425,7 +423,7 @@ pub struct OperatorExecutorHelper {
     deadline_queue: DelayQueue<DeadlineEvent, GrowingHeapBuf<DeadlineEvent>>,
     deadline_queue_rx: Receiver<DeadlineEvent>,
     // For active deadlines.
-    stream_timestamp_to_key_map: HashMap<(StreamId, Timestamp), DelayHandle>,
+    deadline_to_key_map: HashMap<DeadlineId, DelayHandle>,
 }
 
 impl OperatorExecutorHelper {
@@ -436,7 +434,7 @@ impl OperatorExecutorHelper {
             lattice: Arc::new(ExecutionLattice::new()),
             deadline_queue,
             deadline_queue_rx,
-            stream_timestamp_to_key_map: HashMap::new(),
+            deadline_to_key_map: HashMap::new(),
         }
     }
 
@@ -449,26 +447,19 @@ impl OperatorExecutorHelper {
     // Arms the given `DeadlineEvents` by installing them into a DeadlineQueue.
     fn manage_deadlines(&mut self, deadlines: Vec<DeadlineEvent>) {
         for event in deadlines {
-            if !self
-                .stream_timestamp_to_key_map
-                .contains_key(&(event.stream_id, event.timestamp.clone()))
-            {
+            if !self.deadline_to_key_map.contains_key(&event.id) {
                 // Install the handler onto the queue with the given duration.
                 let event_duration = event.duration;
-                let stream_id = event.stream_id;
-                let event_timestamp = event.timestamp.clone();
+                let deadline_id = event.id;
                 let queue_key: DelayHandle = self.deadline_queue.insert(event, event_duration);
                 slog::debug!(
                     crate::TERMINAL_LOGGER,
-                    "Installed a deadline handler with the DelayHandle: {:?} corresponding to \
-                            Stream ID: {} and Timestamp: {:?}",
+                    "Installed a deadline handler for the Deadline {} with the DelayHandle: {:?}",
+                    deadline_id,
                     queue_key,
-                    stream_id,
-                    event_timestamp,
                 );
 
-                self.stream_timestamp_to_key_map
-                    .insert((stream_id, event_timestamp), queue_key);
+                self.deadline_to_key_map.insert(deadline_id, queue_key);
             }
         }
     }
@@ -506,31 +497,31 @@ impl OperatorExecutorHelper {
                     }
 
                     // Remove the key from the hashmap and clear the state in the ConditionContext.
-                    match self.stream_timestamp_to_key_map.remove(
-                        &(deadline_event.stream_id, deadline_event.timestamp.clone())) {
+                    match self.deadline_to_key_map.remove(&deadline_event.id) {
                         None => {
                             slog::warn!(
                                 crate::TERMINAL_LOGGER,
-                                "Could not find a key corresponding to the Stream ID: {} \
-                                and the Timestamp: {:?}",
-                                deadline_event.stream_id,
-                                deadline_event.timestamp,
+                                "Could not find a key corresponding to the Deadline ID: {}",
+                                deadline_event.id,
                             );
                         }
                         Some(key) => {
                             slog::debug!(
                                 crate::TERMINAL_LOGGER,
                                 "Finished invoking the deadline handler for the DelayHandle: {:?} \
-                                corresponding to the Stream ID: {} and the Timestamp: {:?}",
-                                key, deadline_event.stream_id, deadline_event.timestamp);
+                                corresponding to the Deadline ID: {}",
+                                key,
+                                deadline_event.id,
+                            );
                         }
                     }
-                    condition_context.clear_state(
-                        deadline_event.stream_id,
-                        deadline_event.timestamp.clone(),
-                    );
+
+                    // Clean the state.
+                    for stream_id in deadline_event.read_stream_ids {
+                        condition_context.clear_state(stream_id, deadline_event.timestamp.clone());
+                    }
                 },
-                // If there is a message on the ReadStream, then increment the messgae counts for
+                // If there is a message on the ReadStream, then increment the message counts for
                 // the given timestamp, evaluate the start and end condition and install / disarm
                 // deadlines accordingly.
                 // TODO (Sukrit) : The start and end conditions are evaluated in the thread of the

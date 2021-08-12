@@ -180,6 +180,10 @@ impl<D: Data> WriteStream<D> {
             .condition_context
             .clear_state(self.id(), timestamp);
     }
+
+    pub(crate) fn get_condition_context(&self) -> ConditionContext {
+        self.stats.lock().unwrap().get_condition_context().clone()
+    }
 }
 
 impl<D: Data> fmt::Debug for WriteStream<D> {
@@ -300,7 +304,6 @@ impl WriteStreamStatistics {
     }
 
     /// Get the ConditionContext saved in the stream.
-    #[allow(dead_code)]
     pub(crate) fn get_condition_context(&self) -> &ConditionContext {
         &self.condition_context
     }

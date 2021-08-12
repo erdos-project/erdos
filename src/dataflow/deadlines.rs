@@ -28,7 +28,9 @@ impl<S, F: FnMut(&S, &Timestamp) + Send + Sync> HandlerFn<S> for F {}
 
 /// A trait implemented by the different types of deadlines available to operators.
 pub trait DeadlineT<S>: Send + Sync {
-    fn is_constrained_on_read_stream(&self, stream_id: StreamId) -> bool;
+    fn get_constrained_read_stream_ids(&self) -> &HashSet<StreamId>;
+
+    fn get_constrained_write_stream_ids(&self) -> &HashSet<StreamId>;
 
     fn invoke_start_condition(
         &self,
@@ -57,6 +59,7 @@ where
     deadline_fn: Arc<Mutex<dyn DeadlineFn<S>>>,
     handler_fn: Arc<Mutex<dyn HandlerFn<S>>>,
     read_stream_ids: HashSet<StreamId>,
+    write_stream_ids: HashSet<StreamId>,
     id: DeadlineId,
 }
 
@@ -75,12 +78,18 @@ where
             deadline_fn: Arc::new(Mutex::new(deadline_fn)),
             handler_fn: Arc::new(Mutex::new(handler_fn)),
             read_stream_ids: HashSet::new(),
+            write_stream_ids: HashSet::new(),
             id: DeadlineId::new_deterministic(),
         }
     }
 
     pub fn on_read_stream(mut self, read_stream_id: StreamId) -> Self {
         self.read_stream_ids.insert(read_stream_id);
+        self
+    }
+
+    pub fn on_write_stream(mut self, write_stream_id: StreamId) -> Self {
+        self.write_stream_ids.insert(write_stream_id);
         self
     }
 
@@ -155,8 +164,12 @@ impl<S> DeadlineT<S> for TimestampDeadline<S>
 where
     S: StateT,
 {
-    fn is_constrained_on_read_stream(&self, stream_id: StreamId) -> bool {
-        self.read_stream_ids.contains(&stream_id)
+    fn get_constrained_read_stream_ids(&self) -> &HashSet<StreamId> {
+        &self.read_stream_ids
+    }
+
+    fn get_constrained_write_stream_ids(&self) -> &HashSet<StreamId> {
+        &self.write_stream_ids
     }
 
     fn invoke_start_condition(
@@ -190,7 +203,8 @@ where
 /// timestamp). Upon expiration of the deadline (defined as `duration`), the `end_condition`
 /// function is checked, and the `handler` is invoked if it was not satisfied.
 pub struct DeadlineEvent {
-    pub stream_id: StreamId,
+    pub read_stream_ids: HashSet<StreamId>,
+    pub write_stream_ids: HashSet<StreamId>,
     pub timestamp: Timestamp,
     pub duration: Duration,
     pub end_condition: Arc<dyn CondFn>,
@@ -199,14 +213,16 @@ pub struct DeadlineEvent {
 
 impl DeadlineEvent {
     pub fn new(
-        stream_id: StreamId,
+        read_stream_ids: HashSet<StreamId>,
+        write_stream_ids: HashSet<StreamId>,
         timestamp: Timestamp,
         duration: Duration,
         end_condition: Arc<dyn CondFn>,
         id: DeadlineId,
     ) -> Self {
         Self {
-            stream_id,
+            read_stream_ids,
+            write_stream_ids,
             timestamp,
             duration,
             end_condition,
@@ -264,6 +280,23 @@ impl ConditionContext {
         match self.watermark_status.get(&(stream_id, timestamp)) {
             Some(v) => *v,
             None => false,
+        }
+    }
+
+    pub(crate) fn merge(&self, other: &ConditionContext) -> Self {
+        ConditionContext {
+            message_count: self
+                .message_count
+                .clone()
+                .into_iter()
+                .chain(other.message_count.clone())
+                .collect(),
+            watermark_status: self
+                .watermark_status
+                .clone()
+                .into_iter()
+                .chain(other.watermark_status.clone())
+                .collect(),
         }
     }
 }

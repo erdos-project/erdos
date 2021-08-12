@@ -136,7 +136,9 @@ where
         let mut deadline_events = Vec::new();
         let state = Arc::clone(&self.state);
         for deadline in setup_context.get_deadlines() {
-            if deadline.is_constrained_on_read_stream(read_stream_id)
+            if deadline
+                .get_constrained_read_stream_ids()
+                .contains(&read_stream_id)
                 && deadline.invoke_start_condition(
                     vec![read_stream_id],
                     condition_context,
@@ -146,7 +148,8 @@ where
                 // Compute the deadline for the timestamp.
                 let deadline_duration = deadline.calculate_deadline(&state, &timestamp);
                 deadline_events.push(DeadlineEvent::new(
-                    read_stream_id,
+                    deadline.get_constrained_read_stream_ids().clone(),
+                    deadline.get_constrained_write_stream_ids().clone(),
                     timestamp.clone(),
                     deadline_duration,
                     deadline.get_end_condition_fn(),
@@ -155,6 +158,11 @@ where
             }
         }
         deadline_events
+    }
+
+    fn disarm_deadline(&self, deadline_event: &DeadlineEvent) -> bool {
+        // Check if the state has been committed for the given timestamp.
+        self.state.get_last_committed_timestamp() >= deadline_event.timestamp
     }
 }
 
@@ -271,7 +279,9 @@ where
         let mut deadline_events = Vec::new();
         let state = Arc::clone(&self.state);
         for deadline in setup_context.get_deadlines() {
-            if deadline.is_constrained_on_read_stream(read_stream_id)
+            if deadline
+                .get_constrained_read_stream_ids()
+                .contains(&read_stream_id)
                 && deadline.invoke_start_condition(
                     vec![read_stream_id],
                     condition_context,
@@ -282,7 +292,8 @@ where
                 let deadline_duration =
                     deadline.calculate_deadline(&(*state.lock().unwrap()), &timestamp);
                 deadline_events.push(DeadlineEvent::new(
-                    read_stream_id,
+                    deadline.get_constrained_read_stream_ids().clone(),
+                    deadline.get_constrained_write_stream_ids().clone(),
                     timestamp.clone(),
                     deadline_duration,
                     deadline.get_end_condition_fn(),
@@ -291,5 +302,10 @@ where
             }
         }
         deadline_events
+    }
+
+    fn disarm_deadline(&self, deadline_event: &DeadlineEvent) -> bool {
+        // Check if the state has been committed for the given timestamp.
+        self.state.lock().unwrap().get_last_committed_timestamp() >= deadline_event.timestamp
     }
 }
