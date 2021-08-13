@@ -1,5 +1,5 @@
 use abomonation::{decode, encode, measure, Abomonation};
-use bytes::{buf::ext::BufMutExt, BytesMut};
+use bytes::{BufMut, BytesMut};
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::Debug,

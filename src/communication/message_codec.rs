@@ -1,5 +1,5 @@
 use byteorder::{ByteOrder, NetworkEndian, WriteBytesExt};
-use bytes::{buf::ext::BufMutExt, BytesMut};
+use bytes::{BufMut, BytesMut};
 use std::fmt::Debug;
 use tokio_util::codec::{Decoder, Encoder};
 

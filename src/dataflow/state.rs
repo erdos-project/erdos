@@ -16,7 +16,7 @@ impl<T: 'static + Clone + Send + Sync> State for T {}
 /// timestamp `t`.
 pub trait StateT: 'static + Send + Sync {
     fn commit(&mut self, timestamp: &Timestamp);
-
+  
     fn get_last_committed_timestamp(&self) -> Timestamp;
 }
 

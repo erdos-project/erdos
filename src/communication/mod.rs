@@ -11,10 +11,9 @@ use futures::future;
 use serde::{Deserialize, Serialize};
 use slog;
 use tokio::{
-    io::AsyncWriteExt,
+    io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
-    prelude::*,
-    time::delay_for,
+    time::sleep,
 };
 
 use crate::{dataflow::stream::StreamId, node::NodeId, OperatorId};
@@ -191,7 +190,7 @@ async fn connect_to_node(
                     last_err_msg_time = now;
                 }
                 // Wait a bit until it tries to connect again.
-                delay_for(Duration::from_millis(100)).await;
+                sleep(Duration::from_millis(100)).await;
             }
         }
     }
@@ -207,7 +206,7 @@ async fn await_node_connections(
     logger: &slog::Logger,
 ) -> Result<Vec<(NodeId, TcpStream)>, std::io::Error> {
     let mut await_futures = Vec::new();
-    let mut listener = TcpListener::bind(&addr).await?;
+    let listener = TcpListener::bind(&addr).await?;
     // Awaiting for `expected_conns` conections.
     for _ in 0..expected_conns {
         let (stream, _) = listener.accept().await?;
