@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     communication::{RecvEndpoint, TryRecvError},
-    dataflow::{deadlines::ConditionContext, Data, Message, Timestamp},
+    dataflow::{Data, Message},
 };
 
 use super::{
@@ -93,8 +93,6 @@ pub struct ReadStream<D: Data> {
     is_closed: bool,
     /// The endpoint on which the stream receives data.
     recv_endpoint: Option<RecvEndpoint<Arc<Message<D>>>>,
-    /// Statistics about the messages received and the watermark status of timestamps.
-    condition_context: ConditionContext,
 }
 
 impl<D: Data> ReadStream<D> {
@@ -108,7 +106,6 @@ impl<D: Data> ReadStream<D> {
             name: name.to_string(),
             is_closed: false,
             recv_endpoint,
-            condition_context: ConditionContext::new(),
         }
     }
 
@@ -171,14 +168,6 @@ impl<D: Data> ReadStream<D> {
                 }
             });
 
-        // Update the condition context.
-        match result.as_ref() {
-            Ok(msg) => {
-                self.update_condition_context(&msg);
-            }
-            Err(_) => {}
-        };
-
         if result
             .as_ref()
             .map(Message::is_top_watermark)
@@ -197,10 +186,7 @@ impl<D: Data> ReadStream<D> {
         // Poll for the next message
         match self.recv_endpoint.as_mut() {
             Some(endpoint) => match endpoint.read().await {
-                Ok(msg) => {
-                    self.update_condition_context(&msg);
-                    Ok(msg)
-                }
+                Ok(msg) => Ok(msg),
                 // TODO: better error handling.
                 _ => Err(ReadError::Disconnected),
             },
@@ -208,37 +194,6 @@ impl<D: Data> ReadStream<D> {
         }
 
         // TODO: Close the stream?
-    }
-
-    /// Maintains the statistics for the ConditionContext.
-    fn update_condition_context(&mut self, msg: &Message<D>) {
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
-            "Updating statistics for the message: {:?}",
-            msg
-        );
-        match msg {
-            Message::TimestampedData(td) => {
-                // Increment the message count.
-                self.condition_context
-                    .increment_msg_count(self.id(), td.timestamp.clone());
-            }
-            Message::Watermark(t) => {
-                // Notify the watermark arrival.
-                self.condition_context
-                    .notify_watermark_arrival(self.id(), t.clone());
-            }
-        }
-    }
-
-    /// Clears the condition context state.
-    pub fn clear_condition_state(&mut self, timestamp: Timestamp) {
-        self.condition_context.clear_state(self.id(), timestamp);
-    }
-
-    /// Get the ConditionContext saved in the stream.
-    pub(crate) fn get_condition_context(&self) -> &ConditionContext {
-        &self.condition_context
     }
 }
 

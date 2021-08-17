@@ -1,21 +1,10 @@
-use std::slice::Iter;
-
 use serde::Deserialize;
 
 use crate::{
-    dataflow::{
-        context::*, deadlines::Deadline, stream::StreamId, AppendableStateT, Data, ReadStream,
-        State, StateT, WriteStream,
-    },
+    dataflow::{context::*, AppendableStateT, Data, ReadStream, State, StateT, WriteStream},
     node::NodeId,
     OperatorId,
 };
-
-pub trait SetupContextT: Send + Sync {
-    fn add_deadline(&mut self, deadline: Deadline);
-    fn get_deadlines(&self) -> Iter<Deadline>;
-    fn num_deadlines(&self) -> usize;
-}
 
 /*************************************************************************************************
  * Source: sends data with type T                                                                *
@@ -137,6 +126,8 @@ where
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
+    fn setup(&mut self, setup_context: &mut SetupContext<S>) {}
+
     fn run(&mut self, read_stream: &mut ReadStream<T>, write_stream: &mut WriteStream<U>) {}
 
     fn destroy(&mut self) {}
@@ -144,34 +135,6 @@ where
     fn on_data(&mut self, ctx: &mut OneInOneOutContext<S, U>, data: &T);
 
     fn on_watermark(&mut self, ctx: &mut OneInOneOutContext<S, U>);
-}
-
-pub struct OneInOneOutSetupContext {
-    pub(crate) deadlines: Vec<Deadline>,
-    pub read_stream_id: StreamId,
-}
-
-impl OneInOneOutSetupContext {
-    pub fn new(read_stream_id: StreamId) -> Self {
-        OneInOneOutSetupContext {
-            deadlines: Vec::new(),
-            read_stream_id,
-        }
-    }
-}
-
-impl SetupContextT for OneInOneOutSetupContext {
-    fn add_deadline(&mut self, deadline: Deadline) {
-        self.deadlines.push(deadline);
-    }
-
-    fn get_deadlines(&self) -> Iter<Deadline> {
-        self.deadlines.iter()
-    }
-
-    fn num_deadlines(&self) -> usize {
-        self.deadlines.len()
-    }
 }
 
 /*************************************************************************************************

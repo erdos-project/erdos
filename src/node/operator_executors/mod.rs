@@ -34,10 +34,11 @@ use tokio::{
 
 use crate::{
     dataflow::{
-        deadlines::{Deadline, DeadlineEvent},
-        operator::{OneInOneOutSetupContext, OperatorConfig, SetupContextT},
-        stream::StreamId,
-        Data, Message, ReadStream, StreamT, Timestamp,
+        context::SetupContext,
+        deadlines::{ConditionContext, DeadlineEvent, DeadlineId},
+        operator::OperatorConfig,
+        stream::{StreamId, StreamT},
+        Data, Message, ReadStream, Timestamp,
     },
     node::{
         lattice::ExecutionLattice,
@@ -72,12 +73,18 @@ pub(crate) trait OperatorExecutorT: Send {
 /// Trait that needs to be defined by the executors for an operator that processes a single message
 /// stream. This trait is used by the executors to invoke the callback corresponding to the event
 /// occurring in the system.
-pub trait OneInMessageProcessorT<T>: Send + Sync
+pub trait OneInMessageProcessorT<S, T>: Send + Sync
 where
     T: Data + for<'a> Deserialize<'a>,
 {
+    /// Executes the `setup` method inside the operator.
+    // TODO (Sukrit): Stopgap to prevent compilation errors. Remove once deadline API is decided.
+    fn execute_setup(&mut self, _read_stream: &mut ReadStream<T>) -> SetupContext<S> {
+        SetupContext::new(Vec::new(), Vec::new())
+    }
+
     /// Executes the `run` method inside the operator.
-    fn execute_run(&mut self, _read_stream: &mut ReadStream<T>);
+    fn execute_run(&mut self, read_stream: &mut ReadStream<T>);
 
     /// Executes the `destroy` method inside the operator.
     fn execute_destroy(&mut self);
@@ -91,43 +98,27 @@ where
     /// Generates a DeadlineEvent for arming a deadline.
     fn arm_deadlines(
         &self,
-        setup_context: &dyn SetupContextT,
-        read_stream: &ReadStream<T>,
+        setup_context: &mut SetupContext<S>,
+        read_stream_id: StreamId,
+        condition_context: &ConditionContext,
         timestamp: Timestamp,
-    ) -> Vec<DeadlineEvent> {
-        let mut deadline_event_vec = Vec::new();
-        for deadline in setup_context.get_deadlines() {
-            match deadline {
-                Deadline::TimestampDeadline(d) => {
-                    if d.constrained_on_read_stream(read_stream.id())
-                        && d.start_condition(read_stream.get_condition_context(), &timestamp)
-                    {
-                        // Compute the deadline for the timestamp.
-                        let deadline_duration =
-                            d.calculate_deadline(read_stream.get_condition_context());
-                        deadline_event_vec.push(DeadlineEvent::new(
-                            read_stream.id(),
-                            timestamp.clone(),
-                            deadline_duration,
-                            d.get_handler(),
-                            d.get_end_condition_fn(),
-                        ));
-                    }
-                }
-            }
-        }
-        deadline_event_vec
-    }
+    ) -> Vec<DeadlineEvent>;
 
     /// Disarms a deadline by returning true if the given deadline should be disarmed, or false
     /// otherwise.
-    fn disarm_deadline(&self, _deadline_event: &DeadlineEvent) -> bool {
-        true
-    }
+    fn disarm_deadline(&self, deadline_event: &DeadlineEvent) -> bool;
 
     /// Cleans up the write streams and any other data owned by the executor.
     /// This is invoked after the operator is destroyed.
     fn cleanup(&mut self) {}
+
+    /// Invokes the handler for the given DeadlineId in case of a missed deadline.
+    fn invoke_handler(
+        &self,
+        setup_context: &mut SetupContext<S>,
+        deadline_id: DeadlineId,
+        timestamp: Timestamp,
+    );
 }
 
 /// Trait that needs to be defined by the executors for an operator that processes two message
@@ -167,23 +158,23 @@ where
  * ***********************************************************************************************/
 
 /// Executor that executes operators that process messages on a single read stream of type T.
-pub struct OneInExecutor<T>
+pub struct OneInExecutor<S, T>
 where
     T: Data + for<'a> Deserialize<'a>,
 {
     config: OperatorConfig,
-    processor: Box<dyn OneInMessageProcessorT<T>>,
+    processor: Box<dyn OneInMessageProcessorT<S, T>>,
     helper: OperatorExecutorHelper,
     read_stream: Option<ReadStream<T>>,
 }
 
-impl<T> OneInExecutor<T>
+impl<S, T> OneInExecutor<S, T>
 where
     T: Data + for<'a> Deserialize<'a>,
 {
     pub fn new(
         config: OperatorConfig,
-        processor: Box<dyn OneInMessageProcessorT<T>>,
+        processor: Box<dyn OneInMessageProcessorT<S, T>>,
         read_stream: ReadStream<T>,
     ) -> Self {
         let operator_id = config.id;
@@ -206,7 +197,8 @@ where
 
         // Run the `setup` method.
         let mut read_stream: ReadStream<T> = self.read_stream.take().unwrap();
-        let setup_context = OneInOneOutSetupContext::new(read_stream.id());
+        let mut setup_context =
+            tokio::task::block_in_place(|| self.processor.execute_setup(&mut read_stream));
         // TODO (Sukrit): Implement deadlines and `setup` method for the operators.
 
         // Execute the `run` method.
@@ -225,7 +217,7 @@ where
             read_stream,
             &mut (*self.processor),
             &channel_to_event_runners,
-            &setup_context,
+            &mut setup_context,
         );
 
         // Shutdown.
@@ -264,7 +256,7 @@ where
     }
 }
 
-impl<T> OperatorExecutorT for OneInExecutor<T>
+impl<S, T> OperatorExecutorT for OneInExecutor<S, T>
 where
     T: Data + for<'a> Deserialize<'a>,
 {
@@ -431,7 +423,7 @@ pub struct OperatorExecutorHelper {
     deadline_queue: DelayQueue<DeadlineEvent, GrowingHeapBuf<DeadlineEvent>>,
     deadline_queue_rx: Receiver<DeadlineEvent>,
     // For active deadlines.
-    stream_timestamp_to_key_map: HashMap<(StreamId, Timestamp), DelayHandle>,
+    deadline_to_key_map: HashMap<DeadlineId, DelayHandle>,
 }
 
 impl OperatorExecutorHelper {
@@ -442,7 +434,7 @@ impl OperatorExecutorHelper {
             lattice: Arc::new(ExecutionLattice::new()),
             deadline_queue,
             deadline_queue_rx,
-            stream_timestamp_to_key_map: HashMap::new(),
+            deadline_to_key_map: HashMap::new(),
         }
     }
 
@@ -455,39 +447,34 @@ impl OperatorExecutorHelper {
     // Arms the given `DeadlineEvents` by installing them into a DeadlineQueue.
     fn manage_deadlines(&mut self, deadlines: Vec<DeadlineEvent>) {
         for event in deadlines {
-            if !self
-                .stream_timestamp_to_key_map
-                .contains_key(&(event.stream_id, event.timestamp.clone()))
-            {
+            if !self.deadline_to_key_map.contains_key(&event.id) {
                 // Install the handler onto the queue with the given duration.
                 let event_duration = event.duration;
-                let stream_id = event.stream_id;
-                let event_timestamp = event.timestamp.clone();
+                let deadline_id = event.id;
                 let queue_key: DelayHandle = self.deadline_queue.insert(event, event_duration);
                 slog::debug!(
                     crate::TERMINAL_LOGGER,
-                    "Installed a deadline handler with the DelayHandle: {:?} corresponding to \
-                            Stream ID: {} and Timestamp: {:?}",
+                    "Installed a deadline handler for the Deadline {} with the DelayHandle: {:?}",
+                    deadline_id,
                     queue_key,
-                    stream_id,
-                    event_timestamp,
                 );
 
-                self.stream_timestamp_to_key_map
-                    .insert((stream_id, event_timestamp), queue_key);
+                self.deadline_to_key_map.insert(deadline_id, queue_key);
             }
         }
     }
 
-    async fn process_stream<T>(
+    async fn process_stream<S, T>(
         &mut self,
         mut read_stream: ReadStream<T>,
-        message_processor: &mut dyn OneInMessageProcessorT<T>,
+        message_processor: &mut dyn OneInMessageProcessorT<S, T>,
         notifier_tx: &tokio::sync::broadcast::Sender<EventNotification>,
-        setup_context: &dyn SetupContextT,
+        setup_context: &mut SetupContext<S>,
     ) where
         T: Data + for<'a> Deserialize<'a>,
     {
+        // Create a ConditionContext for the stream.
+        let mut condition_context = ConditionContext::new();
         loop {
             tokio::select! {
                 // DelayQueue returns `None` if the queue is empty. This means that if there are no
@@ -500,37 +487,41 @@ impl OperatorExecutorHelper {
                     // TODO (Sukrit): The handler is invoked in the thread of the OperatorExecutor.
                     // This may be an issue for long-running handlers since they block the
                     // processing of future messages. We can spawn these as a separate task.
-                    // let deadline_event = event.unwrap().into_inner();
                     if !message_processor.disarm_deadline(&deadline_event) {
                         // Invoke the handler.
-                        deadline_event.handler.lock().unwrap().invoke_handler(
-                            &read_stream.get_condition_context(),
-                            &deadline_event.timestamp.clone()
+                        message_processor.invoke_handler(
+                            setup_context,
+                            deadline_event.id,
+                            deadline_event.timestamp.clone(),
                         );
                     }
 
                     // Remove the key from the hashmap and clear the state in the ConditionContext.
-                    match self.stream_timestamp_to_key_map.remove(
-                        &(deadline_event.stream_id, deadline_event.timestamp.clone())) {
+                    match self.deadline_to_key_map.remove(&deadline_event.id) {
                         None => {
                             slog::warn!(
                                 crate::TERMINAL_LOGGER,
-                                "Could not find a key corresponding to the Stream ID: {} \
-                                and the Timestamp: {:?}",
-                                deadline_event.stream_id,
-                                deadline_event.timestamp,
+                                "Could not find a key corresponding to the Deadline ID: {}",
+                                deadline_event.id,
                             );
                         }
                         Some(key) => {
                             slog::debug!(
                                 crate::TERMINAL_LOGGER,
                                 "Finished invoking the deadline handler for the DelayHandle: {:?} \
-                                corresponding to the Stream ID: {} and the Timestamp: {:?}",
-                                key, deadline_event.stream_id, deadline_event.timestamp);
+                                corresponding to the Deadline ID: {}",
+                                key,
+                                deadline_event.id,
+                            );
                         }
                     }
+
+                    // Clean the state.
+                    for stream_id in deadline_event.read_stream_ids {
+                        condition_context.clear_state(stream_id, deadline_event.timestamp.clone());
+                    }
                 },
-                // If there is a message on the ReadStream, then increment the messgae counts for
+                // If there is a message on the ReadStream, then increment the message counts for
                 // the given timestamp, evaluate the start and end condition and install / disarm
                 // deadlines accordingly.
                 // TODO (Sukrit) : The start and end conditions are evaluated in the thread of the
@@ -540,20 +531,30 @@ impl OperatorExecutorHelper {
                     let events = match msg.data() {
                         // Data message
                         Some(_) => {
-                            // TODO : Check if an event for both the stateful and the stateless
-                            // callback is needed.
+                            // Increment message count.
+                            condition_context.increment_msg_count(
+                                read_stream.id(),
+                                msg.timestamp().clone(),
+                            );
 
-                            // Stateless callback.
+                            // Create an OperatorEvent for the callback.
                             let msg_ref = Arc::clone(&msg);
-                            let stateless_data_event = message_processor.message_cb_event(
+                            let data_event = message_processor.message_cb_event(
                                 msg_ref,
                             );
 
-                            vec![stateless_data_event]
+                            vec![data_event]
                         },
 
                         // Watermark
                         None => {
+                            // Update watermark status.
+                            condition_context.notify_watermark_arrival(
+                                read_stream.id(),
+                                msg.timestamp().clone(),
+                            );
+
+                            // Create an OperatorEvent for the callback.
                             let watermark_event = message_processor.watermark_cb_event(
                                 msg.timestamp());
                             vec![watermark_event]
@@ -563,7 +564,8 @@ impl OperatorExecutorHelper {
                     // Arm deadlines and install them into the executor.
                     let deadline_events = message_processor.arm_deadlines(
                         setup_context,
-                        &read_stream,
+                        read_stream.id(),
+                        &condition_context,
                         msg.timestamp().clone()
                     );
                     self.manage_deadlines(deadline_events);

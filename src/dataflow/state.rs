@@ -16,6 +16,8 @@ impl<T: 'static + Clone + Send + Sync> State for T {}
 /// timestamp `t`.
 pub trait StateT: 'static + Send + Sync {
     fn commit(&mut self, timestamp: &Timestamp);
+  
+    fn get_last_committed_timestamp(&self) -> Timestamp;
 }
 
 /// Trait that must be implemented by a state structure that is used in a Sequential operator.
@@ -26,6 +28,8 @@ pub trait AppendableStateT<S>: 'static + Clone + Send + Sync {
     fn append(&self, data: &S);
 
     fn commit(&self, timestamp: &Timestamp);
+
+    fn get_last_committed_timestamp(&self) -> Timestamp;
 }
 
 /// Error thrown upon an invalid attempt to access a portion of the
