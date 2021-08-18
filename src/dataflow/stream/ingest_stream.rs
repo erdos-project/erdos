@@ -66,11 +66,7 @@ where
     // constructors of different types of streams.
     /// Returns a new instance of the [`IngestStream`].
     pub fn new() -> Self {
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
-            "Initializing an IngestStream on the node {}",
-            0,
-        );
+        slog::debug!(crate::TERMINAL_LOGGER, "Initializing an IngestStream");
         let id = StreamId::new_deterministic();
         IngestStream::new_internal(id, id.to_string())
     }

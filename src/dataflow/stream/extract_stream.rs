@@ -40,8 +40,8 @@ use super::{
 //  #     .name("MapOperator")
 /// #     .arg(|data: &u32| -> u64 { (data * 2) as u64 });
 /// #
-/// // Create an IngestStream which runs on node 0.
-/// let mut ingest_stream = IngestStream::new(0); // or IngestStream::new_with_name(0, "driver")
+/// // Create an IngestStream.
+/// let mut ingest_stream = IngestStream::new(); // or IngestStream::new_with_name("driver")
 ///
 /// // Create an ExtractStream from the ReadStream of the MapOperator.
 /// let output_read_stream = connect_1_write!(MapOperator<u32, u64>, map_config, ingest_stream);
