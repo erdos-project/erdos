@@ -103,15 +103,14 @@ impl Graph {
         for<'a> D: Data + Deserialize<'a>,
     {
         let stream_id = ingest_stream.id();
-        let node_id = ingest_stream.node_id();
         // Add stream to driver
         let driver = self
             .drivers
-            .entry(ingest_stream.node_id())
-            .or_insert_with(|| DriverMetadata::new(node_id));
+            .entry(0)
+            .or_insert_with(|| DriverMetadata::new(0));
         driver.add_ingest_stream(stream_id, setup_hook);
         // Add stream to graph
-        let mut stream_metadata = StreamMetadata::new::<D>(stream_id, Vertex::Driver(node_id));
+        let mut stream_metadata = StreamMetadata::new::<D>(stream_id, Vertex::Driver(0));
         self.add_channels(&mut stream_metadata);
         self.streams.insert(stream_id, stream_metadata);
     }

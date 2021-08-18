@@ -8,7 +8,6 @@ use serde::Deserialize;
 
 use crate::{
     dataflow::{graph::default_graph, Data, Message},
-    node::NodeId,
     scheduler::channel_manager::ChannelManager,
 };
 
@@ -55,8 +54,6 @@ where
     id: StreamId,
     /// The name of the stream (String representation of the ID, if no name provided)
     name: String,
-    /// The ID of the Node where the stream runs.
-    node_id: NodeId,
     // Use a std mutex because the driver doesn't run on the tokio runtime.
     write_stream_option: Arc<Mutex<Option<WriteStream<D>>>>,
 }
@@ -68,43 +65,37 @@ where
     // TODO (Sukrit) :: Why does this constructor require the NodeID? Inconsistency between
     // constructors of different types of streams.
     /// Returns a new instance of the [`IngestStream`].
-    ///
-    /// # Arguments
-    /// * `node_id` - The ID of the Node where the driver is running (typically, 0).
-    pub fn new(node_id: NodeId) -> Self {
+    pub fn new() -> Self {
         slog::debug!(
             crate::TERMINAL_LOGGER,
             "Initializing an IngestStream on the node {}",
-            node_id,
+            0,
         );
         let id = StreamId::new_deterministic();
-        IngestStream::new_internal(node_id, id, id.to_string())
+        IngestStream::new_internal(id, id.to_string())
     }
 
     /// Returns a new instance of the [`IngestStream`].
     ///
     /// # Arguments
-    /// * `node_id` - The ID of the Node where the driver is running (typically, 0).
     /// * `name` - The name to be given to the stream.
-    pub fn new_with_name(node_id: NodeId, name: &str) -> Self {
+    pub fn new_with_name(name: &str) -> Self {
         slog::debug!(
             crate::TERMINAL_LOGGER,
-            "Initializing an IngestStream on the node {} with the name {}",
-            node_id,
+            "Initializing an IngestStream with the name {}",
             name
         );
         let id = StreamId::new_deterministic();
-        IngestStream::new_internal(node_id, id, name.to_string())
+        IngestStream::new_internal(id, name.to_string())
     }
 
     /// Creates the [`WriteStream`] to be used to send messages to the dataflow, and adds it to
     /// the dataflow graph.
     /// Panics if the stream could not be created.
-    fn new_internal(node_id: NodeId, id: StreamId, name: String) -> Self {
+    fn new_internal(id: StreamId, name: String) -> Self {
         let ingest_stream = Self {
             id,
             name,
-            node_id,
             write_stream_option: Arc::new(Mutex::new(None)),
         };
         let write_stream_option_copy = Arc::clone(&ingest_stream.write_stream_option);
@@ -127,11 +118,6 @@ where
 
         default_graph::add_ingest_stream(&ingest_stream, setup_hook);
         ingest_stream
-    }
-
-    /// Get the ID of the node where the stream originated from. (Typically 0 for driver nodes.)
-    pub fn node_id(&self) -> NodeId {
-        self.node_id
     }
 
     /// Returns `true` if a top watermark message was received or the [`IngestStream`] failed to
@@ -163,10 +149,9 @@ where
         } else {
             slog::warn!(
                 crate::TERMINAL_LOGGER,
-                "Trying to send messages on a closed IngestStream {} (ID: {}, Node: {})",
+                "Trying to send messages on a closed IngestStream {} (ID: {})",
                 self.name(),
                 self.id(),
-                self.node_id()
             );
             return Err(WriteStreamError::Closed);
         }
