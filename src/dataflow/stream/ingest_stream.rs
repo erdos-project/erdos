@@ -62,8 +62,6 @@ impl<D> IngestStream<D>
 where
     for<'a> D: Data + Deserialize<'a>,
 {
-    // TODO (Sukrit) :: Why does this constructor require the NodeID? Inconsistency between
-    // constructors of different types of streams.
     /// Returns a new instance of the [`IngestStream`].
     pub fn new() -> Self {
         slog::debug!(crate::TERMINAL_LOGGER, "Initializing an IngestStream");
