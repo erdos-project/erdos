@@ -7,7 +7,7 @@ use crate::{
 // Private submodules
 mod edge;
 mod graph;
-mod new_graph;
+mod job_graph;
 mod vertex;
 
 // Public submodules
