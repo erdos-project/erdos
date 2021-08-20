@@ -443,6 +443,7 @@ fn main() {
         SinkOperatorState::new,
         sink_config,
         &ingest_stream,
+    );
     erdos::connect_sink(
         SinkOperator::new,
         SinkOperatorState::new,
