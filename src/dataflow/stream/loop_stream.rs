@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::dataflow::{graph::default_graph, Data};
 
-use super::{ReadStream, StreamId, StreamT};
+use super::{Stream, StreamId};
 
 /// Enables loops in the dataflow.
 ///
@@ -55,20 +55,7 @@ where
         &self.name[..]
     }
 
-    pub fn set(&self, stream: &ReadStream<D>) {
+    pub fn set(&self, stream: &Stream<D>) {
         default_graph::add_stream_alias(self.id, stream.id()).unwrap();
-    }
-}
-
-impl<D> StreamT<D> for LoopStream<D>
-where
-    for<'a> D: Data + Deserialize<'a>,
-{
-    fn id(&self) -> StreamId {
-        self.id
-    }
-
-    fn name(&self) -> &str {
-        &self.name
     }
 }

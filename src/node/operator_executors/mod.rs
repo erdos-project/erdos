@@ -37,7 +37,7 @@ use crate::{
         context::SetupContext,
         deadlines::{ConditionContext, DeadlineEvent, DeadlineId},
         operator::OperatorConfig,
-        stream::{StreamId, StreamT},
+        stream::StreamId,
         Data, Message, ReadStream, Timestamp,
     },
     node::{

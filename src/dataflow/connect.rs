@@ -3,9 +3,7 @@ use std::sync::{Arc, Mutex};
 use serde::Deserialize;
 
 use crate::{
-    dataflow::{
-        graph::default_graph, operator::*, AppendableStateT, Data, State, StateT, Stream, StreamT,
-    },
+    dataflow::{graph::default_graph, operator::*, AppendableStateT, Data, State, StateT, Stream},
     node::operator_executors::{
         OneInExecutor, OneInOneOutMessageProcessor, OneInTwoOutMessageProcessor, OperatorExecutorT,
         ParallelOneInOneOutMessageProcessor, ParallelOneInTwoOutMessageProcessor,
@@ -80,8 +78,8 @@ pub fn connect_parallel_sink<O, S, T, U>(
     let read_stream: Stream<T> = read_stream.into();
     let read_stream_ids = vec![read_stream.id()];
 
-    let read_stream_ids_copy = read_stream_ids.clone();
     let config_copy = config.clone();
+    let read_stream_ids_copy = read_stream_ids.clone();
 
     let op_runner =
         move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
@@ -127,8 +125,8 @@ pub fn connect_sink<O, S, T>(
     let read_stream: Stream<T> = read_stream.into();
     let read_stream_ids = vec![read_stream.id()];
 
-    let read_stream_ids_copy = read_stream_ids.clone();
     let config_copy = config.clone();
+    let read_stream_ids_copy = read_stream_ids.clone();
 
     let op_runner =
         move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
@@ -163,7 +161,7 @@ pub fn connect_parallel_one_in_one_out<O, S, T, U, V>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: &impl StreamT<T>,
+    read_stream: impl Into<Stream<T>>,
 ) -> Stream<U>
 where
     O: 'static + ParallelOneInOneOut<S, T, U, V>,
@@ -173,9 +171,11 @@ where
     V: 'static + Send + Sync,
 {
     config.id = OperatorId::new_deterministic();
-    let write_stream = Stream::new(config.id, &format!("{}_write_stream", config.get_name()));
 
+    let read_stream: Stream<T> = read_stream.into();
     let read_stream_ids = vec![read_stream.id()];
+
+    let write_stream = Stream::new(config.id, &format!("{}_write_stream", config.get_name()));
     let write_stream_ids = vec![write_stream.id()];
 
     let read_stream_ids_copy = read_stream_ids.clone();
@@ -221,7 +221,7 @@ pub fn connect_one_in_one_out<O, S, T, U>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: &impl StreamT<T>,
+    read_stream: impl Into<Stream<T>>,
 ) -> Stream<U>
 where
     O: 'static + OneInOneOut<S, T, U>,
@@ -230,14 +230,16 @@ where
     U: Data + for<'a> Deserialize<'a>,
 {
     config.id = OperatorId::new_deterministic();
-    let write_stream = Stream::new(config.id, &format!("{}_write_stream", config.get_name()));
 
+    let read_stream: Stream<T> = read_stream.into();
     let read_stream_ids = vec![read_stream.id()];
+
+    let write_stream = Stream::new(config.id, &format!("{}_write_stream", config.get_name()));
     let write_stream_ids = vec![write_stream.id()];
 
+    let config_copy = config.clone();
     let read_stream_ids_copy = read_stream_ids.clone();
     let write_stream_ids_copy = write_stream_ids.clone();
-    let config_copy = config.clone();
 
     let op_runner =
         move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
@@ -279,8 +281,8 @@ pub fn connect_parallel_two_in_one_out<O, S, T, U, V, W>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    left_read_stream: &impl StreamT<T>,
-    right_read_stream: &impl StreamT<U>,
+    left_read_stream: impl Into<Stream<T>>,
+    right_read_stream: impl Into<Stream<U>>,
 ) -> Stream<V>
 where
     O: 'static + ParallelTwoInOneOut<S, T, U, V, W>,
@@ -291,14 +293,18 @@ where
     W: 'static + Send + Sync,
 {
     config.id = OperatorId::new_deterministic();
-    let write_stream = Stream::new(config.id, &format!("{}_write_stream", config.get_name()));
 
+    let left_read_stream: Stream<T> = left_read_stream.into();
+    let right_read_stream: Stream<U> = right_read_stream.into();
     let read_stream_ids = vec![left_read_stream.id(), right_read_stream.id()];
+
+    let write_stream = Stream::new(config.id, &format!("{}_write_stream", config.get_name()));
     let write_stream_ids = vec![write_stream.id()];
 
+    let config_copy = config.clone();
     let read_stream_ids_copy = read_stream_ids.clone();
     let write_stream_ids_copy = write_stream_ids.clone();
-    let config_copy = config.clone();
+
     let op_runner =
         move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
             let mut channel_manager = channel_manager.lock().unwrap();
@@ -343,8 +349,8 @@ pub fn connect_two_in_one_out<O, S, T, U, V>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    left_read_stream: &impl StreamT<T>,
-    right_read_stream: &impl StreamT<U>,
+    left_read_stream: impl Into<Stream<T>>,
+    right_read_stream: impl Into<Stream<U>>,
 ) -> Stream<V>
 where
     O: 'static + TwoInOneOut<S, T, U, V>,
@@ -354,9 +360,12 @@ where
     V: Data + for<'a> Deserialize<'a>,
 {
     config.id = OperatorId::new_deterministic();
-    let write_stream = Stream::new(config.id, &format!("{}_write_stream", config.get_name()));
 
+    let left_read_stream: Stream<T> = left_read_stream.into();
+    let right_read_stream: Stream<U> = right_read_stream.into();
     let read_stream_ids = vec![left_read_stream.id(), right_read_stream.id()];
+
+    let write_stream = Stream::new(config.id, &format!("{}_write_stream", config.get_name()));
     let write_stream_ids = vec![write_stream.id()];
 
     let read_stream_ids_copy = read_stream_ids.clone();
@@ -406,7 +415,7 @@ pub fn connect_parallel_one_in_two_out<O, S, T, U, V, W>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: &impl StreamT<T>,
+    read_stream: impl Into<Stream<T>>,
 ) -> (Stream<U>, Stream<V>)
 where
     O: 'static + ParallelOneInTwoOut<S, T, U, V, W>,
@@ -417,6 +426,10 @@ where
     W: 'static + Send + Sync,
 {
     config.id = OperatorId::new_deterministic();
+
+    let read_stream: Stream<T> = read_stream.into();
+    let read_stream_ids = vec![read_stream.id()];
+
     let left_write_stream = Stream::new(
         config.id,
         &format!("{}_left_write_stream", config.get_name()),
@@ -425,8 +438,6 @@ where
         config.id,
         &format!("{}_right_write_stream", config.get_name()),
     );
-
-    let read_stream_ids = vec![read_stream.id()];
     let write_stream_ids = vec![left_write_stream.id(), right_write_stream.id()];
 
     let read_stream_ids_copy = read_stream_ids.clone();
@@ -477,7 +488,7 @@ pub fn connect_one_in_two_out<O, S, T, U, V>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: &impl StreamT<T>,
+    read_stream: impl Into<Stream<T>>,
 ) -> (Stream<U>, Stream<V>)
 where
     O: 'static + OneInTwoOut<S, T, U, V>,
@@ -487,6 +498,10 @@ where
     V: Data + for<'a> Deserialize<'a>,
 {
     config.id = OperatorId::new_deterministic();
+
+    let read_stream: Stream<T> = read_stream.into();
+    let read_stream_ids = vec![read_stream.id()];
+
     let left_write_stream = Stream::new(
         config.id,
         &format!("{}_left_write_stream", config.get_name()),
@@ -495,8 +510,6 @@ where
         config.id,
         &format!("{}_right_write_stream", config.get_name()),
     );
-
-    let read_stream_ids = vec![read_stream.id()];
     let write_stream_ids = vec![left_write_stream.id(), right_write_stream.id()];
 
     let read_stream_ids_copy = read_stream_ids.clone();
