@@ -14,7 +14,7 @@ use crate::{
 
 use super::{
     errors::{ReadError, TryReadError},
-    ReadStream, Stream, StreamId, StreamT,
+    ReadStream, Stream, StreamId,
 };
 
 /// An [`ExtractStream`] enables drivers to read data from a running ERDOS application.
@@ -207,22 +207,13 @@ where
             }
         }
     }
-}
 
-impl<D> StreamT<D> for ExtractStream<D>
-where
-    for<'a> D: Data + Deserialize<'a>,
-{
-    /// Get the ID given to the stream by the constructor.
-    fn id(&self) -> StreamId {
+    pub fn id(&self) -> StreamId {
         self.id
     }
 
-    /// Get the name of the stream.
-    /// Returns a [`str`] version of the ID if the stream was not constructed with
-    /// [`new_with_name`](ExtractStream::new_with_name).
-    fn name(&self) -> &str {
-        &self.name[..]
+    pub fn name(&self) -> &str {
+        &self.name
     }
 }
 

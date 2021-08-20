@@ -57,11 +57,6 @@ pub trait WriteStreamT<D: Data> {
     fn send(&mut self, msg: Message<D>) -> Result<(), SendError>;
 }
 
-pub trait StreamT<D: Data> {
-    fn id(&self) -> StreamId;
-    fn name(&self) -> &str;
-}
-
 #[allow(dead_code)]
 #[derive(Clone)]
 pub struct Stream<D: Data> {
@@ -91,17 +86,11 @@ impl<D: Data> Stream<D> {
         *current_name = name.to_string();
     }
 
-    pub fn get_name(&self) -> String {
+    pub fn name(&self) -> String {
         self.name.lock().unwrap().clone()
     }
-}
 
-impl<D: Data> StreamT<D> for Stream<D> {
-    fn name(&self) -> &str {
-        unimplemented!()
-    }
-
-    fn id(&self) -> StreamId {
+    pub fn id(&self) -> StreamId {
         self.id
     }
 }
@@ -120,6 +109,22 @@ where
         Self {
             id: ingest_stream.id(),
             name: ingest_stream.name.clone(),
+            source: OperatorId::nil(),
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<D> From<&LoopStream<D>> for Stream<D>
+where
+    for<'a> D: Data + Deserialize<'a>,
+{
+    fn from(loop_stream: &LoopStream<D>) -> Self {
+        Self {
+            id: loop_stream.id(),
+            // TODO: either Arc Mutex name in LoopStream.
+            name: Arc::new(Mutex::new(loop_stream.name().to_string())),
+            // TODO: use an enum for source.
             source: OperatorId::nil(),
             phantom: PhantomData,
         }

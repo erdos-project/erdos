@@ -11,7 +11,7 @@ use crate::{
     scheduler::channel_manager::ChannelManager,
 };
 
-use super::{errors::SendError, StreamId, StreamT, WriteStream, WriteStreamT};
+use super::{errors::SendError, StreamId, WriteStream, WriteStreamT};
 
 /// An [`IngestStream`] enables drivers to inject data into a running ERDOS application.
 ///
@@ -144,7 +144,7 @@ where
             slog::warn!(
                 crate::TERMINAL_LOGGER,
                 "Trying to send messages on a closed IngestStream {} (ID: {})",
-                self.name(),
+                self.name.lock().unwrap(),
                 self.id(),
             );
             return Err(SendError::Closed);
@@ -153,23 +153,6 @@ where
 
     pub fn id(&self) -> StreamId {
         self.id
-    }
-}
-
-impl<D> StreamT<D> for IngestStream<D>
-where
-    for<'a> D: Data + Deserialize<'a>,
-{
-    /// Get the ID given to the stream by the constructor
-    fn id(&self) -> StreamId {
-        self.id
-    }
-
-    /// Get the name of the stream.
-    /// Returns a [`str`] version of the ID if the stream was not constructed with
-    /// [`new_with_name`](IngestStream::new_with_name).
-    fn name(&self) -> &str {
-        unimplemented!()
     }
 }
 
