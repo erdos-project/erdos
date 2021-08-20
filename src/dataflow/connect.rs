@@ -29,7 +29,7 @@ where
     T: Data + for<'a> Deserialize<'a>,
 {
     config.id = OperatorId::new_deterministic();
-    let write_stream = Stream::new();
+    let write_stream = Stream::new(config.id, &format!("{}_write_stream", config.get_name()));
 
     let write_stream_ids = vec![write_stream.id()];
 
@@ -179,7 +179,7 @@ where
     V: 'static + Send + Sync,
 {
     config.id = OperatorId::new_deterministic();
-    let write_stream = Stream::new();
+    let write_stream = Stream::new(config.id, &format!("{}_write_stream", config.get_name()));
 
     let read_stream_ids = vec![read_stream.id()];
     let write_stream_ids = vec![write_stream.id()];
@@ -237,7 +237,7 @@ where
     U: Data + for<'a> Deserialize<'a>,
 {
     config.id = OperatorId::new_deterministic();
-    let write_stream = Stream::new();
+    let write_stream = Stream::new(config.id, &format!("{}_write_stream", config.get_name()));
 
     let read_stream_ids = vec![read_stream.id()];
     let write_stream_ids = vec![write_stream.id()];
@@ -300,7 +300,7 @@ where
     W: 'static + Send + Sync,
 {
     config.id = OperatorId::new_deterministic();
-    let write_stream = Stream::new();
+    let write_stream = Stream::new(config.id, &format!("{}_write_stream", config.get_name()));
 
     let read_stream_ids = vec![left_read_stream.id(), right_read_stream.id()];
     let write_stream_ids = vec![write_stream.id()];
@@ -364,7 +364,7 @@ where
     V: Data + for<'a> Deserialize<'a>,
 {
     config.id = OperatorId::new_deterministic();
-    let write_stream = Stream::new();
+    let write_stream = Stream::new(config.id, &format!("{}_write_stream", config.get_name()));
 
     let read_stream_ids = vec![left_read_stream.id(), right_read_stream.id()];
     let write_stream_ids = vec![write_stream.id()];
@@ -429,8 +429,14 @@ where
     W: 'static + Send + Sync,
 {
     config.id = OperatorId::new_deterministic();
-    let left_write_stream = Stream::new();
-    let right_write_stream = Stream::new();
+    let left_write_stream = Stream::new(
+        config.id,
+        &format!("{}_left_write_stream", config.get_name()),
+    );
+    let right_write_stream = Stream::new(
+        config.id,
+        &format!("{}_right_write_stream", config.get_name()),
+    );
 
     let read_stream_ids = vec![read_stream.id()];
     let write_stream_ids = vec![left_write_stream.id(), right_write_stream.id()];
@@ -494,8 +500,14 @@ where
     V: Data + for<'a> Deserialize<'a>,
 {
     config.id = OperatorId::new_deterministic();
-    let left_write_stream = Stream::new();
-    let right_write_stream = Stream::new();
+    let left_write_stream = Stream::new(
+        config.id,
+        &format!("{}_left_write_stream", config.get_name()),
+    );
+    let right_write_stream = Stream::new(
+        config.id,
+        &format!("{}_right_write_stream", config.get_name()),
+    );
 
     let read_stream_ids = vec![read_stream.id()];
     let write_stream_ids = vec![left_write_stream.id(), right_write_stream.id()];
