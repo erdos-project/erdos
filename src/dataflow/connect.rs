@@ -68,7 +68,7 @@ pub fn connect_parallel_sink<O, S, T, U>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: &impl StreamT<T>,
+    read_stream: impl Into<Stream<T>>,
 ) where
     O: 'static + ParallelSink<S, T, U>,
     S: AppendableStateT<U>,
@@ -77,6 +77,7 @@ pub fn connect_parallel_sink<O, S, T, U>(
 {
     config.id = OperatorId::new_deterministic();
 
+    let read_stream: Stream<T> = read_stream.into();
     let read_stream_ids = vec![read_stream.id()];
 
     let read_stream_ids_copy = read_stream_ids.clone();
@@ -115,7 +116,7 @@ pub fn connect_sink<O, S, T>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: &impl StreamT<T>,
+    read_stream: impl Into<Stream<T>>,
 ) where
     O: 'static + Sink<S, T>,
     S: StateT,
@@ -123,6 +124,7 @@ pub fn connect_sink<O, S, T>(
 {
     config.id = OperatorId::new_deterministic();
 
+    let read_stream: Stream<T> = read_stream.into();
     let read_stream_ids = vec![read_stream.id()];
 
     let read_stream_ids_copy = read_stream_ids.clone();
