@@ -1,10 +1,7 @@
 use pyo3::{exceptions, prelude::*, types::PyBytes};
 use std::sync::Arc;
 
-use crate::{
-    dataflow::{Message, Timestamp},
-    python::PyTimestamp,
-};
+use crate::{dataflow::Message, python::PyTimestamp};
 
 /// The Python version of an ERDOS message.
 ///
