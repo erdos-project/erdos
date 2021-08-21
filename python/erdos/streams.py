@@ -1,11 +1,10 @@
 import pickle
 import logging
-from operator import attrgetter
-from typing import Union, Callable
+from typing import Union
 
 from erdos.message import Message, WatermarkMessage
 from erdos.internal import (PyReadStream, PyWriteStream, PyLoopStream,
-                            PyIngestStream, PyExtractStream, PyMessage)
+                            PyStream, PyIngestStream, PyExtractStream)
 from erdos.timestamp import Timestamp
 
 logger = logging.getLogger(__name__)
@@ -26,24 +25,30 @@ def _parse_message(internal_msg):
     raise Exception("Unable to parse message")
 
 
-def _to_py_message(msg):
-    """Converts a Message to an internal PyMessage."""
-    if isinstance(msg, WatermarkMessage):
-        return PyMessage(msg.timestamp.coordinates, msg.is_top, None)
-    else:
-        data = pickle.dumps(msg, protocol=pickle.HIGHEST_PROTOCOL)
-        return PyMessage(msg.timestamp.coordinates, False, data)
+class Stream(object):
+    """A :py:class:`Stream` enables the driver to connect operators.
+
+    A :py:class`Stream` is returned by the :py:func`connect` method as an
+    abstraction of the :py:class:`WriteStream` of an operator, and can be
+    passed to the :py:func:`connect` method to allow other operators to read
+    data from it.
+    """
+    def __init__(self,
+                 _py_stream: PyStream = None,
+                 _name: Union[str, None] = None,
+                 _id: Union[str, None] = None):
+        logger.debug(
+            "Initializing a Stream with the name: {} and ID: {}.".format(
+                _name, _id))
+        self._py_stream = _py_stream
+        self._name = _name
+        self._id = _id
 
 
 class ReadStream(object):
     """ A :py:class:`ReadStream` allows an :py:class:`Operator` to read and
     do work on data sent by other operators on a corresponding
     :py:class:`WriteStream`.
-
-    An :py:class:`Operator` can interface with a :py:class:`ReadStream` by
-    registering callbacks on the data or watermark received on the stream by
-    invoking the :py:func:`add_callback` or :py:func:`add_watermark_callback`
-    method respectively.
 
     An :py:class:`Operator` that takes control of its execution using the
     :py:func:`Operator.run` method can retrieve the messages on a
@@ -126,7 +131,7 @@ class WriteStream(object):
         if not isinstance(msg, Message):
             raise TypeError("msg must inherent from erdos.Message!")
 
-        internal_msg = _to_py_message(msg)
+        internal_msg = msg._to_py_message()
         logger.debug("Sending message {} on the stream {}".format(
             msg, self._name))
 
@@ -141,7 +146,8 @@ class WriteStream(object):
 class LoopStream(object):
     """Stream placeholder used to construct loops in the dataflow graph.
 
-    Must call `set` on a ReadStream to complete the loop.
+    Note:
+        Must call `set` with a valid :py:class:`Stream` to complete the loop.
     """
     def __init__(self, _name: Union[str, None] = None):
         self._py_loop_stream = PyLoopStream()
@@ -152,10 +158,10 @@ class LoopStream(object):
         """ The name of the stream. `None` if no name was given. """
         return self._name
 
-    def set(self, read_stream: ReadStream):
+    def set(self, stream: Stream):
         logger.debug("Setting the read stream {} to the loop stream {}".format(
-            read_stream.name, self._name))
-        self._py_loop_stream.set(read_stream._py_read_stream)
+            stream._name, self._name))
+        self._py_loop_stream.set(stream._py_stream)
 
 
 class IngestStream(object):
@@ -163,8 +169,8 @@ class IngestStream(object):
     running ERDOS application.
 
     The driver can initialize a new :py:class:`IngestStream` and connect it to
-    an :py:class:`Operator` through :py:func:`connect`. Similar to a
-    :py:class:`WriteStream`, an :py:class:`IngestStream` provides a
+    an :py:class:`Operator` through the `connect` family of functions. Similar
+    to a :py:class:`WriteStream`, an :py:class:`IngestStream` provides a
     :py:func:`IngestStream.send` to enable the driver to send data to the
     operator to which it was connected.
     """
@@ -198,7 +204,7 @@ class IngestStream(object):
         logger.debug("Sending message {} on the Ingest stream {}".format(
             msg, self._name))
 
-        internal_msg = _to_py_message(msg)
+        internal_msg = msg._to_py_message()
         self._py_ingest_stream.send(internal_msg)
 
 
@@ -207,24 +213,23 @@ class ExtractStream(object):
     ERDOS applications.
 
     The driver can initialize a new :py:class:`ExtractStream` by passing the
-    instance of :py:class:`ReadStream` returned by :py:func:`connect`. Similar
+    instance of :py:class:`tream` returned by :py:func:`connect`. Similar
     to a :py:class:`ReadStream`, an :py:class:`ExtractStream` provides
     :py:func:`ExtractStream.read` and :py:func:`ExtractStream.try_read` for
-    reading data published on the corresponding `read_stream`.
+    reading data published on the corresponding `stream`.
 
     Args:
-        read_stream (:py:class:`ReadStream`): The stream from which to
-            read messages.
+        stream (:py:class:`Stream`): The stream from which to read messages.
     """
     def __init__(self,
-                 read_stream: ReadStream,
+                 stream: Stream,
                  _name: Union[str, None] = None):
-        if not isinstance(read_stream, ReadStream):
+        if not isinstance(stream, Stream):
             raise ValueError(
-                "ExtractStream needs to be initialized with a ReadStream. "
-                "Received a {}".format(type(read_stream)))
+                "ExtractStream needs to be initialized with a Stream. "
+                "Received a {}".format(type(stream)))
         self._py_extract_stream = PyExtractStream(
-            read_stream._py_read_stream,
+            stream._py_stream,
             _name,
         )
 
