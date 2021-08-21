@@ -11,12 +11,12 @@
 //! scheduling operators, and hope to provide a versatile solution.
 
 // Private submodules
-mod lattice;
 mod node;
-mod worker;
 
 // Crate-wide visible submodules
+pub(crate) mod lattice;
 pub(crate) mod operator_event;
+pub(crate) mod worker;
 
 // Public submodules
 #[doc(hidden)]
