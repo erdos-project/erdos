@@ -1,7 +1,14 @@
 use pyo3::{exceptions, prelude::*, types::PyBytes};
+use std::sync::Arc;
 
-use crate::dataflow::{Message, Timestamp};
+use crate::{
+    dataflow::{Message, Timestamp},
+    python::PyTimestamp,
+};
 
+/// The Python version of an ERDOS message.
+///
+/// This class provides the API that is wrapped around by `erdos.Message` in Python.
 #[pyclass]
 pub(crate) struct PyMessage {
     msg: Message<Vec<u8>>,
@@ -10,30 +17,18 @@ pub(crate) struct PyMessage {
 #[pymethods]
 impl PyMessage {
     #[new]
-    fn new<'a>(
-        obj: &PyRawObject,
-        timestamp_coordinates: Option<Vec<u64>>,
-        is_top_watermark: bool,
-        data: Option<&'a PyBytes>,
-    ) -> PyResult<()> {
-        if timestamp_coordinates.is_none() && data.is_some() {
-            return Err(exceptions::ValueError::py_err(
-                "Passing a non-None value to data when timestamp_coordinates=None is not allowed",
+    fn new<'a>(timestamp: Option<PyTimestamp>, data: Option<&'a PyBytes>) -> PyResult<Self> {
+        if timestamp.is_none() && data.is_some() {
+            return Err(exceptions::PyValueError::new_err(
+                "Passing a non-None value to data when timestamp=None is not allowed",
             ));
         }
-        let msg = if is_top_watermark {
-            Message::new_watermark(Timestamp::Top)
-        } else {
-            match (timestamp_coordinates, data) {
-                (Some(t), Some(d)) => {
-                    Message::new_message(Timestamp::Time(t), Vec::from(d.as_bytes()))
-                }
-                (Some(t), None) => Message::new_watermark(Timestamp::Time(t)),
-                (_, _) => unreachable!(),
-            }
+        let msg = match (timestamp, data) {
+            (Some(t), Some(d)) => Message::new_message(t.into(), Vec::from(d.as_bytes())),
+            (Some(t), None) => Message::new_watermark(t.into()),
+            (_, _) => unreachable!(),
         };
-        obj.init(Self { msg });
-        Ok(())
+        Ok(Self { msg })
     }
 
     #[getter(data)]
@@ -45,12 +40,8 @@ impl PyMessage {
     }
 
     #[getter(timestamp)]
-    fn timestamp(&self) -> Option<Vec<u64>> {
-        match &self.msg.timestamp() {
-            Timestamp::Top => None,
-            Timestamp::Time(d) => Some(d.clone()),
-            Timestamp::Bottom => None,
-        }
+    fn timestamp(&self) -> Option<PyTimestamp> {
+        Some(self.msg.timestamp().clone().into())
     }
 
     fn is_timestamped_data(&self) -> bool {
@@ -81,5 +72,13 @@ impl From<Message<Vec<u8>>> for PyMessage {
 impl From<&PyMessage> for Message<Vec<u8>> {
     fn from(py_message: &PyMessage) -> Self {
         py_message.msg.clone()
+    }
+}
+
+impl From<Arc<Message<Vec<u8>>>> for PyMessage {
+    fn from(msg: Arc<Message<Vec<u8>>>) -> Self {
+        Self {
+            msg: (*msg).clone(),
+        }
     }
 }
