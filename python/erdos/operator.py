@@ -432,7 +432,7 @@ class OperatorConfig(object):
         return self._profile_file_name
 
     def __str__(self):
-        return "OperatorConfig(name={}, flow_watermarks={}".format(
+        return "OperatorConfig(name={}, flow_watermarks={})".format(
                 self.name, self.flow_watermarks)
 
     def __repr__(self):
