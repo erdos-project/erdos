@@ -88,7 +88,9 @@ class Timestamp(object):
 
     def __lt__(self, timestamp):
         # Compare Bottom timestamps.
-        if self.is_bottom:
+        if self.is_bottom and timestamp.is_bottom:
+            return False
+        if self.is_bottom and not timestamp.is_bottom:
             return True
         if not self.is_bottom and timestamp.is_bottom:
             return False

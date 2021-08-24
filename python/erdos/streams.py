@@ -213,7 +213,7 @@ class ExtractStream(object):
     ERDOS applications.
 
     The driver can initialize a new :py:class:`ExtractStream` by passing the
-    instance of :py:class:`tream` returned by :py:func:`connect`. Similar
+    instance of :py:class:`Stream` returned by :py:func:`connect`. Similar
     to a :py:class:`ReadStream`, an :py:class:`ExtractStream` provides
     :py:func:`ExtractStream.read` and :py:func:`ExtractStream.try_read` for
     reading data published on the corresponding `stream`.
