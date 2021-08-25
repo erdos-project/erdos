@@ -1,4 +1,7 @@
-use std::marker::PhantomData;
+use std::{
+    marker::PhantomData,
+    sync::{Arc, Mutex},
+};
 
 use serde::Deserialize;
 
@@ -20,7 +23,7 @@ where
     for<'a> D: Data + Deserialize<'a>,
 {
     id: StreamId,
-    name: String,
+    pub(crate) name: Arc<Mutex<String>>,
     phantom: PhantomData<D>,
 }
 
@@ -40,7 +43,7 @@ where
     fn new_internal(id: StreamId, name: String) -> Self {
         let loop_stream = Self {
             id,
-            name,
+            name: Arc::new(Mutex::new(name)),
             phantom: PhantomData,
         };
         default_graph::add_loop_stream(&loop_stream);
@@ -51,8 +54,8 @@ where
         self.id
     }
 
-    pub fn name(&self) -> &str {
-        &self.name[..]
+    pub fn name(&self) -> String {
+        self.name.lock().unwrap().clone()
     }
 
     pub fn set(&self, stream: &Stream<D>) {
