@@ -3,7 +3,10 @@ use std::sync::{Arc, Mutex};
 use serde::Deserialize;
 
 use crate::{
-    dataflow::{graph::default_graph, operator::*, AppendableStateT, Data, State, StateT, Stream},
+    dataflow::{
+        graph::default_graph, operator::*, stream::StreamOrigin, AppendableStateT, Data, State,
+        StateT, Stream,
+    },
     node::operator_executors::{
         OneInExecutor, OneInOneOutMessageProcessor, OneInTwoOutMessageProcessor, OperatorExecutorT,
         ParallelOneInOneOutMessageProcessor, ParallelOneInTwoOutMessageProcessor,
@@ -27,7 +30,10 @@ where
     T: Data + for<'a> Deserialize<'a>,
 {
     config.id = OperatorId::new_deterministic();
-    let write_stream = Stream::new(config.id, &format!("{}_write_stream", config.get_name()));
+    let write_stream = Stream::new(
+        StreamOrigin::Operator(config.id),
+        &format!("{}_write_stream", config.get_name()),
+    );
 
     let write_stream_ids = vec![write_stream.id()];
 
@@ -183,7 +189,10 @@ where
     let read_stream: Stream<T> = read_stream.into();
     let read_stream_ids = vec![read_stream.id()];
 
-    let write_stream = Stream::new(config.id, &format!("{}_write_stream", config.get_name()));
+    let write_stream = Stream::new(
+        StreamOrigin::Operator(config.id),
+        &format!("{}_write_stream", config.get_name()),
+    );
     let write_stream_ids = vec![write_stream.id()];
 
     let read_stream_ids_copy = read_stream_ids.clone();
@@ -243,7 +252,10 @@ where
     let read_stream: Stream<T> = read_stream.into();
     let read_stream_ids = vec![read_stream.id()];
 
-    let write_stream = Stream::new(config.id, &format!("{}_write_stream", config.get_name()));
+    let write_stream = Stream::new(
+        StreamOrigin::Operator(config.id),
+        &format!("{}_write_stream", config.get_name()),
+    );
     let write_stream_ids = vec![write_stream.id()];
 
     let config_copy = config.clone();
@@ -309,7 +321,10 @@ where
     let right_read_stream: Stream<U> = right_read_stream.into();
     let read_stream_ids = vec![left_read_stream.id(), right_read_stream.id()];
 
-    let write_stream = Stream::new(config.id, &format!("{}_write_stream", config.get_name()));
+    let write_stream = Stream::new(
+        StreamOrigin::Operator(config.id),
+        &format!("{}_write_stream", config.get_name()),
+    );
     let write_stream_ids = vec![write_stream.id()];
 
     let config_copy = config.clone();
@@ -377,7 +392,10 @@ where
     let right_read_stream: Stream<U> = right_read_stream.into();
     let read_stream_ids = vec![left_read_stream.id(), right_read_stream.id()];
 
-    let write_stream = Stream::new(config.id, &format!("{}_write_stream", config.get_name()));
+    let write_stream = Stream::new(
+        StreamOrigin::Operator(config.id),
+        &format!("{}_write_stream", config.get_name()),
+    );
     let write_stream_ids = vec![write_stream.id()];
 
     let read_stream_ids_copy = read_stream_ids.clone();
@@ -445,11 +463,11 @@ where
     let read_stream_ids = vec![read_stream.id()];
 
     let left_write_stream = Stream::new(
-        config.id,
+        StreamOrigin::Operator(config.id),
         &format!("{}_left_write_stream", config.get_name()),
     );
     let right_write_stream = Stream::new(
-        config.id,
+        StreamOrigin::Operator(config.id),
         &format!("{}_right_write_stream", config.get_name()),
     );
     let write_stream_ids = vec![left_write_stream.id(), right_write_stream.id()];
@@ -518,11 +536,11 @@ where
     let read_stream_ids = vec![read_stream.id()];
 
     let left_write_stream = Stream::new(
-        config.id,
+        StreamOrigin::Operator(config.id),
         &format!("{}_left_write_stream", config.get_name()),
     );
     let right_write_stream = Stream::new(
-        config.id,
+        StreamOrigin::Operator(config.id),
         &format!("{}_right_write_stream", config.get_name()),
     );
     let write_stream_ids = vec![left_write_stream.id(), right_write_stream.id()];
