@@ -65,14 +65,14 @@ impl From<Timestamp> for PyTimestamp {
     }
 }
 
-impl Into<Timestamp> for PyTimestamp {
-    fn into(self) -> Timestamp {
-        if self.is_bottom {
+impl From<PyTimestamp> for Timestamp {
+    fn from(timestamp: PyTimestamp) -> Self {
+        if timestamp.is_bottom {
             return Timestamp::Bottom;
-        } else if self.is_top {
+        } else if timestamp.is_top {
             return Timestamp::Top;
         } else {
-            return Timestamp::Time(self.coordinates.unwrap());
+            return Timestamp::Time(timestamp.coordinates.unwrap());
         }
     }
 }
