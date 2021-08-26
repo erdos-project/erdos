@@ -433,7 +433,7 @@ fn main() {
 
     // Example use of an ingest stream.
     let ingest_stream = IngestStream::new();
-    let sink_config = OperatorConfig::new().name("SinkOperator");
+    let sink_config = OperatorConfig::new().name("IngestSinkOperator");
     erdos::connect_sink(
         SinkOperator::new,
         SinkOperatorState::new,
