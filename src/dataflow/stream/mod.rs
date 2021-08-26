@@ -58,10 +58,16 @@ pub trait WriteStreamT<D: Data> {
 }
 
 /// Indicates from where a stream originates.
+/// Used internally by the graph to place operators on nodes and
+/// set up connections between operators.
 #[derive(Clone)]
 pub(crate) enum StreamOrigin {
+    /// Stream which originates from another operator.
     Operator(OperatorId),
+    /// [`IngestStream`] which originates in the driver.
     Driver,
+    /// [`LoopStream`] which will alias to another stream to
+    /// enable loops in the graph.
     Loop,
 }
 
@@ -71,18 +77,19 @@ pub struct Stream<D: Data> {
     id: StreamId,
     /// The name of the stream (String representation of the ID, if no name provided)
     name: Arc<Mutex<String>>,
-    /// The origin of the stream (nil if driver).
-    pub(crate) source: StreamOrigin,
+    /// The origin of the stream.
+    origin: StreamOrigin,
     phantom: PhantomData<D>,
 }
 
+#[allow(dead_code)]
 impl<D: Data> Stream<D> {
-    pub(crate) fn new(source: StreamOrigin, name: &str) -> Self {
+    pub(crate) fn new(origin: StreamOrigin, name: &str) -> Self {
         let id = StreamId::new_deterministic();
         Self {
             id,
             name: Arc::new(Mutex::new(name.to_string())),
-            source,
+            origin,
             phantom: PhantomData,
         }
     }
@@ -98,6 +105,10 @@ impl<D: Data> Stream<D> {
 
     pub fn id(&self) -> StreamId {
         self.id
+    }
+
+    pub(crate) fn origin(&self) -> &StreamOrigin {
+        &self.origin
     }
 }
 
@@ -115,7 +126,7 @@ where
         Self {
             id: ingest_stream.id(),
             name: ingest_stream.name.clone(),
-            source: StreamOrigin::Driver,
+            origin: StreamOrigin::Driver,
             phantom: PhantomData,
         }
     }
@@ -129,7 +140,7 @@ where
         Self {
             id: loop_stream.id(),
             name: loop_stream.name.clone(),
-            source: StreamOrigin::Loop,
+            origin: StreamOrigin::Loop,
             phantom: PhantomData,
         }
     }
