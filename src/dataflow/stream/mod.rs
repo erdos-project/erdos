@@ -84,6 +84,7 @@ pub struct Stream<D: Data> {
 
 #[allow(dead_code)]
 impl<D: Data> Stream<D> {
+    /// Creates a new stream and registers it in the dataflow graph.
     pub(crate) fn new(origin: StreamOrigin, name: &str) -> Self {
         let id = StreamId::new_deterministic();
         Self {
