@@ -11,7 +11,7 @@ use serde::Deserialize;
 
 use crate::{
     dataflow::{
-        stream::{ExtractStream, IngestStream, LoopStream, Stream, StreamId},
+        stream::{ExtractStream, IngestStream, LoopStream, Stream, StreamId, StreamOrigin},
         Data,
     },
     node::NodeId,
@@ -93,6 +93,26 @@ where
 /// Adds an alias from from_id to to_id on the default graph.
 pub(crate) fn add_stream_alias(from_id: StreamId, to_id: StreamId) -> Result<(), String> {
     DEFAULT_GRAPH.with(|g| g.borrow_mut().add_stream_alias(from_id, to_id))
+}
+
+#[allow(unused_variables)]
+pub(crate) fn set_stream_name(stream_id: StreamId, name: &str) {
+    unimplemented!("TODO(peter): implement when refactoring the graph.")
+}
+
+#[allow(unused_variables)]
+pub(crate) fn get_stream_name(stream_id: StreamId) -> String {
+    unimplemented!("TODO(peter): implement when refactoring the graph.")
+}
+
+#[allow(unused_variables)]
+pub(crate) fn set_stream_origin(stream_id: StreamId, origin: StreamOrigin) {
+    unimplemented!("TODO(peter): implement when refactoring the graph.")
+}
+
+#[allow(unused_variables)]
+pub(crate) fn get_stream_origin(stream_id: StreamId, origin: StreamOrigin) {
+    unimplemented!("TODO(peter): implement when refactoring the graph.")
 }
 
 pub(crate) fn clone() -> Graph {
