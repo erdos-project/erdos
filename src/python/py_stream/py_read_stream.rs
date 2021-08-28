@@ -31,39 +31,55 @@ impl PyReadStream {
 
     /// Returns (timestamp, data)
     fn read(&mut self) -> PyResult<PyMessage> {
-        let read_stream = Arc::get_mut(&mut self.read_stream).unwrap();
-        match read_stream.read() {
-            Ok(msg) => Ok(PyMessage::from(msg)),
-            Err(e) => {
-                let error_str = format!(
-                    "Error reading from {} (ID: {})",
-                    self.read_stream.name(),
-                    self.read_stream.id()
-                );
-                match e {
-                    ReadError::SerializationError => Err(SerializationError::new_err(error_str)),
-                    ReadError::Disconnected => Err(Disconnected::new_err(error_str)),
-                    ReadError::Closed => Err(Closed::new_err(error_str)),
+        // NOTE: Since the executor of a Python's `run` method holds a reference to the same Arc
+        // that backs a PyReadStream (in order to drop after its execution), we need to do a
+        // `get_mut_unchecked` instead of a `get_mut` to bypass the reference counting checks, and
+        // retrieve the underlying ReadStream.
+        unsafe {
+            let read_stream = Arc::get_mut_unchecked(&mut self.read_stream);
+            match read_stream.read() {
+                Ok(msg) => Ok(PyMessage::from(msg)),
+                Err(e) => {
+                    let error_str = format!(
+                        "Error reading from {} (ID: {})",
+                        self.read_stream.name(),
+                        self.read_stream.id()
+                    );
+                    match e {
+                        ReadError::SerializationError => {
+                            Err(SerializationError::new_err(error_str))
+                        }
+                        ReadError::Disconnected => Err(Disconnected::new_err(error_str)),
+                        ReadError::Closed => Err(Closed::new_err(error_str)),
+                    }
                 }
             }
         }
     }
 
     fn try_read(&mut self) -> PyResult<Option<PyMessage>> {
-        let read_stream = Arc::get_mut(&mut self.read_stream).unwrap();
-        match read_stream.try_read() {
-            Ok(msg) => Ok(Some(PyMessage::from(msg))),
-            Err(e) => {
-                let error_str = format!(
-                    "Error reading from {} (ID: {})",
-                    self.read_stream.name(),
-                    self.read_stream.id()
-                );
-                match e {
-                    TryReadError::SerializationError => Err(SerializationError::new_err(error_str)),
-                    TryReadError::Disconnected => Err(Disconnected::new_err(error_str)),
-                    TryReadError::Closed => Err(Closed::new_err(error_str)),
-                    TryReadError::Empty => Ok(None),
+        // NOTE: Since the executor of a Python's `run` method holds a reference to the same Arc
+        // that backs a PyReadStream (in order to drop after its execution), we need to do a
+        // `get_mut_unchecked` instead of a `get_mut` to bypass the reference counting checks, and
+        // retrieve the underlying ReadStream.
+        unsafe {
+            let read_stream = Arc::get_mut_unchecked(&mut self.read_stream);
+            match read_stream.try_read() {
+                Ok(msg) => Ok(Some(PyMessage::from(msg))),
+                Err(e) => {
+                    let error_str = format!(
+                        "Error reading from {} (ID: {})",
+                        self.read_stream.name(),
+                        self.read_stream.id()
+                    );
+                    match e {
+                        TryReadError::SerializationError => {
+                            Err(SerializationError::new_err(error_str))
+                        }
+                        TryReadError::Disconnected => Err(Disconnected::new_err(error_str)),
+                        TryReadError::Closed => Err(Closed::new_err(error_str)),
+                        TryReadError::Empty => Ok(None),
+                    }
                 }
             }
         }
