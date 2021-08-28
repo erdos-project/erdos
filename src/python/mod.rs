@@ -1,26 +1,23 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use pyo3::{exceptions, prelude::*};
 use slog;
 
 use crate::{
-    dataflow::{graph::default_graph, OperatorConfig, Stream, StreamT},
-    node::{operator_executors::OperatorExecutorT, Node, NodeHandle, NodeId},
-    scheduler::channel_manager::ChannelManager,
+    dataflow::OperatorConfig,
+    node::{Node, NodeHandle, NodeId},
     Configuration, OperatorId,
 };
 
 // Private submodules
-mod py_executors;
 mod py_message;
 mod py_operators;
 mod py_stream;
 mod py_timestamp;
 
 // Private imports
-use py_executors::PySourceExecutor;
 use py_message::PyMessage;
-use py_operators::{PyOneInOneOut, PyOneInTwoOut, PySink};
+use py_operators::{PyOneInOneOut, PyOneInTwoOut, PySink, PySource};
 use py_stream::{
     PyExtractStream, PyIngestStream, PyLoopStream, PyReadStream, PyStream, PyWriteStream,
 };
@@ -47,11 +44,6 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
         kwargs: PyObject,
         node_id: NodeId,
     ) -> PyResult<PyStream> {
-        // Create the WriteStream.
-        let write_stream = Stream::new();
-        let write_stream_ids = vec![write_stream.id()];
-        let write_stream_ids_clone = write_stream_ids.clone();
-
         // Create the config.
         let operator_name: Option<String> = py_config.getattr(py, "name")?.extract(py)?;
         let name = match &operator_name {
@@ -78,35 +70,19 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
         let args_arc = Arc::new(args);
         let kwargs_arc = Arc::new(kwargs);
 
-        // Create the operator runner.
-        let op_runner =
-            move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
-                let mut channel_manager = channel_manager.lock().unwrap();
-
-                let write_stream = channel_manager
-                    .get_write_stream(write_stream_ids_clone[0])
-                    .unwrap();
-
-                Box::new(PySourceExecutor::new(
+        let write_stream = crate::connect_source(
+            move || -> PySource {
+                PySource::new(
                     Arc::clone(&py_type_arc),
                     Arc::clone(&args_arc),
                     Arc::clone(&kwargs_arc),
                     Arc::clone(&py_config_arc),
                     config_copy.clone(),
-                    write_stream,
-                ))
-            };
-
-        // Add the operator and WriteStream to the graph.
-        default_graph::add_operator(
-            config.id,
-            config.name,
-            config.node_id,
-            vec![],
-            write_stream_ids,
-            op_runner,
+                )
+            },
+            || {},
+            config,
         );
-        default_graph::add_operator_stream(config.id, &write_stream);
 
         Ok(PyStream::from(write_stream))
     }
