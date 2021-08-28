@@ -9,7 +9,6 @@ use crate::dataflow::Timestamp;
 pub trait State: 'static + Clone + Send + Sync {}
 impl<T: 'static + Clone + Send + Sync> State for T {}
 
-
 // TODO (Sukrit): Do these state traits also require a way to read the state for a given timestamp?
 
 /// Trait that must be implemented by a state structure that is used in a Parallel operator.
@@ -19,6 +18,9 @@ pub trait StateT: 'static + Send + Sync {
     fn commit(&mut self, timestamp: &Timestamp);
 }
 
+impl StateT for () {
+    fn commit(&mut self, _timestamp: &Timestamp) {}
+}
 
 /// Trait that must be implemented by a state structure that is used in a Sequential operator.
 /// This state structure must implement an `append` method that enables message callbacks to add
