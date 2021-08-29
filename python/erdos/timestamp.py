@@ -7,11 +7,11 @@ class Timestamp(object):
    watermarks are sent.
 
    A :py:class:`Timestamp` can have one of the following three values:
-    - Timestamp::Bottom: Representing the initial time, and used for 
+    - Timestamp::Bottom: Representing the initial time, and used for
         initializing operators.
-    - Timestamp::Time(c): An integer timestamp representing the time attached 
+    - Timestamp::Time(c): An integer timestamp representing the time attached
         to the message or watermark.
-    - Timestamp::Top: The final timestamp, and used for destruction of 
+    - Timestamp::Top: The final timestamp, and used for destruction of
         operators.
 
    Attributes:
@@ -145,7 +145,7 @@ class Timestamp(object):
         return not self.__lt__(timestamp)
 
     def __hash__(self):
-        return hash((self.coordinates, self.is_top, self.is_bottom))
+        return hash((tuple(self.coordinates), self.is_top, self.is_bottom))
 
     @property
     def is_top(self):

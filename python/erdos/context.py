@@ -80,7 +80,7 @@ class OneInTwoOutContext(object):
         self.right_write_stream = right_write_stream
 
     def __str__(self):
-        return "TwoInOneOutContext(Timestamp={}, Config={}, \
+        return "OneInTwoOutContext(Timestamp={}, Config={}, \
                 Left WriteStream={}, Right WriteStream={})".format(
                     self.timestamp,
                     self.config,
