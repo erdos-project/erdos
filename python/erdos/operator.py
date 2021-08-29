@@ -1,5 +1,10 @@
 import json
 from collections import defaultdict, deque
+from typing import Any
+
+from erdos.streams import ReadStream, WriteStream
+from erdos.context import (SinkContext, OneInOneOutContext, OneInTwoOutContext,
+                           TwoInOneOutContext)
 
 import numpy as np
 
@@ -71,7 +76,7 @@ class Source(BaseOperator):
         instance._runtime_stats = defaultdict(deque)
         return instance
 
-    def run(self, write_stream):
+    def run(self, write_stream: WriteStream):
         """Runs the operator.
 
         Invoked automatically by ERDOS, and provided with a
@@ -112,7 +117,7 @@ class Sink(BaseOperator):
         instance._runtime_stats = defaultdict(deque)
         return instance
 
-    def run(self, read_stream):
+    def run(self, read_stream: ReadStream):
         """Runs the operator.
 
         Invoked automatically by ERDOS, and provided with a
@@ -123,7 +128,7 @@ class Sink(BaseOperator):
         """
         pass
 
-    def on_data(self, context, data):
+    def on_data(self, context: SinkContext, data: Any):
         """Callback invoked upon receipt of a :py:class:`Message` on the
         operator's :py:class:`ReadStream`.
 
@@ -135,7 +140,7 @@ class Sink(BaseOperator):
         """
         pass
 
-    def on_watermark(self, context):
+    def on_watermark(self, context: SinkContext):
         """Callback invoked upon receipt of a :py:class:`WatermarkMessage` on
         the operator's :py:class:`ReadStream`.
 
@@ -178,7 +183,7 @@ class OneInOneOut(BaseOperator):
         instance._runtime_stats = defaultdict(deque)
         return instance
 
-    def run(self, read_stream, write_stream):
+    def run(self, read_stream: ReadStream, write_stream: WriteStream):
         """Runs the operator.
 
         Invoked automatically by ERDOS, and provided with a
@@ -191,7 +196,7 @@ class OneInOneOut(BaseOperator):
         """
         pass
 
-    def on_data(self, context, data):
+    def on_data(self, context: OneInOneOutContext, data: Any):
         """Callback invoked upon receipt of a :py:class:`Message` on the
         operator's :py:class:`ReadStream`.
 
@@ -203,7 +208,7 @@ class OneInOneOut(BaseOperator):
         """
         pass
 
-    def on_watermark(self, context):
+    def on_watermark(self, context: OneInOneOutContext):
         """Callback invoked upon receipt of a :py:class:`WatermarkMessage` on
         the operator's :py:class:`ReadStream`.
 
@@ -246,7 +251,11 @@ class TwoInOneOut(BaseOperator):
         instance._runtime_stats = defaultdict(deque)
         return instance
 
-    def run(self, left_read_stream, right_read_stream, write_stream):
+    def run(self,
+            left_read_stream: ReadStream,
+            right_read_stream: ReadStream,
+            write_stream: WriteStream,
+            ):
         """Runs the operator.
 
         Invoked automatically by ERDOS, and provided with two instances of
@@ -262,7 +271,7 @@ class TwoInOneOut(BaseOperator):
         """
         pass
 
-    def on_left_data(self, context, data):
+    def on_left_data(self, context: TwoInOneOutContext, data: Any):
         """Callback invoked upon receipt of a :py:class:`Message` on the
         `left_read_stream`.
 
@@ -274,7 +283,7 @@ class TwoInOneOut(BaseOperator):
         """
         pass
 
-    def on_right_data(self, context, data):
+    def on_right_data(self, context: TwoInOneOutContext, data: Any):
         """Callback invoked puon receipt of a :py:class:`Message` on the
         `right_read_stream`.
 
@@ -286,7 +295,7 @@ class TwoInOneOut(BaseOperator):
         """
         pass
 
-    def on_watermark(self, context):
+    def on_watermark(self, context: TwoInOneOutContext):
         """Callback invoked upon receipt of a :py:class:`WatermarkMessage`
         across the two instances of the operator's :py:class:`ReadStream`.
 
@@ -329,7 +338,11 @@ class OneInTwoOut(BaseOperator):
         instance._runtime_stats = defaultdict(deque)
         return instance
 
-    def run(self, read_stream, left_write_stream, right_write_stream):
+    def run(self,
+            read_stream: ReadStream,
+            left_write_stream: WriteStream,
+            right_write_stream: WriteStream,
+            ):
         """Runs the operator.
 
         Invoked automatically by ERDOS, and provided with a
@@ -346,7 +359,7 @@ class OneInTwoOut(BaseOperator):
         """
         pass
 
-    def on_data(self, context, data):
+    def on_data(self, context: OneInTwoOutContext, data: Any):
         """Callback invoked upon receipt of a :py:class:`Message` on the
         `read_stream`.
 
@@ -358,7 +371,7 @@ class OneInTwoOut(BaseOperator):
         """
         pass
 
-    def on_watermark(self, context):
+    def on_watermark(self, context: OneInTwoOutContext):
         """Callback invoked upon receipt of a :py:class:`WatermarkMessage` on
         the operator's :py:class:`ReadStream`.
 
