@@ -36,64 +36,18 @@ impl PyOneInTwoOut {
             config.name
         );
 
-        // Create the locals to run the constructor.
-        let py_operator = Python::with_gil(|py| -> PyObject {
-            let locals = PyDict::new(py);
-            locals
-                .set_item("Operator", py_operator_type.clone_ref(py))
-                .err()
-                .map(|e| e.print(py));
-            locals
-                .set_item("op_id", format!("{}", config.id))
-                .err()
-                .map(|e| e.print(py));
-            locals
-                .set_item("args", py_operator_args.clone_ref(py))
-                .err()
-                .map(|e| e.print(py));
-            locals
-                .set_item("kwargs", py_operator_kwargs.clone_ref(py))
-                .err()
-                .map(|e| e.print(py));
-            locals
-                .set_item("config", py_operator_config.clone_ref(py))
-                .err()
-                .map(|e| e.print(py));
-            locals
-                .set_item("op_name", format!("{}", config.get_name()))
-                .err()
-                .map(|e| e.print(py));
-
-            // Initialize the operator.
-            let init_result = py.run(
-                r#"
-import uuid, erdos
-
-# Create the operator.
-operator = Operator.__new__(Operator)
-operator._id = uuid.UUID(op_id)
-operator._config = config
-operator._trace_event_logger = erdos.utils.setup_trace_logging(
-    "{}-profile".format(op_name), 
-    config.profile_file_name,
-)
-operator.__init__(*args, **kwargs)
-            "#,
-                None,
-                Some(&locals),
-            );
-            if let Err(e) = init_result {
-                e.print(py);
-            }
-
-            // Retrieve the constructed operator.
-            py.eval("operator", None, Some(&locals))
-                .unwrap()
-                .to_object(py)
-        });
-        Self {
+        let py_operator_config_clone = Arc::clone(&py_operator_config);
+        let py_operator = super::construct_operator(
+            py_operator_type,
+            py_operator_args,
+            py_operator_kwargs,
             py_operator_config,
-            py_operator: Arc::new(py_operator),
+            config,
+        );
+
+        Self {
+            py_operator_config: py_operator_config_clone,
+            py_operator,
             py_left_write_stream: None,
             py_right_write_stream: None,
         }
