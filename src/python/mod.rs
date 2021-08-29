@@ -17,7 +17,7 @@ mod py_timestamp;
 
 // Private imports
 use py_message::PyMessage;
-use py_operators::{PyOneInOneOut, PyOneInTwoOut, PySink, PySource};
+use py_operators::{PyOneInOneOut, PyOneInTwoOut, PySink, PySource, PyTwoInOneOut};
 use py_stream::{
     PyExtractStream, PyIngestStream, PyLoopStream, PyReadStream, PyStream, PyWriteStream,
 };
@@ -252,6 +252,63 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
             PyStream::from(left_write_stream),
             PyStream::from(right_write_stream),
         ))
+    }
+
+    #[pyfn(m)]
+    #[pyo3(name = "connect_two_in_one_out")]
+    fn connect_two_in_one_out_py(
+        py: Python,
+        py_type: PyObject,
+        py_config: PyObject,
+        left_read_stream: &PyStream,
+        right_read_stream: &PyStream,
+        args: PyObject,
+        kwargs: PyObject,
+        node_id: NodeId,
+    ) -> PyResult<PyStream> {
+        // Create the config.
+        let operator_name: Option<String> = py_config.getattr(py, "name")?.extract(py)?;
+        let name = match &operator_name {
+            Some(n) => n.clone(),
+            None => String::from("OneInOneOut"),
+        };
+        let flow_watermarks: bool = py_config.getattr(py, "flow_watermarks")?.extract(py)?;
+        let mut config = OperatorConfig::new()
+            .name(&name)
+            .node(node_id)
+            .flow_watermarks(flow_watermarks);
+        config.id = OperatorId::new_deterministic();
+        slog::debug!(
+            crate::TERMINAL_LOGGER,
+            "Assigning ID {} to {}.",
+            config.id,
+            name,
+        );
+        let config_copy = config.clone();
+
+        // Arc objects to pass to the executor.
+        let py_type_arc = Arc::new(py_type);
+        let py_config_arc = Arc::new(py_config);
+        let args_arc = Arc::new(args);
+        let kwargs_arc = Arc::new(kwargs);
+
+        let write_stream = crate::connect_two_in_one_out(
+            move || -> PyTwoInOneOut {
+                PyTwoInOneOut::new(
+                    Arc::clone(&py_type_arc),
+                    Arc::clone(&args_arc),
+                    Arc::clone(&kwargs_arc),
+                    Arc::clone(&py_config_arc),
+                    config_copy.clone(),
+                )
+            },
+            || {},
+            config,
+            &left_read_stream.stream,
+            &right_read_stream.stream,
+        );
+
+        Ok(PyStream::from(write_stream))
     }
 
     #[pyfn(m)]
