@@ -160,7 +160,6 @@ write_stream = erdos.WriteStream(_py_write_stream=py_write_stream,
             // NOTE: We must forget the Arc<ReadStream> instance since Rust calls the Drop trait
             // at the end of this block, which leads to a dropped ReadStream for the executor, thus
             // preventing the execution of the message and watermark callbacks.
-            // TODO: We need to check how big this memory leak is, if any.
             mem::forget(read_stream_arc);
         }
     }
