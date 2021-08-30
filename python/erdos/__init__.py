@@ -58,6 +58,11 @@ def connect_source(
         raise TypeError(
                 "{} must subclass erdos.operator.Source".format(op_type))
 
+    if op_type.run.__code__.co_code == \
+            erdos.operator.Source.run.__code__.co_code:
+        logger.warn("The operator {} does not "
+                    "implement the `run` method.".format(op_type))
+
     # 1-index operators because node 0 is preserved for the current process,
     # and each node can only run 1 python operator.
     global _num_py_operators
@@ -93,6 +98,16 @@ def connect_sink(
     if not issubclass(op_type, erdos.operator.Sink):
         raise TypeError(
                 "{} must subclass erdos.operator.Sink".format(op_type))
+
+    if op_type.run.__code__.co_code == \
+            erdos.operator.Sink.run.__code__.co_code and\
+            op_type.on_data.__code__.co_code == \
+            erdos.operator.Sink.on_data.__code__.co_code and\
+            op_type.on_watermark.__code__.co_code == \
+            erdos.operator.Sink.on_watermark.__code__.co_code:
+        logger.warn("The operator {} does not implement any of the "
+                    "`run`, `on_data` or `on_watermark` methods.".format(
+                        op_type))
 
     # 1-index operators because node 0 is preserved for the current process,
     # and each node can only run 1 python operator.
@@ -134,6 +149,16 @@ def connect_one_in_one_out(
     if not issubclass(op_type, erdos.operator.OneInOneOut):
         raise TypeError(
                 "{} must subclass erdos.operator.OneInOneOut".format(op_type))
+
+    if op_type.run.__code__.co_code == \
+            erdos.operator.OneInOneOut.run.__code__.co_code and\
+            op_type.on_data.__code__.co_code == \
+            erdos.operator.OneInOneOut.on_data.__code__.co_code and\
+            op_type.on_watermark.__code__.co_code == \
+            erdos.operator.OneInOneOut.on_watermark.__code__.co_code:
+        logger.warn("The operator {} does not implement any of the "
+                    "`run`, `on_data` or `on_watermark` methods.".format(
+                        op_type))
 
     # 1-index operators because node 0 is preserved for the current process,
     # and each node can only run 1 python operator.
@@ -184,6 +209,18 @@ def connect_two_in_one_out(
         raise TypeError(
                 "{} must subclass erdos.operator.TwoInOneOut".format(op_type))
 
+    if op_type.run.__code__.co_code == \
+            erdos.operator.TwoInOneOut.run.__code__.co_code and\
+            op_type.on_left_data.__code__.co_code == \
+            erdos.operator.TwoInOneOut.on_left_data.__code__.co_code and\
+            op_type.on_right_data.__code__.co_code == \
+            erdos.operator.TwoInOneOut.on_right_data.__code__.co_code and\
+            op_type.on_watermark.__code__.co_code == \
+            erdos.operator.TwoInOneOut.on_watermark.__code__.co_code:
+        logger.warn("The operator {} does not implement any of the `run`, "
+                    "`on_left_data`, `on_right_data` or `on_watermark` "
+                    "methods.".format(op_type))
+
     # 1-index operators because node 0 is preserved for the current process,
     # and each node can only run 1 python operator.
     global _num_py_operators
@@ -231,6 +268,16 @@ def connect_one_in_two_out(
     if not issubclass(op_type, erdos.operator.OneInTwoOut):
         raise TypeError(
                 "{} must subclass erdos.operator.OneInTwoOut".format(op_type))
+
+    if op_type.run.__code__.co_code == \
+            erdos.operator.OneInTwoOut.run.__code__.co_code and\
+            op_type.on_data.__code__.co_code == \
+            erdos.operator.OneInTwoOut.on_data.__code__.co_code and\
+            op_type.on_watermark.__code__.co_code == \
+            erdos.operator.OneInTwoOut.on_watermark.__code__.co_code:
+        logger.warn("The operator {} does not implement any of the "
+                    "`run`, `on_data` or `on_watermark` methods.".format(
+                        op_type))
 
     # 1-index operators because node 0 is preserved for the current process,
     # and each node can only run 1 python operator.
