@@ -274,7 +274,7 @@ where
     }
 
     fn lattice(&self) -> Arc<ExecutionLattice> {
-        Arc::clone(&self.helper.lattice)
+        self.helper.get_lattice()
     }
 
     fn operator_id(&self) -> OperatorId {
@@ -405,7 +405,7 @@ where
     }
 
     fn lattice(&self) -> Arc<ExecutionLattice> {
-        Arc::clone(&self.helper.lattice)
+        self.helper.get_lattice()
     }
 
     fn operator_id(&self) -> OperatorId {
@@ -427,7 +427,7 @@ pub struct OperatorExecutorHelper {
 }
 
 impl OperatorExecutorHelper {
-    fn new(operator_id: OperatorId) -> Self {
+    pub(crate) fn new(operator_id: OperatorId) -> Self {
         let (deadline_queue, deadline_queue_rx) = delay_queue();
         OperatorExecutorHelper {
             operator_id,
@@ -438,7 +438,11 @@ impl OperatorExecutorHelper {
         }
     }
 
-    async fn synchronize(&self) {
+    pub(crate) fn get_lattice(&self) -> Arc<ExecutionLattice> {
+        Arc::clone(&self.lattice)
+    }
+
+    pub(crate) async fn synchronize(&self) {
         // TODO: replace this with a synchronization step
         // that ensures all operators are ready to run.
         tokio::time::sleep(Duration::from_secs(1)).await;
@@ -464,7 +468,7 @@ impl OperatorExecutorHelper {
         }
     }
 
-    async fn process_stream<S, T>(
+    pub(crate) async fn process_stream<S, T>(
         &mut self,
         mut read_stream: ReadStream<T>,
         message_processor: &mut dyn OneInMessageProcessorT<S, T>,
@@ -580,7 +584,7 @@ impl OperatorExecutorHelper {
         }
     }
 
-    async fn process_two_streams<T, U>(
+    pub(crate) async fn process_two_streams<T, U>(
         &self,
         mut left_read_stream: ReadStream<T>,
         mut right_read_stream: ReadStream<U>,
