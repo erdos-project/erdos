@@ -21,10 +21,10 @@ impl PyExtractStream {
     fn new(py_stream: &PyStream, name: Option<String>) -> Self {
         match name {
             Some(_name) => Self {
-                extract_stream: ExtractStream::new_with_name(0, &py_stream.stream, &_name),
+                extract_stream: ExtractStream::new_with_name(&py_stream.stream, &_name),
             },
             None => Self {
-                extract_stream: ExtractStream::new(0, &py_stream.stream),
+                extract_stream: ExtractStream::new(&py_stream.stream),
             },
         }
     }

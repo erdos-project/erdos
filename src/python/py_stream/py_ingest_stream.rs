@@ -5,7 +5,6 @@ use crate::{
         stream::{IngestStream, StreamT},
         Message,
     },
-    node::NodeId,
     python::PyMessage,
 };
 
@@ -20,13 +19,13 @@ pub struct PyIngestStream {
 #[pymethods]
 impl PyIngestStream {
     #[new]
-    fn new(node_id: NodeId, name: Option<String>) -> Self {
+    fn new(name: Option<String>) -> Self {
         match name {
             Some(_name) => Self {
-                ingest_stream: IngestStream::new_with_name(node_id, &_name),
+                ingest_stream: IngestStream::new_with_name(&_name),
             },
             None => Self {
-                ingest_stream: IngestStream::new(node_id),
+                ingest_stream: IngestStream::new(),
             },
         }
     }

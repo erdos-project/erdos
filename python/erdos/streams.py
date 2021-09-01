@@ -175,7 +175,7 @@ class IngestStream(object):
     operator to which it was connected.
     """
     def __init__(self, _name: Union[str, None] = None):
-        self._py_ingest_stream = PyIngestStream(0, _name)
+        self._py_ingest_stream = PyIngestStream(_name)
         self._name = _name
 
     @property
