@@ -87,7 +87,7 @@ use super::{
 pub struct ReadStream<D: Data> {
     /// The id of the stream.
     id: StreamId,
-    /// User-defined stream name.
+    /// The name of the stream.
     name: String,
     /// Whether the stream is closed.
     is_closed: bool,
@@ -202,8 +202,8 @@ impl<D: Data> ReadStream<D> {
     }
 
     /// Get the name of the stream.
-    fn name(&self) -> &str {
-        &self.name
+    pub fn name(&self) -> String {
+        self.name.clone()
     }
 }
 
