@@ -87,22 +87,22 @@ pub(crate) fn add_stream_alias(from_id: StreamId, to_id: StreamId) -> Result<(),
 }
 
 #[allow(unused_variables)]
-pub(crate) fn set_stream_name(stream_id: StreamId, name: &str) {
+pub(crate) fn set_stream_name(stream_id: &StreamId, name: &str) {
     unimplemented!("TODO(peter): implement when refactoring the graph.")
 }
 
 #[allow(unused_variables)]
-pub(crate) fn get_stream_name(stream_id: StreamId) -> String {
+pub(crate) fn get_stream_name(stream_id: &StreamId) -> String {
     unimplemented!("TODO(peter): implement when refactoring the graph.")
 }
 
 #[allow(unused_variables)]
-pub(crate) fn set_stream_origin(stream_id: StreamId, origin: StreamOrigin) {
+pub(crate) fn set_stream_origin(stream_id: &StreamId, origin: StreamOrigin) {
     unimplemented!("TODO(peter): implement when refactoring the graph.")
 }
 
 #[allow(unused_variables)]
-pub(crate) fn get_stream_origin(stream_id: StreamId, origin: StreamOrigin) {
+pub(crate) fn get_stream_origin(stream_id: &StreamId) -> StreamOrigin {
     unimplemented!("TODO(peter): implement when refactoring the graph.")
 }
 
