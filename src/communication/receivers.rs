@@ -1,6 +1,7 @@
-use futures::{future, stream::SplitStream};
-use futures_util::stream::StreamExt;
 use std::{collections::HashMap, sync::Arc};
+
+use futures::{future, stream::SplitStream, FutureExt};
+use futures_util::stream::StreamExt;
 use tokio::{
     net::TcpStream,
     sync::{
@@ -74,7 +75,7 @@ impl DataReceiver {
                 Ok(msg) => {
                     // Update pushers before we send the message.
                     // Note: we may want to update the pushers less frequently.
-                    self.update_pushers();
+                    self.update_pushers().await;
                     // Send the message.
                     let (metadata, bytes) = match msg {
                         InterProcessMessage::Serialized { metadata, bytes } => (metadata, bytes),
@@ -102,9 +103,9 @@ impl DataReceiver {
     }
 
     // TODO: update this method.
-    fn update_pushers(&mut self) {
+    async fn update_pushers(&mut self) {
         // Execute while we still have pusher updates.
-        while let Ok((stream_id, pusher)) = self.rx.try_recv() {
+        while let Some(Some((stream_id, pusher))) = self.rx.recv().now_or_never() {
             self.stream_id_to_pusher.insert(stream_id, pusher);
         }
     }

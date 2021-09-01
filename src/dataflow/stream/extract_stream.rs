@@ -9,7 +9,6 @@ use serde::Deserialize;
 
 use crate::{
     dataflow::{graph::default_graph, Data, Message},
-    node::NodeId,
     scheduler::channel_manager::ChannelManager,
 };
 
@@ -40,8 +39,8 @@ use super::{
 //  #     .name("MapOperator")
 /// #     .arg(|data: &u32| -> u64 { (data * 2) as u64 });
 /// #
-/// // Create an IngestStream which runs on node 0.
-/// let mut ingest_stream = IngestStream::new(0); // or IngestStream::new_with_name(0, "driver")
+/// // Create an IngestStream.
+/// let mut ingest_stream = IngestStream::new(); // or IngestStream::new_with_name("driver")
 ///
 /// // Create an ExtractStream from the ReadStream of the MapOperator.
 /// let output_read_stream = connect_1_write!(MapOperator<u32, u64>, map_config, ingest_stream);
@@ -73,8 +72,6 @@ where
     id: StreamId,
     /// The name of the stream (String representation of the ID, if no name provided)
     name: String,
-    /// The ID of the Node where the stream runs.
-    node_id: NodeId,
     /// The ReadStream associated with the ExtractStream.
     read_stream_option: Option<ReadStream<D>>,
     // Used to circumvent requiring Send to transfer ReadStream across threads
@@ -88,41 +85,37 @@ where
     /// Returns a new instance of the [`ExtractStream`]
     ///
     /// # Arguments
-    /// * `node_id`: The ID of the Node where the driver is running (typically, 0).
     /// * `read_stream`: The [`ReadStream`] returned by an
     /// [`Operator`](crate::dataflow::operator::Operator) to extract the messages from.
-    pub fn new(node_id: NodeId, read_stream: &Stream<D>) -> Self {
+    pub fn new(read_stream: &Stream<D>) -> Self {
         slog::debug!(
             crate::TERMINAL_LOGGER,
-            "Initializing an ExtractStream on the node {} with the ReadStream {} (ID: {})",
-            node_id,
+            "Initializing an ExtractStream with the ReadStream {} (ID: {})",
             read_stream.name(),
             read_stream.id(),
         );
-        ExtractStream::new_internal(node_id, read_stream, None)
+        ExtractStream::new_internal(read_stream, None)
     }
 
     /// Returns a new instance of the [`ExtractStream`]
     ///
     /// # Arguments
-    /// * `node_id`: The ID of the Node where the driver is running (typically, 0).
     /// * `read_stream`: The [`ReadStream`] returned by an
     /// [`Operator`](crate::dataflow::operator::Operator) to extract the messages from.
     /// * `name`: The name to be given to the stream.
-    pub fn new_with_name(node_id: NodeId, read_stream: &Stream<D>, name: &str) -> Self {
+    pub fn new_with_name(read_stream: &Stream<D>, name: &str) -> Self {
         slog::debug!(
             crate::TERMINAL_LOGGER,
-            "Initializing an ExtractStream {} on the node {} with the ReadStream {} (ID: {})",
+            "Initializing an ExtractStream {} with the ReadStream {} (ID: {})",
             name,
-            node_id,
             read_stream.name(),
             read_stream.id(),
         );
-        ExtractStream::new_internal(node_id, read_stream, Some(name.to_string()))
+        ExtractStream::new_internal(read_stream, Some(name.to_string()))
     }
 
     /// Creates the appropriate channels for the [`ExtractStream`] and adds it to the dataflow.
-    fn new_internal(node_id: NodeId, read_stream: &Stream<D>, name: Option<String>) -> Self {
+    fn new_internal(read_stream: &Stream<D>, name: Option<String>) -> Self {
         // Generate an ID, and use it as the name if no name was provided.
         let id = read_stream.id();
         let stream_name = match name {
@@ -134,7 +127,6 @@ where
         let extract_stream = Self {
             id,
             name: stream_name,
-            node_id,
             read_stream_option: None,
             channel_manager_option: Arc::new(Mutex::new(None)),
         };
@@ -150,11 +142,6 @@ where
 
         default_graph::add_extract_stream(&extract_stream, setup_hook);
         extract_stream
-    }
-
-    /// Get the ID of the node where the stream originated from. (Typically 0 for driver nodes.)
-    pub fn node_id(&self) -> NodeId {
-        self.node_id
     }
 
     /// Returns `true` if a top watermark message was sent or the [`ExtractStream`] failed to set

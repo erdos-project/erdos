@@ -1,11 +1,6 @@
 extern crate erdos;
 
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-    thread,
-    time::Duration,
-};
+use std::{collections::HashMap, thread, time::Duration};
 
 use erdos::dataflow::context::*;
 use erdos::dataflow::deadlines::*;
@@ -45,56 +40,40 @@ impl Source<(), usize> for SourceOperator {
     }
 }
 
-struct SquareOperator {
-    deadline_ctx: Arc<Mutex<DeadlineCtx>>,
-}
+struct SquareOperator {}
 
 impl SquareOperator {
     pub fn new() -> Self {
-        Self {
-            deadline_ctx: Arc::new(Mutex::new(DeadlineCtx::new())),
-        }
-    }
-}
-
-struct SquareOperatorState {}
-
-impl SquareOperatorState {
-    fn new() -> Self {
         Self {}
     }
 }
 
+struct SquareOperatorState {
+    current_timestamp: Timestamp,
+}
+
+impl SquareOperatorState {
+    fn new() -> Self {
+        Self {
+            current_timestamp: Timestamp::Bottom,
+        }
+    }
+}
+
 impl StateT for SquareOperatorState {
-    fn commit(&mut self, _timestamp: &Timestamp) {}
-}
-
-struct DeadlineCtx {
-    val: usize,
-}
-
-impl DeadlineCtx {
-    pub fn new() -> Self {
-        Self { val: 0 }
+    fn commit(&mut self, timestamp: &Timestamp) {
+        self.current_timestamp = timestamp.clone();
     }
 
-    pub fn increment(&mut self) {
-        self.val += 1;
-    }
-
-    pub fn deadline(&mut self) -> Duration {
-        self.increment();
-        Duration::new(5, 0)
+    fn get_last_committed_timestamp(&self) -> Timestamp {
+        self.current_timestamp.clone()
     }
 }
 
 impl OneInOneOut<SquareOperatorState, usize, usize> for SquareOperator {
     fn setup(&mut self, ctx: &mut SetupContext<SquareOperatorState>) {
-        let deadline_ctx = Arc::clone(&self.deadline_ctx);
         ctx.add_deadline(TimestampDeadline::new(
-            move |_s: &SquareOperatorState, _t: &Timestamp| -> Duration {
-                deadline_ctx.lock().unwrap().deadline()
-            },
+            move |_s: &SquareOperatorState, _t: &Timestamp| -> Duration { Duration::new(2, 0) },
             |_s: &SquareOperatorState, _t: &Timestamp| {
                 slog::info!(
                     erdos::get_terminal_logger(),
@@ -140,12 +119,16 @@ impl SumOperator {
 
 struct SumOperatorState {
     counter: usize,
+    current_timestamp: Timestamp,
 }
 
 #[allow(dead_code)]
 impl SumOperatorState {
     fn new() -> Self {
-        Self { counter: 0 }
+        Self {
+            counter: 0,
+            current_timestamp: Timestamp::Bottom,
+        }
     }
 
     fn increment_counter(&mut self, value: usize) {
@@ -158,7 +141,13 @@ impl SumOperatorState {
 }
 
 impl StateT for SumOperatorState {
-    fn commit(&mut self, _timestamp: &Timestamp) {}
+    fn commit(&mut self, timestamp: &Timestamp) {
+        self.current_timestamp = timestamp.clone();
+    }
+
+    fn get_last_committed_timestamp(&self) -> Timestamp {
+        self.current_timestamp.clone()
+    }
 }
 
 impl OneInOneOut<SumOperatorState, usize, usize> for SumOperator {
@@ -197,12 +186,14 @@ impl SinkOperator {
 
 struct SinkOperatorState {
     message_counter: HashMap<Timestamp, usize>,
+    current_timestamp: Timestamp,
 }
 
 impl SinkOperatorState {
     fn new() -> Self {
         Self {
             message_counter: HashMap::new(),
+            current_timestamp: Timestamp::Bottom,
         }
     }
 
@@ -217,7 +208,13 @@ impl SinkOperatorState {
 }
 
 impl StateT for SinkOperatorState {
-    fn commit(&mut self, _timestamp: &Timestamp) {}
+    fn commit(&mut self, timestamp: &Timestamp) {
+        self.current_timestamp = timestamp.clone();
+    }
+
+    fn get_last_committed_timestamp(&self) -> Timestamp {
+        self.current_timestamp.clone()
+    }
 }
 
 impl Sink<SinkOperatorState, usize> for SinkOperator {
@@ -254,12 +251,16 @@ impl JoinSumOperator {
 
 struct JoinSumOperatorState {
     sum: usize,
+    current_timestamp: Timestamp,
 }
 
 #[allow(dead_code)]
 impl JoinSumOperatorState {
     fn new() -> Self {
-        Self { sum: 0 }
+        Self {
+            sum: 0,
+            current_timestamp: Timestamp::Bottom,
+        }
     }
 
     fn add(&mut self, value: usize) {
@@ -272,7 +273,13 @@ impl JoinSumOperatorState {
 }
 
 impl StateT for JoinSumOperatorState {
-    fn commit(&mut self, _timestamp: &Timestamp) {}
+    fn commit(&mut self, timestamp: &Timestamp) {
+        self.current_timestamp = timestamp.clone();
+    }
+
+    fn get_last_committed_timestamp(&self) -> Timestamp {
+        self.current_timestamp.clone()
+    }
 }
 
 impl TwoInOneOut<JoinSumOperatorState, usize, usize, usize> for JoinSumOperator {
@@ -334,17 +341,27 @@ impl EvenOddOperator {
     }
 }
 
-struct EvenOddOperatorState {}
+struct EvenOddOperatorState {
+    current_timestamp: Timestamp,
+}
 
 #[allow(dead_code)]
 impl EvenOddOperatorState {
     fn new() -> Self {
-        Self {}
+        Self {
+            current_timestamp: Timestamp::Bottom,
+        }
     }
 }
 
 impl StateT for EvenOddOperatorState {
-    fn commit(&mut self, _timestamp: &Timestamp) {}
+    fn commit(&mut self, timestamp: &Timestamp) {
+        self.current_timestamp = timestamp.clone();
+    }
+
+    fn get_last_committed_timestamp(&self) -> Timestamp {
+        self.current_timestamp.clone()
+    }
 }
 
 impl OneInTwoOut<EvenOddOperatorState, usize, usize, usize> for EvenOddOperator {

@@ -8,9 +8,9 @@ use std::{
 use crate::{
     dataflow::{
         context::{OneInOneOutContext, ParallelOneInOneOutContext, SetupContext},
-        deadlines::{DeadlineEvent, DeadlineId},
+        deadlines::{ConditionContext, DeadlineEvent, DeadlineId},
         operator::{OneInOneOut, OperatorConfig, ParallelOneInOneOut},
-        stream::{StreamT, WriteStreamT},
+        stream::{StreamId, StreamT, WriteStreamT},
         AppendableStateT, Data, Message, ReadStream, StateT, Timestamp, WriteStream,
     },
     node::{
@@ -182,6 +182,62 @@ where
                 OperatorType::Parallel,
             )
         }
+    }
+
+    fn arm_deadlines(
+        &self,
+        setup_context: &mut SetupContext<S>,
+        read_stream_id: StreamId,
+        condition_context: &ConditionContext,
+        timestamp: Timestamp,
+    ) -> Vec<DeadlineEvent> {
+        let mut deadline_events = Vec::new();
+        let state = Arc::clone(&self.state);
+        for deadline in setup_context.get_deadlines() {
+            if deadline
+                .get_constrained_read_stream_ids()
+                .contains(&read_stream_id)
+                && deadline.invoke_start_condition(
+                    vec![read_stream_id],
+                    condition_context,
+                    &timestamp,
+                )
+            {
+                // Compute the deadline for the timestamp.
+                let deadline_duration = deadline.calculate_deadline(&state, &timestamp);
+                deadline_events.push(DeadlineEvent::new(
+                    deadline.get_constrained_read_stream_ids().clone(),
+                    deadline.get_constrained_write_stream_ids().clone(),
+                    timestamp.clone(),
+                    deadline_duration,
+                    deadline.get_end_condition_fn(),
+                    deadline.get_id(),
+                ));
+            }
+        }
+        deadline_events
+    }
+
+    fn disarm_deadline(&self, deadline_event: &DeadlineEvent) -> bool {
+        let write_stream_id = self.write_stream.id();
+        if deadline_event.write_stream_ids.contains(&write_stream_id) {
+            // Invoke the end condition function on the statistics from the WriteStream.
+            return (deadline_event.end_condition)(
+                vec![write_stream_id],
+                &self.write_stream.get_condition_context(),
+                &deadline_event.timestamp,
+            );
+        }
+        false
+    }
+
+    fn invoke_handler(
+        &self,
+        setup_context: &mut SetupContext<S>,
+        deadline_id: DeadlineId,
+        timestamp: Timestamp,
+    ) {
+        setup_context.invoke_handler(deadline_id, &(*self.state), &timestamp);
     }
 }
 
@@ -366,20 +422,28 @@ where
     fn arm_deadlines(
         &self,
         setup_context: &mut SetupContext<S>,
-        read_stream: &ReadStream<T>,
+        read_stream_id: StreamId,
+        condition_context: &ConditionContext,
         timestamp: Timestamp,
     ) -> Vec<DeadlineEvent> {
         let mut deadline_events = Vec::new();
         let state = Arc::clone(&self.state);
         for deadline in setup_context.get_deadlines() {
-            if deadline.is_constrained_on_read_stream(read_stream.id())
-                && deadline.invoke_start_condition(read_stream.get_condition_context(), &timestamp)
+            if deadline
+                .get_constrained_read_stream_ids()
+                .contains(&read_stream_id)
+                && deadline.invoke_start_condition(
+                    vec![read_stream_id],
+                    condition_context,
+                    &timestamp,
+                )
             {
                 // Compute the deadline for the timestamp.
                 let deadline_duration =
                     deadline.calculate_deadline(&(*state.lock().unwrap()), &timestamp);
                 deadline_events.push(DeadlineEvent::new(
-                    read_stream.id(),
+                    deadline.get_constrained_read_stream_ids().clone(),
+                    deadline.get_constrained_write_stream_ids().clone(),
                     timestamp.clone(),
                     deadline_duration,
                     deadline.get_end_condition_fn(),
@@ -390,12 +454,25 @@ where
         deadline_events
     }
 
+    fn disarm_deadline(&self, deadline_event: &DeadlineEvent) -> bool {
+        let write_stream_id = self.write_stream.id();
+        if deadline_event.write_stream_ids.contains(&write_stream_id) {
+            // Invoke the end condition function on the statistics from the WriteStream.
+            return (deadline_event.end_condition)(
+                vec![write_stream_id],
+                &self.write_stream.get_condition_context(),
+                &deadline_event.timestamp,
+            );
+        }
+        false
+    }
+
     fn invoke_handler(
         &self,
         setup_context: &mut SetupContext<S>,
         deadline_id: DeadlineId,
         timestamp: Timestamp,
     ) {
-        setup_context.invoke_handler(deadline_id, &mut (*self.state.lock().unwrap()), &timestamp);
+        setup_context.invoke_handler(deadline_id, &(*self.state.lock().unwrap()), &timestamp);
     }
 }

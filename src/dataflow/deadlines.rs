@@ -13,8 +13,8 @@ pub type DeadlineId = crate::Uuid;
 /// evaluation of the start and end conditions (s.a. the message counts and the state of the
 /// watermarks on each stream for the given timestamp) and the current timestamp for which the
 /// condition is being executed.
-pub trait CondFn: Fn(&ConditionContext, &Timestamp) -> bool + Send + Sync {}
-impl<F: Fn(&ConditionContext, &Timestamp) -> bool + Send + Sync> CondFn for F {}
+pub trait CondFn: Fn(Vec<StreamId>, &ConditionContext, &Timestamp) -> bool + Send + Sync {}
+impl<F: Fn(Vec<StreamId>, &ConditionContext, &Timestamp) -> bool + Send + Sync> CondFn for F {}
 
 /// A trait that defines the deadline function. This function receives access to the State of the
 /// operator along with the current timestamp, and must calculate the time after which the deadline
@@ -26,12 +26,15 @@ impl<S, F: FnMut(&S, &Timestamp) -> Duration + Send + Sync> DeadlineFn<S> for F 
 pub trait HandlerFn<S>: FnMut(&S, &Timestamp) + Send + Sync {}
 impl<S, F: FnMut(&S, &Timestamp) + Send + Sync> HandlerFn<S> for F {}
 
-/// A trait implemented by the different types of deadlines available to operators. 
+/// A trait implemented by the different types of deadlines available to operators.
 pub trait DeadlineT<S>: Send + Sync {
-    fn is_constrained_on_read_stream(&self, stream_id: StreamId) -> bool;
+    fn get_constrained_read_stream_ids(&self) -> &HashSet<StreamId>;
+
+    fn get_constrained_write_stream_ids(&self) -> &HashSet<StreamId>;
 
     fn invoke_start_condition(
         &self,
+        read_stream_ids: Vec<StreamId>,
         condition_context: &ConditionContext,
         timestamp: &Timestamp,
     ) -> bool;
@@ -42,7 +45,7 @@ pub trait DeadlineT<S>: Send + Sync {
 
     fn get_id(&self) -> DeadlineId;
 
-    fn invoke_handler(&self, state: &mut S, timestamp: &Timestamp);
+    fn invoke_handler(&self, state: &S, timestamp: &Timestamp);
 }
 
 /// A TimestampDeadline constrains the duration between the start and end conditions for a
@@ -56,6 +59,7 @@ where
     deadline_fn: Arc<Mutex<dyn DeadlineFn<S>>>,
     handler_fn: Arc<Mutex<dyn HandlerFn<S>>>,
     read_stream_ids: HashSet<StreamId>,
+    write_stream_ids: HashSet<StreamId>,
     id: DeadlineId,
 }
 
@@ -74,12 +78,18 @@ where
             deadline_fn: Arc::new(Mutex::new(deadline_fn)),
             handler_fn: Arc::new(Mutex::new(handler_fn)),
             read_stream_ids: HashSet::new(),
+            write_stream_ids: HashSet::new(),
             id: DeadlineId::new_deterministic(),
         }
     }
 
     pub fn on_read_stream(mut self, read_stream_id: StreamId) -> Self {
         self.read_stream_ids.insert(read_stream_id);
+        self
+    }
+
+    pub fn on_write_stream(mut self, write_stream_id: StreamId) -> Self {
+        self.write_stream_ids.insert(write_stream_id);
         self
     }
 
@@ -101,42 +111,52 @@ where
         Arc::clone(&self.end_condition_fn)
     }
 
-    pub(crate) fn end_condition(
-        &self,
-        condition_context: &ConditionContext,
-        current_timestamp: &Timestamp,
-    ) -> bool {
-        (self.end_condition_fn)(condition_context, current_timestamp)
-    }
-
     /// The default start condition of TimestampDeadlines.
     fn default_start_condition(
+        stream_ids: Vec<StreamId>,
         condition_context: &ConditionContext,
         current_timestamp: &Timestamp,
     ) -> bool {
         slog::debug!(
             crate::TERMINAL_LOGGER,
-            "Executed default start condition for the timestamp: {:?} with the context: {:?}",
+            "Executed default start condition for the streams {:?} and the \
+            timestamp: {:?} with the context: {:?}",
+            stream_ids,
             current_timestamp,
             condition_context,
         );
-        // TODO (Sukrit): Implement the start condition function.
-        true
+        // If this message is the first for the given timestamp on any stream, start the deadline.
+        for stream_id in stream_ids {
+            if condition_context.get_message_count(stream_id, current_timestamp.clone()) == 1 {
+                return true;
+            }
+        }
+        false
     }
 
     /// The default end condition of TimestampDeadlines.
     fn default_end_condition(
+        stream_ids: Vec<StreamId>,
         condition_context: &ConditionContext,
         current_timestamp: &Timestamp,
     ) -> bool {
         slog::debug!(
             crate::TERMINAL_LOGGER,
-            "Executed default end condition for the timestamp: {:?} with the context: {:?}",
+            "Executed default end condition for the streams {:?} and the \
+            timestamp: {:?} with the context: {:?}",
+            stream_ids,
             current_timestamp,
             condition_context,
         );
-        // TODO (Sukrit): Implement the end condition function.
-        false
+        // If the watermark for the given timestamp has been sent on all the streams, end the
+        // deadline.
+        for stream_id in stream_ids {
+            if condition_context.get_watermark_status(stream_id, current_timestamp.clone()) == false
+            {
+                return false;
+            }
+        }
+        true
     }
 }
 
@@ -144,16 +164,21 @@ impl<S> DeadlineT<S> for TimestampDeadline<S>
 where
     S: StateT,
 {
-    fn is_constrained_on_read_stream(&self, stream_id: StreamId) -> bool {
-        self.read_stream_ids.contains(&stream_id)
+    fn get_constrained_read_stream_ids(&self) -> &HashSet<StreamId> {
+        &self.read_stream_ids
+    }
+
+    fn get_constrained_write_stream_ids(&self) -> &HashSet<StreamId> {
+        &self.write_stream_ids
     }
 
     fn invoke_start_condition(
         &self,
+        read_stream_ids: Vec<StreamId>,
         condition_context: &ConditionContext,
         timestamp: &Timestamp,
     ) -> bool {
-        (self.start_condition_fn)(condition_context, timestamp)
+        (self.start_condition_fn)(read_stream_ids, condition_context, timestamp)
     }
 
     fn calculate_deadline(&self, state: &S, timestamp: &Timestamp) -> Duration {
@@ -168,7 +193,7 @@ where
         self.id
     }
 
-    fn invoke_handler(&self, state: &mut S, timestamp: &Timestamp) {
+    fn invoke_handler(&self, state: &S, timestamp: &Timestamp) {
         (self.handler_fn.lock().unwrap())(state, timestamp)
     }
 }
@@ -178,7 +203,8 @@ where
 /// timestamp). Upon expiration of the deadline (defined as `duration`), the `end_condition`
 /// function is checked, and the `handler` is invoked if it was not satisfied.
 pub struct DeadlineEvent {
-    pub stream_id: StreamId,
+    pub read_stream_ids: HashSet<StreamId>,
+    pub write_stream_ids: HashSet<StreamId>,
     pub timestamp: Timestamp,
     pub duration: Duration,
     pub end_condition: Arc<dyn CondFn>,
@@ -187,14 +213,16 @@ pub struct DeadlineEvent {
 
 impl DeadlineEvent {
     pub fn new(
-        stream_id: StreamId,
+        read_stream_ids: HashSet<StreamId>,
+        write_stream_ids: HashSet<StreamId>,
         timestamp: Timestamp,
         duration: Duration,
         end_condition: Arc<dyn CondFn>,
         id: DeadlineId,
     ) -> Self {
         Self {
-            stream_id,
+            read_stream_ids,
+            write_stream_ids,
             timestamp,
             duration,
             end_condition,
@@ -206,7 +234,7 @@ impl DeadlineEvent {
 /// A ConditionContext contains the count of the number of messages received on a stream along with
 /// the status of the watermark for each timestamp. This data is made available to the start and
 /// end condition functions to decide when to trigger the beginning and completion of deadlines.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ConditionContext {
     message_count: HashMap<(StreamId, Timestamp), usize>,
     watermark_status: HashMap<(StreamId, Timestamp), bool>,
@@ -239,5 +267,36 @@ impl ConditionContext {
     pub fn clear_state(&mut self, stream_id: StreamId, timestamp: Timestamp) {
         self.message_count.remove(&(stream_id, timestamp.clone()));
         self.watermark_status.remove(&(stream_id, timestamp));
+    }
+
+    pub fn get_message_count(&self, stream_id: StreamId, timestamp: Timestamp) -> usize {
+        match self.message_count.get(&(stream_id, timestamp)) {
+            Some(v) => *v,
+            None => 0,
+        }
+    }
+
+    pub fn get_watermark_status(&self, stream_id: StreamId, timestamp: Timestamp) -> bool {
+        match self.watermark_status.get(&(stream_id, timestamp)) {
+            Some(v) => *v,
+            None => false,
+        }
+    }
+
+    pub(crate) fn merge(&self, other: &ConditionContext) -> Self {
+        ConditionContext {
+            message_count: self
+                .message_count
+                .clone()
+                .into_iter()
+                .chain(other.message_count.clone())
+                .collect(),
+            watermark_status: self
+                .watermark_status
+                .clone()
+                .into_iter()
+                .chain(other.watermark_status.clone())
+                .collect(),
+        }
     }
 }
