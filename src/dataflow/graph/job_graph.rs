@@ -1,11 +1,11 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, marker::PhantomData};
 
 use petgraph::stable_graph::{EdgeIndex, NodeIndex, StableGraph};
 
 use crate::{
     dataflow::{
-        stream::{Stream, StreamId},
-        Data, StreamT,
+        stream::{Stream, StreamId, StreamOrigin},
+        Data,
     },
     OperatorConfig, OperatorId,
 };
@@ -22,25 +22,40 @@ struct Job {
     config: OperatorConfig,
 }
 
-trait UntypedStream {
-    fn id(&self) -> StreamId;
-    fn name(&self) -> &str;
-    fn source(&self) -> OperatorId;
+struct GraphStream<D: Data> {
+    id: StreamId,
+    origin: StreamOrigin,
+    name: String,
+    phantom: PhantomData<D>,
 }
 
-impl<D: Data> UntypedStream for Stream<D> {
+trait UntypedGraphStream {
+    fn id(&self) -> StreamId;
+    fn origin(&self) -> StreamOrigin;
+    fn set_origin(&mut self, origin: StreamOrigin);
+    fn name(&self) -> String;
+    fn set_name(&mut self, name: String);
+}
+
+impl<D: Data> UntypedGraphStream for GraphStream<D> {
     fn id(&self) -> StreamId {
-        StreamT::<D>::id(self)
+        self.id
     }
 
-    // Problem: what if the user calls set_name() after?
-    // Solution: Rc<RefCell> (or Arc Mutex) the Stream.
-    fn name(&self) -> &str {
-        StreamT::<D>::name(self)
+    fn origin(&self) -> StreamOrigin {
+        self.origin.clone()
     }
 
-    fn source(&self) -> OperatorId {
-        self.source
+    fn set_origin(&mut self, origin: StreamOrigin) {
+        self.origin = origin;
+    }
+
+    fn set_name(&mut self, name: String) {
+        self.name = name;
+    }
+
+    fn name(&self) -> String {
+        self.name.clone()
     }
 }
 
@@ -52,7 +67,7 @@ pub struct JobGraph {
     graph: StableGraph<Job, Channel>,
     operator_id_to_idx: HashMap<OperatorId, NodeIndex>,
     stream_id_to_edges: HashMap<StreamId, Vec<NodeIndex>>,
-    streams: HashMap<StreamId, Box<dyn UntypedStream>>,
+    streams: HashMap<StreamId, Box<dyn UntypedGraphStream>>,
 }
 
 impl JobGraph {
@@ -64,5 +79,21 @@ impl JobGraph {
         left_write_stream: Option<Stream<V>>,
         right_write_stream: Option<Stream<W>>,
     ) {
+    }
+
+    pub(crate) fn get_stream_name(&self, stream_id: &StreamId) -> String {
+        self.streams.get(stream_id).unwrap().name()
+    }
+
+    pub(crate) fn set_stream_name(&mut self, stream_id: &StreamId, name: String) {
+        self.streams.get_mut(stream_id).unwrap().set_name(name);
+    }
+
+    pub(crate) fn get_stream_origin(&self, stream_id: &StreamId) -> StreamOrigin {
+        self.streams.get(stream_id).unwrap().origin()
+    }
+
+    pub(crate) fn set_stream_origin(&mut self, stream_id: &StreamId, origin: StreamOrigin) {
+        self.streams.get_mut(stream_id).unwrap().set_origin(origin);
     }
 }
