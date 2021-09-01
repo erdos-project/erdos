@@ -22,6 +22,10 @@ pub trait StateT: 'static + Send + Sync {
 
 impl StateT for () {
     fn commit(&mut self, _timestamp: &Timestamp) {}
+
+    fn get_last_committed_timestamp(&self) -> Timestamp {
+        Timestamp::Bottom
+    }
 }
 
 /// Trait that must be implemented by a state structure that is used in a Sequential operator.
