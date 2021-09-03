@@ -221,9 +221,7 @@ class ExtractStream(object):
     Args:
         stream (:py:class:`Stream`): The stream from which to read messages.
     """
-    def __init__(self,
-                 stream: Stream,
-                 _name: Union[str, None] = None):
+    def __init__(self, stream: Stream, _name: Union[str, None] = None):
         if not isinstance(stream, Stream):
             raise ValueError(
                 "ExtractStream needs to be initialized with a Stream. "

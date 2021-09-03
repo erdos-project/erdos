@@ -56,7 +56,7 @@ def connect_source(
     """
     if not issubclass(op_type, erdos.operator.Source):
         raise TypeError(
-                "{} must subclass erdos.operator.Source".format(op_type))
+            "{} must subclass erdos.operator.Source".format(op_type))
 
     if (op_type.run.__code__.co_code ==
             erdos.operator.Source.run.__code__.co_code):
@@ -96,18 +96,17 @@ def connect_sink(
             initialization.
     """
     if not issubclass(op_type, erdos.operator.Sink):
-        raise TypeError(
-                "{} must subclass erdos.operator.Sink".format(op_type))
+        raise TypeError("{} must subclass erdos.operator.Sink".format(op_type))
 
-    if (op_type.run.__code__.co_code ==
-            erdos.operator.Sink.run.__code__.co_code and
-            op_type.on_data.__code__.co_code ==
-            erdos.operator.Sink.on_data.__code__.co_code and
-            op_type.on_watermark.__code__.co_code ==
-            erdos.operator.Sink.on_watermark.__code__.co_code):
-        logger.warn("The operator {} does not implement any of the "
-                    "`run`, `on_data` or `on_watermark` methods.".format(
-                        op_type))
+    if (op_type.run.__code__.co_code
+            == erdos.operator.Sink.run.__code__.co_code
+            and op_type.on_data.__code__.co_code
+            == erdos.operator.Sink.on_data.__code__.co_code
+            and op_type.on_watermark.__code__.co_code
+            == erdos.operator.Sink.on_watermark.__code__.co_code):
+        logger.warn(
+            "The operator {} does not implement any of the "
+            "`run`, `on_data` or `on_watermark` methods.".format(op_type))
 
     # 1-index operators because node 0 is preserved for the current process,
     # and each node can only run 1 python operator.
@@ -117,8 +116,8 @@ def connect_sink(
     logger.debug("Connecting operator #{num} ({name}) to the graph.".format(
         num=node_id, name=config.name))
 
-    _internal.connect_sink(op_type, config, read_stream._py_stream,
-                           args, kwargs, node_id)
+    _internal.connect_sink(op_type, config, read_stream._py_stream, args,
+                           kwargs, node_id)
 
 
 def connect_one_in_one_out(
@@ -148,17 +147,17 @@ def connect_one_in_one_out(
     """
     if not issubclass(op_type, erdos.operator.OneInOneOut):
         raise TypeError(
-                "{} must subclass erdos.operator.OneInOneOut".format(op_type))
+            "{} must subclass erdos.operator.OneInOneOut".format(op_type))
 
-    if (op_type.run.__code__.co_code ==
-            erdos.operator.OneInOneOut.run.__code__.co_code and
-            op_type.on_data.__code__.co_code ==
-            erdos.operator.OneInOneOut.on_data.__code__.co_code and
-            op_type.on_watermark.__code__.co_code ==
-            erdos.operator.OneInOneOut.on_watermark.__code__.co_code):
-        logger.warn("The operator {} does not implement any of the "
-                    "`run`, `on_data` or `on_watermark` methods.".format(
-                        op_type))
+    if (op_type.run.__code__.co_code
+            == erdos.operator.OneInOneOut.run.__code__.co_code
+            and op_type.on_data.__code__.co_code
+            == erdos.operator.OneInOneOut.on_data.__code__.co_code
+            and op_type.on_watermark.__code__.co_code
+            == erdos.operator.OneInOneOut.on_watermark.__code__.co_code):
+        logger.warn(
+            "The operator {} does not implement any of the "
+            "`run`, `on_data` or `on_watermark` methods.".format(op_type))
 
     # 1-index operators because node 0 is preserved for the current process,
     # and each node can only run 1 python operator.
@@ -168,12 +167,9 @@ def connect_one_in_one_out(
     logger.debug("Connecting operator #{num} ({name}) to the graph.".format(
         num=node_id, name=config.name))
 
-    internal_stream = _internal.connect_one_in_one_out(
-                            op_type,
-                            config,
-                            read_stream._py_stream,
-                            args, kwargs,
-                            node_id)
+    internal_stream = _internal.connect_one_in_one_out(op_type, config,
+                                                       read_stream._py_stream,
+                                                       args, kwargs, node_id)
     return Stream(_py_stream=internal_stream)
 
 
@@ -207,16 +203,16 @@ def connect_two_in_one_out(
     """
     if not issubclass(op_type, erdos.operator.TwoInOneOut):
         raise TypeError(
-                "{} must subclass erdos.operator.TwoInOneOut".format(op_type))
+            "{} must subclass erdos.operator.TwoInOneOut".format(op_type))
 
-    if (op_type.run.__code__.co_code ==
-            erdos.operator.TwoInOneOut.run.__code__.co_code and
-            op_type.on_left_data.__code__.co_code ==
-            erdos.operator.TwoInOneOut.on_left_data.__code__.co_code and
-            op_type.on_right_data.__code__.co_code ==
-            erdos.operator.TwoInOneOut.on_right_data.__code__.co_code and
-            op_type.on_watermark.__code__.co_code ==
-            erdos.operator.TwoInOneOut.on_watermark.__code__.co_code):
+    if (op_type.run.__code__.co_code
+            == erdos.operator.TwoInOneOut.run.__code__.co_code
+            and op_type.on_left_data.__code__.co_code
+            == erdos.operator.TwoInOneOut.on_left_data.__code__.co_code
+            and op_type.on_right_data.__code__.co_code
+            == erdos.operator.TwoInOneOut.on_right_data.__code__.co_code
+            and op_type.on_watermark.__code__.co_code
+            == erdos.operator.TwoInOneOut.on_watermark.__code__.co_code):
         logger.warn("The operator {} does not implement any of the `run`, "
                     "`on_left_data`, `on_right_data` or `on_watermark` "
                     "methods.".format(op_type))
@@ -230,12 +226,8 @@ def connect_two_in_one_out(
         num=node_id, name=config.name))
 
     internal_stream = _internal.connect_two_in_one_out(
-                            op_type,
-                            config,
-                            left_read_stream._py_stream,
-                            right_read_stream._py_stream,
-                            args, kwargs,
-                            node_id)
+        op_type, config, left_read_stream._py_stream,
+        right_read_stream._py_stream, args, kwargs, node_id)
     return Stream(_py_stream=internal_stream)
 
 
@@ -267,17 +259,17 @@ def connect_one_in_two_out(
     """
     if not issubclass(op_type, erdos.operator.OneInTwoOut):
         raise TypeError(
-                "{} must subclass erdos.operator.OneInTwoOut".format(op_type))
+            "{} must subclass erdos.operator.OneInTwoOut".format(op_type))
 
-    if (op_type.run.__code__.co_code ==
-            erdos.operator.OneInTwoOut.run.__code__.co_code and
-            op_type.on_data.__code__.co_code ==
-            erdos.operator.OneInTwoOut.on_data.__code__.co_code and
-            op_type.on_watermark.__code__.co_code ==
-            erdos.operator.OneInTwoOut.on_watermark.__code__.co_code):
-        logger.warn("The operator {} does not implement any of the "
-                    "`run`, `on_data` or `on_watermark` methods.".format(
-                        op_type))
+    if (op_type.run.__code__.co_code
+            == erdos.operator.OneInTwoOut.run.__code__.co_code
+            and op_type.on_data.__code__.co_code
+            == erdos.operator.OneInTwoOut.on_data.__code__.co_code
+            and op_type.on_watermark.__code__.co_code
+            == erdos.operator.OneInTwoOut.on_watermark.__code__.co_code):
+        logger.warn(
+            "The operator {} does not implement any of the "
+            "`run`, `on_data` or `on_watermark` methods.".format(op_type))
 
     # 1-index operators because node 0 is preserved for the current process,
     # and each node can only run 1 python operator.
@@ -288,11 +280,7 @@ def connect_one_in_two_out(
         num=node_id, name=config.name))
 
     left_stream, right_stream = _internal.connect_one_in_two_out(
-                                        op_type,
-                                        config,
-                                        read_stream._py_stream,
-                                        args, kwargs,
-                                        node_id)
+        op_type, config, read_stream._py_stream, args, kwargs, node_id)
     return Stream(_py_stream=left_stream), Stream(_py_stream=right_stream)
 
 

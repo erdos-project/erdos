@@ -28,14 +28,14 @@ class Timestamp(object):
             self._py_timestamp = timestamp._py_timestamp
         else:
             if is_top and not is_bottom and coordinates is None:
-                self._py_timestamp = PyTimestamp(coordinates,
-                                                 is_top, is_bottom)
+                self._py_timestamp = PyTimestamp(coordinates, is_top,
+                                                 is_bottom)
             elif is_bottom and not is_top and coordinates is None:
-                self._py_timestamp = PyTimestamp(coordinates,
-                                                 is_top, is_bottom)
+                self._py_timestamp = PyTimestamp(coordinates, is_top,
+                                                 is_bottom)
             elif coordinates is not None and not is_bottom and not is_top:
-                self._py_timestamp = PyTimestamp(coordinates,
-                                                 is_top, is_bottom)
+                self._py_timestamp = PyTimestamp(coordinates, is_top,
+                                                 is_bottom)
             else:
                 raise ValueError("Timestamp should either have coordinates"
                                  "or be either Top or Bottom")
