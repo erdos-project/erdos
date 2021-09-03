@@ -45,7 +45,7 @@ where
 {
     /// The id of the stream.
     stream_id: StreamId,
-    /// The receive endopoints of the stream.
+    /// The receive endpoints of the stream.
     recv_endpoints: Vec<RecvEndpoint<Arc<Message<D>>>>,
     /// The send endpoints of the stream.
     send_endpoints: Vec<SendEndpoint<Arc<Message<D>>>>,

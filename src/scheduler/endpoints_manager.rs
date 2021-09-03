@@ -10,7 +10,7 @@ use crate::{
 /// Wrapper used to update pushers in the TCP receiving.
 ///
 /// Stores `mpsc::Sender`s to receivers on which `PusherT` can be sent to inform
-/// the receivers that data should be sent to ne operators.
+/// the receivers that data should be sent to new operators.
 pub struct ChannelsToReceivers {
     // We do not use a tokio::mpsc::UnboundedSender because that only provides a blocking API.
     // It does not allow us to just check if the channel has a new message. We need this API in

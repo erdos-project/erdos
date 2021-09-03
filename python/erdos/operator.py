@@ -251,11 +251,12 @@ class TwoInOneOut(BaseOperator):
         instance._runtime_stats = defaultdict(deque)
         return instance
 
-    def run(self,
-            left_read_stream: ReadStream,
-            right_read_stream: ReadStream,
-            write_stream: WriteStream,
-            ):
+    def run(
+        self,
+        left_read_stream: ReadStream,
+        right_read_stream: ReadStream,
+        write_stream: WriteStream,
+    ):
         """Runs the operator.
 
         Invoked automatically by ERDOS, and provided with two instances of
@@ -338,11 +339,12 @@ class OneInTwoOut(BaseOperator):
         instance._runtime_stats = defaultdict(deque)
         return instance
 
-    def run(self,
-            read_stream: ReadStream,
-            left_write_stream: WriteStream,
-            right_write_stream: WriteStream,
-            ):
+    def run(
+        self,
+        read_stream: ReadStream,
+        left_write_stream: WriteStream,
+        right_write_stream: WriteStream,
+    ):
         """Runs the operator.
 
         Invoked automatically by ERDOS, and provided with a
@@ -446,7 +448,7 @@ class OperatorConfig(object):
 
     def __str__(self):
         return "OperatorConfig(name={}, flow_watermarks={})".format(
-                self.name, self.flow_watermarks)
+            self.name, self.flow_watermarks)
 
     def __repr__(self):
         return str(self)

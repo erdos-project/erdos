@@ -24,7 +24,7 @@ use crate::{
 /// Listens on a TCP stream, and pushes messages it receives to operator executors.
 #[allow(dead_code)]
 pub(crate) struct DataReceiver {
-    /// The id of the node the stream is receiving data from.
+    /// The id of the node the TCP stream is receiving data from.
     node_id: NodeId,
     /// Framed TCP read stream.
     stream: SplitStream<Framed<TcpStream, MessageCodec>>,

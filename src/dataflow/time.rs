@@ -9,7 +9,8 @@ pub type Timestamp = IntTimestamp;
 /// Information about when an operator released a message.
 #[derive(Debug, Clone, Serialize, Deserialize, Abomonation, PartialEq, Eq, Hash)]
 pub enum IntTimestamp {
-    /// The timestamp used to close the streams. Signifies completion of all data.
+    /// The timestamp used to close the streams. It is the greatest timestamp, and thus signifies
+    /// completion of all data.
     Top,
     /// The multi-dimension timestamp conveyed by this instance.
     Time(Vec<u64>),

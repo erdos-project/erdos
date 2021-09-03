@@ -1,6 +1,6 @@
 use crate::communication::{CommunicationError, TryRecvError};
 
-/// Errors raised by reading from a `ReadStream`.
+/// Errors raised when something went wrong while reading from a `ReadStream`.
 #[derive(Debug, PartialEq)]
 pub enum ReadError {
     /// Message deserialization failed.
@@ -36,10 +36,9 @@ impl From<TryRecvError> for TryReadError {
     }
 }
 
-/// Error raised by the WriteStream layer.
-// TODO: rename this to SendError
+/// Error raised when something went wrong while sending on a `WriteStream`.
 #[derive(Debug, PartialEq)]
-pub enum WriteStreamError {
+pub enum SendError {
     /// Message serialization failed.
     SerializationError,
     /// There was a network or a `mpsc::channel` error.
@@ -50,28 +49,26 @@ pub enum WriteStreamError {
     Closed,
 }
 
-impl From<CommunicationError> for WriteStreamError {
+impl From<CommunicationError> for SendError {
     fn from(e: CommunicationError) -> Self {
         match e {
-            CommunicationError::NoCapacity | CommunicationError::Disconnected => {
-                WriteStreamError::IOError
-            }
+            CommunicationError::NoCapacity | CommunicationError::Disconnected => SendError::IOError,
             CommunicationError::SerializeNotImplemented
             | CommunicationError::DeserializeNotImplemented => {
                 eprintln!("Serialize not implemented");
-                WriteStreamError::SerializationError
+                SendError::SerializationError
             }
             CommunicationError::AbomonationError(error) => {
                 eprintln!("Abomonation error {}", error);
-                WriteStreamError::SerializationError
+                SendError::SerializationError
             }
             CommunicationError::BincodeError(error) => {
                 eprintln!("Bincode error {}", error);
-                WriteStreamError::SerializationError
+                SendError::SerializationError
             }
             CommunicationError::IoError(io_error) => {
                 eprintln!("Got write stream IOError {}", io_error);
-                WriteStreamError::IOError
+                SendError::IOError
             }
         }
     }

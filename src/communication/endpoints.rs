@@ -14,7 +14,7 @@ pub enum SendEndpoint<D: Clone + Send + Debug> {
     /// Send messages to an operator running in the same process.
     InterThread(mpsc::UnboundedSender<D>),
     /// Send messages to operators running on a different node.
-    /// Data is first sended to [`DataSender`](crate::communication::senders::DataSender)
+    /// Data is first sent to [`DataSender`](crate::communication::senders::DataSender)
     /// which encodes and sends the message on a TCP stream.
     InterProcess(StreamId, mpsc::UnboundedSender<InterProcessMessage>),
 }

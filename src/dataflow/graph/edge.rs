@@ -11,8 +11,11 @@ use super::Vertex;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub(crate) enum Channel {
+    /// Between two operators running in a process.
     InterThread(ChannelMetadata),
+    /// Between two operators running in different processes.
     InterNode(ChannelMetadata),
+    /// The channel has not been initialized yet.
     Unscheduled(ChannelMetadata),
 }
 
@@ -63,9 +66,11 @@ where
 
 pub(crate) trait StreamMetadataT: Send {
     fn id(&self) -> StreamId;
+    /// Returns the source operator of the stream.
     fn source(&self) -> Vertex;
     fn box_clone(&self) -> Box<dyn StreamMetadataT>;
     fn to_stream_endpoints_t(&self) -> Box<dyn StreamEndpointsT>;
+    /// Adds a channel to the stream (i.e., another destination operator).
     fn add_channel(&mut self, channel: Channel);
     fn get_channels(&self) -> Vec<Channel>;
     fn set_channels(&mut self, channels: Vec<Channel>);

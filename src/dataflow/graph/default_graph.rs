@@ -49,6 +49,9 @@ where
     });
 }
 
+/// Adds an [`IngestStream`] to the default graph.
+///
+/// The stream can be used by the driver to insert data into the dataflow.
 pub(crate) fn add_ingest_stream<D, F: StreamSetupHook>(
     ingest_stream: &IngestStream<D>,
     setup_hook: F,
@@ -60,6 +63,9 @@ pub(crate) fn add_ingest_stream<D, F: StreamSetupHook>(
     });
 }
 
+/// Adds an [`ExtractStream`] to the default graph.
+///
+/// The stream can be used by the driver to read data from the dataflow.
 pub(crate) fn add_extract_stream<D, F: StreamSetupHook>(
     extract_stream: &ExtractStream<D>,
     setup_hook: F,
@@ -72,6 +78,9 @@ pub(crate) fn add_extract_stream<D, F: StreamSetupHook>(
     });
 }
 
+/// Adds a [`LoopStream`] to the default graph.
+///
+/// The stream can be used by the driver to create cycles in the dataflow.
 pub(crate) fn add_loop_stream<D>(loop_stream: &LoopStream<D>)
 where
     for<'a> D: Data + Deserialize<'a>,

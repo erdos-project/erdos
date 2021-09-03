@@ -6,7 +6,7 @@ from setuptools_rust import Binding, RustExtension
 package_dir = os.path.dirname(__file__)
 
 # Put all package dependencies here
-requires = ["fire", "numpy"]
+requires = ["fire", "numpy==1.19.0"]
 
 setup(
     name="erdos",

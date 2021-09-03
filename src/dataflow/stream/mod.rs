@@ -30,7 +30,7 @@ mod write_stream;
 pub mod errors;
 
 // Private imports
-use errors::WriteStreamError;
+use errors::SendError;
 
 // Public exports
 pub use extract_stream::ExtractStream;
@@ -46,7 +46,7 @@ pub type StreamId = crate::Uuid;
 /// [`send`](WriteStreamT::send) depending on the serialization library used.
 pub trait WriteStreamT<D: Data> {
     /// Sends a messsage to a channel.
-    fn send(&mut self, msg: Message<D>) -> Result<(), WriteStreamError>;
+    fn send(&mut self, msg: Message<D>) -> Result<(), SendError>;
 }
 
 pub trait StreamT<D: Data> {

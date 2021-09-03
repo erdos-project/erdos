@@ -16,6 +16,8 @@ use crate::{
     OperatorId,
 };
 
+/// Adds a [`Source`] operator, which has no read streams, but introduces data into the dataflow
+/// graph by interacting with external data sources (e.g., other systems, sensor data).
 pub fn connect_source<O, S, T>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
@@ -64,6 +66,8 @@ where
     write_stream
 }
 
+/// Adds a [`ParallelSink`] operator, which receives data on input read streams and directly
+/// interacts with external systems.
 pub fn connect_parallel_sink<O, S, T, U>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
@@ -111,6 +115,8 @@ pub fn connect_parallel_sink<O, S, T, U>(
     );
 }
 
+/// Adds a [`Sink`] operator, which receives data on input read streams and directly interacts
+/// with external systems.
 pub fn connect_sink<O, S, T>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
@@ -157,6 +163,8 @@ pub fn connect_sink<O, S, T>(
     );
 }
 
+/// Adds a [`ParallelOneInOneOut`] operator that has one input read stream and one output
+/// write stream.
 pub fn connect_parallel_one_in_one_out<O, S, T, U, V>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
@@ -215,6 +223,7 @@ where
     write_stream
 }
 
+/// Adds a [`OneInOneOut`] operator that has one input read stream and one output write stream.
 pub fn connect_one_in_one_out<O, S, T, U>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
@@ -273,6 +282,8 @@ where
     write_stream
 }
 
+/// Adds a [`ParallelTwoInOneOut`] operator that has two input read streams and one output
+/// write stream.
 pub fn connect_parallel_two_in_one_out<O, S, T, U, V, W>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
@@ -337,6 +348,7 @@ where
     write_stream
 }
 
+/// Adds a [`TwoInOneOut`] operator that has two input read streams and one output write stream.
 pub fn connect_two_in_one_out<O, S, T, U, V>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
@@ -400,6 +412,8 @@ where
     write_stream
 }
 
+/// Adds a [`ParallelOneInTwoOut`] operator that has one input read stream and two output
+/// write streams.
 pub fn connect_parallel_one_in_two_out<O, S, T, U, V, W>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
@@ -465,6 +479,7 @@ where
     (left_write_stream, right_write_stream)
 }
 
+/// Adds a [`OneInTwoOut`] operator that has one input read stream and two output write streams.
 pub fn connect_one_in_two_out<O, S, T, U, V>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
