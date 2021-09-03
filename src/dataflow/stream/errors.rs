@@ -1,6 +1,6 @@
 use crate::communication::{CommunicationError, TryRecvError};
 
-/// Error raised when something went wrong while reading from a `ReadStream`.
+/// Errors raised when something went wrong while reading from a `ReadStream`.
 #[derive(Debug, PartialEq)]
 pub enum ReadError {
     /// Message deserialization failed.

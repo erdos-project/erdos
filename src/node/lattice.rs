@@ -37,7 +37,7 @@ impl RunnableEvent {
         }
     }
 
-    /// Adds a `Timestamp` to the event.
+    /// Adds a [`Timestamp`] to the event.
     pub fn with_timestamp(mut self, timestamp: Timestamp) -> Self {
         self.timestamp = Some(timestamp);
         self
