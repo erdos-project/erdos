@@ -15,7 +15,7 @@ class SinkContext(object):
             the driver upon connection of the operator to the graph.
     """
     def __init__(self, timestamp: PyTimestamp,
-                 config: 'OperatorConfig'):  # noqa: F821
+                 config: 'OperatorConfig'):  # noqa: F821 Q000
         self.timestamp = Timestamp(_py_timestamp=timestamp)
         self.config = config
 
@@ -40,7 +40,7 @@ class OneInOneOutContext(object):
     def __init__(
         self,
         timestamp: PyTimestamp,
-        config: 'OperatorConfig',  # noqa: F821
+        config: 'OperatorConfig',  # noqa: F821 Q000
         write_stream: WriteStream,
     ):
         self.timestamp = Timestamp(_py_timestamp=timestamp)
@@ -70,7 +70,7 @@ class OneInTwoOutContext(object):
     def __init__(
         self,
         timestamp: PyTimestamp,
-        config: 'OperatorConfig',  # noqa: F821
+        config: 'OperatorConfig',  # noqa: F821 Q000
         left_write_stream: WriteStream,
         right_write_stream: WriteStream,
     ):
@@ -105,7 +105,7 @@ class TwoInOneOutContext(object):
     def __init__(
         self,
         timestamp: PyTimestamp,
-        config: 'OperatorConfig',  # noqa: F821
+        config: 'OperatorConfig',  # noqa: F821 Q000
         write_stream: WriteStream,
     ):
         self.timestamp = Timestamp(_py_timestamp=timestamp)
