@@ -52,10 +52,8 @@ jobs:
         run: |
           flake8 --inline-quotes="double" ./doc/
           flake8 --inline-quotes="double" ./python/
-          flake8 --inline-quotes="double" ./scripts/
           yapf --diff --recursive ./doc/
           yapf --diff --recursive ./python/
-          yapf --diff --recursive ./scripts/
       - name: Install latest Rust nightly
         uses: actions-rs/toolchain@v1
         with:
