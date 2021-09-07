@@ -43,6 +43,8 @@ where
 /// ordered by the timestamp order.
 #[allow(unused_variables)]
 pub trait ParallelSink<S: AppendableStateT<U>, T: Data, U>: Send + Sync {
+    fn setup(&mut self, setup_context: &mut SetupContext<S>) {}
+
     fn run(&mut self, read_stream: &mut ReadStream<T>) {}
 
     fn destroy(&mut self) {}
@@ -66,6 +68,8 @@ pub trait ParallelSink<S: AppendableStateT<U>, T: Data, U>: Send + Sync {
 /// allowed to mutate state in both the message and the watermark callbacks.
 #[allow(unused_variables)]
 pub trait Sink<S: StateT, T: Data>: Send + Sync {
+    fn setup(&mut self, setup_context: &mut SetupContext<S>) {}
+
     fn run(&mut self, read_stream: &mut ReadStream<T>) {}
 
     fn destroy(&mut self) {}
@@ -98,6 +102,8 @@ where
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
+    fn setup(&mut self, setup_context: &mut SetupContext<S>) {}
+
     fn run(&mut self, read_stream: &mut ReadStream<T>, write_stream: &mut WriteStream<U>) {}
 
     fn destroy(&mut self) {}
@@ -161,6 +167,8 @@ where
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
 {
+    fn setup(&mut self, setup_context: &mut SetupContext<S>) {}
+
     fn run(
         &mut self,
         left_read_stream: &mut ReadStream<T>,
@@ -198,6 +206,8 @@ where
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
 {
+    fn setup(&mut self, setup_context: &mut SetupContext<S>) {}
+
     fn run(
         &mut self,
         left_read_stream: &mut ReadStream<T>,
@@ -239,6 +249,8 @@ where
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
 {
+    fn setup(&mut self, setup_context: &mut SetupContext<S>) {}
+
     fn run(
         &mut self,
         read_stream: &mut ReadStream<T>,
@@ -274,6 +286,8 @@ where
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
 {
+    fn setup(&mut self, setup_context: &mut SetupContext<S>) {}
+
     fn run(
         &mut self,
         read_stream: &mut ReadStream<T>,

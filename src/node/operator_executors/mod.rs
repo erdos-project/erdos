@@ -78,10 +78,7 @@ where
     T: Data + for<'a> Deserialize<'a>,
 {
     /// Executes the `setup` method inside the operator.
-    // TODO (Sukrit): Stopgap to prevent compilation errors. Remove once deadline API is decided.
-    fn execute_setup(&mut self, _read_stream: &mut ReadStream<T>) -> SetupContext<S> {
-        SetupContext::new(Vec::new(), Vec::new())
-    }
+    fn execute_setup(&mut self, read_stream: &mut ReadStream<T>) -> SetupContext<S>;
 
     /// Executes the `run` method inside the operator.
     fn execute_run(&mut self, read_stream: &mut ReadStream<T>);
@@ -99,7 +96,7 @@ where
     fn arm_deadlines(
         &self,
         setup_context: &mut SetupContext<S>,
-        read_stream_id: StreamId,
+        read_stream_ids: Vec<StreamId>,
         condition_context: &ConditionContext,
         timestamp: Timestamp,
     ) -> Vec<DeadlineEvent>;
@@ -125,16 +122,23 @@ where
 /// streams. This trait is used by the executors to invoke the callback corresponding to the event
 /// occurring in the system. (T is the datatype of the first stream, and U is the datatype of the
 /// second stream)
-pub trait TwoInMessageProcessorT<T, U>: Send + Sync
+pub trait TwoInMessageProcessorT<S, T, U>: Send + Sync
 where
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
+    /// Executes the `setup` method inside the operator.
+    fn execute_setup(
+        &mut self,
+        left_read_stream: &mut ReadStream<T>,
+        right_read_stream: &mut ReadStream<U>,
+    ) -> SetupContext<S>;
+
     /// Executes the `run` method inside the operator.
     fn execute_run(
         &mut self,
-        _left_read_stream: &mut ReadStream<T>,
-        _right_read_stream: &mut ReadStream<U>,
+        left_read_stream: &mut ReadStream<T>,
+        right_read_stream: &mut ReadStream<U>,
     );
 
     /// Executes the `destroy` method inside the operator.
@@ -149,8 +153,29 @@ where
     /// Generates an OperatorEvent for a watermark callback.
     fn watermark_cb_event(&mut self, timestamp: &Timestamp) -> OperatorEvent;
 
+    /// Generates a DeadlineEvent for arming a deadline.
+    fn arm_deadlines(
+        &self,
+        setup_context: &mut SetupContext<S>,
+        read_stream_ids: Vec<StreamId>,
+        condition_context: &ConditionContext,
+        timestamp: Timestamp,
+    ) -> Vec<DeadlineEvent>;
+
+    /// Disarms a deadline by returning true if the given deadline should be disarmed, or false
+    /// otherwise.
+    fn disarm_deadline(&self, deadline_event: &DeadlineEvent) -> bool;
+
     /// Cleans up the write streams and any other data owned by the executor.
     fn cleanup(&mut self) {}
+
+    /// Invokes the handler for the given DeadlineId in case of a missed deadline.
+    fn invoke_handler(
+        &self,
+        setup_context: &mut SetupContext<S>,
+        deadline_id: DeadlineId,
+        timestamp: Timestamp,
+    );
 }
 
 /* ***********************************************************************************************
@@ -199,7 +224,6 @@ where
         let mut read_stream: ReadStream<T> = self.read_stream.take().unwrap();
         let mut setup_context =
             tokio::task::block_in_place(|| self.processor.execute_setup(&mut read_stream));
-        // TODO (Sukrit): Implement deadlines and `setup` method for the operators.
 
         // Execute the `run` method.
         slog::debug!(
@@ -283,26 +307,26 @@ where
 }
 
 /// Executor that executes operators that process messages on two read streams of type T and U.
-pub struct TwoInExecutor<T, U>
+pub struct TwoInExecutor<S, T, U>
 where
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
     config: OperatorConfig,
-    processor: Box<dyn TwoInMessageProcessorT<T, U>>,
+    processor: Box<dyn TwoInMessageProcessorT<S, T, U>>,
     helper: OperatorExecutorHelper,
     left_read_stream: Option<ReadStream<T>>,
     right_read_stream: Option<ReadStream<U>>,
 }
 
-impl<T, U> TwoInExecutor<T, U>
+impl<S, T, U> TwoInExecutor<S, T, U>
 where
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
     pub fn new(
         config: OperatorConfig,
-        processor: Box<dyn TwoInMessageProcessorT<T, U>>,
+        processor: Box<dyn TwoInMessageProcessorT<S, T, U>>,
         left_read_stream: ReadStream<T>,
         right_read_stream: ReadStream<U>,
     ) -> Self {
@@ -328,7 +352,10 @@ where
         // Run the `setup` method.
         let mut left_read_stream: ReadStream<T> = self.left_read_stream.take().unwrap();
         let mut right_read_stream: ReadStream<U> = self.right_read_stream.take().unwrap();
-        // TODO (Sukrit): Implement deadlines and the `setup` method for the operators.
+        let mut setup_context = tokio::task::block_in_place(|| {
+            self.processor
+                .execute_setup(&mut left_read_stream, &mut right_read_stream)
+        });
 
         // Execute the `run` method.
         slog::debug!(
@@ -348,6 +375,7 @@ where
             right_read_stream,
             &mut (*self.processor),
             &channel_to_event_runners,
+            &mut setup_context,
         );
 
         // Shutdown.
@@ -386,7 +414,7 @@ where
     }
 }
 
-impl<T, U> OperatorExecutorT for TwoInExecutor<T, U>
+impl<S, T, U> OperatorExecutorT for TwoInExecutor<S, T, U>
 where
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
@@ -477,7 +505,7 @@ impl OperatorExecutorHelper {
     ) where
         T: Data + for<'a> Deserialize<'a>,
     {
-        // Create a ConditionContext for the stream.
+        // Create a ConditionContext for the deadline evaluation.
         let mut condition_context = ConditionContext::new();
         loop {
             tokio::select! {
@@ -568,7 +596,7 @@ impl OperatorExecutorHelper {
                     // Arm deadlines and install them into the executor.
                     let deadline_events = message_processor.arm_deadlines(
                         setup_context,
-                        read_stream.id(),
+                        vec![read_stream.id()],
                         &condition_context,
                         msg.timestamp().clone()
                     );
@@ -584,33 +612,103 @@ impl OperatorExecutorHelper {
         }
     }
 
-    pub(crate) async fn process_two_streams<T, U>(
-        &self,
+    pub(crate) async fn process_two_streams<S, T, U>(
+        &mut self,
         mut left_read_stream: ReadStream<T>,
         mut right_read_stream: ReadStream<U>,
-        message_processor: &mut dyn TwoInMessageProcessorT<T, U>,
+        message_processor: &mut dyn TwoInMessageProcessorT<S, T, U>,
         notifier_tx: &tokio::sync::broadcast::Sender<EventNotification>,
+        setup_context: &mut SetupContext<S>,
     ) where
         T: Data + for<'a> Deserialize<'a>,
         U: Data + for<'a> Deserialize<'a>,
     {
+        // Create a ConditionContext for the deadline evaluation.
+        let mut condition_context = ConditionContext::new();
+
+        // Manage minimum watermarks across the two streams.
         let mut left_watermark = Timestamp::Bottom;
         let mut right_watermark = Timestamp::Bottom;
         let mut min_watermark = cmp::min(&left_watermark, &right_watermark).clone();
         loop {
-            let events = tokio::select! {
+            tokio::select! {
+                // DelayQueue returns `None` if the queue is empty. This means that if there are no
+                // deadlines installed, the queue will always be ready and return `None` thus
+                // wasting resources. We can potentially fix this by inserting a Deadline for the
+                // future and maintaining it so that the queue is not empty.
+                Some(deadline_event) = self.deadline_queue_rx.receive() => {
+                    // Missed a deadline. Check if the end condition is satisfied and invoke the
+                    // handler if not so.
+                    // TODO (Sukrit): The handler is invoked in the thread of the OperatorExecutor.
+                    // This may be an issue for long-running handlers since they block the
+                    // processing of future messages. We can spawn these as a separate task.
+                    if !message_processor.disarm_deadline(&deadline_event) {
+                        // Invoke the handler.
+                        message_processor.invoke_handler(
+                            setup_context,
+                            deadline_event.id,
+                            deadline_event.timestamp.clone(),
+                        );
+                    }
+
+                    // Remove the key from the hashmap and clear the state in the ConditionContext.
+                    match self.deadline_to_key_map.remove(&deadline_event.id) {
+                        None => {
+                            slog::warn!(
+                                crate::TERMINAL_LOGGER,
+                                "Could not find a key corresponding to the Deadline ID: {}",
+                                deadline_event.id,
+                            );
+                        }
+                        Some(key) => {
+                            slog::debug!(
+                                crate::TERMINAL_LOGGER,
+                                "Finished invoking the deadline handler for the DelayHandle: {:?} \
+                                corresponding to the Deadline ID: {}",
+                                key,
+                                deadline_event.id,
+                            );
+                        }
+                    }
+
+                    // Clean the state.
+                    for stream_id in deadline_event.read_stream_ids {
+                        condition_context.clear_state(stream_id, deadline_event.timestamp.clone());
+                    }
+                },
+                // If there is a message on the left ReadStream, then increment the message counts
+                // for the given timestamp, evaluate the start and end condition and install /
+                // disarm deadlines accordingly.
+                // TODO(Sukrit): The start and end conditions are evaluated in the thread of the
+                // OperatorExecutor, and can be moved to a separate task if they become a
+                // bottleneck.
                 Ok(left_msg) = left_read_stream.async_read() => {
-                    match left_msg.data() {
+                    let events = match left_msg.data() {
                         // Data message
                         Some(_) => {
-                            // Stateless callback.
+                            // Increment message count.
+                            condition_context.increment_msg_count(
+                                left_read_stream.id(),
+                                left_msg.timestamp().clone(),
+                            );
+
+                            // Create an OperatorEvent for the callback.
                             let msg_ref = Arc::clone(&left_msg);
                             let data_event = message_processor.left_message_cb_event(msg_ref);
 
                             vec![data_event]
-                        }
+                        },
+
                         // Watermark
                         None => {
+                            // Update watermark status.
+                            condition_context.notify_watermark_arrival(
+                                left_read_stream.id(),
+                                left_msg.timestamp().clone(),
+                            );
+
+                            // Create an OperatorEvent if this message increments the minimum
+                            // watermark across the two streams.
                             left_watermark = left_msg.timestamp().clone();
                             let advance_watermark = cmp::min(
                                 &left_watermark,
@@ -624,20 +722,56 @@ impl OperatorExecutorHelper {
                                 Vec::new()
                             }
                         }
-                    }
-                }
+                    };
+
+                    // Arm deadlines and install them into the executor.
+                    let deadline_events = message_processor.arm_deadlines(
+                        setup_context,
+                        vec![left_read_stream.id(), right_read_stream.id()],
+                        &condition_context,
+                        left_msg.timestamp().clone()
+                    );
+                    self.manage_deadlines(deadline_events);
+
+                    // Add the events to the lattice.
+                    self.lattice.add_events(events).await;
+                    notifier_tx
+                        .send(EventNotification::AddedEvents(self.operator_id))
+                        .unwrap();
+                },
+                // If there is a message on the right ReadStream, then increment the message counts
+                // for the given timestamp, evaluate the start and end condition and install /
+                // disarm deadlines accordingly.
+                // TODO(Sukrit): The start and end conditions are evaluated in the thread of the
+                // OperatorExecutor, and can be moved to a separate task if they become a
+                // bottleneck.
                 Ok(right_msg) = right_read_stream.async_read() => {
-                    match right_msg.data() {
+                    let events = match right_msg.data() {
                         // Data message
                         Some(_) => {
-                            // Stateless callback.
+                            // Increment message counts.
+                            condition_context.increment_msg_count(
+                                right_read_stream.id(),
+                                right_msg.timestamp().clone(),
+                            );
+
+                            // Create an OperatorEvent for the callback.
                             let msg_ref = Arc::clone(&right_msg);
                             let data_event = message_processor.right_message_cb_event(msg_ref);
 
                             vec![data_event]
-                        }
+                        },
+
                         // Watermark
                         None => {
+                            // Update watermark status.
+                            condition_context.notify_watermark_arrival(
+                                right_read_stream.id(),
+                                right_msg.timestamp().clone(),
+                            );
+
+                            // Create an OperatorEvent if this message increments the minimum
+                            // watermark across the two streams.
                             right_watermark = right_msg.timestamp().clone();
                             let advance_watermark = cmp::min(
                                 &left_watermark,
@@ -651,14 +785,25 @@ impl OperatorExecutorHelper {
                                 Vec::new()
                             }
                         }
-                    }
+                    };
+
+                    // Arm deadlines and install them into the executor.
+                    let deadline_events = message_processor.arm_deadlines(
+                        setup_context,
+                        vec![left_read_stream.id(), right_read_stream.id()],
+                        &condition_context,
+                        right_msg.timestamp().clone()
+                    );
+                    self.manage_deadlines(deadline_events);
+
+                    // Add the events to the lattice.
+                    self.lattice.add_events(events).await;
+                    notifier_tx
+                        .send(EventNotification::AddedEvents(self.operator_id))
+                        .unwrap();
                 }
                 else => break,
             };
-            self.lattice.add_events(events).await;
-            notifier_tx
-                .send(EventNotification::AddedEvents(self.operator_id))
-                .unwrap();
         }
     }
 }
