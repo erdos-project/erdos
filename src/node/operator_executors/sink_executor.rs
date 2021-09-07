@@ -137,7 +137,7 @@ where
     fn arm_deadlines(
         &self,
         setup_context: &mut SetupContext<S>,
-        read_stream_id: StreamId,
+        read_stream_ids: Vec<StreamId>,
         condition_context: &ConditionContext,
         timestamp: Timestamp,
     ) -> Vec<DeadlineEvent> {
@@ -146,12 +146,8 @@ where
         for deadline in setup_context.get_deadlines() {
             if deadline
                 .get_constrained_read_stream_ids()
-                .contains(&read_stream_id)
-                && deadline.invoke_start_condition(
-                    vec![read_stream_id],
-                    condition_context,
-                    &timestamp,
-                )
+                .is_superset(&read_stream_ids.iter().cloned().collect())
+                && deadline.invoke_start_condition(&read_stream_ids, condition_context, &timestamp)
             {
                 // Compute the deadline for the timestamp.
                 let deadline_duration = deadline.calculate_deadline(&state, &timestamp);
@@ -295,7 +291,7 @@ where
     fn arm_deadlines(
         &self,
         setup_context: &mut SetupContext<S>,
-        read_stream_id: StreamId,
+        read_stream_ids: Vec<StreamId>,
         condition_context: &ConditionContext,
         timestamp: Timestamp,
     ) -> Vec<DeadlineEvent> {
@@ -304,12 +300,8 @@ where
         for deadline in setup_context.get_deadlines() {
             if deadline
                 .get_constrained_read_stream_ids()
-                .contains(&read_stream_id)
-                && deadline.invoke_start_condition(
-                    vec![read_stream_id],
-                    condition_context,
-                    &timestamp,
-                )
+                .is_superset(&read_stream_ids.iter().cloned().collect())
+                && deadline.invoke_start_condition(&read_stream_ids, condition_context, &timestamp)
             {
                 // Compute the deadline for the timestamp.
                 let deadline_duration =
