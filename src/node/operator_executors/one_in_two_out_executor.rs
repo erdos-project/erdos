@@ -86,6 +86,17 @@ where
     V: Data + for<'a> Deserialize<'a>,
     W: 'static + Send + Sync,
 {
+    fn execute_setup(&mut self, read_stream: &mut ReadStream<T>) -> SetupContext<S> {
+        let mut setup_context = SetupContext::new(
+            vec![read_stream.id()],
+            vec![self.left_write_stream.id(), self.right_write_stream.id()],
+        );
+        Arc::get_mut(&mut self.operator)
+            .unwrap()
+            .setup(&mut setup_context);
+        setup_context
+    }
+
     fn execute_run(&mut self, read_stream: &mut ReadStream<T>) {
         Arc::get_mut(&mut self.operator).unwrap().run(
             read_stream,
@@ -345,6 +356,15 @@ where
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
 {
+    fn execute_setup(&mut self, read_stream: &mut ReadStream<T>) -> SetupContext<S> {
+        let mut setup_context = SetupContext::new(
+            vec![read_stream.id()],
+            vec![self.left_write_stream.id(), self.right_write_stream.id()],
+        );
+        self.operator.lock().unwrap().setup(&mut setup_context);
+        setup_context
+    }
+
     fn execute_run(&mut self, read_stream: &mut ReadStream<T>) {
         self.operator.lock().unwrap().run(
             read_stream,

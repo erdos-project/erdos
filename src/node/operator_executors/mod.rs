@@ -79,9 +79,7 @@ where
 {
     /// Executes the `setup` method inside the operator.
     // TODO (Sukrit): Stopgap to prevent compilation errors. Remove once deadline API is decided.
-    fn execute_setup(&mut self, _read_stream: &mut ReadStream<T>) -> SetupContext<S> {
-        SetupContext::new(Vec::new(), Vec::new())
-    }
+    fn execute_setup(&mut self, read_stream: &mut ReadStream<T>) -> SetupContext<S>;
 
     /// Executes the `run` method inside the operator.
     fn execute_run(&mut self, read_stream: &mut ReadStream<T>);
@@ -199,7 +197,6 @@ where
         let mut read_stream: ReadStream<T> = self.read_stream.take().unwrap();
         let mut setup_context =
             tokio::task::block_in_place(|| self.processor.execute_setup(&mut read_stream));
-        // TODO (Sukrit): Implement deadlines and `setup` method for the operators.
 
         // Execute the `run` method.
         slog::debug!(

@@ -10,7 +10,7 @@ use crate::{
         context::{ParallelSinkContext, SetupContext, SinkContext},
         deadlines::{ConditionContext, DeadlineEvent, DeadlineId},
         operator::{OperatorConfig, ParallelSink, Sink},
-        stream::StreamId,
+        stream::{StreamId, StreamT},
         AppendableStateT, Data, Message, ReadStream, StateT, Timestamp,
     },
     node::{
@@ -71,6 +71,14 @@ where
     T: Data + for<'a> Deserialize<'a>,
     U: 'static + Send + Sync,
 {
+    fn execute_setup(&mut self, read_stream: &mut ReadStream<T>) -> SetupContext<S> {
+        let mut setup_context = SetupContext::new(vec![read_stream.id()], vec![]);
+        Arc::get_mut(&mut self.operator)
+            .unwrap()
+            .setup(&mut setup_context);
+        setup_context
+    }
+
     fn execute_run(&mut self, read_stream: &mut ReadStream<T>) {
         Arc::get_mut(&mut self.operator).unwrap().run(read_stream);
     }
@@ -220,6 +228,12 @@ where
     S: StateT,
     T: Data + for<'a> Deserialize<'a>,
 {
+    fn execute_setup(&mut self, read_stream: &mut ReadStream<T>) -> SetupContext<S> {
+        let mut setup_context = SetupContext::new(vec![read_stream.id()], vec![]);
+        self.operator.lock().unwrap().setup(&mut setup_context);
+        setup_context
+    }
+
     fn execute_run(&mut self, read_stream: &mut ReadStream<T>) {
         self.operator.lock().unwrap().run(read_stream);
     }
