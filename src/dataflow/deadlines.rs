@@ -127,9 +127,7 @@ where
         );
         // If this message is the first for the given timestamp on any stream, start the deadline.
         for stream_id in stream_ids {
-            if condition_context.get_message_count(stream_id.clone(), current_timestamp.clone())
-                == 1
-            {
+            if condition_context.get_message_count(*stream_id, current_timestamp.clone()) == 1 {
                 return true;
             }
         }
@@ -153,7 +151,7 @@ where
         // If the watermark for the given timestamp has been sent on all the streams, end the
         // deadline.
         for stream_id in stream_ids {
-            if condition_context.get_watermark_status(stream_id.clone(), current_timestamp.clone())
+            if condition_context.get_watermark_status(*stream_id, current_timestamp.clone())
                 == false
             {
                 return false;
