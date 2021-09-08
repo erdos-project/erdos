@@ -4,11 +4,12 @@ use petgraph::{
     data::Build,
     stable_graph::{EdgeIndex, NodeIndex, StableGraph},
 };
+use serde::Deserialize;
 
 use crate::{
     dataflow::{
-        stream::{Stream, StreamId, StreamOrigin},
-        Data,
+        stream::{ExtractStream, IngestStream, Stream, StreamId, StreamOrigin},
+        Data, LoopStream,
     },
     OperatorConfig, OperatorId,
 };
@@ -16,7 +17,9 @@ use crate::{
 use super::{OperatorRunner, StreamSetupHook};
 
 enum Job {
+    /// An operator in the dataflow.
     Operator(OperatorJob),
+    /// The driver.
     Driver(DriverJob),
 }
 
@@ -120,13 +123,18 @@ impl Channel {
     }
 }
 
-pub struct JobGraph {
+/// A graph of all operators, streams, and drivers in the dataflow.
+/// Does not contain any scheduling information beyond constraints
+/// defined in the [`OperatorConfig`].
+pub(crate) struct JobGraph {
     /// Collection of jobs and connections between graphs.
     graph: StableGraph<Job, Channel>,
     /// Graph node index for the driver.
     driver_node_idx: NodeIndex,
     /// Mapping from [`OperatorId`] to node index in the graph.
     operator_id_to_idx: HashMap<OperatorId, NodeIndex>,
+    /// Temporary nodes used to by loop streams.
+    loop_node_idxs: HashMap<StreamId, NodeIndex>,
     /// Mapping from [`StreamId`] to structure which stores information about the stream.
     streams: HashMap<StreamId, Box<dyn UntypedGraphStream>>,
 }
@@ -141,6 +149,7 @@ impl JobGraph {
             graph,
             driver_node_idx,
             operator_id_to_idx,
+            loop_node_idxs: HashMap::new(),
             streams: HashMap::new(),
         }
     }
@@ -196,6 +205,67 @@ impl JobGraph {
         };
     }
 
+    pub(crate) fn add_ingest_stream<D, F: StreamSetupHook>(
+        &mut self,
+        ingest_stream: &IngestStream<D>,
+        setup_hook: F,
+    ) where
+        for<'a> D: Data + Deserialize<'a>,
+    {
+        // Add setup hook.
+        match self.graph.node_weight_mut(self.driver_node_idx) {
+            Some(Job::Driver(driver)) => {
+                driver.setup_hooks.push(Box::new(setup_hook));
+            }
+            _ => unreachable!("JobGraph could not access driver node."),
+        };
+        // TODO: enumerate ingest streams by starting from 0.
+        let name = format!("ingest-stream-{}", ingest_stream.id());
+        self.add_stream(&ingest_stream.into(), name, StreamOrigin::Driver);
+    }
+
+    pub(crate) fn add_extract_stream<D, F: StreamSetupHook>(
+        &mut self,
+        extract_stream: &ExtractStream<D>,
+        setup_hook: F,
+    ) where
+        for<'a> D: Data + Deserialize<'a>,
+    {
+        // Add setup hook.
+        match self.graph.node_weight_mut(self.driver_node_idx) {
+            Some(Job::Driver(driver)) => {
+                driver.setup_hooks.push(Box::new(setup_hook));
+            }
+            _ => unreachable!("JobGraph could not access driver node."),
+        };
+        self.connect_stream(extract_stream.id(), self.driver_node_idx);
+    }
+
+    pub(crate) fn add_loop_stream<D>(&mut self, loop_stream: &LoopStream<D>)
+    where
+        for<'a> D: Data + Deserialize<'a>,
+    {
+        let name = format!("loop-stream-{}", loop_stream.id());
+        self.add_stream(&loop_stream.into(), name, StreamOrigin::Loop);
+        // Add a temporary source node to the graph.
+        // let node_idx = self.graph.add_node(weight);
+    }
+
+    pub(crate) fn connect_loop<D>(&mut self, loop_stream: &LoopStream<D>, stream: &Stream<D>)
+    where
+        for<'a> D: Data + Deserialize<'a>,
+    {
+        // Transfer edges from loop to stream.
+        let loop_metadata = self.streams.get(&loop_stream.id()).unwrap();
+        for edge_idx in loop_metadata.get_edges().clone() {
+            let (_, dest_node_idx) = self.graph.edge_endpoints(edge_idx).unwrap();
+            self.graph.remove_edge(edge_idx);
+            self.connect_stream(stream.id(), dest_node_idx);
+        }
+
+        // TODO: cleanup.
+    }
+
     pub(crate) fn get_stream_name(&self, stream_id: &StreamId) -> String {
         self.streams.get(stream_id).unwrap().name()
     }
@@ -217,8 +287,7 @@ impl JobGraph {
         match origin {
             StreamOrigin::Operator(id) => self.operator_id_to_idx.get(id).cloned(),
             StreamOrigin::Driver => Some(self.driver_node_idx),
-            StreamOrigin::LoopUnset => todo!(),
-            StreamOrigin::Loop(_) => todo!(),
+            StreamOrigin::Loop => todo!(),
         }
     }
 
