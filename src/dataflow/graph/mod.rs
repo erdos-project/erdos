@@ -5,6 +5,7 @@ use crate::{
 };
 
 // Private submodules
+mod abstract_graph;
 mod edge;
 mod graph;
 mod job_graph;
