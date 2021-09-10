@@ -67,10 +67,7 @@ pub(crate) enum StreamOrigin {
     Driver,
     /// [`LoopStream`] which will alias to another stream once it is set to
     /// enable loops in the graph.
-    LoopUnset,
-    /// A set [`LoopStream`] which aliases to another stream to enable loops
-    /// in the graph.
-    Loop(StreamId),
+    Loop,
 }
 
 #[derive(Clone)]

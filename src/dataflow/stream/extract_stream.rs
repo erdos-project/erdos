@@ -8,7 +8,10 @@ use std::{
 use serde::Deserialize;
 
 use crate::{
-    dataflow::{graph::default_graph, Data, Message},
+    dataflow::{
+        graph::{default_graph, StreamSetupHook},
+        Data, Message,
+    },
     scheduler::channel_manager::ChannelManager,
 };
 
@@ -130,15 +133,7 @@ where
             read_stream_option: None,
             channel_manager_option: Arc::new(Mutex::new(None)),
         };
-        let channel_manager_option_copy = Arc::clone(&extract_stream.channel_manager_option);
-
-        // Sets up self.read_stream_option using channel_manager
-        let setup_hook = move |channel_manager: Arc<Mutex<ChannelManager>>| {
-            channel_manager_option_copy
-                .lock()
-                .unwrap()
-                .replace(channel_manager);
-        };
+        let setup_hook = extract_stream.get_setup_hook();
 
         default_graph::add_extract_stream(&extract_stream, setup_hook);
         extract_stream
@@ -214,6 +209,18 @@ where
 
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// Returns a function that sets up self.read_stream_option using the channel_manager.
+    pub(crate) fn get_setup_hook(&self) -> impl StreamSetupHook {
+        let channel_manager_option_copy = Arc::clone(&self.channel_manager_option);
+
+        move |channel_manager: Arc<Mutex<ChannelManager>>| {
+            channel_manager_option_copy
+                .lock()
+                .unwrap()
+                .replace(channel_manager);
+        }
     }
 }
 

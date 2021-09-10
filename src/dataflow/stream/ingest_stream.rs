@@ -7,7 +7,10 @@ use std::{
 use serde::Deserialize;
 
 use crate::{
-    dataflow::{graph::default_graph, Data, Message},
+    dataflow::{
+        graph::{default_graph, StreamSetupHook},
+        Data, Message,
+    },
     scheduler::channel_manager::ChannelManager,
 };
 
@@ -92,20 +95,7 @@ where
         let write_stream_option_copy = Arc::clone(&ingest_stream.write_stream_option);
 
         // Sets up self.write_stream_option using channel_manager
-        let setup_hook = move |channel_manager: Arc<Mutex<ChannelManager>>| match channel_manager
-            .lock()
-            .unwrap()
-            .get_send_endpoints(id)
-        {
-            Ok(send_endpoints) => {
-                let write_stream = WriteStream::from_endpoints(send_endpoints, id);
-                write_stream_option_copy
-                    .lock()
-                    .unwrap()
-                    .replace(write_stream);
-            }
-            Err(msg) => panic!("Unable to set up IngestStream {}: {}", id, msg),
-        };
+        let setup_hook = ingest_stream.get_setup_hook();
 
         default_graph::add_ingest_stream(&ingest_stream, setup_hook);
         ingest_stream
@@ -158,6 +148,27 @@ where
 
     pub fn set_name(&self, name: &str) {
         default_graph::set_stream_name(&self.id, name);
+    }
+
+    /// Returns a function which sets up self.write_stream_option using the channel_manager.
+    pub(crate) fn get_setup_hook(&self) -> impl StreamSetupHook {
+        let id = self.id();
+        let write_stream_option_copy = Arc::clone(&self.write_stream_option);
+
+        move |channel_manager: Arc<Mutex<ChannelManager>>| match channel_manager
+            .lock()
+            .unwrap()
+            .get_send_endpoints(id)
+        {
+            Ok(send_endpoints) => {
+                let write_stream = WriteStream::from_endpoints(send_endpoints, id);
+                write_stream_option_copy
+                    .lock()
+                    .unwrap()
+                    .replace(write_stream);
+            }
+            Err(msg) => panic!("Unable to set up IngestStream {}: {}", id, msg),
+        }
     }
 }
 
