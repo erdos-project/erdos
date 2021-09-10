@@ -29,14 +29,6 @@ where
 {
     pub fn new() -> Self {
         let id = StreamId::new_deterministic();
-        LoopStream::new_internal(id, &format!("LoopStream {}", id))
-    }
-
-    pub fn new_with_name(name: &str) -> Self {
-        LoopStream::new_internal(StreamId::new_deterministic(), name)
-    }
-
-    fn new_internal(id: StreamId, name: &str) -> Self {
         let loop_stream = Self {
             id,
             phantom: PhantomData,
@@ -47,14 +39,6 @@ where
 
     pub fn id(&self) -> StreamId {
         self.id
-    }
-
-    pub fn name(&self) -> String {
-        default_graph::get_stream_name(&self.id)
-    }
-
-    pub fn set_name(&self, name: &str) {
-        default_graph::set_stream_name(&self.id, name);
     }
 
     pub fn set(&self, stream: &Stream<D>) {
