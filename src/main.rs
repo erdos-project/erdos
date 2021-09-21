@@ -443,6 +443,19 @@ fn main() {
         SinkOperatorState::new,
         sink_config,
         &ingest_stream,
+    erdos::connect_sink(
+        SinkOperator::new,
+        SinkOperatorState::new,
+        left_sink_config,
+        &split_stream_less_50,
+    );
+
+    right_sink_config = OperatorConfig::new().name("RightSinkOperator");
+    erdos::connect_sink(
+        SinkOperator::new,
+        SinkOperatorState::new,
+        right_sink_config,
+        &split_stream_greater_50,
     );
 
     //let join_sum_config = OperatorConfig::new().name("JoinSumOperator");

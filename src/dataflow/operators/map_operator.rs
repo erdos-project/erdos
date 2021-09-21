@@ -13,10 +13,19 @@ use std::sync::Arc;
 /// and return them.
 ///
 /// ```
+<<<<<<< HEAD
 /// let map_stream = erdos::connect_one_in_one_out(
 ///     || -> MapOperator<usize, usize> { MapOperator::new(|a: &usize| -> usize { 2 * a }) },
 ///     || {},
 ///     OperatorConfig::new().name("MapOperator"),
+=======
+/// # Add the mapping function as an argument to the operator via the OperatorConfig.
+/// let map_config = OperatorConfig::new().name("MapOperator");
+/// let map_stream = erdos::connect_one_in_one_out(
+///     || -> MapOperator<usize, usize> { MapOperator::new(|a: &usize| -> usize { 2 * a }) },
+///     || {},
+///     map_config,
+>>>>>>> ff89efb (Completed new Split, Filter, and Map Operators)
 ///     &source_stream,
 /// );
 /// ```
