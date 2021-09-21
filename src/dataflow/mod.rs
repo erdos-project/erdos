@@ -3,15 +3,15 @@
 // Public submodules
 #[doc(hidden)]
 pub mod connect;
+pub mod context;
+pub mod deadlines;
 pub mod graph;
 pub mod message;
 pub mod operator;
-pub mod time;
-// pub mod operators;
-pub mod context;
-pub mod deadlines;
+pub mod operators;
 pub mod state;
 pub mod stream;
+pub mod time;
 
 // Public exports
 pub use deadlines::TimestampDeadline;

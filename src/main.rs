@@ -5,6 +5,7 @@ use std::{collections::HashMap, thread, time::Duration};
 use erdos::dataflow::context::*;
 use erdos::dataflow::deadlines::*;
 use erdos::dataflow::operator::*;
+use erdos::dataflow::operators::*;
 use erdos::dataflow::stream::WriteStreamT;
 use erdos::dataflow::*;
 use erdos::node::Node;
@@ -414,6 +415,30 @@ fn main() {
         &source_stream,
     );
 
+    let map_config = OperatorConfig::new().name("MapOperator");
+    let map_stream = erdos::connect_one_in_one_out(
+        || -> MapOperator<usize, usize> { MapOperator::new(|a: &usize| -> usize { 2 * a }) },
+        || {},
+        map_config,
+        &square_stream,
+    );
+
+    let filter_config = OperatorConfig::new().name("FilterOperator");
+    let filter_stream = erdos::connect_one_in_one_out(
+        || -> FilterOperator<usize> { FilterOperator::new(|a: &usize| -> bool { a > &10 }) },
+        || {},
+        filter_config,
+        &map_stream,
+    );
+
+    let split_config = OperatorConfig::new().name("SplitOperator");
+    let (split_stream_less_50, split_stream_greater_50) = erdos::connect_one_in_two_out(
+        || -> SplitOperator<usize> { SplitOperator::new(|a: &usize| -> bool { a < &50 }) },
+        || {},
+        split_config,
+        &filter_stream,
+    );
+
     //let sum_config = OperatorConfig::new().name("SumOperator");
     //let sum_stream = erdos::connect_one_in_one_out(
     //    SumOperator::new,
@@ -422,12 +447,20 @@ fn main() {
     //    &square_stream,
     //);
 
-    let sink_config = OperatorConfig::new().name("SinkOperator");
+    let left_sink_config = OperatorConfig::new().name("LeftSinkOperator");
     erdos::connect_sink(
         SinkOperator::new,
         SinkOperatorState::new,
-        sink_config,
-        &square_stream,
+        left_sink_config,
+        &split_stream_less_50,
+    );
+
+    let right_sink_config = OperatorConfig::new().name("RightSinkOperator");
+    erdos::connect_sink(
+        SinkOperator::new,
+        SinkOperatorState::new,
+        right_sink_config,
+        &split_stream_greater_50,
     );
 
     //let join_sum_config = OperatorConfig::new().name("JoinSumOperator");
