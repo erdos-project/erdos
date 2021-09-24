@@ -7,18 +7,26 @@ use crate::{
         stream::{ExtractStream, IngestStream, Stream, StreamId, StreamOrigin},
         Data, LoopStream,
     },
+    scheduler::channel_manager::{StreamEndpoints, StreamEndpointsT},
     OperatorConfig, OperatorId,
 };
 
-use super::{OperatorRunner, StreamSetupHook};
+use super::{job_graph::JobGraph, OperatorRunner, StreamSetupHook};
 
-struct AbstractStream<D: Data> {
+#[derive(Clone)]
+pub(crate) struct AbstractStream<D>
+where
+    for<'a> D: Data + Deserialize<'a>,
+{
     id: StreamId,
     name: String,
     phantom: PhantomData<D>,
 }
 
-impl<D: Data> AbstractStream<D> {
+impl<D> AbstractStream<D>
+where
+    for<'a> D: Data + Deserialize<'a>,
+{
     fn new(id: StreamId, name: String) -> Self {
         Self {
             id,
@@ -28,13 +36,18 @@ impl<D: Data> AbstractStream<D> {
     }
 }
 
-trait AbstractStreamT {
+pub(crate) trait AbstractStreamT {
     fn id(&self) -> StreamId;
     fn name(&self) -> String;
     fn set_name(&mut self, name: String);
+    fn box_clone(&self) -> Box<dyn AbstractStreamT>;
+    fn to_stream_endpoints_t(&self) -> Box<dyn StreamEndpointsT>;
 }
 
-impl<D: Data> AbstractStreamT for AbstractStream<D> {
+impl<D> AbstractStreamT for AbstractStream<D>
+where
+    for<'a> D: Data + Deserialize<'a>,
+{
     fn id(&self) -> StreamId {
         self.id
     }
@@ -46,18 +59,38 @@ impl<D: Data> AbstractStreamT for AbstractStream<D> {
     fn set_name(&mut self, name: String) {
         self.name = name;
     }
+
+    fn box_clone(&self) -> Box<dyn AbstractStreamT> {
+        Box::new(self.clone())
+    }
+
+    fn to_stream_endpoints_t(&self) -> Box<dyn StreamEndpointsT> {
+        Box::new(StreamEndpoints::<D>::new(self.id))
+    }
 }
 
-struct AbstractOperator {
-    id: OperatorId,
+pub(crate) struct AbstractOperator {
+    pub id: OperatorId,
     /// Function that executes the operator.
-    runner: Box<dyn OperatorRunner>,
+    pub runner: Box<dyn OperatorRunner>,
     /// Operator configuration.
-    config: OperatorConfig,
+    pub config: OperatorConfig,
     /// Streams on which the operator reads.
-    read_streams: Vec<StreamId>,
+    pub read_streams: Vec<StreamId>,
     /// Streams on which the operator writes.
-    write_streams: Vec<StreamId>,
+    pub write_streams: Vec<StreamId>,
+}
+
+impl Clone for AbstractOperator {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            runner: self.runner.box_clone(),
+            config: self.config.clone(),
+            read_streams: self.read_streams.clone(),
+            write_streams: self.write_streams.clone(),
+        }
+    }
 }
 
 /// The abstract graph representation of an ERDOS program defined
@@ -88,7 +121,13 @@ impl AbstractGraph {
         right_read_stream: Option<&Stream<U>>,
         left_write_stream: Option<&Stream<V>>,
         right_write_stream: Option<&Stream<W>>,
-    ) {
+    ) where
+        F: OperatorRunner,
+        for<'a> T: Data + Deserialize<'a>,
+        for<'a> U: Data + Deserialize<'a>,
+        for<'a> V: Data + Deserialize<'a>,
+        for<'a> W: Data + Deserialize<'a>,
+    {
         let read_streams = match (left_read_stream, right_read_stream) {
             (Some(ls), Some(rs)) => vec![ls.id(), rs.id()],
             (Some(ls), None) => vec![ls.id()],
@@ -191,5 +230,29 @@ impl AbstractGraph {
 
     pub(crate) fn set_stream_name(&mut self, stream_id: &StreamId, name: String) {
         self.streams.get_mut(stream_id).unwrap().set_name(name);
+    }
+
+    /// Compiles the abstract graph defined into a physical plan
+    /// consisting of jobs and typed communication channels connecting jobs.
+    /// The compilation step checks that all [`LoopStream`]s are connected,
+    /// and arranges jobs and channels in a directed graph.
+    pub(crate) fn compile(&self) -> JobGraph {
+        // Check that all loops are closed.
+        for (loop_stream_id, connected_stream_id) in self.loop_streams.iter() {
+            if connected_stream_id.is_none() {
+                panic!("LoopStream {} is not connected to another loop. Call `LoopStream::connect_loop` to fix.", loop_stream_id);
+            }
+        }
+
+        // Get all streams except loop streams.
+        let streams: HashMap<_, _> = self
+            .streams
+            .iter()
+            .filter(|(k, _)| !self.loop_streams.contains_key(k))
+            .map(|(k, v)| (*k, v.box_clone()))
+            .collect();
+
+        let operators = self.operators.clone();
+        unimplemented!()
     }
 }
