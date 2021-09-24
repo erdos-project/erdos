@@ -1,16 +1,10 @@
 use std::collections::HashMap;
 
-use crate::{dataflow::stream::StreamId, OperatorId};
+use crate::dataflow::stream::StreamId;
 
 use super::{
-    abstract_graph::{AbstractOperator, AbstractStreamT},
-    StreamSetupHook,
+    StreamSetupHook, {AbstractOperator, AbstractStreamT, Job},
 };
-
-pub(crate) enum Job {
-    Operator(OperatorId),
-    Driver,
-}
 
 pub(crate) struct JobGraph {
     operators: Vec<AbstractOperator>,
@@ -63,5 +57,38 @@ impl JobGraph {
             stream_destinations,
             driver_setup_hooks,
         }
+    }
+
+    /// Returns a copy of the operators in the graph.
+    pub fn get_operators(&self) -> Vec<AbstractOperator> {
+        self.operators.clone()
+    }
+
+    /// Returns the stream, the stream's source, and the stream's destinations.
+    pub fn get_streams(&self) -> Vec<(Box<dyn AbstractStreamT>, Job, Vec<Job>)> {
+        self.streams
+            .iter()
+            .map(|s| {
+                (
+                    s.box_clone(),
+                    *self.stream_sources.get(&s.id()).unwrap(),
+                    self.stream_destinations.get(&s.id()).unwrap().clone(),
+                )
+            })
+            .collect()
+    }
+
+    /// Returns the hooks used to set up ingest and extract streams.
+    pub fn get_driver_setup_hooks(&self) -> Vec<Box<dyn StreamSetupHook>> {
+        let mut driver_setup_hooks = Vec::new();
+        for i in 0..self.driver_setup_hooks.len() {
+            driver_setup_hooks.push(self.driver_setup_hooks[i].box_clone());
+        }
+        driver_setup_hooks
+    }
+
+    /// Exports the job graph to a Graphviz file (*.gv, *.dot).
+    pub fn to_graph_viz(&self) -> std::io::Result<()> {
+        todo!("Implement using petgraph")
     }
 }

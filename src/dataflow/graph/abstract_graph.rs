@@ -1,102 +1,23 @@
-use std::{collections::HashMap, marker::PhantomData};
+use std::collections::HashMap;
 
 use serde::Deserialize;
 
 use crate::{
     dataflow::{
-        stream::{ExtractStream, IngestStream, Stream, StreamId, StreamOrigin},
+        stream::{ExtractStream, IngestStream, Stream, StreamId},
         Data, LoopStream,
     },
-    scheduler::channel_manager::{StreamEndpoints, StreamEndpointsT},
     OperatorConfig, OperatorId,
 };
 
-use super::{job_graph::JobGraph, OperatorRunner, StreamSetupHook};
+use super::{
+    job_graph::JobGraph, AbstractOperator, AbstractStream, AbstractStreamT, OperatorRunner,
+    StreamSetupHook,
+};
 
-#[derive(Clone)]
-pub(crate) struct AbstractStream<D>
-where
-    for<'a> D: Data + Deserialize<'a>,
-{
-    id: StreamId,
-    name: String,
-    phantom: PhantomData<D>,
-}
-
-impl<D> AbstractStream<D>
-where
-    for<'a> D: Data + Deserialize<'a>,
-{
-    fn new(id: StreamId, name: String) -> Self {
-        Self {
-            id,
-            name,
-            phantom: PhantomData,
-        }
-    }
-}
-
-pub(crate) trait AbstractStreamT {
-    fn id(&self) -> StreamId;
-    fn name(&self) -> String;
-    fn set_name(&mut self, name: String);
-    fn box_clone(&self) -> Box<dyn AbstractStreamT>;
-    fn to_stream_endpoints_t(&self) -> Box<dyn StreamEndpointsT>;
-}
-
-impl<D> AbstractStreamT for AbstractStream<D>
-where
-    for<'a> D: Data + Deserialize<'a>,
-{
-    fn id(&self) -> StreamId {
-        self.id
-    }
-
-    fn name(&self) -> String {
-        self.name.clone()
-    }
-
-    fn set_name(&mut self, name: String) {
-        self.name = name;
-    }
-
-    fn box_clone(&self) -> Box<dyn AbstractStreamT> {
-        Box::new(self.clone())
-    }
-
-    fn to_stream_endpoints_t(&self) -> Box<dyn StreamEndpointsT> {
-        Box::new(StreamEndpoints::<D>::new(self.id))
-    }
-}
-
-pub(crate) struct AbstractOperator {
-    pub id: OperatorId,
-    /// Function that executes the operator.
-    pub runner: Box<dyn OperatorRunner>,
-    /// Operator configuration.
-    pub config: OperatorConfig,
-    /// Streams on which the operator reads.
-    pub read_streams: Vec<StreamId>,
-    /// Streams on which the operator writes.
-    pub write_streams: Vec<StreamId>,
-}
-
-impl Clone for AbstractOperator {
-    fn clone(&self) -> Self {
-        Self {
-            id: self.id,
-            runner: self.runner.box_clone(),
-            config: self.config.clone(),
-            read_streams: self.read_streams.clone(),
-            write_streams: self.write_streams.clone(),
-        }
-    }
-}
-
-/// The abstract graph representation of an ERDOS program defined
-/// in the driver.
-/// The abstract graph is compiled and scheduled before an ERDOS
-/// program is run.
+/// The abstract graph representation of an ERDOS program defined in the driver.
+///
+/// The abstract graph is compiled into a [`JobGraph`], which ERDOS schedules and executes.
 pub struct AbstractGraph {
     /// Collection of operators.
     operators: HashMap<OperatorId, AbstractOperator>,
@@ -236,7 +157,7 @@ impl AbstractGraph {
     /// consisting of jobs and typed communication channels connecting jobs.
     /// The compilation step checks that all [`LoopStream`]s are connected,
     /// and arranges jobs and channels in a directed graph.
-    pub(crate) fn compile(&self) -> JobGraph {
+    pub(crate) fn compile(&mut self) -> JobGraph {
         // Check that all loops are closed.
         for (loop_stream_id, connected_stream_id) in self.loop_streams.iter() {
             if connected_stream_id.is_none() {
@@ -245,14 +166,33 @@ impl AbstractGraph {
         }
 
         // Get all streams except loop streams.
-        let streams: HashMap<_, _> = self
+        let streams: Vec<_> = self
             .streams
             .iter()
             .filter(|(k, _)| !self.loop_streams.contains_key(k))
-            .map(|(k, v)| (*k, v.box_clone()))
+            .map(|(_k, v)| v.box_clone())
             .collect();
 
-        let operators = self.operators.clone();
-        unimplemented!()
+        let mut ingest_streams = HashMap::new();
+        let ingest_stream_ids: Vec<_> = self.ingest_streams.keys().cloned().collect();
+        for stream_id in ingest_stream_ids {
+            // Remove and re-insert setup hook to satisfy static lifetimes.
+            let setup_hook = self.ingest_streams.remove(&stream_id).unwrap();
+            ingest_streams.insert(stream_id, setup_hook.box_clone());
+            self.ingest_streams.insert(stream_id, setup_hook);
+        }
+
+        let mut extract_streams = HashMap::new();
+        let extract_stream_ids: Vec<_> = self.extract_streams.keys().cloned().collect();
+        for stream_id in extract_stream_ids {
+            // Remove and re-insert setup hook to satisfy static lifetimes.
+            let setup_hook = self.extract_streams.remove(&stream_id).unwrap();
+            extract_streams.insert(stream_id, setup_hook.box_clone());
+            self.extract_streams.insert(stream_id, setup_hook);
+        }
+
+        let operators: Vec<_> = self.operators.values().cloned().collect();
+
+        JobGraph::new(operators, streams, ingest_streams, extract_streams)
     }
 }
