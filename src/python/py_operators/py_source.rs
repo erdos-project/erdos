@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{
     dataflow::{
         operator::{OperatorConfig, Source},
-        StreamT, WriteStream,
+        WriteStream,
     },
     python::PyWriteStream,
 };

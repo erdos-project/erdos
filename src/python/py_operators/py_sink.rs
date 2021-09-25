@@ -4,7 +4,7 @@ use crate::{
     dataflow::{
         context::SinkContext,
         operator::{OperatorConfig, Sink},
-        ReadStream, StreamT,
+        ReadStream,
     },
     python::{PyReadStream, PyTimestamp},
 };

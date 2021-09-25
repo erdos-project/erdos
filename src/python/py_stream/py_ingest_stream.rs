@@ -1,10 +1,7 @@
 use pyo3::{exceptions, prelude::*};
 
 use crate::{
-    dataflow::{
-        stream::{IngestStream, StreamT},
-        Message,
-    },
+    dataflow::{stream::IngestStream, Message},
     python::PyMessage,
 };
 

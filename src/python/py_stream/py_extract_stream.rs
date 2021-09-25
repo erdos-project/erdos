@@ -1,7 +1,7 @@
 use pyo3::{exceptions, prelude::*};
 
 use crate::{
-    dataflow::stream::{errors::TryReadError, ExtractStream, StreamT},
+    dataflow::stream::{errors::TryReadError, ExtractStream},
     python::PyMessage,
 };
 
@@ -18,14 +18,9 @@ pub struct PyExtractStream {
 #[pymethods]
 impl PyExtractStream {
     #[new]
-    fn new(py_stream: &PyStream, name: Option<String>) -> Self {
-        match name {
-            Some(_name) => Self {
-                extract_stream: ExtractStream::new_with_name(&py_stream.stream, &_name),
-            },
-            None => Self {
-                extract_stream: ExtractStream::new(&py_stream.stream),
-            },
+    fn new(py_stream: &PyStream) -> Self {
+        Self {
+            extract_stream: ExtractStream::new(&py_stream.stream),
         }
     }
 

@@ -158,10 +158,10 @@ class LoopStream(object):
         """ The name of the stream. `None` if no name was given. """
         return self._name
 
-    def set(self, stream: Stream):
+    def connect_loop(self, stream: Stream):
         logger.debug("Setting the read stream {} to the loop stream {}".format(
             stream._name, self._name))
-        self._py_loop_stream.set(stream._py_stream)
+        self._py_loop_stream.connect_loop(stream._py_stream)
 
 
 class IngestStream(object):
@@ -221,15 +221,12 @@ class ExtractStream(object):
     Args:
         stream (:py:class:`Stream`): The stream from which to read messages.
     """
-    def __init__(self, stream: Stream, _name: Union[str, None] = None):
+    def __init__(self, stream: Stream):
         if not isinstance(stream, Stream):
             raise ValueError(
                 "ExtractStream needs to be initialized with a Stream. "
                 "Received a {}".format(type(stream)))
-        self._py_extract_stream = PyExtractStream(
-            stream._py_stream,
-            _name,
-        )
+        self._py_extract_stream = PyExtractStream(stream._py_stream, )
 
     @property
     def name(self) -> Union[str, None]:
