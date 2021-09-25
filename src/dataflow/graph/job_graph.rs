@@ -88,7 +88,7 @@ impl JobGraph {
     }
 
     /// Exports the job graph to a Graphviz file (*.gv, *.dot).
-    pub fn to_graph_viz(&self) -> std::io::Result<()> {
-        todo!("Implement using petgraph")
+    pub fn to_graph_viz(&self, filename: &str) -> std::io::Result<()> {
+        todo!("Implement to_graph_viz to export file {}", filename)
     }
 }

@@ -41,7 +41,7 @@ where
         self.id
     }
 
-    pub fn set(&self, stream: &Stream<D>) {
-        default_graph::add_stream_alias(self.id, stream.id()).unwrap();
+    pub fn connect_loop(&self, stream: &Stream<D>) {
+        default_graph::connect_loop(self, stream);
     }
 }

@@ -6,12 +6,13 @@ use tokio::sync::{mpsc, Mutex};
 use crate::{
     communication::{Pusher, PusherT, RecvEndpoint, SendEndpoint},
     dataflow::{
-        graph::{Channel, Graph, Vertex},
+        graph::{Job, JobGraph},
         stream::StreamId,
         Data, Message, ReadStream, WriteStream,
     },
     node::NodeId,
     scheduler::endpoints_manager::{ChannelsToReceivers, ChannelsToSenders},
+    OperatorId,
 };
 
 #[async_trait]
@@ -142,8 +143,6 @@ where
 pub(crate) struct ChannelManager {
     /// The node to which the [`ChannelManager`] belongs.
     node_id: NodeId,
-    /// The dataflow graph.
-    graph: Graph,
     /// Stores a `StreamEndpoints` for each stream id.
     stream_entries: HashMap<StreamId, Box<dyn StreamEndpointsT>>,
 }
@@ -155,62 +154,87 @@ impl ChannelManager {
     /// channels from TCP receivers to operators that are connected to streams originating on
     /// other nodes.
     pub async fn new(
-        graph: &Graph,
+        job_graph: &JobGraph,
         node_id: NodeId,
         channels_to_receivers: Arc<Mutex<ChannelsToReceivers>>,
         channels_to_senders: Arc<Mutex<ChannelsToSenders>>,
     ) -> Self {
         let mut channel_manager = Self {
             node_id,
-            graph: graph.clone(),
             stream_entries: HashMap::new(),
         };
 
         let mut receiver_pushers: HashMap<StreamId, Box<dyn PusherT>> = HashMap::new();
 
-        let node_vertices = graph.get_vertices_on(node_id);
-        for stream_metadata in graph.get_streams() {
-            if node_vertices.contains(&stream_metadata.source()) {
+        let local_operator_ids: Vec<OperatorId> = job_graph
+            .get_operators()
+            .into_iter()
+            .filter(|o| o.config.node_id == node_id)
+            .map(|o| o.id)
+            .collect();
+
+        let operators: HashMap<_, _> = job_graph
+            .get_operators()
+            .into_iter()
+            .map(|o| (o.config.id, o))
+            .collect();
+
+        for (stream, source, destinations) in job_graph.get_streams() {
+            // Whether the source is on the current node.
+            let contains_source = match source {
+                Job::Operator(operator_id) => local_operator_ids.contains(&operator_id),
+                // TODO: change this when ERDOS programs are submitted to a cluster.
+                Job::Driver => node_id == 0,
+            };
+
+            if contains_source {
+                // The stream originates on this node.
                 let stream_endpoint_t = channel_manager
                     .stream_entries
-                    .entry(stream_metadata.id())
-                    .or_insert_with(|| stream_metadata.to_stream_endpoints_t());
-                for channel in stream_metadata.get_channels() {
-                    match channel {
-                        Channel::InterNode(channel_metadata) => {
-                            let other_node_id = match channel_metadata.sink {
-                                Vertex::Driver(id) => id,
-                                Vertex::Operator(op_id) => {
-                                    graph.get_operator(op_id).unwrap().node_id
-                                }
-                            };
-                            stream_endpoint_t
-                                .add_inter_node_send_endpoint(
-                                    other_node_id,
-                                    Arc::clone(&channels_to_senders),
-                                )
-                                .await
-                                .unwrap();
+                    .entry(stream.id())
+                    .or_insert_with(|| stream.to_stream_endpoints_t());
+
+                for destination in destinations {
+                    let destination_node_id = match destination {
+                        Job::Operator(operator_id) => {
+                            operators.get(&operator_id).unwrap().config.node_id
                         }
-                        Channel::InterThread(_) => {
-                            stream_endpoint_t.add_inter_thread_channel();
-                        }
-                        Channel::Unscheduled(cm) => eprintln!("Unscheduled channel: {:?}", cm),
+                        // TODO: change this when ERDOS programs are submitted to a cluster.
+                        Job::Driver => 0,
+                    };
+
+                    if destination_node_id == node_id {
+                        stream_endpoint_t.add_inter_thread_channel();
+                    } else {
+                        stream_endpoint_t
+                            .add_inter_node_send_endpoint(
+                                destination_node_id,
+                                channels_to_senders.clone(),
+                            )
+                            .await
+                            .unwrap();
                     }
                 }
             } else {
-                for channel in stream_metadata.get_channels() {
-                    if let Channel::InterNode(channel_metadata) = channel {
-                        if node_vertices.contains(&channel_metadata.sink) {
-                            let stream_endpoint_t = channel_manager
-                                .stream_entries
-                                .entry(stream_metadata.id())
-                                .or_insert_with(|| stream_metadata.to_stream_endpoints_t());
-                            stream_endpoint_t
-                                .add_inter_node_recv_endpoint(&mut receiver_pushers)
-                                .unwrap();
+                // The stream originates on another node.
+                let contains_destination = destinations.iter().any(|destination| {
+                    let destination_node_id = match destination {
+                        Job::Operator(operator_id) => {
+                            operators.get(&operator_id).unwrap().config.node_id
                         }
-                    }
+                        // TODO: change this when ERDOS programs are submitted to a cluster.
+                        Job::Driver => 0,
+                    };
+                    node_id == destination_node_id
+                });
+                if contains_destination {
+                    let stream_endpoint_t = channel_manager
+                        .stream_entries
+                        .entry(stream.id())
+                        .or_insert_with(|| stream.to_stream_endpoints_t());
+                    stream_endpoint_t
+                        .add_inter_node_recv_endpoint(&mut receiver_pushers)
+                        .unwrap();
                 }
             }
         }
@@ -235,8 +259,6 @@ impl ChannelManager {
     where
         for<'a> D: Data + Deserialize<'a>,
     {
-        let stream_id = self.graph.resolve_stream_id(stream_id);
-
         if let Some(stream_entry_t) = self.stream_entries.get_mut(&stream_id) {
             if let Some(stream_entry) = stream_entry_t.as_any().downcast_mut::<StreamEndpoints<D>>()
             {

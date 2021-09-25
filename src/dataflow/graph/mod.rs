@@ -11,19 +11,15 @@ use crate::{
 
 // Private submodules
 mod abstract_graph;
-mod edge;
-mod graph;
 mod job_graph;
-mod vertex;
 
 // Public submodules
 pub(crate) mod default_graph;
 
 // Crate-wide exports
-pub(crate) use edge::{Channel, ChannelMetadata, StreamMetadata};
-pub(crate) use graph::Graph;
+pub(crate) use abstract_graph::AbstractGraph;
+pub(crate) use job_graph::JobGraph;
 use serde::Deserialize;
-pub(crate) use vertex::{DriverMetadata, OperatorMetadata, Vertex};
 
 use super::{stream::StreamId, Data};
 
@@ -96,7 +92,7 @@ where
 
 /// A trait implemented over [`AbstractStream`]s used to preserve
 /// typing while processing sets of streams.
-pub(crate) trait AbstractStreamT {
+pub(crate) trait AbstractStreamT: Send + Sync {
     fn id(&self) -> StreamId;
     fn name(&self) -> String;
     fn set_name(&mut self, name: String);
