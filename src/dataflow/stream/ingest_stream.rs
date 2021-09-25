@@ -92,12 +92,9 @@ where
             id,
             write_stream_option: Arc::new(Mutex::new(None)),
         };
-        let write_stream_option_copy = Arc::clone(&ingest_stream.write_stream_option);
 
-        // Sets up self.write_stream_option using channel_manager
-        let setup_hook = ingest_stream.get_setup_hook();
-
-        default_graph::add_ingest_stream(&ingest_stream, setup_hook);
+        default_graph::add_ingest_stream(&ingest_stream);
+        default_graph::set_stream_name(&id, name);
         ingest_stream
     }
 

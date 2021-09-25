@@ -32,6 +32,16 @@ pub struct AbstractGraph {
 }
 
 impl AbstractGraph {
+    pub fn new() -> Self {
+        Self {
+            operators: HashMap::new(),
+            streams: HashMap::new(),
+            ingest_streams: HashMap::new(),
+            extract_streams: HashMap::new(),
+            loop_streams: HashMap::new(),
+        }
+    }
+
     /// Adds an operator and its read and write streams to the graph.
     /// Write streams are automatically named based on the operator name.
     pub(crate) fn add_operator<F: OperatorRunner, T: Data, U: Data, V: Data, W: Data>(
@@ -110,11 +120,8 @@ impl AbstractGraph {
     /// Adds an [`ExtractStream`] to the graph.
     /// [`ExtractStream`]s are automatically named based on the number of [`ExtractStream`]s
     /// in the graph.
-    pub(crate) fn add_extract_stream<D, F: StreamSetupHook>(
-        &mut self,
-        extract_stream: &ExtractStream<D>,
-        setup_hook: F,
-    ) where
+    pub(crate) fn add_extract_stream<D>(&mut self, extract_stream: &ExtractStream<D>)
+    where
         for<'a> D: Data + Deserialize<'a>,
     {
         let setup_hook = extract_stream.get_setup_hook();
@@ -194,5 +201,40 @@ impl AbstractGraph {
         let operators: Vec<_> = self.operators.values().cloned().collect();
 
         JobGraph::new(operators, streams, ingest_streams, extract_streams)
+    }
+
+    // TODO: implement this using the Clone trait.
+    pub(crate) fn clone(&mut self) -> Self {
+        let streams: HashMap<_, _> = self
+            .streams
+            .iter()
+            .map(|(&k, v)| (k, v.box_clone()))
+            .collect();
+
+        let mut ingest_streams = HashMap::new();
+        let ingest_stream_ids: Vec<_> = self.ingest_streams.keys().cloned().collect();
+        for stream_id in ingest_stream_ids {
+            // Remove and re-insert setup hook to satisfy static lifetimes.
+            let setup_hook = self.ingest_streams.remove(&stream_id).unwrap();
+            ingest_streams.insert(stream_id, setup_hook.box_clone());
+            self.ingest_streams.insert(stream_id, setup_hook);
+        }
+
+        let mut extract_streams = HashMap::new();
+        let extract_stream_ids: Vec<_> = self.extract_streams.keys().cloned().collect();
+        for stream_id in extract_stream_ids {
+            // Remove and re-insert setup hook to satisfy static lifetimes.
+            let setup_hook = self.extract_streams.remove(&stream_id).unwrap();
+            extract_streams.insert(stream_id, setup_hook.box_clone());
+            self.extract_streams.insert(stream_id, setup_hook);
+        }
+
+        Self {
+            operators: self.operators.clone(),
+            streams,
+            ingest_streams,
+            extract_streams,
+            loop_streams: self.loop_streams.clone(),
+        }
     }
 }

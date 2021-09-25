@@ -18,9 +18,8 @@ use crate::communication::{
     senders::{self, ControlSender, DataSender},
     ControlMessage, ControlMessageCodec, ControlMessageHandler, MessageCodec,
 };
-use crate::dataflow::graph::{default_graph, Graph};
+use crate::dataflow::graph::{default_graph, JobGraph};
 use crate::scheduler::{
-    self,
     channel_manager::ChannelManager,
     endpoints_manager::{ChannelsToReceivers, ChannelsToSenders},
 };
@@ -42,7 +41,7 @@ pub struct Node {
     /// Unique node id.
     id: NodeId,
     /// Dataflow graph which the node will execute.
-    dataflow_graph: Option<Graph>,
+    job_graph: Option<JobGraph>,
     /// Structure to be used to send `Sender` updates to receiver threads.
     channels_to_receivers: Arc<Mutex<ChannelsToReceivers>>,
     /// Structure to be used to send messages to sender threads.
@@ -66,7 +65,7 @@ impl Node {
         Self {
             config,
             id,
-            dataflow_graph: None,
+            job_graph: None,
             channels_to_receivers: Arc::new(Mutex::new(ChannelsToReceivers::new())),
             channels_to_senders: Arc::new(Mutex::new(ChannelsToSenders::new())),
             control_handler: ControlMessageHandler::new(logger),
@@ -82,8 +81,9 @@ impl Node {
     pub fn run(&mut self) {
         slog::debug!(self.config.logger, "Node {}: running", self.id);
         // Set the dataflow graph if it hasn't been set already.
-        if self.dataflow_graph.is_none() {
-            self.dataflow_graph = Some(default_graph::clone());
+        if self.job_graph.is_none() {
+            let mut abstract_graph = default_graph::clone();
+            self.job_graph = Some(abstract_graph.compile());
         }
         // Build a runtime with n threads.
         let runtime = Builder::new_multi_thread()
@@ -103,7 +103,8 @@ impl Node {
         // Clone to avoid move to other thread.
         let shutdown_tx = self.shutdown_tx.clone();
         // Copy dataflow graph to the other thread
-        self.dataflow_graph = Some(default_graph::clone());
+        let mut abstract_graph = default_graph::clone();
+        self.job_graph = Some(abstract_graph.compile());
         let initialized = self.initialized.clone();
         let thread_handle = thread::spawn(move || {
             self.run();
@@ -285,17 +286,19 @@ impl Node {
     async fn run_operators(&mut self) -> Result<(), String> {
         self.wait_for_communication_layer_initialized().await?;
 
-        let graph_ref = self
-            .dataflow_graph
+        let job_graph = self
+            .job_graph
             .as_ref()
             .unwrap_or_else(|| panic!("Node {}: dataflow graph must be set.", self.id));
-        let graph = scheduler::schedule(graph_ref);
+
         if let Some(filename) = &self.config.graph_filename {
-            graph.to_dot(filename.as_str()).map_err(|e| e.to_string())?;
+            job_graph
+                .to_graph_viz(filename.as_str())
+                .map_err(|e| e.to_string())?;
         }
 
         let channel_manager = ChannelManager::new(
-            &graph,
+            job_graph,
             self.id,
             Arc::clone(&self.channels_to_receivers),
             Arc::clone(&self.channels_to_senders),
@@ -303,16 +306,16 @@ impl Node {
         .await;
         // Execute operators scheduled on the current node.
         let channel_manager = Arc::new(std::sync::Mutex::new(channel_manager));
-        let num_operators = graph.get_operators().len();
+        let num_operators = job_graph.get_operators().len();
         slog::debug!(
             crate::TERMINAL_LOGGER,
             "There are {} operators total",
             num_operators
         );
-        let local_operators: Vec<_> = graph
+        let local_operators: Vec<_> = job_graph
             .get_operators()
             .into_iter()
-            .filter(|op| op.node_id == self.id)
+            .filter(|op| op.config.node_id == self.id)
             .collect();
 
         let num_local_operators = local_operators.len();
@@ -336,6 +339,7 @@ impl Node {
 
         for operator_info in local_operators {
             let name = operator_info
+                .config
                 .name
                 .clone()
                 .unwrap_or_else(|| format!("{}", operator_info.id));
@@ -355,8 +359,8 @@ impl Node {
         // TODO: Wait for all operators to finish setting up.
 
         // Setup driver on the current node.
-        if let Some(driver) = graph.get_driver(self.id) {
-            for setup_hook in driver.setup_hooks {
+        if self.id == 0 {
+            for setup_hook in job_graph.get_driver_setup_hooks() {
                 (setup_hook)(Arc::clone(&channel_manager));
             }
         }

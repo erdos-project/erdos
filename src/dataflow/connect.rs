@@ -3,10 +3,7 @@ use std::sync::{Arc, Mutex};
 use serde::Deserialize;
 
 use crate::{
-    dataflow::{
-        graph::default_graph, operator::*, stream::StreamOrigin, AppendableStateT, Data, State,
-        StateT, Stream,
-    },
+    dataflow::{graph::default_graph, operator::*, AppendableStateT, Data, State, StateT, Stream},
     node::operator_executors::{
         OneInExecutor, OneInOneOutMessageProcessor, OneInTwoOutMessageProcessor, OperatorExecutorT,
         ParallelOneInOneOutMessageProcessor, ParallelOneInTwoOutMessageProcessor,
@@ -30,10 +27,7 @@ where
     T: Data + for<'a> Deserialize<'a>,
 {
     config.id = OperatorId::new_deterministic();
-    let write_stream = Stream::new(
-        StreamOrigin::Operator(config.id),
-        &format!("{}_write_stream", config.get_name()),
-    );
+    let write_stream = Stream::new();
 
     let write_stream_ids = vec![write_stream.id()];
 
@@ -57,15 +51,18 @@ where
             Box::new(executor)
         };
 
-    default_graph::add_operator(
-        config.id,
-        config.name,
-        config.node_id,
-        Vec::new(),
-        write_stream_ids,
+    default_graph::add_operator::<_, (), (), T, ()>(
+        config.clone(),
         op_runner,
+        None,
+        None,
+        Some(&write_stream),
+        None,
     );
-    default_graph::add_operator_stream(config.id, &write_stream);
+    default_graph::set_stream_name(
+        &write_stream.id(),
+        &format!("{}_write_stream", config.get_name()),
+    );
 
     write_stream
 }
@@ -110,13 +107,13 @@ pub fn connect_parallel_sink<O, S, T, U>(
             ))
         };
 
-    default_graph::add_operator(
-        config.id,
-        config.name,
-        config.node_id,
-        read_stream_ids,
-        vec![],
+    default_graph::add_operator::<_, T, (), (), ()>(
+        config,
         op_runner,
+        Some(&read_stream),
+        None,
+        None,
+        None,
     );
 }
 
@@ -159,13 +156,13 @@ pub fn connect_sink<O, S, T>(
             ))
         };
 
-    default_graph::add_operator(
-        config.id,
-        config.name,
-        config.node_id,
-        read_stream_ids,
-        vec![],
+    default_graph::add_operator::<_, T, (), (), ()>(
+        config.clone(),
         op_runner,
+        Some(&read_stream),
+        None,
+        None,
+        None,
     );
 }
 
@@ -189,10 +186,7 @@ where
     let read_stream: Stream<T> = read_stream.into();
     let read_stream_ids = vec![read_stream.id()];
 
-    let write_stream = Stream::new(
-        StreamOrigin::Operator(config.id),
-        &format!("{}_write_stream", config.get_name()),
-    );
+    let write_stream = Stream::new();
     let write_stream_ids = vec![write_stream.id()];
 
     let read_stream_ids_copy = read_stream_ids.clone();
@@ -221,15 +215,18 @@ where
             ))
         };
 
-    default_graph::add_operator(
-        config.id,
-        config.name,
-        config.node_id,
-        read_stream_ids,
-        write_stream_ids,
+    default_graph::add_operator::<_, T, (), U, ()>(
+        config.clone(),
         op_runner,
+        Some(&read_stream),
+        None,
+        Some(&write_stream),
+        None,
     );
-    default_graph::add_operator_stream(config.id, &write_stream);
+    default_graph::set_stream_name(
+        &write_stream.id(),
+        &format!("{}_write_stream", config.get_name()),
+    );
 
     write_stream
 }
@@ -252,10 +249,7 @@ where
     let read_stream: Stream<T> = read_stream.into();
     let read_stream_ids = vec![read_stream.id()];
 
-    let write_stream = Stream::new(
-        StreamOrigin::Operator(config.id),
-        &format!("{}_write_stream", config.get_name()),
-    );
+    let write_stream = Stream::new();
     let write_stream_ids = vec![write_stream.id()];
 
     let config_copy = config.clone();
@@ -285,15 +279,18 @@ where
             ))
         };
 
-    default_graph::add_operator(
-        config.id,
-        config.name,
-        config.node_id,
-        read_stream_ids,
-        write_stream_ids,
+    default_graph::add_operator::<_, T, (), U, ()>(
+        config.clone(),
         op_runner,
+        Some(&read_stream),
+        None,
+        Some(&write_stream),
+        None,
     );
-    default_graph::add_operator_stream(config.id, &write_stream);
+    default_graph::set_stream_name(
+        &write_stream.id(),
+        &format!("{}_write_stream", config.get_name()),
+    );
 
     write_stream
 }
@@ -321,10 +318,7 @@ where
     let right_read_stream: Stream<U> = right_read_stream.into();
     let read_stream_ids = vec![left_read_stream.id(), right_read_stream.id()];
 
-    let write_stream = Stream::new(
-        StreamOrigin::Operator(config.id),
-        &format!("{}_write_stream", config.get_name()),
-    );
+    let write_stream = Stream::new();
     let write_stream_ids = vec![write_stream.id()];
 
     let config_copy = config.clone();
@@ -358,15 +352,18 @@ where
             ))
         };
 
-    default_graph::add_operator(
-        config.id,
-        config.name,
-        config.node_id,
-        read_stream_ids,
-        write_stream_ids,
+    default_graph::add_operator::<_, T, U, V, ()>(
+        config.clone(),
         op_runner,
+        Some(&left_read_stream),
+        Some(&right_read_stream),
+        Some(&write_stream),
+        None,
     );
-    default_graph::add_operator_stream(config.id, &write_stream);
+    default_graph::set_stream_name(
+        &write_stream.id(),
+        &format!("{}_write_stream", config.get_name()),
+    );
 
     write_stream
 }
@@ -392,10 +389,7 @@ where
     let right_read_stream: Stream<U> = right_read_stream.into();
     let read_stream_ids = vec![left_read_stream.id(), right_read_stream.id()];
 
-    let write_stream = Stream::new(
-        StreamOrigin::Operator(config.id),
-        &format!("{}_write_stream", config.get_name()),
-    );
+    let write_stream = Stream::new();
     let write_stream_ids = vec![write_stream.id()];
 
     let read_stream_ids_copy = read_stream_ids.clone();
@@ -428,15 +422,19 @@ where
             ))
         };
 
-    default_graph::add_operator(
-        config.id,
-        config.name,
-        config.node_id,
-        read_stream_ids,
-        write_stream_ids,
+    default_graph::add_operator::<_, T, U, V, ()>(
+        config.clone(),
         op_runner,
+        Some(&left_read_stream),
+        Some(&right_read_stream),
+        Some(&write_stream),
+        None,
     );
-    default_graph::add_operator_stream(config.id, &write_stream);
+
+    default_graph::set_stream_name(
+        &write_stream.id(),
+        &format!("{}_write_stream", config.get_name()),
+    );
 
     write_stream
 }
@@ -462,14 +460,8 @@ where
     let read_stream: Stream<T> = read_stream.into();
     let read_stream_ids = vec![read_stream.id()];
 
-    let left_write_stream = Stream::new(
-        StreamOrigin::Operator(config.id),
-        &format!("{}_left_write_stream", config.get_name()),
-    );
-    let right_write_stream = Stream::new(
-        StreamOrigin::Operator(config.id),
-        &format!("{}_right_write_stream", config.get_name()),
-    );
+    let left_write_stream = Stream::new();
+    let right_write_stream = Stream::new();
     let write_stream_ids = vec![left_write_stream.id(), right_write_stream.id()];
 
     let read_stream_ids_copy = read_stream_ids.clone();
@@ -502,16 +494,22 @@ where
             ))
         };
 
-    default_graph::add_operator(
-        config.id,
-        config.name,
-        config.node_id,
-        read_stream_ids,
-        write_stream_ids,
+    default_graph::add_operator::<_, T, (), U, V>(
+        config.clone(),
         op_runner,
+        Some(&read_stream),
+        None,
+        Some(&left_write_stream),
+        Some(&right_write_stream),
     );
-    default_graph::add_operator_stream(config.id, &left_write_stream);
-    default_graph::add_operator_stream(config.id, &right_write_stream);
+    default_graph::set_stream_name(
+        &left_write_stream.id(),
+        &format!("{}_left_write_stream", config.get_name()),
+    );
+    default_graph::set_stream_name(
+        &right_write_stream.id(),
+        &format!("{}_right_write_stream", config.get_name()),
+    );
 
     (left_write_stream, right_write_stream)
 }
@@ -535,14 +533,8 @@ where
     let read_stream: Stream<T> = read_stream.into();
     let read_stream_ids = vec![read_stream.id()];
 
-    let left_write_stream = Stream::new(
-        StreamOrigin::Operator(config.id),
-        &format!("{}_left_write_stream", config.get_name()),
-    );
-    let right_write_stream = Stream::new(
-        StreamOrigin::Operator(config.id),
-        &format!("{}_right_write_stream", config.get_name()),
-    );
+    let left_write_stream = Stream::new();
+    let right_write_stream = Stream::new();
     let write_stream_ids = vec![left_write_stream.id(), right_write_stream.id()];
 
     let read_stream_ids_copy = read_stream_ids.clone();
@@ -575,16 +567,22 @@ where
             ))
         };
 
-    default_graph::add_operator(
-        config.id,
-        config.name,
-        config.node_id,
-        read_stream_ids,
-        write_stream_ids,
+    default_graph::add_operator::<_, T, (), U, V>(
+        config.clone(),
         op_runner,
+        Some(&read_stream),
+        None,
+        Some(&left_write_stream),
+        Some(&right_write_stream),
     );
-    default_graph::add_operator_stream(config.id, &left_write_stream);
-    default_graph::add_operator_stream(config.id, &right_write_stream);
+    default_graph::set_stream_name(
+        &left_write_stream.id(),
+        &format!("{}_left_write_stream", config.get_name()),
+    );
+    default_graph::set_stream_name(
+        &right_write_stream.id(),
+        &format!("{}_right_write_stream", config.get_name()),
+    );
 
     (left_write_stream, right_write_stream)
 }
