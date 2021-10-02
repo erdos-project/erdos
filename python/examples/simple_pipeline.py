@@ -29,9 +29,6 @@ class CallbackOp(Sink):
     def __init__(self):
         print("initializing callback op")
 
-    def run(self, read_stream):
-        print("Executing run with the ReadStream {}".format(read_stream))
-
     def on_data(self, context, data):
         print("CallbackOp: received {}".format(data))
 
