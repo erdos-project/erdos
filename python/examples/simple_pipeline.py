@@ -9,6 +9,7 @@ import time
 
 from erdos.operator import Source, Sink
 
+
 class SendOp(Source):
     def __init__(self):
         print("initializing source op")
@@ -44,9 +45,6 @@ class PullOp(Sink):
             data = read_stream.read()
             print("PullOp: received {data}".format(data=data))
 
-    def on_data(self, context, data):
-        pass
-
 
 class TryPullOp(Sink):
     def __init__(self):
@@ -58,16 +56,16 @@ class TryPullOp(Sink):
             print("TryPullOp: received {data}".format(data=data))
             time.sleep(0.5)
 
-    def on_data(self, context, data):
-        pass
-
 
 def main():
     """Creates and runs the dataflow graph."""
-    count_stream = erdos.connect_source(SendOp, erdos.operator.OperatorConfig())
-    erdos.connect_sink(CallbackOp, erdos.operator.OperatorConfig(), count_stream)
+    count_stream = erdos.connect_source(SendOp,
+                                        erdos.operator.OperatorConfig())
+    erdos.connect_sink(CallbackOp, erdos.operator.OperatorConfig(),
+                       count_stream)
     erdos.connect_sink(PullOp, erdos.operator.OperatorConfig(), count_stream)
-    erdos.connect_sink(TryPullOp, erdos.operator.OperatorConfig(), count_stream)
+    erdos.connect_sink(TryPullOp, erdos.operator.OperatorConfig(),
+                       count_stream)
 
     erdos.run()
 
