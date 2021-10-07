@@ -3,8 +3,11 @@
 
 import erdos
 import time
+from typing import Any
 
+from erdos.context import TwoInOneOutContext
 from erdos.operator import Source, TwoInOneOut
+from erdos.streams import WriteStream
 
 
 class SendOp(Source):
@@ -13,7 +16,7 @@ class SendOp(Source):
         print("Initializing send op with frequency {}".format(frequency))
         self.frequency = frequency
 
-    def run(self, write_stream):
+    def run(self, write_stream: WriteStream):
         count = 0
         while True:
             timestamp = erdos.Timestamp(coordinates=[count])
@@ -37,15 +40,15 @@ class JoinOp(TwoInOneOut):
         self.left_msgs = {}
         self.right_msgs = {}
 
-    def on_left_data(self, context, data):
+    def on_left_data(self, context: TwoInOneOutContext, data: Any):
         print("JoinOp: received {data} on left stream".format(data=data))
         self.left_msgs[context.timestamp] = data
 
-    def on_right_data(self, context, data):
+    def on_right_data(self, context: TwoInOneOutContext, data: Any):
         print("JoinOp: received {data} on right stream".format(data=data))
         self.right_msgs[context.timestamp] = data
 
-    def on_watermark(self, context):
+    def on_watermark(self, context: TwoInOneOutContext):
         left_msg = self.left_msgs.pop(context.timestamp)
         right_msg = self.right_msgs.pop(context.timestamp)
         joined_msg = erdos.Message(context.timestamp, (left_msg, right_msg))
