@@ -59,10 +59,6 @@ where
         Some(&write_stream),
         None,
     );
-    default_graph::set_stream_name(
-        &write_stream.id(),
-        &format!("{}_write_stream", config.get_name()),
-    );
 
     write_stream
 }
@@ -223,10 +219,6 @@ where
         Some(&write_stream),
         None,
     );
-    default_graph::set_stream_name(
-        &write_stream.id(),
-        &format!("{}_write_stream", config.get_name()),
-    );
 
     write_stream
 }
@@ -286,10 +278,6 @@ where
         None,
         Some(&write_stream),
         None,
-    );
-    default_graph::set_stream_name(
-        &write_stream.id(),
-        &format!("{}_write_stream", config.get_name()),
     );
 
     write_stream
@@ -360,10 +348,6 @@ where
         Some(&write_stream),
         None,
     );
-    default_graph::set_stream_name(
-        &write_stream.id(),
-        &format!("{}_write_stream", config.get_name()),
-    );
 
     write_stream
 }
@@ -429,11 +413,6 @@ where
         Some(&right_read_stream),
         Some(&write_stream),
         None,
-    );
-
-    default_graph::set_stream_name(
-        &write_stream.id(),
-        &format!("{}_write_stream", config.get_name()),
     );
 
     write_stream
@@ -502,14 +481,6 @@ where
         Some(&left_write_stream),
         Some(&right_write_stream),
     );
-    default_graph::set_stream_name(
-        &left_write_stream.id(),
-        &format!("{}_left_write_stream", config.get_name()),
-    );
-    default_graph::set_stream_name(
-        &right_write_stream.id(),
-        &format!("{}_right_write_stream", config.get_name()),
-    );
 
     (left_write_stream, right_write_stream)
 }
@@ -574,14 +545,6 @@ where
         None,
         Some(&left_write_stream),
         Some(&right_write_stream),
-    );
-    default_graph::set_stream_name(
-        &left_write_stream.id(),
-        &format!("{}_left_write_stream", config.get_name()),
-    );
-    default_graph::set_stream_name(
-        &right_write_stream.id(),
-        &format!("{}_right_write_stream", config.get_name()),
     );
 
     (left_write_stream, right_write_stream)
