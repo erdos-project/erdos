@@ -37,7 +37,8 @@ class TopOp(Source):
         print("initializing top op")
 
     def run(self, write_stream: WriteStream):
-        top_timestamp = erdos.Timestamp(coordinates=[sys.maxsize])
+        print("TopOp: sending watermark")
+        top_timestamp = erdos.Timestamp(is_top=True)
         write_stream.send(erdos.WatermarkMessage(top_timestamp))
 
 
@@ -90,11 +91,13 @@ def main():
     """Creates and runs the dataflow graph."""
     count_stream = erdos.connect_source(SendOp,
                                         erdos.operator.OperatorConfig())
-    erdos.connect_source(TopOp, erdos.operator.OperatorConfig())
+    top_stream = erdos.connect_source(TopOp, erdos.operator.OperatorConfig())
     batch_stream = erdos.connect_one_in_one_out(
         BatchOp, erdos.operator.OperatorConfig(), count_stream)
     erdos.connect_sink(CallbackWatermarkListener,
                        erdos.operator.OperatorConfig(), batch_stream)
+    erdos.connect_sink(CallbackWatermarkListener,
+                       erdos.operator.OperatorConfig(), top_stream)
     erdos.connect_sink(PullWatermarkListener, erdos.operator.OperatorConfig(),
                        batch_stream)
 
