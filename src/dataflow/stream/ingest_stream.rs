@@ -67,7 +67,14 @@ where
     pub fn new() -> Self {
         slog::debug!(crate::TERMINAL_LOGGER, "Initializing an IngestStream");
         let id = StreamId::new_deterministic();
-        IngestStream::new_internal(id, &format!("ingest_stream_{}", id.to_string()))
+        let ingest_stream = Self {
+            id,
+            write_stream_option: Arc::new(Mutex::new(None)),
+        };
+        default_graph::add_ingest_stream(&ingest_stream);
+        default_graph::set_stream_name(&id, &format!("ingest_stream_{}", id.to_string()));
+
+        ingest_stream
     }
 
     /// Returns a new instance of the [`IngestStream`].
@@ -80,21 +87,8 @@ where
             "Initializing an IngestStream with the name {}",
             name
         );
-        let id = StreamId::new_deterministic();
-        IngestStream::new_internal(id, name)
-    }
-
-    /// Creates the [`WriteStream`] to be used to send messages to the dataflow, and adds it to
-    /// the dataflow graph.
-    /// Panics if the stream could not be created.
-    fn new_internal(id: StreamId, name: &str) -> Self {
-        let ingest_stream = Self {
-            id,
-            write_stream_option: Arc::new(Mutex::new(None)),
-        };
-
-        default_graph::add_ingest_stream(&ingest_stream);
-        default_graph::set_stream_name(&id, name);
+        let ingest_stream = IngestStream::new();
+        ingest_stream.set_name(name);
         ingest_stream
     }
 
