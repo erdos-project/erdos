@@ -44,7 +44,7 @@ impl AbstractGraph {
 
     /// Adds an operator and its read and write streams to the graph.
     /// Write streams are automatically named based on the operator name.
-    pub(crate) fn add_operator<F: OperatorRunner, T: Data, U: Data, V: Data, W: Data>(
+    pub(crate) fn add_operator<F, T, U, V, W>(
         &mut self,
         config: OperatorConfig,
         runner: F,
