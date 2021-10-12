@@ -122,7 +122,7 @@ where
             slog::warn!(
                 crate::TERMINAL_LOGGER,
                 "Trying to send messages on a closed IngestStream {} (ID: {})",
-                default_graph::get_stream_name(&self.id),
+                default_graph::get_stream_name(&self.id()),
                 self.id(),
             );
             return Err(SendError::Closed);
