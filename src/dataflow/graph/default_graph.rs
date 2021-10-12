@@ -24,7 +24,7 @@ thread_local!(static DEFAULT_GRAPH: RefCell<AbstractGraph> = RefCell::new(Abstra
 /// Adds an operator to the default graph.
 ///
 /// The operator is pinned on a given node.
-pub(crate) fn add_operator<F: OperatorRunner, T: Data, U: Data, V: Data, W: Data>(
+pub(crate) fn add_operator<F, T, U, V, W>(
     config: OperatorConfig,
     runner: F,
     left_read_stream: Option<&Stream<T>>,
