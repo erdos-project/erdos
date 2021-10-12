@@ -159,7 +159,7 @@ class LoopStream(object):
         return self._name
 
     def connect_loop(self, stream: Stream):
-        logger.debug("Setting the read stream {} to the loop stream {}".format(
+        logger.debug("Connecting the LoopStream {} using the ReadStream {}".format(
             stream._name, self._name))
         self._py_loop_stream.connect_loop(stream._py_stream)
 
