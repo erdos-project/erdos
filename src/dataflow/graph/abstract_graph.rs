@@ -76,15 +76,15 @@ impl AbstractGraph {
         // Add write streams to the graph.
         if let Some(ls) = left_write_stream {
             let stream_name = if write_streams.len() == 1 {
-                format!("{}-stream", config.get_name())
+                format!("{}-write-stream", config.get_name())
             } else {
-                format!("{}-left-stream", config.get_name())
+                format!("{}-write-left-stream", config.get_name())
             };
             let abstract_stream = AbstractStream::<V>::new(ls.id(), stream_name);
             self.streams.insert(ls.id(), Box::new(abstract_stream));
         }
         if let Some(rs) = right_write_stream {
-            let stream_name = format!("{}-right-stream", config.get_name());
+            let stream_name = format!("{}-right-write-stream", config.get_name());
             let abstract_stream = AbstractStream::<W>::new(rs.id(), stream_name);
             self.streams.insert(rs.id(), Box::new(abstract_stream));
         }
