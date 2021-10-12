@@ -85,7 +85,7 @@ impl AbstractGraph {
         }
         if let Some(rs) = right_write_stream {
             let stream_name = format!("{}-right-stream", config.get_name());
-            let abstract_stream = AbstractStream::<V>::new(rs.id(), stream_name);
+            let abstract_stream = AbstractStream::<W>::new(rs.id(), stream_name);
             self.streams.insert(rs.id(), Box::new(abstract_stream));
         }
 
