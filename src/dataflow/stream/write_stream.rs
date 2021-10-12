@@ -110,8 +110,8 @@ impl<D: Data> WriteStream<D> {
     }
 
     /// Get the name of the stream.
-    pub fn name(&self) -> &str {
-        &self.name[..]
+    pub fn name(&self) -> String {
+        self.name.clone()
     }
 
     /// Returns `true` if a top watermark message was received or the [`IngestStream`] failed to
