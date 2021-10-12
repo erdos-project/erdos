@@ -147,20 +147,12 @@ class LoopStream(object):
     """Stream placeholder used to construct loops in the dataflow graph.
 
     Note:
-        Must call `set` with a valid :py:class:`Stream` to complete the loop.
+        Must call `connect_loop` with a valid :py:class:`Stream` to complete the loop.
     """
-    def __init__(self, _name: Union[str, None] = None):
+    def __init__(self):
         self._py_loop_stream = PyLoopStream()
-        self._name = _name
-
-    @property
-    def name(self) -> Union[str, None]:
-        """ The name of the stream. `None` if no name was given. """
-        return self._name
 
     def connect_loop(self, stream: Stream):
-        logger.debug("Connecting the LoopStream {} using the ReadStream {}".format(
-            stream._name, self._name))
         self._py_loop_stream.connect_loop(stream._py_stream)
 
 
@@ -176,12 +168,11 @@ class IngestStream(object):
     """
     def __init__(self, _name: Union[str, None] = None):
         self._py_ingest_stream = PyIngestStream(_name)
-        self._name = _name
 
     @property
-    def name(self) -> Union[str, None]:
-        """ The name of the stream. `None` if no name was given. """
-        return self._name
+    def name(self) -> str:
+        """ The name of the stream. The stream ID if none was given."""
+        return self._py_ingest_stream.name()
 
     def is_closed(self) -> bool:
         """Whether the stream is closed.
@@ -229,9 +220,9 @@ class ExtractStream(object):
         self._py_extract_stream = PyExtractStream(stream._py_stream, )
 
     @property
-    def name(self) -> Union[str, None]:
-        """ The name of the stream. `None` if no name was given. """
-        return self._name
+    def name(self) -> str:
+        """The name of the stream. The stream ID if no name was given."""
+        return self._py_extract_stream.name()
 
     def is_closed(self) -> bool:
         """Whether the stream is closed.

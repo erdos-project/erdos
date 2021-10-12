@@ -40,4 +40,8 @@ impl PyIngestStream {
             ))
         })
     }
+
+    fn name(&self) -> String {
+        self.ingest_stream.name()
+    }
 }

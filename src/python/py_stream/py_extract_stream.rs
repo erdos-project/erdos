@@ -51,4 +51,8 @@ impl PyExtractStream {
             ))),
         }
     }
+
+    fn name(&self) -> String {
+        self.extract_stream.name()
+    }
 }
