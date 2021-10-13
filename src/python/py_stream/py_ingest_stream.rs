@@ -17,14 +17,12 @@ pub struct PyIngestStream {
 impl PyIngestStream {
     #[new]
     fn new(name: Option<String>) -> Self {
-        match name {
-            Some(_name) => Self {
-                ingest_stream: IngestStream::new_with_name(&_name),
-            },
-            None => Self {
-                ingest_stream: IngestStream::new(),
-            },
+        let ingest_stream = IngestStream::new();
+        if let Some(name_str) = name {
+            ingest_stream.set_name(&name_str);
         }
+
+        Self { ingest_stream }
     }
 
     fn is_closed(&self) -> bool {

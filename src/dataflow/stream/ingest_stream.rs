@@ -37,7 +37,7 @@ use super::{errors::SendError, StreamId, WriteStream, WriteStreamT};
 /// #     .arg(|data: &u32| -> u64 { (data * 2) as u64 });
 /// #
 /// // Create an IngestStream. The driver is assigned an ID of 0.
-/// let mut ingest_stream = IngestStream::new(); // or IngestStream::new_with_name("driver")
+/// let mut ingest_stream = IngestStream::new();
 /// let output_read_stream = connect_1_write!(MapOperator<u32, u64>, map_config, ingest_stream);
 ///
 /// // Send data on the IngestStream.
@@ -74,21 +74,6 @@ where
         default_graph::add_ingest_stream(&ingest_stream);
         default_graph::set_stream_name(&id, &format!("ingest_stream_{}", id.to_string()));
 
-        ingest_stream
-    }
-
-    /// Returns a new instance of the [`IngestStream`].
-    ///
-    /// # Arguments
-    /// * `name` - The name to be given to the stream.
-    pub fn new_with_name(name: &str) -> Self {
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
-            "Initializing an IngestStream with the name {}",
-            name
-        );
-        let ingest_stream = IngestStream::new();
-        ingest_stream.set_name(name);
         ingest_stream
     }
 
