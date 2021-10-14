@@ -6,15 +6,18 @@ and one uses the non-blocking try_read() call.
 
 import erdos
 import time
+from typing import Any
 
+from erdos.context import SinkContext
 from erdos.operator import Source, Sink
+from erdos.streams import ReadStream, WriteStream
 
 
 class SendOp(Source):
     def __init__(self):
         print("initializing source op")
 
-    def run(self, write_stream):
+    def run(self, write_stream: WriteStream):
         count = 0
         while True:
             msg = erdos.Message(erdos.Timestamp(coordinates=[count]), count)
@@ -29,7 +32,7 @@ class CallbackOp(Sink):
     def __init__(self):
         print("initializing callback op")
 
-    def on_data(self, context, data):
+    def on_data(self, context: SinkContext, data: Any):
         print("CallbackOp: received {}".format(data))
 
 
@@ -37,7 +40,7 @@ class PullOp(Sink):
     def __init__(self):
         print("initializing pull op using read")
 
-    def run(self, read_stream):
+    def run(self, read_stream: ReadStream):
         while True:
             data = read_stream.read()
             print("PullOp: received {data}".format(data=data))
@@ -47,7 +50,7 @@ class TryPullOp(Sink):
     def __init__(self):
         print("initializing pull op using try_read")
 
-    def run(self, read_stream):
+    def run(self, read_stream: ReadStream):
         while True:
             data = read_stream.try_read()
             print("TryPullOp: received {data}".format(data=data))

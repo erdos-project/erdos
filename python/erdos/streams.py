@@ -20,8 +20,7 @@ def _parse_message(internal_msg):
         return pickle.loads(internal_msg.data)
     if internal_msg.is_watermark():
         return WatermarkMessage(
-            Timestamp(coordinates=internal_msg.timestamp,
-                      is_top=internal_msg.is_top_watermark()))
+            Timestamp(_py_timestamp=internal_msg.timestamp))
     raise Exception("Unable to parse message")
 
 
