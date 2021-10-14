@@ -5,7 +5,7 @@ use std::sync::Arc;
 use crate::{
     dataflow::stream::{
         errors::{ReadError, TryReadError},
-        ReadStream, StreamT,
+        ReadStream,
     },
     python::PyMessage,
 };

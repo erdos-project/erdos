@@ -10,7 +10,7 @@ use crate::{
         context::{ParallelSinkContext, SetupContext, SinkContext},
         deadlines::{ConditionContext, DeadlineEvent, DeadlineId},
         operator::{OperatorConfig, ParallelSink, Sink},
-        stream::{StreamId, StreamT},
+        stream::StreamId,
         AppendableStateT, Data, Message, ReadStream, StateT, Timestamp,
     },
     node::{

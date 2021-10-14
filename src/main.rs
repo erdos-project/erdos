@@ -5,6 +5,7 @@ use std::{collections::HashMap, thread, time::Duration};
 use erdos::dataflow::context::*;
 use erdos::dataflow::deadlines::*;
 use erdos::dataflow::operator::*;
+use erdos::dataflow::stream::IngestStream;
 use erdos::dataflow::stream::WriteStreamT;
 use erdos::dataflow::*;
 use erdos::node::Node;
@@ -428,6 +429,16 @@ fn main() {
         SinkOperatorState::new,
         sink_config,
         &square_stream,
+    );
+
+    // Example use of an ingest stream.
+    let ingest_stream = IngestStream::new();
+    let sink_config = OperatorConfig::new().name("IngestSinkOperator");
+    erdos::connect_sink(
+        SinkOperator::new,
+        SinkOperatorState::new,
+        sink_config,
+        &ingest_stream,
     );
 
     //let join_sum_config = OperatorConfig::new().name("JoinSumOperator");

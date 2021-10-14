@@ -7,7 +7,7 @@ use crate::{
 
 use super::{
     errors::{ReadError, TryReadError},
-    StreamId, StreamT,
+    StreamId,
 };
 
 /// A [`ReadStream`] allows operators to read data from a corresponding [`WriteStream`].
@@ -87,7 +87,7 @@ use super::{
 pub struct ReadStream<D: Data> {
     /// The id of the stream.
     id: StreamId,
-    /// User-defined stream name.
+    /// The name of the stream.
     name: String,
     /// Whether the stream is closed.
     is_closed: bool,
@@ -195,17 +195,15 @@ impl<D: Data> ReadStream<D> {
 
         // TODO: Close the stream?
     }
-}
 
-impl<D: Data> StreamT<D> for ReadStream<D> {
     /// Get the ID given to the stream by the constructor.
-    fn id(&self) -> StreamId {
+    pub fn id(&self) -> StreamId {
         self.id
     }
 
     /// Get the name of the stream.
-    fn name(&self) -> &str {
-        &self.name
+    pub fn name(&self) -> String {
+        self.name.clone()
     }
 }
 

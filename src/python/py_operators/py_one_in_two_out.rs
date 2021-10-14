@@ -5,7 +5,7 @@ use crate::{
         context::OneInTwoOutContext,
         operator::{OneInTwoOut, OperatorConfig},
         stream::WriteStreamT,
-        Message, ReadStream, StreamT, WriteStream,
+        Message, ReadStream, WriteStream,
     },
     python::{PyReadStream, PyTimestamp, PyWriteStream},
 };
