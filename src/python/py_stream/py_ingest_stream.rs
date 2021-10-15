@@ -1,10 +1,7 @@
 use pyo3::{exceptions, prelude::*};
 
 use crate::{
-    dataflow::{
-        stream::{IngestStream, StreamT},
-        Message,
-    },
+    dataflow::{stream::IngestStream, Message},
     python::PyMessage,
 };
 
@@ -20,14 +17,12 @@ pub struct PyIngestStream {
 impl PyIngestStream {
     #[new]
     fn new(name: Option<String>) -> Self {
-        match name {
-            Some(_name) => Self {
-                ingest_stream: IngestStream::new_with_name(&_name),
-            },
-            None => Self {
-                ingest_stream: IngestStream::new(),
-            },
+        let ingest_stream = IngestStream::new();
+        if let Some(name_str) = name {
+            ingest_stream.set_name(&name_str);
         }
+
+        Self { ingest_stream }
     }
 
     fn is_closed(&self) -> bool {
@@ -42,5 +37,9 @@ impl PyIngestStream {
                 e
             ))
         })
+    }
+
+    fn name(&self) -> String {
+        self.ingest_stream.name()
     }
 }

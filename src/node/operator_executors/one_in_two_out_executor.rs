@@ -10,7 +10,7 @@ use crate::{
         context::{OneInTwoOutContext, ParallelOneInTwoOutContext, SetupContext},
         deadlines::{ConditionContext, DeadlineEvent, DeadlineId},
         operator::{OneInTwoOut, OperatorConfig, ParallelOneInTwoOut},
-        stream::{StreamId, StreamT, WriteStreamT},
+        stream::{StreamId, WriteStreamT},
         AppendableStateT, Data, Message, ReadStream, StateT, Timestamp, WriteStream,
     },
     node::{
