@@ -4,7 +4,7 @@ import signal
 import sys
 
 from functools import wraps
-from typing import Type, Optional
+from typing import Type, Optional, Union
 
 import erdos.internal as _internal
 from erdos.streams import (ReadStream, WriteStream, LoopStream, IngestStream,
@@ -79,7 +79,7 @@ def connect_source(
 def connect_sink(
     op_type: Type[erdos.operator.Sink],
     config: erdos.operator.OperatorConfig,
-    read_stream: Stream,
+    read_stream: Union[Stream, IngestStream, LoopStream],
     *args,
     **kwargs,
 ):
@@ -137,7 +137,7 @@ def connect_sink(
 def connect_one_in_one_out(
     op_type: Type[erdos.operator.OneInOneOut],
     config: erdos.operator.OperatorConfig,
-    read_stream: Stream,
+    read_stream: Union[Stream, IngestStream, LoopStream],
     *args,
     **kwargs,
 ) -> Stream:
@@ -205,8 +205,8 @@ def connect_one_in_one_out(
 def connect_two_in_one_out(
     op_type: Type[erdos.operator.TwoInOneOut],
     config: erdos.operator.OperatorConfig,
-    left_read_stream: Stream,
-    right_read_stream: Stream,
+    left_read_stream: Union[Stream, IngestStream, LoopStream],
+    right_read_stream: Union[Stream, IngestStream, LoopStream],
     *args,
     **kwargs,
 ) -> Stream:
@@ -294,7 +294,7 @@ def connect_two_in_one_out(
 def connect_one_in_two_out(
     op_type: Type[erdos.operator.OneInTwoOut],
     config: erdos.operator.OperatorConfig,
-    read_stream: Stream,
+    read_stream: Union[Stream, IngestStream, LoopStream],
     *args,
     **kwargs,
 ) -> (Stream, Stream):
