@@ -26,7 +26,7 @@ impl JobGraph {
 
         // Initialize stream destination vectors.
         // Necessary because the JobGraph assumes that each stream
-        // has a source and a destination vector (may be empty).
+        // has a destination vector (may be empty).
         for s in streams.iter() {
             stream_destinations.insert(s.id(), Vec::new());
         }
