@@ -25,19 +25,21 @@
 //! // Stream of RGB images from a camera.
 //! let camera_frames = erdos::connect_source(
 //!     CameraOperator::new,
+//!     || {},
 //!     OperatorConfig::new().name("Camera")
 //! );
 //! // Stream of labeled bounding boxes for each RGB image.
 //! let detected_objects = erdos::connect_one_in_one_out(
 //!     ObjectDetector::new,
+//!     || {},
 //!     OperatorConfig::new().name("Detector"),
 //!     &camera_frames
 //! );
 //! // Stream of detected object count for each RGB image.
 //! let num_detected = erdos::connect_one_in_one_out(
 //!     || { MapOperator::new(|bboxes: &Vec<BBox>| -> usize { bboxes.len() }) },
-//!     OperatorConfig::new()
-//!         .name("Counter")
+//!     || {},
+//!     OperatorConfig::new().name("Counter"),
 //!     &detected_objects
 //! );
 //!
