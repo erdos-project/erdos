@@ -3,9 +3,7 @@ use std::sync::{Arc, Mutex};
 use serde::Deserialize;
 
 use crate::{
-    dataflow::{
-        graph::default_graph, operator::*, AppendableStateT, Data, State, StateT, Stream, StreamT,
-    },
+    dataflow::{graph::default_graph, operator::*, AppendableStateT, Data, State, StateT, Stream},
     node::operator_executors::{
         OneInExecutor, OneInOneOutMessageProcessor, OneInTwoOutMessageProcessor, OperatorExecutorT,
         ParallelOneInOneOutMessageProcessor, ParallelOneInTwoOutMessageProcessor,
@@ -53,15 +51,14 @@ where
             Box::new(executor)
         };
 
-    default_graph::add_operator(
-        config.id,
-        config.name,
-        config.node_id,
-        Vec::new(),
-        write_stream_ids,
+    default_graph::add_operator::<_, (), (), T, ()>(
+        config.clone(),
         op_runner,
+        None,
+        None,
+        Some(&write_stream),
+        None,
     );
-    default_graph::add_operator_stream(config.id, &write_stream);
 
     write_stream
 }
@@ -72,7 +69,7 @@ pub fn connect_parallel_sink<O, S, T, U>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: &impl StreamT<T>,
+    read_stream: impl Into<Stream<T>>,
 ) where
     O: 'static + ParallelSink<S, T, U>,
     S: AppendableStateT<U>,
@@ -81,10 +78,11 @@ pub fn connect_parallel_sink<O, S, T, U>(
 {
     config.id = OperatorId::new_deterministic();
 
+    let read_stream: Stream<T> = read_stream.into();
     let read_stream_ids = vec![read_stream.id()];
 
-    let read_stream_ids_copy = read_stream_ids.clone();
     let config_copy = config.clone();
+    let read_stream_ids_copy = read_stream_ids.clone();
 
     let op_runner =
         move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
@@ -105,13 +103,13 @@ pub fn connect_parallel_sink<O, S, T, U>(
             ))
         };
 
-    default_graph::add_operator(
-        config.id,
-        config.name,
-        config.node_id,
-        read_stream_ids,
-        vec![],
+    default_graph::add_operator::<_, T, (), (), ()>(
+        config,
         op_runner,
+        Some(&read_stream),
+        None,
+        None,
+        None,
     );
 }
 
@@ -121,7 +119,7 @@ pub fn connect_sink<O, S, T>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: &impl StreamT<T>,
+    read_stream: impl Into<Stream<T>>,
 ) where
     O: 'static + Sink<S, T>,
     S: StateT,
@@ -129,10 +127,11 @@ pub fn connect_sink<O, S, T>(
 {
     config.id = OperatorId::new_deterministic();
 
+    let read_stream: Stream<T> = read_stream.into();
     let read_stream_ids = vec![read_stream.id()];
 
-    let read_stream_ids_copy = read_stream_ids.clone();
     let config_copy = config.clone();
+    let read_stream_ids_copy = read_stream_ids.clone();
 
     let op_runner =
         move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
@@ -153,13 +152,13 @@ pub fn connect_sink<O, S, T>(
             ))
         };
 
-    default_graph::add_operator(
-        config.id,
-        config.name,
-        config.node_id,
-        read_stream_ids,
-        vec![],
+    default_graph::add_operator::<_, T, (), (), ()>(
+        config.clone(),
         op_runner,
+        Some(&read_stream),
+        None,
+        None,
+        None,
     );
 }
 
@@ -169,7 +168,7 @@ pub fn connect_parallel_one_in_one_out<O, S, T, U, V>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: &impl StreamT<T>,
+    read_stream: impl Into<Stream<T>>,
 ) -> Stream<U>
 where
     O: 'static + ParallelOneInOneOut<S, T, U, V>,
@@ -179,9 +178,11 @@ where
     V: 'static + Send + Sync,
 {
     config.id = OperatorId::new_deterministic();
-    let write_stream = Stream::new();
 
+    let read_stream: Stream<T> = read_stream.into();
     let read_stream_ids = vec![read_stream.id()];
+
+    let write_stream = Stream::new();
     let write_stream_ids = vec![write_stream.id()];
 
     let read_stream_ids_copy = read_stream_ids.clone();
@@ -210,15 +211,14 @@ where
             ))
         };
 
-    default_graph::add_operator(
-        config.id,
-        config.name,
-        config.node_id,
-        read_stream_ids,
-        write_stream_ids,
+    default_graph::add_operator::<_, T, (), U, ()>(
+        config.clone(),
         op_runner,
+        Some(&read_stream),
+        None,
+        Some(&write_stream),
+        None,
     );
-    default_graph::add_operator_stream(config.id, &write_stream);
 
     write_stream
 }
@@ -228,7 +228,7 @@ pub fn connect_one_in_one_out<O, S, T, U>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: &impl StreamT<T>,
+    read_stream: impl Into<Stream<T>>,
 ) -> Stream<U>
 where
     O: 'static + OneInOneOut<S, T, U>,
@@ -237,14 +237,16 @@ where
     U: Data + for<'a> Deserialize<'a>,
 {
     config.id = OperatorId::new_deterministic();
-    let write_stream = Stream::new();
 
+    let read_stream: Stream<T> = read_stream.into();
     let read_stream_ids = vec![read_stream.id()];
+
+    let write_stream = Stream::new();
     let write_stream_ids = vec![write_stream.id()];
 
+    let config_copy = config.clone();
     let read_stream_ids_copy = read_stream_ids.clone();
     let write_stream_ids_copy = write_stream_ids.clone();
-    let config_copy = config.clone();
 
     let op_runner =
         move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
@@ -269,15 +271,14 @@ where
             ))
         };
 
-    default_graph::add_operator(
-        config.id,
-        config.name,
-        config.node_id,
-        read_stream_ids,
-        write_stream_ids,
+    default_graph::add_operator::<_, T, (), U, ()>(
+        config.clone(),
         op_runner,
+        Some(&read_stream),
+        None,
+        Some(&write_stream),
+        None,
     );
-    default_graph::add_operator_stream(config.id, &write_stream);
 
     write_stream
 }
@@ -288,8 +289,8 @@ pub fn connect_parallel_two_in_one_out<O, S, T, U, V, W>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    left_read_stream: &impl StreamT<T>,
-    right_read_stream: &impl StreamT<U>,
+    left_read_stream: impl Into<Stream<T>>,
+    right_read_stream: impl Into<Stream<U>>,
 ) -> Stream<V>
 where
     O: 'static + ParallelTwoInOneOut<S, T, U, V, W>,
@@ -300,14 +301,18 @@ where
     W: 'static + Send + Sync,
 {
     config.id = OperatorId::new_deterministic();
-    let write_stream = Stream::new();
 
+    let left_read_stream: Stream<T> = left_read_stream.into();
+    let right_read_stream: Stream<U> = right_read_stream.into();
     let read_stream_ids = vec![left_read_stream.id(), right_read_stream.id()];
+
+    let write_stream = Stream::new();
     let write_stream_ids = vec![write_stream.id()];
 
+    let config_copy = config.clone();
     let read_stream_ids_copy = read_stream_ids.clone();
     let write_stream_ids_copy = write_stream_ids.clone();
-    let config_copy = config.clone();
+
     let op_runner =
         move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
             let mut channel_manager = channel_manager.lock().unwrap();
@@ -335,15 +340,14 @@ where
             ))
         };
 
-    default_graph::add_operator(
-        config.id,
-        config.name,
-        config.node_id,
-        read_stream_ids,
-        write_stream_ids,
+    default_graph::add_operator::<_, T, U, V, ()>(
+        config.clone(),
         op_runner,
+        Some(&left_read_stream),
+        Some(&right_read_stream),
+        Some(&write_stream),
+        None,
     );
-    default_graph::add_operator_stream(config.id, &write_stream);
 
     write_stream
 }
@@ -353,8 +357,8 @@ pub fn connect_two_in_one_out<O, S, T, U, V>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    left_read_stream: &impl StreamT<T>,
-    right_read_stream: &impl StreamT<U>,
+    left_read_stream: impl Into<Stream<T>>,
+    right_read_stream: impl Into<Stream<U>>,
 ) -> Stream<V>
 where
     O: 'static + TwoInOneOut<S, T, U, V>,
@@ -364,9 +368,12 @@ where
     V: Data + for<'a> Deserialize<'a>,
 {
     config.id = OperatorId::new_deterministic();
-    let write_stream = Stream::new();
 
+    let left_read_stream: Stream<T> = left_read_stream.into();
+    let right_read_stream: Stream<U> = right_read_stream.into();
     let read_stream_ids = vec![left_read_stream.id(), right_read_stream.id()];
+
+    let write_stream = Stream::new();
     let write_stream_ids = vec![write_stream.id()];
 
     let read_stream_ids_copy = read_stream_ids.clone();
@@ -399,15 +406,14 @@ where
             ))
         };
 
-    default_graph::add_operator(
-        config.id,
-        config.name,
-        config.node_id,
-        read_stream_ids,
-        write_stream_ids,
+    default_graph::add_operator::<_, T, U, V, ()>(
+        config.clone(),
         op_runner,
+        Some(&left_read_stream),
+        Some(&right_read_stream),
+        Some(&write_stream),
+        None,
     );
-    default_graph::add_operator_stream(config.id, &write_stream);
 
     write_stream
 }
@@ -418,7 +424,7 @@ pub fn connect_parallel_one_in_two_out<O, S, T, U, V, W>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: &impl StreamT<T>,
+    read_stream: impl Into<Stream<T>>,
 ) -> (Stream<U>, Stream<V>)
 where
     O: 'static + ParallelOneInTwoOut<S, T, U, V, W>,
@@ -429,10 +435,12 @@ where
     W: 'static + Send + Sync,
 {
     config.id = OperatorId::new_deterministic();
+
+    let read_stream: Stream<T> = read_stream.into();
+    let read_stream_ids = vec![read_stream.id()];
+
     let left_write_stream = Stream::new();
     let right_write_stream = Stream::new();
-
-    let read_stream_ids = vec![read_stream.id()];
     let write_stream_ids = vec![left_write_stream.id(), right_write_stream.id()];
 
     let read_stream_ids_copy = read_stream_ids.clone();
@@ -465,16 +473,14 @@ where
             ))
         };
 
-    default_graph::add_operator(
-        config.id,
-        config.name,
-        config.node_id,
-        read_stream_ids,
-        write_stream_ids,
+    default_graph::add_operator::<_, T, (), U, V>(
+        config.clone(),
         op_runner,
+        Some(&read_stream),
+        None,
+        Some(&left_write_stream),
+        Some(&right_write_stream),
     );
-    default_graph::add_operator_stream(config.id, &left_write_stream);
-    default_graph::add_operator_stream(config.id, &right_write_stream);
 
     (left_write_stream, right_write_stream)
 }
@@ -484,7 +490,7 @@ pub fn connect_one_in_two_out<O, S, T, U, V>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: &impl StreamT<T>,
+    read_stream: impl Into<Stream<T>>,
 ) -> (Stream<U>, Stream<V>)
 where
     O: 'static + OneInTwoOut<S, T, U, V>,
@@ -494,10 +500,12 @@ where
     V: Data + for<'a> Deserialize<'a>,
 {
     config.id = OperatorId::new_deterministic();
+
+    let read_stream: Stream<T> = read_stream.into();
+    let read_stream_ids = vec![read_stream.id()];
+
     let left_write_stream = Stream::new();
     let right_write_stream = Stream::new();
-
-    let read_stream_ids = vec![read_stream.id()];
     let write_stream_ids = vec![left_write_stream.id(), right_write_stream.id()];
 
     let read_stream_ids_copy = read_stream_ids.clone();
@@ -530,16 +538,14 @@ where
             ))
         };
 
-    default_graph::add_operator(
-        config.id,
-        config.name,
-        config.node_id,
-        read_stream_ids,
-        write_stream_ids,
+    default_graph::add_operator::<_, T, (), U, V>(
+        config.clone(),
         op_runner,
+        Some(&read_stream),
+        None,
+        Some(&left_write_stream),
+        Some(&right_write_stream),
     );
-    default_graph::add_operator_stream(config.id, &left_write_stream);
-    default_graph::add_operator_stream(config.id, &right_write_stream);
 
     (left_write_stream, right_write_stream)
 }

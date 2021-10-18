@@ -18,7 +18,7 @@ pub use deadlines::TimestampDeadline;
 pub use message::{Data, Message, TimestampedData};
 pub use operator::OperatorConfig;
 pub use state::{AppendableStateT, State, StateT};
-pub use stream::{LoopStream, ReadStream, Stream, StreamT, WriteStream};
+pub use stream::{LoopStream, ReadStream, Stream, WriteStream};
 pub use time::Timestamp;
 
 #[cfg(test)]

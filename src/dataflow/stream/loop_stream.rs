@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::dataflow::{graph::default_graph, Data};
 
-use super::{Stream, StreamId, StreamT};
+use super::{Stream, StreamId};
 
 /// Enables loops in the dataflow.
 ///
@@ -20,7 +20,6 @@ where
     for<'a> D: Data + Deserialize<'a>,
 {
     id: StreamId,
-    name: String,
     phantom: PhantomData<D>,
 }
 
@@ -30,17 +29,8 @@ where
 {
     pub fn new() -> Self {
         let id = StreamId::new_deterministic();
-        LoopStream::new_internal(id, id.to_string())
-    }
-
-    pub fn new_with_name(name: &str) -> Self {
-        LoopStream::new_internal(StreamId::new_deterministic(), name.to_string())
-    }
-
-    fn new_internal(id: StreamId, name: String) -> Self {
         let loop_stream = Self {
             id,
-            name,
             phantom: PhantomData,
         };
         default_graph::add_loop_stream(&loop_stream);
@@ -51,24 +41,7 @@ where
         self.id
     }
 
-    pub fn name(&self) -> &str {
-        &self.name[..]
-    }
-
-    pub fn set(&self, stream: &Stream<D>) {
-        default_graph::add_stream_alias(self.id, stream.id()).unwrap();
-    }
-}
-
-impl<D> StreamT<D> for LoopStream<D>
-where
-    for<'a> D: Data + Deserialize<'a>,
-{
-    fn id(&self) -> StreamId {
-        self.id
-    }
-
-    fn name(&self) -> &str {
-        &self.name
+    pub fn connect_loop(&self, stream: &Stream<D>) {
+        default_graph::connect_loop(self, stream);
     }
 }

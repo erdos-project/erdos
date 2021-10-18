@@ -2,7 +2,7 @@ use pyo3::create_exception;
 use pyo3::{exceptions, prelude::*};
 
 use crate::{
-    dataflow::stream::{errors::SendError, StreamT, WriteStreamT},
+    dataflow::stream::{errors::SendError, WriteStreamT},
     dataflow::{Message, WriteStream},
     python::PyMessage,
 };

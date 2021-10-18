@@ -246,7 +246,7 @@ pub fn reset() {
     RNG.with(|rng| {
         *rng.borrow_mut() = StdRng::from_seed(&[1913, 03, 26]);
     });
-    dataflow::graph::default_graph::set(dataflow::graph::Graph::new());
+    dataflow::graph::default_graph::set(dataflow::graph::AbstractGraph::new());
 }
 
 lazy_static! {

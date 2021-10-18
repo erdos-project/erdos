@@ -21,7 +21,7 @@ impl PyLoopStream {
         }
     }
 
-    fn set(&self, stream: &PyStream) {
-        self.loop_stream.set(&stream.stream);
+    fn connect_loop(&self, stream: &PyStream) {
+        self.loop_stream.connect_loop(&stream.stream);
     }
 }
