@@ -40,32 +40,32 @@ pub trait AppendableStateT<S>: 'static + Clone + Send + Sync {
     fn get_last_committed_timestamp(&self) -> Timestamp;
 }
 
-/// Error thrown upon an invalid attempt to access a portion of the
-/// [`TimeVersionedState`].
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AccessError(&'static str);
+// /// Error thrown upon an invalid attempt to access a portion of the
+// /// [`TimeVersionedState`].
+// #[derive(Clone, Debug, PartialEq, Eq)]
+// pub struct AccessError(&'static str);
 
-/// In what context is the operator accessed.
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[allow(dead_code)]
-pub(crate) enum AccessContext {
-    /// In either `Operator::new` when the `TimeVersionedState` is created.
-    /// Gives access to `TimeVersionedState::set_history_size` and
-    /// `TimeVersionedState::set_initial_state`,
-    Operator,
-    /// A regular non-watermark callback.
-    /// Gives access to `TimeVersionedState::append`.
-    Callback,
-    /// A watermark callback.
-    /// Gives access to `TimeVersionedState::get_current_messages`,
-    /// `TimeVersionedState::get_state`, `TimeVersionedState::get_current_state`,
-    /// `TimeVersionedState::get_current_state_mut`, `TimeVersionedState::iter_states`.
-    WatermarkCallback,
-}
+// /// In what context is the operator accessed.
+// #[derive(Clone, Debug, PartialEq, Eq)]
+// #[allow(dead_code)]
+// pub(crate) enum AccessContext {
+//     /// In either `Operator::new` when the `TimeVersionedState` is created.
+//     /// Gives access to `TimeVersionedState::set_history_size` and
+//     /// `TimeVersionedState::set_initial_state`,
+//     Operator,
+//     /// A regular non-watermark callback.
+//     /// Gives access to `TimeVersionedState::append`.
+//     Callback,
+//     /// A watermark callback.
+//     /// Gives access to `TimeVersionedState::get_current_messages`,
+//     /// `TimeVersionedState::get_state`, `TimeVersionedState::get_current_state`,
+//     /// `TimeVersionedState::get_current_state_mut`, `TimeVersionedState::iter_states`.
+//     WatermarkCallback,
+// }
 
-/// Trait which manages the access context and current timestamp of a state.
-/// This trait is only accessible and implementable from ERDOS to enforce proper
-/// access patterns.
+// /// Trait which manages the access context and current timestamp of a state.
+// /// This trait is only accessible and implementable from ERDOS to enforce proper
+// /// access patterns.
 // pub(crate) trait ManagedState {
 //     fn set_access_context(&mut self, access_context: AccessContext);
 //     fn set_current_time(&mut self, t: Timestamp);
