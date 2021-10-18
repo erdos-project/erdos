@@ -1,7 +1,6 @@
 //! Functions and structures for building an ERDOS application.
 
 // Public submodules
-#[doc(hidden)]
 pub mod connect;
 pub mod context;
 pub mod deadlines;
