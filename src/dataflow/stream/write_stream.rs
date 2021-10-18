@@ -12,56 +12,39 @@ use crate::{
 
 use super::{errors::SendError, StreamId, WriteStreamT};
 
-// TODO (Sukrit) :: This example needs to be fixed after we enable attaching WriteStreams to
-// callbacks for normal read streams.
-/// A [`WriteStream`] allows operators to send data to other operators.
+/// A [`WriteStream`] allows [operators](crate::dataflow::operator) to send data to other operators.
 ///
-/// An [`Operator`](crate::dataflow::operator::Operator) creates and returns [`WriteStream`] s in
-/// its `connect` function. Operators receive the returned [`WriteStream`] s in their `new`
-/// function, which can be attached to registered callbacks in order to send messages on the
-/// streams.
-///
-/// A driver receives a set of [`ReadStream`] s corresponding to the [`WriteStream`] s returned by
-/// an operator's `connect` function. In order to send data from the driver to an operator, the
-/// driver can instantiate an [`IngestStream`] and pass it to the operator's [`connect`] function.
+/// [`Data`] is sent via [`Message`]s, which are broadcast to operators that are connected to the stream.
+/// Messages are rapidly sent to operators within the same node using zero-copy communication.
+/// Messages sent across nodes are serialized using
+/// [abomonation](https://github.com/TimelyDataflow/abomonation) if possible,
+/// before falling back to [bincode](https://github.com/servo/bincode).
 ///
 /// # Example
-/// The following example shows an [`Operator`](crate::dataflow::operator::Operator) that takes a
-/// single [`ReadStream`] and maps the received value to its square and send that on a
-/// [`WriteStream`]:
+/// The following example shows an operator which sends a sequence of numbers on a [`WriteStream`],
+/// and ensures that downstream operators progress by sending a watermark after each number.
 /// ```
-/// use erdos::dataflow::message::Message;
+/// use std::{thread, time::Duration};
+///
 /// use erdos::dataflow::{
-///     stream::WriteStreamT, Operator, ReadStream, Timestamp, WriteStream, OperatorConfig
+///     operator::Source, stream::WriteStreamT, Message, Timestamp, WriteStream
 /// };
-/// pub struct SquareOperator {}
+/// struct CounterOperator {}
 ///
-/// impl SquareOperator {
-///     pub fn new(
-///         config: OperatorConfig<()>,
-///         input_stream: ReadStream<u32>,
-///         write_stream: WriteStream<u64>,
-///     ) -> Self {
-///         let stateful_read_stream = input_stream.add_state(write_stream);
-///         // Request a callback upon receipt of every message.
-///         stateful_read_stream.add_callback(
-///             move |t: &Timestamp, msg: &u32, stream: &mut WriteStream<u64>| {
-///                 Self::on_callback(t, msg, stream);
-///             },
-///         );
-///         Self {}
-///     }
-///
-///     pub fn connect(input_stream: ReadStream<u32>) -> WriteStream<u64> {
-///         WriteStream::new()
-///     }
-///
-///     fn on_callback(t: &Timestamp, msg: &u32, write_stream: &mut WriteStream<u64>) {
-///         write_stream.send(Message::new_message(t.clone(), (msg * msg) as u64));
+/// impl Source<(), usize> for CounterOperator {
+///     fn run(&mut self, write_stream: &mut WriteStream<usize>) {
+///         for t in 0..10 {
+///             let timestamp = Timestamp::Time(vec![t as u64]);
+///             write_stream
+///                 .send(Message::new_message(timestamp.clone(), t))
+///                 .unwrap();
+///             write_stream
+///                 .send(Message::new_watermark(timestamp))
+///                 .unwrap();
+///             thread::sleep(Duration::from_millis(100));
+///         }
 ///     }
 /// }
-///
-/// impl Operator for SquareOperator {}
 /// ```
 
 #[derive(Clone)]
