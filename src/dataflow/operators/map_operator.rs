@@ -13,12 +13,10 @@ use std::sync::Arc;
 /// and return them.
 ///
 /// ```
-/// // Add the mapping function as an argument to the operator via the OperatorConfig.
-/// let map_config = OperatorConfig::new().name("MapOperator");
 /// let map_stream = erdos::connect_one_in_one_out(
 ///     || -> MapOperator<usize, usize> { MapOperator::new(|a: &usize| -> usize { 2 * a }) },
 ///     || {},
-///     map_config,
+///     OperatorConfig::new().name("MapOperator"),
 ///     &source_stream,
 /// );
 /// ```
