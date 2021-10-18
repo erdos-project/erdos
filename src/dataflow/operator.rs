@@ -319,8 +319,8 @@ pub struct OperatorConfig {
     /// [`Timestamp`](crate::dataflow::Timestamp) greater than `t` on all
     /// [`ReadStream`](crate::dataflow::ReadStream)s.
     /// Note that watermarks only flow after all watermark callbacks with timestamp
-    /// less than `t` complete. Watermarks flow after [`Operator::run`] finishes
-    /// running. Defaults to `true`.
+    /// less than `t` complete. Watermarks flow after `run` completes.
+    /// Defaults to `true`.
     pub flow_watermarks: bool,
     /// The ID of the node on which the operator should run. Defaults to `0`.
     pub node_id: NodeId,
