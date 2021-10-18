@@ -44,28 +44,49 @@
 //! // Run the application
 //! node.run();
 //! ```
-
+//!
 //! ## Operators
-//! An ERDOS operator receives data on
-//! [`ReadStream`](crate::dataflow::stream::ReadStream)s,
-//! and broadcasts processed data to downstream operators on
-//! [`WriteStream`](crate::dataflow::stream::WriteStream)s.
-//! We provide a [standard library of operators](crate::dataflow::operators)
+//! ERDOS operators process received data, and use
+//! [streams](crate::dataflow::stream) to broadcast
+//! [`Message`s](crate::dataflow::Message) to downstream operators.
+//! ERDOS provides a [standard library of operators](crate::dataflow::operators)
 //! for common dataflow patterns.
 //! While the standard operators are general and versatile, some applications
 //! may implement custom operators to better optimize performance and take
 //! fine-grained control over exection.
 //!
+//! ### Implementing Operators
 //! For an example, see the implementation of the
 //! [`MapOperator`](crate::dataflow::operators::MapOperator).
 //!
+//! Operators are structures which implement an
+//! [operator trait](crate::dataflow::operator) reflecting their
+//! communication pattern.
+//! For example, the [`SplitOperator`](crate::dataflow::operators::SplitOperator)
+//! implements [`OneInTwoOut`](crate::dataflow::operator::OneInTwoOut)
+//! because it receives data on one input stream, and sends messages on
+//! two output streams.
+//!
+//! Operators can support both push and pull-based models of execution
+//! by implementing methods defined in the
+//! [operator traits](crate::dataflow::operator).
+//! By implementing callbacks such as
+//! [`OneInOneOut::on_data`](crate::dataflow::operator::OneInOneOut::on_data),
+//! operators can process messages as they arrive.
+//! Moreover, operators can implement callbacks over [watermarks](#watermarks)
+//! (e.g. [`OneInOneOut::on_watermark`](crate::dataflow::operator::OneInOneOut::on_watermark))
+//! to ensure ordered processing over timestamps.
+//! ERDOS ensures lock-free, safe, and concurrent processing by ordering
+//! callbacks in an ERDOS-managed execution lattice, which serves as a run
+//! queue for the system's multithreaded runtime.
+//!
 //! While ERDOS manages the execution of callbacks, some operators require
-//! more finegrained control. Operators can take manual control over the
-//! thread of execution by overriding the
-//! [`run`](crate::dataflow::operator::OneInOneOut::run) method of
-//! an [operator trait](erdos::dataflow::operator), and pulling data from
+//! more finegrained control. Operators can use the pull-based model
+//! to take over the thread of execution by overriding the `run` method
+//! (e.g. [`OneInOneOut::run`](crate::dataflow::operator::OneInOneOut::run))
+//! of an [operator trait](crate::dataflow::operator), and pulling data from
 //! the [`ReadStream`](crate::dataflow::stream::ReadStream)s.
-//! *Callbacks are not invoked while run executes.*
+//! *Callbacks are not invoked while `run` executes.*
 //!
 //! ## Performance
 //! ERDOS is designed for low latency. Self-driving car pipelines require
@@ -87,9 +108,7 @@
 //! ERDOS provides mechanisms to enable the building of deterministic
 //! applications.
 //! For instance, processing sets of messages separated by watermarks using
-//! watermark callbacks and
-//! [time-versioned state](crate::dataflow::state::TimeVersionedState)
-//! turns ERDOS pipelines into
+//! watermark callbacks can turn ERDOS pipelines into
 //! [Kahn process networks](https://en.wikipedia.org/wiki/Kahn_process_networks).
 
 // Required for specialization.
