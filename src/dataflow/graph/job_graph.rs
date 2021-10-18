@@ -24,6 +24,13 @@ impl JobGraph {
         let mut stream_sources = HashMap::new();
         let mut stream_destinations: HashMap<StreamId, Vec<Job>> = HashMap::new();
 
+        // Initialize stream destination vectors.
+        // Necessary because the JobGraph assumes that each stream
+        // has a source and a destination vector (may be empty).
+        for s in streams.iter() {
+            stream_destinations.insert(s.id(), Vec::new());
+        }
+
         for operator in operators.iter() {
             for &read_stream_id in operator.read_streams.iter() {
                 stream_destinations
@@ -69,11 +76,21 @@ impl JobGraph {
         self.streams
             .iter()
             .map(|s| {
-                (
-                    s.box_clone(),
-                    *self.stream_sources.get(&s.id()).unwrap(),
-                    self.stream_destinations.get(&s.id()).unwrap().clone(),
-                )
+                let source = *self.stream_sources.get(&s.id()).expect(&format!(
+                    "Internal error: stream {} (ID: {}) must have a source",
+                    s.name(),
+                    s.id()
+                ));
+                let destinations = self
+                    .stream_destinations
+                    .get(&s.id())
+                    .cloned()
+                    .expect(&format!(
+                        "Internal error: stream {} (ID: {}) must have a destination",
+                        s.name(),
+                        s.id()
+                    ));
+                (s.box_clone(), source, destinations)
             })
             .collect()
     }
