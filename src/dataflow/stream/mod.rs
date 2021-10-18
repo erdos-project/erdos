@@ -1,20 +1,23 @@
-//! Streams are used to send data between operators.
+//! Streams are used to send data between [operators](crate::dataflow::operator).
 //!
-//! In the `Operator::connect` function, operators return the streams on which
-//! they intend to send messages as [`WriteStream`]s.
-//! Any number of operators can be connected to those streams to read
-//! data via the `erdos::connect` macros; however, only the operator that
-//! created the stream may send data.
+//! In the driver, connections between operators are created by passing
+//! [`Stream`]s as arguments to the [connect functions](crate::dataflow::connect).
 //!
-//! [`WriteStreamT::send`] broadcasts data to all connected operators, using
-//! zero-copy communication for operators on the same node.
+//! During execution, operators can broadcast data to all downstream operators
+//! connected to a stream by invoking [`WriteStreamT::send`].
+//! Likewise, operators can process data by implementing callbacks
+//! in the [operator traits](crate::dataflow::operator),
+//! or by calling [`ReadStream::read`] or [`ReadStream::try_read`] in an
+//! operator's `run` method.
+//!
+//! The driver can interact with an application by sending messages on an
+//! [`IngestStream`] or reading messages from an [`ExtractStream`].
+//!
+//! Messages sent on a stream are broadcast to all connected operators,
+//! using zero-copy communication for operators on the same node.
 //! Messages sent across nodes are serialized using
 //! [abomonation](https://github.com/TimelyDataflow/abomonation) if possible,
 //! before falling back to [bincode](https://github.com/servo/bincode).
-//!
-//! The streams an operator reads from and writes to are automatically passed
-//! to the `Operator::new` function.
-
 use std::marker::PhantomData;
 
 use serde::Deserialize;
