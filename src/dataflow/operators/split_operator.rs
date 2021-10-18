@@ -14,7 +14,7 @@ use std::sync::Arc;
 /// one with messages > 10 (left stream) and one with messages <= 10 (right stream), and send them.
 ///
 /// ```
-/// # Add the mapping function as an argument to the operator via the OperatorConfig.
+/// // Add the mapping function as an argument to the operator via the OperatorConfig.
 /// let split_config = OperatorConfig::new().name("SplitOperator");
 /// let (left_stream, right_stream) = erdos::connect_one_in_one_out(
 ///     || -> SplitOperator<usize> { SplitOperator::new(|a: &usize| -> bool { a > &10 }) },

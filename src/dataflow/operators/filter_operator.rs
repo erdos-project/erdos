@@ -13,7 +13,7 @@ use std::sync::Arc;
 /// and send them.
 ///
 /// ```
-/// # Add the mapping function as an argument to the operator via the OperatorConfig.
+/// // Add the mapping function as an argument to the operator via the OperatorConfig.
 /// let filter_config = OperatorConfig::new().name("FilterOperator");
 /// let filter_stream = erdos::connect_one_in_one_out(
 ///     || -> FilterOperator<usize> { FilterOperator::new(|a: &usize| -> bool { a > &10 }) },
