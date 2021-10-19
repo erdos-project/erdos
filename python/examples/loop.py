@@ -9,7 +9,6 @@ Dataflow graph:
 
 import erdos
 import time
-from typing import Any
 
 from erdos.context import OneInOneOutContext
 from erdos.operator import OneInOneOut
