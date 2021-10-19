@@ -1,8 +1,8 @@
 use pyo3::{exceptions, prelude::*};
 
 use crate::{
-    dataflow::{stream::IngestStream, Message},
-    python::PyMessage,
+    dataflow::{stream::IngestStream, Message, Stream},
+    python::{PyMessage, PyStream},
 };
 
 /// The internal Python abstraction over an `IngestStream`.
@@ -41,5 +41,11 @@ impl PyIngestStream {
 
     fn name(&self) -> String {
         self.ingest_stream.name()
+    }
+
+    fn to_py_stream(&self) -> PyStream {
+        PyStream {
+            stream: Stream::from(&self.ingest_stream),
+        }
     }
 }

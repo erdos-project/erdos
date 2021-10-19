@@ -146,7 +146,8 @@ class LoopStream(object):
     """Stream placeholder used to construct loops in the dataflow graph.
 
     Note:
-        Must call `connect_loop` with a valid :py:class:`Stream` to complete the loop.
+        Must call `connect_loop` with a valid :py:class:`Stream` to complete
+        the loop.
     """
     def __init__(self):
         self._py_loop_stream = PyLoopStream()
@@ -192,7 +193,7 @@ class IngestStream(object):
             raise TypeError("msg must inherent from erdos.Message!")
 
         logger.debug("Sending message {} on the Ingest stream {}".format(
-            msg, self._name))
+            msg, self.name))
 
         internal_msg = msg._to_py_message()
         self._py_ingest_stream.send(internal_msg)

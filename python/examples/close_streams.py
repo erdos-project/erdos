@@ -1,22 +1,24 @@
+"""Creates a dummy operator and gracefully shuts it down.
+"""
+
 import erdos
 
+from erdos.operator import OneInOneOut
 
-class NoopOp(erdos.Operator):
-    def __init__(self, read_stream, write_stream):
-        pass
 
-    @staticmethod
-    def connect(read_streams):
-        return [erdos.WriteStream()]
+class NoopOp(OneInOneOut):
+    def __init__(self):
+        print("Initializing NoopOp")
 
     def destroy(self):
         print("Destroying NoopOp")
 
 
 def main():
-    ingest_stream = erdos.IngestStream()
-    (s, ) = erdos.connect(NoopOp, erdos.OperatorConfig(), [ingest_stream])
-    extract_stream = erdos.ExtractStream(s)
+    ingest_stream = erdos.streams.IngestStream()
+    s = erdos.connect_one_in_one_out(NoopOp, erdos.operator.OperatorConfig(),
+                                     ingest_stream)
+    extract_stream = erdos.streams.ExtractStream(s)
 
     handle = erdos.run_async()
 

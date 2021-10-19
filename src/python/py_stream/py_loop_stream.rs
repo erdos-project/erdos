@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 
-use crate::dataflow::LoopStream;
+use crate::dataflow::{LoopStream, Stream};
 
 use super::PyStream;
 
@@ -23,5 +23,11 @@ impl PyLoopStream {
 
     fn connect_loop(&self, stream: &PyStream) {
         self.loop_stream.connect_loop(&stream.stream);
+    }
+
+    fn to_py_stream(&self) -> PyStream {
+        PyStream {
+            stream: Stream::from(&self.loop_stream),
+        }
     }
 }
