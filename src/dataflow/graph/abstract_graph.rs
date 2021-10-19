@@ -160,6 +160,16 @@ impl AbstractGraph {
         self.streams.get_mut(stream_id).unwrap().set_name(name);
     }
 
+    /// If `stream_id` corresponds to a [`LoopStream`], returns the [`StreamId`] of the
+    /// [`Stream`] to which it is connected. Returns [`None`] if unconnected.
+    /// Otherwise, returns `stream_id`.
+    pub(crate) fn resolve_stream_id(&self, stream_id: &StreamId) -> Option<StreamId> {
+        match self.loop_streams.get(stream_id) {
+            Some(connected_stream_id) => connected_stream_id.clone(),
+            None => Some(*stream_id),
+        }
+    }
+
     /// Compiles the abstract graph defined into a physical plan
     /// consisting of jobs and typed communication channels connecting jobs.
     /// The compilation step checks that all [`LoopStream`]s are connected,
@@ -198,7 +208,17 @@ impl AbstractGraph {
             self.extract_streams.insert(stream_id, setup_hook);
         }
 
-        let operators: Vec<_> = self.operators.values().cloned().collect();
+        let mut operators: Vec<_> = self.operators.values().cloned().collect();
+
+        // Replace loop stream IDs with connected stream IDs.
+        for o in operators.iter_mut() {
+            for i in 0..o.read_streams.len() {
+                if self.loop_streams.contains_key(&o.read_streams[i]) {
+                    let resolved_id = self.resolve_stream_id(&o.read_streams[i]).unwrap();
+                    o.read_streams[i] = resolved_id;
+                }
+            }
+        }
 
         JobGraph::new(operators, streams, ingest_streams, extract_streams)
     }

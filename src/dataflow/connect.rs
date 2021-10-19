@@ -89,7 +89,9 @@ pub fn connect_parallel_sink<O, S, T, U>(
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let read_stream = channel_manager
-                .take_read_stream(read_stream_ids_copy[0])
+                .take_read_stream(
+                    default_graph::resolve_stream_id(&read_stream_ids_copy[0]).unwrap(),
+                )
                 .unwrap();
 
             Box::new(OneInExecutor::new(
@@ -138,7 +140,9 @@ pub fn connect_sink<O, S, T>(
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let read_stream = channel_manager
-                .take_read_stream(read_stream_ids_copy[0])
+                .take_read_stream(
+                    default_graph::resolve_stream_id(&read_stream_ids_copy[0]).unwrap(),
+                )
                 .unwrap();
 
             Box::new(OneInExecutor::new(
@@ -193,7 +197,9 @@ where
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let read_stream = channel_manager
-                .take_read_stream(read_stream_ids_copy[0])
+                .take_read_stream(
+                    default_graph::resolve_stream_id(&read_stream_ids_copy[0]).unwrap(),
+                )
                 .unwrap();
             let write_stream = channel_manager
                 .get_write_stream(write_stream_ids_copy[0])
@@ -253,7 +259,9 @@ where
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let read_stream = channel_manager
-                .take_read_stream(read_stream_ids_copy[0])
+                .take_read_stream(
+                    default_graph::resolve_stream_id(&read_stream_ids_copy[0]).unwrap(),
+                )
                 .unwrap();
             let write_stream = channel_manager
                 .get_write_stream(write_stream_ids_copy[0])
@@ -318,10 +326,14 @@ where
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let left_read_stream = channel_manager
-                .take_read_stream(read_stream_ids_copy[0])
+                .take_read_stream(
+                    default_graph::resolve_stream_id(&read_stream_ids_copy[0]).unwrap(),
+                )
                 .unwrap();
             let right_read_stream = channel_manager
-                .take_read_stream(read_stream_ids_copy[1])
+                .take_read_stream(
+                    default_graph::resolve_stream_id(&read_stream_ids_copy[1]).unwrap(),
+                )
                 .unwrap();
             let write_stream = channel_manager
                 .get_write_stream(write_stream_ids_copy[0])
@@ -384,10 +396,14 @@ where
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let left_read_stream = channel_manager
-                .take_read_stream(read_stream_ids_copy[0])
+                .take_read_stream(
+                    default_graph::resolve_stream_id(&read_stream_ids_copy[0]).unwrap(),
+                )
                 .unwrap();
             let right_read_stream = channel_manager
-                .take_read_stream(read_stream_ids_copy[1])
+                .take_read_stream(
+                    default_graph::resolve_stream_id(&read_stream_ids_copy[1]).unwrap(),
+                )
                 .unwrap();
             let write_stream = channel_manager
                 .get_write_stream(write_stream_ids_copy[0])
@@ -451,7 +467,9 @@ where
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let read_stream = channel_manager
-                .take_read_stream(read_stream_ids_copy[0])
+                .take_read_stream(
+                    default_graph::resolve_stream_id(&read_stream_ids_copy[0]).unwrap(),
+                )
                 .unwrap();
             let left_write_stream = channel_manager
                 .get_write_stream(write_stream_ids_copy[0])
@@ -516,7 +534,9 @@ where
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let read_stream = channel_manager
-                .take_read_stream(read_stream_ids_copy[0])
+                .take_read_stream(
+                    default_graph::resolve_stream_id(&read_stream_ids_copy[0]).unwrap(),
+                )
                 .unwrap();
             let left_write_stream = channel_manager
                 .get_write_stream(write_stream_ids_copy[0])

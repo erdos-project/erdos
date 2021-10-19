@@ -101,6 +101,10 @@ pub(crate) fn get_stream_name(stream_id: &StreamId) -> String {
     DEFAULT_GRAPH.with(|g| g.borrow().get_stream_name(stream_id))
 }
 
+pub(crate) fn resolve_stream_id(stream_id: &StreamId) -> Option<StreamId> {
+    DEFAULT_GRAPH.with(|g| g.borrow().resolve_stream_id(stream_id))
+}
+
 pub(crate) fn clone() -> AbstractGraph {
     DEFAULT_GRAPH.with(|g| g.borrow_mut().clone())
 }
