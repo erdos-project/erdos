@@ -3,7 +3,6 @@ Sends a watermark every 3 messages which releases the batch.
 """
 
 import erdos
-import sys
 import time
 from typing import Any
 

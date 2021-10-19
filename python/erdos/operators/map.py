@@ -1,4 +1,3 @@
-import erdos
 from typing import Any
 
 from erdos.context import OneInOneOutContext

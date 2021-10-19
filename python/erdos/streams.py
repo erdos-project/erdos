@@ -146,7 +146,8 @@ class LoopStream(object):
     """Stream placeholder used to construct loops in the dataflow graph.
 
     Note:
-        Must call `connect_loop` with a valid :py:class:`Stream` to complete the loop.
+        Must call `connect_loop` with a valid :py:class:`Stream` to complete
+        the loop.
     """
     def __init__(self):
         self._py_loop_stream = PyLoopStream()

@@ -7,7 +7,6 @@ Dataflow graph:
 +-----<----+
 """
 
-
 import erdos
 import time
 from typing import Any
@@ -38,8 +37,9 @@ class LoopOp(OneInOneOut):
 def main():
     """Creates and runs the dataflow graph."""
     loop_stream = erdos.streams.LoopStream()
-    stream = erdos.connect_one_in_one_out(LoopOp, erdos.operator.OperatorConfig(),
-                                 loop_stream)
+    stream = erdos.connect_one_in_one_out(LoopOp,
+                                          erdos.operator.OperatorConfig(),
+                                          loop_stream)
     loop_stream.connect_loop(stream)
 
     erdos.run()
@@ -47,5 +47,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-    
