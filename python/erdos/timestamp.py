@@ -79,6 +79,10 @@ class Timestamp(object):
         return hash((coordinates, self.is_top, self.is_bottom))
 
     @property
+    def coordinates(self):
+        return self._py_timestamp.coordinates()
+
+    @property
     def is_top(self):
         return self._py_timestamp.is_top()
 

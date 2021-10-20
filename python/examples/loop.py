@@ -9,7 +9,6 @@ Dataflow graph:
 
 import erdos
 import time
-from typing import Any
 
 from erdos.context import OneInOneOutContext
 from erdos.operator import OneInOneOut
@@ -25,13 +24,17 @@ class LoopOp(OneInOneOut):
         print("LoopOp: sending {msg}".format(msg=msg))
         write_stream.send(msg)
 
-    def on_data(self, context: OneInOneOutContext, data: Any):
+    def on_data(self, context: OneInOneOutContext, data: int):
         print("LoopOp: received {data}".format(data=data))
-        context.timestamp.coordinates[0] += 1
-        data += 1
         time.sleep(1)
-        print("LoopOp: sending {data}".format(data=data))
-        context.write_stream.send(data)
+        # Update data and timestamp.
+        data += 1
+        coordinates = list(context.timestamp.coordinates)
+        coordinates[0] += 1
+        timestamp = erdos.Timestamp(coordinates=coordinates)
+        message = erdos.Message(timestamp, data)
+        print("LoopOp: sending {message}".format(message=message))
+        context.write_stream.send(message)
 
 
 def main():
