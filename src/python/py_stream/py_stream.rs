@@ -10,6 +10,17 @@ pub struct PyStream {
     pub stream: Stream<Vec<u8>>,
 }
 
+#[pymethods]
+impl PyStream {
+    fn name(&self) -> String {
+        self.stream.name()
+    }
+
+    fn set_name(&mut self, name: String) {
+        self.stream.set_name(&name)
+    }
+}
+
 impl From<Stream<Vec<u8>>> for PyStream {
     fn from(stream: Stream<Vec<u8>>) -> Self {
         Self { stream }

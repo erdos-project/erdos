@@ -43,6 +43,10 @@ impl PyIngestStream {
         self.ingest_stream.name()
     }
 
+    fn set_name(&self, name: String) {
+        self.ingest_stream.set_name(&name)
+    }
+
     fn to_py_stream(&self) -> PyStream {
         PyStream {
             stream: Stream::from(&self.ingest_stream),

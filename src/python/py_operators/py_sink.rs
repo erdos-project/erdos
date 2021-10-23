@@ -87,8 +87,7 @@ impl Sink<(), Vec<u8>> for PySink {
 import uuid, erdos
 
 # Create the ReadStream.
-read_stream = erdos.ReadStream(_py_read_stream=py_read_stream, 
-                               _name=name, 
+read_stream = erdos.ReadStream(_py_read_stream=py_read_stream,
                                _id=uuid.UUID(read_stream_id))
             "#,
                     None,
