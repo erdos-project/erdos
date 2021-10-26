@@ -32,11 +32,8 @@ class Stream(object):
     passed to the :py:func:`connect` method to allow other operators to read
     data from it.
     """
-    def __init__(self,
-                 _py_stream: PyStream = None,
-                 _id: Union[str, None] = None):
-        logger.debug(
-            "Initializing a Stream with ID: {}.".format(_id))
+    def __init__(self, _py_stream: PyStream, _id: Union[str, None]):
+        logger.debug("Initializing a Stream with ID: {}.".format(_id))
         self._py_stream = _py_stream
         self._id = _id
 
@@ -55,11 +52,8 @@ class ReadStream(object):
         No callbacks are invoked if an operator takes control of the execution
         in :py:func:`Operator.run`.
     """
-    def __init__(self,
-                 _py_read_stream: PyReadStream = None,
-                 _id: Union[str, None] = None):
-        logger.debug(
-            "Initializing ReadStream with ID: {}.".format(_id))
+    def __init__(self, _py_read_stream: PyReadStream, _id: Union[str, None]):
+        logger.debug("Initializing ReadStream with ID: {}.".format(_id))
         self._py_read_stream = PyReadStream(
         ) if _py_read_stream is None else _py_read_stream
         self._id = _id
@@ -68,10 +62,6 @@ class ReadStream(object):
     def name(self) -> Union[str, None]:
         """ The name of the stream. `None` if no name was given. """
         return self._py_read_stream.name()
-
-    def set_name(self, name: str):
-        """ Set a new name for the PyStream object. """
-        self._py_read_stream.set_name(name)
 
     def is_closed(self) -> bool:
         """Whether a top watermark message has been received."""
@@ -101,9 +91,7 @@ class WriteStream(object):
         `_py_write_stream` is set during :py:func:`run`, and should never be
         set manually.
     """
-    def __init__(self,
-                 _py_write_stream: PyWriteStream = None,
-                 _id: Union[str, None] = None):
+    def __init__(self, _py_write_stream: PyWriteStream, _id: Union[str, None]):
         self._py_write_stream = PyWriteStream(
         ) if _py_write_stream is None else _py_write_stream
         self._id = _id
@@ -112,10 +100,6 @@ class WriteStream(object):
     def name(self) -> Union[str, None]:
         """ The name of the stream. `None` if no name was given. """
         return self._py_write_stream.name()
-
-    def set_name(self, name: str):
-        """ Set a new name for the PyStream object. """
-        self._py_write_stream.set_name(name)
 
     def is_closed(self) -> bool:
         """Whether a top watermark message has been sent."""
@@ -175,7 +159,7 @@ class IngestStream(object):
         return self._py_ingest_stream.name()
 
     def set_name(self, name: str):
-        """ Set a new name for the PyIngestStream object. """
+        """ Set a new name for the IngestStream. """
         self._py_ingest_stream.set_name(name)
 
     def is_closed(self) -> bool:
