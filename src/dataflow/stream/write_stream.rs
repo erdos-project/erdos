@@ -24,11 +24,12 @@ use super::{errors::SendError, StreamId, WriteStreamT};
 /// The following example shows an operator which sends a sequence of numbers on a [`WriteStream`],
 /// and ensures that downstream operators progress by sending a watermark after each number.
 /// ```
-/// use std::{thread, time::Duration};
-///
-/// use erdos::dataflow::{
-///     operator::Source, stream::WriteStreamT, Message, Timestamp, WriteStream
-/// };
+/// # use std::{thread, time::Duration};
+/// #
+/// # use erdos::dataflow::{
+/// #     operator::Source, stream::WriteStreamT, Message, Timestamp, WriteStream
+/// # };
+/// #
 /// struct CounterOperator {}
 ///
 /// impl Source<(), usize> for CounterOperator {
