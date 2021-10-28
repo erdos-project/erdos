@@ -66,7 +66,8 @@ class ReadStream(object):
 
     @property
     def name(self) -> str:
-        """ The name of the stream. A string version of the stream's ID if no name was given. """
+        """ The name of the stream. A string version of the stream's ID if no 
+        name was given. """
         return self._py_read_stream.name()
 
     def is_closed(self) -> bool:
@@ -104,7 +105,8 @@ class WriteStream(object):
 
     @property
     def name(self) -> str:
-        """ The name of the stream. A string version of the stream's ID if no name was given. """
+        """ The name of the stream. A string version of the stream's ID if no 
+        name was given. """
         return self._py_write_stream.name()
 
     def is_closed(self) -> bool:
