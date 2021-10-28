@@ -66,7 +66,7 @@ class ReadStream(object):
 
     @property
     def name(self) -> str:
-        """ The name of the stream. A string version of the stream's ID if no 
+        """ The name of the stream. A string version of the stream's ID if no
         name was given. """
         return self._py_read_stream.name()
 
@@ -105,7 +105,7 @@ class WriteStream(object):
 
     @property
     def name(self) -> str:
-        """ The name of the stream. A string version of the stream's ID if no 
+        """ The name of the stream. A string version of the stream's ID if no
         name was given. """
         return self._py_write_stream.name()
 
