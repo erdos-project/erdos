@@ -73,7 +73,7 @@ def connect_source(
 
     internal_stream = _internal.connect_source(op_type, config, args, kwargs,
                                                node_id)
-    return Stream(_py_stream=internal_stream, _id=node_id)
+    return Stream(_py_stream=internal_stream)
 
 
 def connect_sink(
@@ -199,7 +199,7 @@ def connect_one_in_one_out(
     internal_stream = _internal.connect_one_in_one_out(op_type, config,
                                                        py_stream, args, kwargs,
                                                        node_id)
-    return Stream(_py_stream=internal_stream, _id=node_id)
+    return Stream(_py_stream=internal_stream)
 
 
 def connect_two_in_one_out(
@@ -288,7 +288,7 @@ def connect_two_in_one_out(
                                                        left_py_stream,
                                                        right_py_stream, args,
                                                        kwargs, node_id)
-    return Stream(_py_stream=internal_stream, _id=node_id)
+    return Stream(_py_stream=internal_stream)
 
 
 def connect_one_in_two_out(
@@ -356,8 +356,7 @@ def connect_one_in_two_out(
 
     left_stream, right_stream = _internal.connect_one_in_two_out(
         op_type, config, py_stream, args, kwargs, node_id)
-    return Stream(_py_stream=left_stream,
-                  _id=node_id), Stream(_py_stream=right_stream, _id=node_id)
+    return Stream(_py_stream=left_stream), Stream(_py_stream=right_stream)
 
 
 def reset():

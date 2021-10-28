@@ -1,5 +1,6 @@
 import pickle
 import logging
+import uuid
 from typing import Union
 
 from erdos.message import Message, WatermarkMessage
@@ -32,10 +33,15 @@ class Stream(object):
     passed to the :py:func:`connect` method to allow other operators to read
     data from it.
     """
-    def __init__(self, _py_stream: PyStream, _id: Union[str, None]):
-        logger.debug("Initializing a Stream with ID: {}.".format(_id))
+    def __init__(self, _py_stream: PyStream):
+        logger.debug("Initializing a Stream with ID: {}.".format(
+            _py_stream.id))
         self._py_stream = _py_stream
-        self._id = _id
+
+    @property
+    def id(self) -> str:
+        """ The id of the stream. """
+        return uuid.UUID(self._py_stream.id())
 
 
 class ReadStream(object):
@@ -59,8 +65,8 @@ class ReadStream(object):
         self._id = _id
 
     @property
-    def name(self) -> Union[str, None]:
-        """ The name of the stream. `None` if no name was given. """
+    def name(self) -> str:
+        """ The name of the stream. A string version of the stream's ID if no name was given. """
         return self._py_read_stream.name()
 
     def is_closed(self) -> bool:
@@ -97,8 +103,8 @@ class WriteStream(object):
         self._id = _id
 
     @property
-    def name(self) -> Union[str, None]:
-        """ The name of the stream. `None` if no name was given. """
+    def name(self) -> str:
+        """ The name of the stream. A string version of the stream's ID if no name was given. """
         return self._py_write_stream.name()
 
     def is_closed(self) -> bool:
@@ -158,8 +164,12 @@ class IngestStream(object):
         """ The name of the stream. The stream ID if none was given."""
         return self._py_ingest_stream.name()
 
-    def set_name(self, name: str):
-        """ Set a new name for the IngestStream. """
+    @name.setter
+    def name(self, name: str):
+        self._set_name(name)
+
+    def _set_name(self, name: str):
+        """ Indirect setter to set the name of the IngestStream. """
         self._py_ingest_stream.set_name(name)
 
     def is_closed(self) -> bool:

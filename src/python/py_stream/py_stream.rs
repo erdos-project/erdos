@@ -19,6 +19,10 @@ impl PyStream {
     fn set_name(&mut self, name: String) {
         self.stream.set_name(&name)
     }
+
+    fn id(&self) -> String {
+        format!("{}", self.stream.id())
+    }
 }
 
 impl From<Stream<Vec<u8>>> for PyStream {
