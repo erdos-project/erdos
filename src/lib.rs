@@ -5,7 +5,7 @@
 //!
 //! Applications are modeled as directed graphs, in which data flows through
 //! [streams](crate::dataflow::stream) and is processed by
-//! [operators](crate::dataflow::Operator).
+//! [operators](crate::dataflow::operator).
 //! Because applications often resemble a sequence of connected operators,
 //! an ERDOS application may also be referred to as a *pipeline*.
 //!
@@ -20,108 +20,75 @@
 //! // Capture arguments to set up an ERDOS node.
 //! let args = erdos::new_app("ObjectCounter");
 //! // Create an ERDOS node which runs the application.
-//! let mut node = Node::new(Configuration::from_args(args));
+//! let mut node = Node::new(Configuration::from_args(&args));
 //!
 //! // Stream of RGB images from a camera.
-//! let camera_frames = erdos::connect_1_write!(
-//!     CameraOperator,
+//! let camera_frames = erdos::connect_source(
+//!     CameraOperator::new,
+//!     || {},
 //!     OperatorConfig::new().name("Camera")
 //! );
 //! // Stream of labeled bounding boxes for each RGB image.
-//! let detected_objects = erdos::connect_1_write!(
-//!     ObjectDetector,
+//! let detected_objects = erdos::connect_one_in_one_out(
+//!     ObjectDetector::new,
+//!     || {},
 //!     OperatorConfig::new().name("Detector"),
-//!     camera_stream
+//!     &camera_frames
 //! );
 //! // Stream of detected object count for each RGB image.
-//! let num_detected = erdos::connect_1_write!(
-//!     MapOperator,
-//!     OperatorConfig::new()
-//!         .name("Counter")
-//!         .arg(|bboxes: &Vec<BBox>| -> usize { bbxes.len() }),
-//!     detected_objects
+//! let num_detected = erdos::connect_one_in_one_out(
+//!     || { MapOperator::new(|bboxes: &Vec<BBox>| -> usize { bboxes.len() }) },
+//!     || {},
+//!     OperatorConfig::new().name("Counter"),
+//!     &detected_objects
 //! );
 //!
 //! // Run the application
 //! node.run();
 //! ```
 //!
-//! ## Driver
-//! The *driver* section of the program connects operators together using
-//! streams to build an ERDOS application which may then be executed.
-//! The driver is typically the `main` function in `main.rs`.
-//!
-//! The driver may also interact with a running ERDOS application.
-//! Using the [`IngestStream`](crate::dataflow::stream::IngestStream),
-//! the driver can send data to operators on a stream.
-//! The [`ExtractStream`](crate::dataflow::stream::ExtractStream)
-//! allows the driver to read data sent from an operator.
-//!
-//! ## Streams
-//! Data is broadcast to all receivers when sending on an ERDOS stream.
-//! Streams are typed on their data, and expose 2 classes of interfaces
-//! that access the underlying stream:
-//! 1. Read-interfaces expose methods to receive and process data.
-//!    They allow pulling data by calling
-//!    [`read()`](crate::dataflow::stream::ReadStream::read) and
-//!    [`try_read()`](crate::dataflow::stream::ReadStream::try_read).
-//!    Often, they also support a push data model accessed by registering
-//!    callbacks (e.g.
-//!    [`add_callback`](crate::dataflow::stream::ReadStream::add_callback) and
-//!    [`add_watermark_callback`](crate::dataflow::stream::ReadStream::add_watermark_callback)).
-//!    Structures that implement read interfaces include:
-//!    - [`ReadStream`](crate::dataflow::stream::ReadStream):
-//!      used by operators to read data and register callbacks.
-//!    - [`ExtractStream`](crate::dataflow::stream::ExtractStream):
-//!      used by the driver to read data.
-//! 2. Write-interfaces expose the
-//!    [`send`](crate::dataflow::stream::WriteStreamT::send) method to send
-//!    data on a stream. Structures that implement write interfaces include:
-//!    - [`WriteStream`](crate::dataflow::stream::WriteStream): used by
-//!      operators to send data.
-//!    - [`IngestStream`](crate::dataflow::stream::IngestStream): used by
-//!      the driver to send data.
-//!
-//! Some applications may want to introduce loops in their dataflow graphs
-//! which is possible using the
-//! [`LoopStream`](crate::dataflow::stream::LoopStream).
-//!
 //! ## Operators
-//! An ERDOS operator receives data on
-//! [`ReadStream`](crate::dataflow::stream::ReadStream)s,
-//! and sends processed data on
-//! [`WriteStream`](crate::dataflow::stream::WriteStream)s.
-//! We provide a [standard library of operators](crate::dataflow::operators)
+//! ERDOS operators process received data, and use
+//! [streams](crate::dataflow::stream) to broadcast
+//! [`Message`s](crate::dataflow::Message) to downstream operators.
+//! ERDOS provides a [standard library of operators](crate::dataflow::operators)
 //! for common dataflow patterns.
 //! While the standard operators are general and versatile, some applications
 //! may implement custom operators to better optimize performance and take
 //! fine-grained control over exection.
 //!
-//! All operators must implement `new` and `connect` methods, in addition to
-//! the [`Operator`](crate::dataflow::Operator) trait.
-//! - The `new` method takes an
-//!   [`OperatorConfig`](crate::dataflow::OperatorConfig),
-//!   all [`ReadStream`](crate::dataflow::stream::ReadStream)s from which the
-//!   operator receives data, all
-//!   [`WriteStream`](crate::dataflow::stream::WriteStream)s on which the
-//!   operator sends data, and returns `Self`.
-//!   Within `new`, the state should be initialized, and callbacks may be
-//!   registered across [`ReadStream`](crate::dataflow::stream::ReadStream)s.
-//! - The `connect` method takes references to the required
-//!   [`ReadStream`](crate::dataflow::stream::ReadStream)s
-//!   and returns [`WriteStream`](crate::dataflow::stream::WriteStream)s in the
-//!   same order as in `new`.
-//!
+//! ### Implementing Operators
 //! For an example, see the implementation of the
 //! [`MapOperator`](crate::dataflow::operators::MapOperator).
 //!
+//! Operators are structures which implement an
+//! [operator trait](crate::dataflow::operator) reflecting their
+//! communication pattern.
+//! For example, the [`SplitOperator`](crate::dataflow::operators::SplitOperator)
+//! implements [`OneInTwoOut`](crate::dataflow::operator::OneInTwoOut)
+//! because it receives data on one input stream, and sends messages on
+//! two output streams.
+//!
+//! Operators can support both push and pull-based models of execution
+//! by implementing methods defined in the
+//! [operator traits](crate::dataflow::operator).
+//! By implementing callbacks such as
+//! [`OneInOneOut::on_data`](crate::dataflow::operator::OneInOneOut::on_data),
+//! operators can process messages as they arrive.
+//! Moreover, operators can implement callbacks over [watermarks](#watermarks)
+//! (e.g. [`OneInOneOut::on_watermark`](crate::dataflow::operator::OneInOneOut::on_watermark))
+//! to ensure ordered processing over timestamps.
+//! ERDOS ensures lock-free, safe, and concurrent processing by ordering
+//! callbacks in an ERDOS-managed execution lattice, which serves as a run
+//! queue for the system's multithreaded runtime.
+//!
 //! While ERDOS manages the execution of callbacks, some operators require
-//! more finegrained control. Operators can take manual control over the
-//! thread of execution by overriding the
-//! [`run`](crate::dataflow::Operator::run) of the
-//! [`Operator`](crate::dataflow::Operator) trait and pulling data from
-//! [`ReadStream`](crate::dataflow::stream::ReadStream)s.
-//! *Callbacks are not invoked while run executes.*
+//! more finegrained control. Operators can use the pull-based model
+//! to take over the thread of execution by overriding the `run` method
+//! (e.g. [`OneInOneOut::run`](crate::dataflow::operator::OneInOneOut::run))
+//! of an [operator trait](crate::dataflow::operator), and pulling data from
+//! the [`ReadStream`](crate::dataflow::stream::ReadStream)s.
+//! *Callbacks are not invoked while `run` executes.*
 //!
 //! ## Performance
 //! ERDOS is designed for low latency. Self-driving car pipelines require
@@ -143,9 +110,7 @@
 //! ERDOS provides mechanisms to enable the building of deterministic
 //! applications.
 //! For instance, processing sets of messages separated by watermarks using
-//! watermark callbacks and
-//! [time-versioned state](crate::dataflow::state::TimeVersionedState)
-//! turns ERDOS pipelines into
+//! watermark callbacks can turn ERDOS pipelines into
 //! [Kahn process networks](https://en.wikipedia.org/wiki/Kahn_process_networks).
 
 // Required for specialization.

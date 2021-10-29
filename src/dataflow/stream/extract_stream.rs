@@ -27,9 +27,9 @@ use super::{
 /// operators of the graph.
 ///
 /// # Example
-/// The below example shows how to use an [`IngestStream`] to send data to a
-/// [`MapOperator`](crate::dataflow::operators::MapOperator), and retrieve the mapped values
-/// through an [`ExtractStream`].
+/// The below example shows how to use an [`IngestStream`](crate::dataflow::stream::IngestStream)
+/// to send data to a [`MapOperator`](crate::dataflow::operators::MapOperator),
+/// and retrieve the processed values through an [`ExtractStream`].
 /// ```
 /// # use erdos::dataflow::{
 /// #    stream::{IngestStream, ExtractStream},
@@ -37,34 +37,33 @@ use super::{
 /// #    OperatorConfig, Message, Timestamp
 /// # };
 /// # use erdos::*;
+/// # use erdos::node::Node;
 /// #
-/// # let map_config = OperatorConfig::new()
-//  #     .name("MapOperator")
-/// #     .arg(|data: &u32| -> u64 { (data * 2) as u64 });
-/// #
+/// let args = erdos::new_app("ERDOS").get_matches();
+/// let mut node = Node::new(Configuration::from_args(&args));
+///
 /// // Create an IngestStream.
 /// let mut ingest_stream = IngestStream::new();
 ///
 /// // Create an ExtractStream from the ReadStream of the MapOperator.
-/// let output_read_stream = connect_1_write!(MapOperator<u32, u64>, map_config, ingest_stream);
-/// let mut extract_stream = ExtractStream::new(0, &output_read_stream);
+/// let operator_stream = erdos::connect_one_in_one_out(
+///     || { MapOperator::new(|data: &u32| -> u64 { (2 * data) as u64 }) },
+///     || {},
+///     OperatorConfig::new().name("MapOperator"),
+///     &ingest_stream);
+/// let mut extract_stream = ExtractStream::new(&operator_stream);
+///
+/// node.run_async();
 ///
 /// // Send data on the IngestStream.
 /// for i in 1..10 {
-///     // We expect an error because we have not started the dataflow graph yet.
-///     match ingest_stream.send(Message::new_message(Timestamp::new(vec![i as u64]), i)) {
-///         Err(e) => (),
-///         _ => (),
-///     };
+///     ingest_stream.send(Message::new_message(Timestamp::Time(vec![i as u64]), i)).unwrap();
 /// }
 ///
 /// // Retrieve mapped values using an ExtractStream.
 /// for i in 1..10 {
-///     // We expect a Disconnected error because we have not started the dataflow graph yet.
-///     match extract_stream.try_read() {
-///         Err(e) => (),
-///         _ => (),
-///     };
+///     let message: Message<u64> = extract_stream.read().unwrap();
+///     assert_eq!(*message.data().unwrap(), 2 * i);
 /// }
 /// ```
 pub struct ExtractStream<D>
@@ -83,20 +82,20 @@ impl<D> ExtractStream<D>
 where
     for<'a> D: Data + Deserialize<'a>,
 {
-    /// Returns a new instance of the [`ExtractStream`]
+    /// Returns a new instance of the [`ExtractStream`].
     ///
     /// # Arguments
-    /// * `read_stream`: The [`ReadStream`] returned by an
-    /// [`Operator`](crate::dataflow::operator::Operator) to extract the messages from.
-    pub fn new(read_stream: &Stream<D>) -> Self {
+    /// * `stream`: The [`Stream`] returned by an [operator](crate::dataflow::operator)
+    /// from which to extract messages.
+    pub fn new(stream: &Stream<D>) -> Self {
         slog::debug!(
             crate::TERMINAL_LOGGER,
             "Initializing an ExtractStream with the ReadStream {} (ID: {})",
-            read_stream.name(),
-            read_stream.id(),
+            stream.name(),
+            stream.id(),
         );
 
-        let id = read_stream.id();
+        let id = stream.id();
 
         // Create the ExtractStream structure.
         let extract_stream = Self {
