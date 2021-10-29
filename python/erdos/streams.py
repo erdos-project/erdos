@@ -59,7 +59,9 @@ class ReadStream(object):
         in :py:func:`Operator.run`.
     """
     def __init__(self, _py_read_stream: PyReadStream, _id: Union[str, None]):
-        logger.debug("Initializing ReadStream with ID: {}.".format(_id))
+        logger.debug(
+            "Initializing ReadStream with the name: {}, and ID: {}.".format(
+                _py_read_stream.name(), _id))
         self._py_read_stream = PyReadStream(
         ) if _py_read_stream is None else _py_read_stream
         self._id = _id
@@ -168,10 +170,6 @@ class IngestStream(object):
 
     @name.setter
     def name(self, name: str):
-        self._set_name(name)
-
-    def _set_name(self, name: str):
-        """ Indirect setter to set the name of the IngestStream. """
         self._py_ingest_stream.set_name(name)
 
     def is_closed(self) -> bool:
