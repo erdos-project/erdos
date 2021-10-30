@@ -29,6 +29,10 @@ impl PyReadStream {
         self.read_stream.is_closed()
     }
 
+    fn name(&self) -> String {
+        self.read_stream.name()
+    }
+
     /// Returns (timestamp, data)
     fn read(&mut self) -> PyResult<PyMessage> {
         // NOTE: Since the executor of a Python's `run` method holds a reference to the same Arc

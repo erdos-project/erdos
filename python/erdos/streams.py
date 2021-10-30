@@ -1,5 +1,6 @@
 import pickle
 import logging
+import uuid
 from typing import Union
 
 from erdos.message import Message, WatermarkMessage
@@ -32,16 +33,15 @@ class Stream(object):
     passed to the :py:func:`connect` method to allow other operators to read
     data from it.
     """
-    def __init__(self,
-                 _py_stream: PyStream = None,
-                 _name: Union[str, None] = None,
-                 _id: Union[str, None] = None):
-        logger.debug(
-            "Initializing a Stream with the name: {} and ID: {}.".format(
-                _name, _id))
+    def __init__(self, _py_stream: PyStream):
+        logger.debug("Initializing a Stream with ID: {}.".format(
+            _py_stream.id))
         self._py_stream = _py_stream
-        self._name = _name
-        self._id = _id
+
+    @property
+    def id(self) -> str:
+        """ The id of the stream. """
+        return uuid.UUID(self._py_stream.id())
 
 
 class ReadStream(object):
@@ -58,22 +58,19 @@ class ReadStream(object):
         No callbacks are invoked if an operator takes control of the execution
         in :py:func:`Operator.run`.
     """
-    def __init__(self,
-                 _py_read_stream: PyReadStream = None,
-                 _name: Union[str, None] = None,
-                 _id: Union[str, None] = None):
+    def __init__(self, _py_read_stream: PyReadStream, _id: Union[str, None]):
         logger.debug(
             "Initializing ReadStream with the name: {}, and ID: {}.".format(
-                _name, _id))
+                _py_read_stream.name(), _id))
         self._py_read_stream = PyReadStream(
         ) if _py_read_stream is None else _py_read_stream
-        self._name = _name
         self._id = _id
 
     @property
-    def name(self) -> Union[str, None]:
-        """ The name of the stream. `None` if no name was given. """
-        return self._name
+    def name(self) -> str:
+        """ The name of the stream. A string version of the stream's ID if no
+        name was given. """
+        return self._py_read_stream.name()
 
     def is_closed(self) -> bool:
         """Whether a top watermark message has been received."""
@@ -103,19 +100,16 @@ class WriteStream(object):
         `_py_write_stream` is set during :py:func:`run`, and should never be
         set manually.
     """
-    def __init__(self,
-                 _py_write_stream: PyWriteStream = None,
-                 _name: Union[str, None] = None,
-                 _id: Union[str, None] = None):
+    def __init__(self, _py_write_stream: PyWriteStream, _id: Union[str, None]):
         self._py_write_stream = PyWriteStream(
         ) if _py_write_stream is None else _py_write_stream
-        self._name = _name
         self._id = _id
 
     @property
-    def name(self) -> Union[str, None]:
-        """ The name of the stream. `None` if no name was given. """
-        return self._name
+    def name(self) -> str:
+        """ The name of the stream. A string version of the stream's ID if no
+        name was given. """
+        return self._py_write_stream.name()
 
     def is_closed(self) -> bool:
         """Whether a top watermark message has been sent."""
@@ -132,14 +126,14 @@ class WriteStream(object):
 
         internal_msg = msg._to_py_message()
         logger.debug("Sending message {} on the stream {}".format(
-            msg, self._name))
+            msg, self.name))
 
         # Raise exception with the name.
         try:
             return self._py_write_stream.send(internal_msg)
         except Exception as e:
             raise Exception("Exception on stream {} ({})".format(
-                self._name, self._id)) from e
+                self.name, self._id)) from e
 
 
 class LoopStream(object):
@@ -173,6 +167,10 @@ class IngestStream(object):
     def name(self) -> str:
         """ The name of the stream. The stream ID if none was given."""
         return self._py_ingest_stream.name()
+
+    @name.setter
+    def name(self, name: str):
+        self._py_ingest_stream.set_name(name)
 
     def is_closed(self) -> bool:
         """Whether the stream is closed.

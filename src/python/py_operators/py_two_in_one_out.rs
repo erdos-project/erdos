@@ -147,17 +147,14 @@ import uuid, erdos
 
 # Create the first ReadStream.
 left_read_stream = erdos.ReadStream(_py_read_stream=py_left_read_stream,
-                                    _name=left_read_stream_name, 
                                     _id=uuid.UUID(left_read_stream_id))
 
 # Create the first ReadStream.
 right_read_stream = erdos.ReadStream(_py_read_stream=py_right_read_stream,
-                                     _name=right_read_stream_name, 
                                      _id=uuid.UUID(right_read_stream_id))
 
 # Create the WriteStream.
 write_stream = erdos.WriteStream(_py_write_stream=py_write_stream,
-                                 _name=write_stream_name,
                                  _id=uuid.UUID(write_stream_id))
             "#,
                         None,

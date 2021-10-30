@@ -27,6 +27,10 @@ impl PyWriteStream {
         self.write_stream.is_closed()
     }
 
+    fn name(&self) -> String {
+        self.write_stream.name()
+    }
+
     fn send(&mut self, msg: &PyMessage) -> PyResult<()> {
         self.write_stream.send(Message::from(msg)).map_err(|e| {
             let error_str = format!("Error sending message on {}", self.write_stream.id());
