@@ -114,12 +114,10 @@ impl OneInOneOut<(), Vec<u8>, Vec<u8>> for PyOneInOneOut {
 import uuid, erdos
 
 # Create the ReadStream.
-read_stream = erdos.ReadStream(_py_read_stream=py_read_stream,
-                               _id=uuid.UUID(read_stream_id))
+read_stream = erdos.ReadStream(_py_read_stream=py_read_stream)
 
 # Create the WriteStream.
-write_stream = erdos.WriteStream(_py_write_stream=py_write_stream,
-                                 _id=uuid.UUID(write_stream_id))
+write_stream = erdos.WriteStream(_py_write_stream=py_write_stream)
             "#,
                         None,
                         Some(&locals),
