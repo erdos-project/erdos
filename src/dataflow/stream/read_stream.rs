@@ -10,80 +10,32 @@ use super::{
     StreamId,
 };
 
-/// A [`ReadStream`] allows operators to read data from a corresponding [`WriteStream`].
+/// A [`ReadStream`] allows operators to pull [`Message`]s from a [stream](crate::dataflow::stream).
 ///
-/// An [`Operator`](crate::dataflow::operator::Operator) receives a [`ReadStream`] in its `new` and
-/// `connect` functions. Operators can register both message and watermark callbacks on the
-/// [`ReadStream`] to be invoked upon the receipt of a corresponding message. An operator can also
-/// invoke the stream's [`read`](ReadStream::read) or [`try_read`](ReadStream::try_read) methods to
-/// retrieve data from the streams in the [`run`](crate::dataflow::operator::Operator::run) method.
-///
-/// A driver receives a set of [`ReadStream`] s corresponding to the [`WriteStream`] s returned by
-/// an operator's `connect` function. In order to connect operators, the driver can pass these
-/// [`ReadStream`] s to other operators via the [`connect_x_write`](crate::connect_1_write)
-/// family of macros. In order to read data from a [`ReadStream`], a driver can instantiate an
-/// [`ExtractStream`](crate::dataflow::stream::ExtractStream) from the read stream.
-///
-/// # Examples
-/// The following example shows an [`Operator`](crate::dataflow::operator::Operator) that takes in
-/// a single [`ReadStream`] and prints the received value by requesting a callback.
+/// # Example
+/// The following example shows an operator that prints out messages received from a [`ReadStream`].
 /// ```
-/// use erdos::dataflow::{Operator, ReadStream, Timestamp, OperatorConfig};
-/// pub struct PrintOperator {}
-///
-/// impl PrintOperator {
-///     pub fn new(config: OperatorConfig<()>, input_stream: ReadStream<u32>) -> Self {
-///         // Request a callback upon receipt of every message.
-///         input_stream.add_callback(
-///             move |t: &Timestamp, msg: &u32| {
-///                 Self::on_callback(t, msg)
-///             },
-///         );
-///         Self {}
-///     }
-///
-///     pub fn connect(input_stream: ReadStream<u32>) -> () {}
-///
-///     fn on_callback(t: &Timestamp, msg: &u32) {
-///         println!("[{:?}] Received the value: {}", t, msg);
-///     }
+/// # use std::marker::PhantomData;
+/// # use erdos::dataflow::{operator::Sink, context::SinkContext, Data, ReadStream};
+/// #
+/// struct PrintMessageOperator<D: Data> {
+///     phantom: PhantomData<D>,
 /// }
 ///
-/// impl Operator for PrintOperator {}
-/// ```
-///
-/// The following example shows an [`Operator`](crate::dataflow::operator::Operator) that takes in
-/// a single [`ReadStream`] and prints the received value by querying for a value on the stream.
-/// ```
-/// use erdos::dataflow::{Operator, ReadStream, Timestamp, OperatorConfig};
-/// pub struct SumOperator {
-///     read_stream: ReadStream<u32>,
-/// }
-///
-/// impl SumOperator {
-///     pub fn new(config: OperatorConfig<()>, input_stream: ReadStream<u32>) -> Self {
-///         Self {
-///             read_stream: input_stream,
-///         }
-///     }
-///
-///     pub fn connect(input_stream: ReadStream<u32>) -> () {}
-/// }
-///
-/// impl Operator for SumOperator {
-///     fn run(&mut self) {
-///         // Read 10 messages and print them.
-///         for i in 1..10 {
-///            let msg = self.read_stream.read().unwrap(); // blocking.
-///            println!("[{:?}] Received the value: {}", msg.timestamp(), msg.data().unwrap());
+/// impl<D: Data> Sink<(), D> for PrintMessageOperator<D> {
+/// #    fn on_data(&mut self, ctx: &mut SinkContext<()>, data: &D) {}
+/// #    fn on_watermark(&mut self, ctx: &mut SinkContext<()>) {}
+/// #
+///     fn run(&mut self, read_stream: &mut ReadStream<D>) {
+///         while let Ok(message) = read_stream.read() {
+///             println!("Recieved message: {:?}", message);
 ///         }
 ///     }
 /// }
 /// ```
 ///
-/// The examples in [`ExtractStream`](crate::dataflow::stream::ExtractStream) show how to use a
-/// [`ReadStream`] returned by an [`Operator`](crate::dataflow::operator::Operator) to read data in
-/// the driver.
+/// The examples in [`ExtractStream`](crate::dataflow::stream::ExtractStream) show how to
+/// pull data from a stream in the driver.
 pub struct ReadStream<D: Data> {
     /// The id of the stream.
     id: StreamId,
