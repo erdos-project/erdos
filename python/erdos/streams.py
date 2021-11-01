@@ -15,7 +15,7 @@ def _parse_message(internal_msg):
     """Creates a Message from an internal stream's response.
 
     Args:
-        internal_msg (PyMessage): The internal message to parse.
+        internal_msg (PyMessage): The int   ernal message to parse.
     """
     if internal_msg.is_timestamped_data():
         return pickle.loads(internal_msg.data)
@@ -183,6 +183,11 @@ class IngestStream(object):
     def name(self, name: str):
         self._py_ingest_stream.set_name(name)
 
+    @property
+    def id(self) -> str:
+        """ The id of the IngestStream. """
+        return uuid.UUID(self._py_ingest_stream.id())
+
     def is_closed(self) -> bool:
         """Whether the stream is closed.
 
@@ -232,6 +237,11 @@ class ExtractStream(object):
     def name(self) -> str:
         """The name of the stream. The stream ID if no name was given."""
         return self._py_extract_stream.name()
+    
+    @property
+    def id(self) -> str:
+        """ The id of the ExtractStream. """
+        return uuid.UUID(self._py_extract_stream.id())
 
     def is_closed(self) -> bool:
         """Whether the stream is closed.
