@@ -43,6 +43,15 @@ class Stream(object):
         """ The id of the stream. """
         return uuid.UUID(self._py_stream.id())
 
+    @property
+    def name(self) -> str:
+        """ The name of the stream. The stream ID if none was given. """
+        return self._py_stream.name()
+
+    @name.setter
+    def name(self, name: str):
+        self._py_stream.set_name(name)
+
 
 class ReadStream(object):
     """ A :py:class:`ReadStream` allows an :py:class:`Operator` to read and
