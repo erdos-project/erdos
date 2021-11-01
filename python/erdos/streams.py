@@ -237,7 +237,7 @@ class ExtractStream(object):
     def name(self) -> str:
         """The name of the stream. The stream ID if no name was given."""
         return self._py_extract_stream.name()
-    
+
     @property
     def id(self) -> str:
         """ The id of the ExtractStream. """
