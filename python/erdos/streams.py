@@ -58,19 +58,23 @@ class ReadStream(object):
         No callbacks are invoked if an operator takes control of the execution
         in :py:func:`Operator.run`.
     """
-    def __init__(self, _py_read_stream: PyReadStream, _id: Union[str, None]):
+    def __init__(self, _py_read_stream: PyReadStream):
         logger.debug(
             "Initializing ReadStream with the name: {}, and ID: {}.".format(
-                _py_read_stream.name(), _id))
+                _py_read_stream.name(), _py_read_stream.id))
         self._py_read_stream = PyReadStream(
         ) if _py_read_stream is None else _py_read_stream
-        self._id = _id
 
     @property
     def name(self) -> str:
         """ The name of the stream. A string version of the stream's ID if no
         name was given. """
         return self._py_read_stream.name()
+
+    @property
+    def id(self) -> str:
+        """ The id of the ReadStream. """
+        return uuid.UUID(self._py_read_stream.id())
 
     def is_closed(self) -> bool:
         """Whether a top watermark message has been received."""
@@ -100,16 +104,23 @@ class WriteStream(object):
         `_py_write_stream` is set during :py:func:`run`, and should never be
         set manually.
     """
-    def __init__(self, _py_write_stream: PyWriteStream, _id: Union[str, None]):
+    def __init__(self, _py_write_stream: PyWriteStream):
+        logger.debug(
+            "Initializing WriteStream with the name: {}, and ID: {}.".format(
+                _py_write_stream.name(), _py_write_stream.id))
         self._py_write_stream = PyWriteStream(
         ) if _py_write_stream is None else _py_write_stream
-        self._id = _id
 
     @property
     def name(self) -> str:
         """ The name of the stream. A string version of the stream's ID if no
         name was given. """
         return self._py_write_stream.name()
+
+    @property
+    def id(self) -> str:
+        """ The id of the WriteStream. """
+        return uuid.UUID(self._py_write_stream.id())
 
     def is_closed(self) -> bool:
         """Whether a top watermark message has been sent."""
@@ -133,7 +144,7 @@ class WriteStream(object):
             return self._py_write_stream.send(internal_msg)
         except Exception as e:
             raise Exception("Exception on stream {} ({})".format(
-                self.name, self._id)) from e
+                self.name, self.id)) from e
 
 
 class LoopStream(object):

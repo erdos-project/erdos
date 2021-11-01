@@ -33,6 +33,10 @@ impl PyReadStream {
         self.read_stream.name()
     }
 
+    fn id(&self) -> String {
+        format!("{}", self.read_stream.id())
+    }
+
     /// Returns (timestamp, data)
     fn read(&mut self) -> PyResult<PyMessage> {
         // NOTE: Since the executor of a Python's `run` method holds a reference to the same Arc

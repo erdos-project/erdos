@@ -68,8 +68,7 @@ impl Source<(), Vec<u8>> for PySource {
 import uuid, erdos
 
 # Create the WriteStream.
-write_stream = erdos.WriteStream(_py_write_stream=py_write_stream,
-                                 _id=uuid.UUID(write_stream_id))
+write_stream = erdos.WriteStream(_py_write_stream=py_write_stream)
             "#,
                 None,
                 Some(&locals),

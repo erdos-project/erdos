@@ -146,16 +146,13 @@ impl TwoInOneOut<(), Vec<u8>, Vec<u8>, Vec<u8>> for PyTwoInOneOut {
 import uuid, erdos
 
 # Create the first ReadStream.
-left_read_stream = erdos.ReadStream(_py_read_stream=py_left_read_stream,
-                                    _id=uuid.UUID(left_read_stream_id))
+left_read_stream = erdos.ReadStream(_py_read_stream=py_left_read_stream)
 
 # Create the first ReadStream.
-right_read_stream = erdos.ReadStream(_py_read_stream=py_right_read_stream,
-                                     _id=uuid.UUID(right_read_stream_id))
+right_read_stream = erdos.ReadStream(_py_read_stream=py_right_read_stream)
 
 # Create the WriteStream.
-write_stream = erdos.WriteStream(_py_write_stream=py_write_stream,
-                                 _id=uuid.UUID(write_stream_id))
+write_stream = erdos.WriteStream(_py_write_stream=py_write_stream)
             "#,
                         None,
                         Some(&locals),
