@@ -47,6 +47,10 @@ impl PyIngestStream {
         self.ingest_stream.set_name(&name)
     }
 
+    fn id(&self) -> String {
+        format!("{}", self.ingest_stream.id())
+    }
+
     fn to_py_stream(&self) -> PyStream {
         PyStream {
             stream: Stream::from(&self.ingest_stream),

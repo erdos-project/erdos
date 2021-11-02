@@ -192,6 +192,11 @@ class IngestStream(object):
     def name(self, name: str):
         self._py_ingest_stream.set_name(name)
 
+    @property
+    def id(self) -> str:
+        """ The id of the IngestStream. """
+        return uuid.UUID(self._py_ingest_stream.id())
+
     def is_closed(self) -> bool:
         """Whether the stream is closed.
 
@@ -241,6 +246,11 @@ class ExtractStream(object):
     def name(self) -> str:
         """The name of the stream. The stream ID if no name was given."""
         return self._py_extract_stream.name()
+
+    @property
+    def id(self) -> str:
+        """ The id of the ExtractStream. """
+        return uuid.UUID(self._py_extract_stream.id())
 
     def is_closed(self) -> bool:
         """Whether the stream is closed.

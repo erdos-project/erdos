@@ -55,4 +55,8 @@ impl PyExtractStream {
     fn name(&self) -> String {
         self.extract_stream.name()
     }
+
+    fn id(&self) -> String {
+        format!("{}", self.extract_stream.id())
+    }
 }
