@@ -15,7 +15,7 @@ def _parse_message(internal_msg):
     """Creates a Message from an internal stream's response.
 
     Args:
-        internal_msg (PyMessage): The int   ernal message to parse.
+        internal_msg (PyMessage): The internal message to parse.
     """
     if internal_msg.is_timestamped_data():
         return pickle.loads(internal_msg.data)
