@@ -410,11 +410,15 @@ where
             HashSet::new(),
             HashSet::new(),
             move || {
-                operator.lock().unwrap().on_data(
+                // Note: to avoid deadlock, always lock the operator before the state.
+                let mut mutable_operator = operator.lock().unwrap();
+                let mut mutable_state = state.lock().unwrap();
+
+                mutable_operator.on_data(
                     &mut OneInTwoOutContext::new(
                         time,
                         config,
-                        &mut state.lock().unwrap(),
+                        &mut mutable_state,
                         left_write_stream,
                         right_write_stream,
                     ),
@@ -447,18 +451,17 @@ where
                 HashSet::new(),
                 self.state_ids.clone(),
                 move || {
-                    // Take a lock on the state and the operator and invoke the callback.
-                    let mutable_state = &mut state.lock().unwrap();
-                    operator
-                        .lock()
-                        .unwrap()
-                        .on_watermark(&mut OneInTwoOutContext::new(
-                            time,
-                            config,
-                            mutable_state,
-                            left_write_stream,
-                            right_write_stream,
-                        ));
+                    // Note: to avoid deadlock, always lock the operator before the state.
+                    let mut mutable_operator = operator.lock().unwrap();
+                    let mut mutable_state = state.lock().unwrap();
+
+                    mutable_operator.on_watermark(&mut OneInTwoOutContext::new(
+                        time,
+                        config,
+                        &mut mutable_state,
+                        left_write_stream,
+                        right_write_stream,
+                    ));
 
                     // Send a watermark.
                     left_write_stream_copy
@@ -481,18 +484,17 @@ where
                 HashSet::new(),
                 self.state_ids.clone(),
                 move || {
-                    // Take a lock on the state and the operator and invoke the callback.
-                    let mutable_state = &mut state.lock().unwrap();
-                    operator
-                        .lock()
-                        .unwrap()
-                        .on_watermark(&mut OneInTwoOutContext::new(
-                            time.clone(),
-                            config,
-                            &mut state.lock().unwrap(),
-                            left_write_stream,
-                            right_write_stream,
-                        ));
+                    // Note: to avoid deadlock, always lock the operator before the state.
+                    let mut mutable_operator = operator.lock().unwrap();
+                    let mut mutable_state = state.lock().unwrap();
+
+                    mutable_operator.on_watermark(&mut OneInTwoOutContext::new(
+                        time.clone(),
+                        config,
+                        &mut state.lock().unwrap(),
+                        left_write_stream,
+                        right_write_stream,
+                    ));
 
                     // Commit the state.
                     mutable_state.commit(&time);
