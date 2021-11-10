@@ -247,4 +247,12 @@ pub fn new_app(name: &str) -> clap::App {
                 .default_value("")
                 .help("Exports the dataflow graph as a DOT file to the provided filename"),
         )
+        .arg(
+            Arg::with_name("verbose")
+                .short("v")
+                .long("verbose")
+                .multiple(true)
+                .takes_value(false)
+                .help("Sets the level of verbosity"),
+        )
 }

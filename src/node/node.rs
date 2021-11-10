@@ -10,6 +10,9 @@ use tokio::{
     },
 };
 use tokio_util::codec::Framed;
+use tracing::Level;
+use tracing_appender::non_blocking::WorkerGuard;
+use tracing_subscriber::fmt::format::FmtSpan;
 
 use crate::communication::{
     self,
@@ -52,12 +55,33 @@ pub struct Node {
     /// Channel used to shut down the node.
     shutdown_tx: Sender<()>,
     shutdown_rx: Option<Receiver<()>>,
+    // Flushes buffered logs when dropped.
+    logger_guard: Option<WorkerGuard>,
 }
 
 #[allow(dead_code)]
 impl Node {
     /// Creates a new node.
     pub fn new(config: Configuration) -> Self {
+        // Set up the logger.
+        let logger_guard = if let Some(logging_level) = config.logging_level {
+            let display_thread_ids = logging_level >= Level::TRACE;
+            let display_target = logging_level >= Level::TRACE;
+
+            let (non_blocking, guard) = tracing_appender::non_blocking(std::io::stdout());
+            let subscriber = tracing_subscriber::fmt()
+                .with_writer(non_blocking)
+                .with_thread_ids(display_thread_ids)
+                .with_span_events(FmtSpan::FULL)
+                .with_target(display_target)
+                .with_max_level(logging_level);
+            subscriber.init();
+
+            Some(guard)
+        } else {
+            None
+        };
+
         let id = config.index;
         let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
         Self {
@@ -70,6 +94,7 @@ impl Node {
             initialized: Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new())),
             shutdown_tx,
             shutdown_rx: Some(shutdown_rx),
+            logger_guard,
         }
     }
 
@@ -85,7 +110,7 @@ impl Node {
         }
         // Build a runtime with n threads.
         let runtime = Builder::new_multi_thread()
-            .worker_threads(self.config.num_worker_threads)
+            .worker_threads(self.config.num_threads)
             .thread_name(format!("node-{}", self.id))
             .enable_all()
             .build()
@@ -314,7 +339,7 @@ impl Node {
         // TODO: choose a better value.
         let num_event_runners = std::cmp::max(
             self.config
-                .num_worker_threads
+                .num_threads
                 .checked_sub(num_local_operators)
                 .unwrap_or(1),
             num_local_operators,
