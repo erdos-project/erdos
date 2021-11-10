@@ -53,8 +53,7 @@ where
             ctx.get_write_stream()
                 .send(Message::new_message(timestamp, data.clone()))
                 .unwrap();
-            slog::debug!(
-                crate::TERMINAL_LOGGER,
+            tracing::debug!(
                 "{} @ {:?}: received {:?} and sent it",
                 ctx.get_operator_config().get_name(),
                 ctx.get_timestamp(),

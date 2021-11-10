@@ -56,8 +56,7 @@ async fn event_runner(
     mut events_channel: broadcast::Receiver<EventNotification>,
     mut control_channel: broadcast::Receiver<EventRunnerNotification>,
 ) {
-    let logger = crate::get_terminal_logger();
-    slog::debug!(logger, "Worker: started event runner {}", id);
+    tracing::debug!("Worker: started event runner {}", id);
 
     loop {
         tokio::select! {
@@ -74,7 +73,7 @@ async fn event_runner(
                     }
                     Err(broadcast::error::RecvError::Lagged(_)) => (),
                     Err(e) => {
-                        slog::error!(logger, "Event runner {}: shutting down due to error {:?}", id, e);
+                        tracing::error!("Event runner {}: shutting down due to error {:?}", id, e);
                         return;
                     }
                 }
@@ -85,12 +84,12 @@ async fn event_runner(
                         lattices = updated_lattices;
                     }
                     Ok(EventRunnerNotification::Shutdown) => {
-                        slog::debug!(logger, "Event runner {}: shutting down", id);
+                        tracing::debug!("Event runner {}: shutting down", id);
                         return;
                     }
                     Err(broadcast::error::RecvError::Lagged(_)) => (),
                     Err(e) => {
-                        slog::error!(logger, "Event runner {}: shutting down due to error {:?}", id, e);
+                        tracing::error!("Event runner {}: shutting down due to error {:?}", id, e);
                     }
                 }
             }
@@ -169,8 +168,7 @@ impl Worker {
     }
 
     async fn shutdown(&mut self) {
-        let logger = crate::get_terminal_logger();
-        slog::info!(logger, "Worker: shutting down");
+        tracing::info!("Worker: shutting down");
         // Shutdown operator executors.
         self.operator_executor_notifications
             .send(OperatorExecutorNotification::Shutdown)
@@ -179,7 +177,7 @@ impl Worker {
         for operator_id in operator_ids {
             self.on_destroyed_operator(operator_id).await;
         }
-        slog::debug!(logger, "[Worker] shut down all operator executors");
+        tracing::debug!("[Worker] shut down all operator executors");
 
         // Shutdown event runners.
         self.event_runner_notifications
@@ -188,25 +186,20 @@ impl Worker {
         for (i, event_runner_task) in self.event_runner_tasks.drain(..).enumerate() {
             match event_runner_task.await {
                 Ok(_) => (),
-                Err(e) => slog::error!(
-                    logger,
+                Err(e) => tracing::error!(
                     "[Worker] shutting down event runner {} errored with {:?}",
                     i,
                     e
                 ),
             }
         }
-        slog::debug!(logger, "[Worker] shut down all event runners");
-        slog::info!(logger, "[Worker] finished shutting down");
+        tracing::debug!("[Worker] shut down all event runners");
+        tracing::info!("[Worker] finished shutting down");
     }
 
     async fn spawn_operator(&mut self, mut operator_executor: Box<dyn OperatorExecutorT>) {
         let operator_id = operator_executor.operator_id();
-        slog::debug!(
-            crate::get_terminal_logger(),
-            "Worker: spawning operator with ID {}",
-            operator_id
-        );
+        tracing::debug!("Worker: spawning operator with ID {}", operator_id);
         // Get lattice and share with event runners.
         self.lattices
             .insert(operator_id, operator_executor.lattice());
@@ -235,13 +228,11 @@ impl Worker {
     async fn on_destroyed_operator(&mut self, operator_id: OperatorId) {
         if let Some(task) = self.operator_executor_tasks.remove(&operator_id) {
             match task.await {
-                Ok(_) => slog::debug!(
-                    crate::get_terminal_logger(),
+                Ok(_) => tracing::debug!(
                     "Worker: shut down task for operator executor with ID {}",
                     operator_id
                 ),
-                Err(e) => slog::error!(
-                    crate::get_terminal_logger(),
+                Err(e) => tracing::error!(
                     "Worker: error duing shut down of task for operator executor with ID {}: {:?}",
                     operator_id,
                     e

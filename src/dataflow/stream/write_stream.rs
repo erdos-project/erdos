@@ -63,12 +63,7 @@ pub struct WriteStream<D: Data> {
 impl<D: Data> WriteStream<D> {
     /// Creates the [`WriteStream`] to be used to send messages to the dataflow.
     pub(crate) fn new(id: StreamId, name: &str) -> Self {
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
-            "Initializing a WriteStream {} with the ID: {}",
-            name,
-            id
-        );
+        tracing::debug!("Initializing a WriteStream {} with the ID: {}", name, id);
         Self {
             id,
             name: name.to_string(),
@@ -113,12 +108,7 @@ impl<D: Data> WriteStream<D> {
 
     /// Closes the stream for future messages.
     fn close_stream(&mut self) {
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
-            "Closing write stream {} (ID: {})",
-            self.name(),
-            self.id()
-        );
+        tracing::debug!("Closing write stream {} (ID: {})", self.name(), self.id());
         self.stats.lock().unwrap().close_stream();
         self.pusher = None;
     }
@@ -144,8 +134,7 @@ impl<D: Data> WriteStream<D> {
                 if msg_watermark < stats.low_watermark() {
                     return Err(SendError::TimestampError);
                 }
-                slog::debug!(
-                    crate::TERMINAL_LOGGER,
+                tracing::debug!(
                     "Updating watermark on WriteStream {} (ID: {}) from {:?} to {:?}",
                     self.name(),
                     self.id(),
@@ -198,8 +187,7 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
     fn send(&mut self, msg: Message<D>) -> Result<(), SendError> {
         // Check if the stream was closed before, and return an error.
         if self.is_closed() {
-            slog::warn!(
-                crate::TERMINAL_LOGGER,
+            tracing::warn!(
                 "Trying to send messages on a closed WriteStream {} (ID: {})",
                 self.name(),
                 self.id(),
@@ -210,8 +198,7 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
         // Close the stream later if the message being sent represents the top watermark.
         let mut close_stream: bool = false;
         if msg.is_top_watermark() {
-            slog::debug!(
-                crate::TERMINAL_LOGGER,
+            tracing::debug!(
                 "Sending top watermark on the stream {} (ID: {}).",
                 self.name(),
                 self.id()
@@ -226,8 +213,7 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
         match self.pusher.as_mut() {
             Some(pusher) => pusher.send(msg_arc).map_err(SendError::from)?,
             None => {
-                slog::debug!(
-                    crate::TERMINAL_LOGGER,
+                tracing::debug!(
                     "No Pusher was found for the WriteStream {} (ID: {}). \
                              Skipping message sending.",
                     self.name(),

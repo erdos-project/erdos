@@ -121,8 +121,6 @@
 
 // Re-exports of libraries used in macros.
 #[doc(hidden)]
-pub use ::slog;
-#[doc(hidden)]
 pub use ::tokio;
 
 // Libraries used in this file.
@@ -130,11 +128,8 @@ use std::{cell::RefCell, fmt};
 
 use abomonation_derive::Abomonation;
 use clap::{self, App, Arg};
-use lazy_static::lazy_static;
 use rand::{Rng, SeedableRng, StdRng};
 use serde::{Deserialize, Serialize};
-use slog::{Drain, Logger};
-use slog_term::{self, term_full};
 use uuid;
 
 // Private submodules
@@ -212,16 +207,6 @@ pub fn reset() {
         *rng.borrow_mut() = StdRng::from_seed(&[1913, 03, 26]);
     });
     dataflow::graph::default_graph::set(dataflow::graph::AbstractGraph::new());
-}
-
-lazy_static! {
-    static ref TERMINAL_LOGGER: Logger =
-        Logger::root(std::sync::Mutex::new(term_full()).fuse(), slog::o!());
-}
-
-/// Returns a logger that prints messages to the console.
-pub fn get_terminal_logger() -> slog::Logger {
-    TERMINAL_LOGGER.clone()
 }
 
 /// Defines command line arguments for running a multi-node ERDOS application.

@@ -13,8 +13,6 @@ pub struct Configuration {
     pub data_addresses: Vec<SocketAddr>,
     /// Mapping between node indices and control socket addresses.
     pub control_addresses: Vec<SocketAddr>,
-    /// System-level logger.
-    pub logger: slog::Logger,
     /// DOT file to export dataflow graph.
     pub graph_filename: Option<String>,
 }
@@ -33,7 +31,6 @@ impl Configuration {
             num_worker_threads,
             data_addresses,
             control_addresses,
-            logger: crate::get_terminal_logger(),
             graph_filename,
         }
     }
@@ -81,7 +78,6 @@ impl Configuration {
             num_worker_threads: num_threads,
             data_addresses,
             control_addresses,
-            logger: crate::get_terminal_logger(),
             graph_filename,
         }
     }
