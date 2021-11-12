@@ -62,8 +62,7 @@ where
     ) {
         self.helper.synchronize().await;
 
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
+        tracing::debug!(
             "Node {}: running operator {}",
             self.config.node_id,
             self.config.get_name()

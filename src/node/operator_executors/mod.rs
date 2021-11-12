@@ -226,8 +226,7 @@ where
             tokio::task::block_in_place(|| self.processor.execute_setup(&mut read_stream));
 
         // Execute the `run` method.
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
+        tracing::debug!(
             "Node {}: Running Operator {}",
             self.config.node_id,
             self.config.get_name()
@@ -256,8 +255,8 @@ where
                             }
                         }
                         Err(e) => {
-                            slog::error!(
-                                crate::TERMINAL_LOGGER,
+                            tracing::error!(
+
                                 "OneInExecutor {}: Error receiving notifications {:?}",
                                 self.operator_id(),
                                 e
@@ -358,8 +357,7 @@ where
         });
 
         // Execute the `run` method.
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
+        tracing::debug!(
             "Node {}: Running Operator {}",
             self.config.node_id,
             self.config.get_name()
@@ -390,8 +388,8 @@ where
                             }
                         }
                         Err(e) => {
-                            slog::error!(
-                                crate::TERMINAL_LOGGER,
+                            tracing::error!(
+
                                 "TwoInExecutor {}: Error receiving notifications {:?}",
                                 self.operator_id(),
                                 e
@@ -484,8 +482,7 @@ impl OperatorExecutorHelper {
                 let event_duration = event.duration;
                 let deadline_id = event.id;
                 let queue_key: DelayHandle = self.deadline_queue.insert(event, event_duration);
-                slog::debug!(
-                    crate::TERMINAL_LOGGER,
+                tracing::debug!(
                     "Installed a deadline handler for the Deadline {} with the DelayHandle: {:?}",
                     deadline_id,
                     queue_key,
@@ -531,15 +528,15 @@ impl OperatorExecutorHelper {
                     // Remove the key from the hashmap and clear the state in the ConditionContext.
                     match self.deadline_to_key_map.remove(&deadline_event.id) {
                         None => {
-                            slog::warn!(
-                                crate::TERMINAL_LOGGER,
+                            tracing::warn!(
+
                                 "Could not find a key corresponding to the Deadline ID: {}",
                                 deadline_event.id,
                             );
                         }
                         Some(key) => {
-                            slog::debug!(
-                                crate::TERMINAL_LOGGER,
+                            tracing::debug!(
+
                                 "Finished invoking the deadline handler for the DelayHandle: {:?} \
                                 corresponding to the Deadline ID: {}",
                                 key,
@@ -654,15 +651,15 @@ impl OperatorExecutorHelper {
                     // Remove the key from the hashmap and clear the state in the ConditionContext.
                     match self.deadline_to_key_map.remove(&deadline_event.id) {
                         None => {
-                            slog::warn!(
-                                crate::TERMINAL_LOGGER,
+                            tracing::warn!(
+
                                 "Could not find a key corresponding to the Deadline ID: {}",
                                 deadline_event.id,
                             );
                         }
                         Some(key) => {
-                            slog::debug!(
-                                crate::TERMINAL_LOGGER,
+                            tracing::debug!(
+
                                 "Finished invoking the deadline handler for the DelayHandle: {:?} \
                                 corresponding to the Deadline ID: {}",
                                 key,

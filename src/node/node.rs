@@ -1,7 +1,6 @@
 use std::{collections::HashSet, sync::Arc, thread};
 
 use futures_util::stream::StreamExt;
-use slog;
 use tokio::{
     net::TcpStream,
     runtime::Builder,
@@ -11,6 +10,9 @@ use tokio::{
     },
 };
 use tokio_util::codec::Framed;
+use tracing::Level;
+use tracing_appender::non_blocking::WorkerGuard;
+use tracing_subscriber::fmt::format::FmtSpan;
 
 use crate::communication::{
     self,
@@ -53,14 +55,34 @@ pub struct Node {
     /// Channel used to shut down the node.
     shutdown_tx: Sender<()>,
     shutdown_rx: Option<Receiver<()>>,
+    // Flushes buffered logs when dropped.
+    logger_guard: Option<WorkerGuard>,
 }
 
 #[allow(dead_code)]
 impl Node {
     /// Creates a new node.
     pub fn new(config: Configuration) -> Self {
+        // Set up the logger.
+        let logger_guard = if let Some(logging_level) = config.logging_level {
+            let display_thread_ids = logging_level >= Level::TRACE;
+            let display_target = logging_level >= Level::TRACE;
+
+            let (non_blocking, guard) = tracing_appender::non_blocking(std::io::stdout());
+            let subscriber = tracing_subscriber::fmt()
+                .with_writer(non_blocking)
+                .with_thread_ids(display_thread_ids)
+                .with_span_events(FmtSpan::FULL)
+                .with_target(display_target)
+                .with_max_level(logging_level);
+            subscriber.init();
+
+            Some(guard)
+        } else {
+            None
+        };
+
         let id = config.index;
-        let logger = config.logger.clone();
         let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
         Self {
             config,
@@ -68,10 +90,11 @@ impl Node {
             job_graph: None,
             channels_to_receivers: Arc::new(Mutex::new(ChannelsToReceivers::new())),
             channels_to_senders: Arc::new(Mutex::new(ChannelsToSenders::new())),
-            control_handler: ControlMessageHandler::new(logger),
+            control_handler: ControlMessageHandler::new(),
             initialized: Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new())),
             shutdown_tx,
             shutdown_rx: Some(shutdown_rx),
+            logger_guard,
         }
     }
 
@@ -79,7 +102,7 @@ impl Node {
     ///
     /// The method never returns.
     pub fn run(&mut self) {
-        slog::debug!(self.config.logger, "Node {}: running", self.id);
+        tracing::debug!("Node {}: running", self.id);
         // Set the dataflow graph if it hasn't been set already.
         if self.job_graph.is_none() {
             let mut abstract_graph = default_graph::clone();
@@ -87,13 +110,13 @@ impl Node {
         }
         // Build a runtime with n threads.
         let runtime = Builder::new_multi_thread()
-            .worker_threads(self.config.num_worker_threads)
+            .worker_threads(self.config.num_threads)
             .thread_name(format!("node-{}", self.id))
             .enable_all()
             .build()
             .unwrap();
         runtime.block_on(self.async_run());
-        slog::debug!(self.config.logger, "Node {}: finished running", self.id);
+        tracing::debug!("Node {}: finished running", self.id);
     }
 
     /// Runs an ERDOS node in a seperate OS thread.
@@ -128,7 +151,7 @@ impl Node {
         *started = true;
         cvar.notify_all();
 
-        slog::debug!(self.config.logger, "Node {}: done initializing.", self.id);
+        tracing::debug!("Node {}: done initializing.", self.id);
     }
 
     /// Splits a vector of TCPStreams into `DataSender`s and `DataReceiver`s.
@@ -252,11 +275,7 @@ impl Node {
     }
 
     async fn broadcast_local_operators_initialized(&mut self) -> Result<(), String> {
-        slog::debug!(
-            self.config.logger,
-            "Node {}: initialized all operators on this node.",
-            self.id
-        );
+        tracing::debug!("Node {}: initialized all operators on this node.", self.id);
         self.control_handler
             .broadcast_to_nodes(ControlMessage::AllOperatorsInitializedOnNode(self.id))
             .map_err(|e| format!("Error broadcasting control message: {:?}", e))
@@ -307,11 +326,7 @@ impl Node {
         // Execute operators scheduled on the current node.
         let channel_manager = Arc::new(std::sync::Mutex::new(channel_manager));
         let num_operators = job_graph.get_operators().len();
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
-            "There are {} operators total",
-            num_operators
-        );
+        tracing::debug!("There are {} operators total", num_operators);
         let local_operators: Vec<_> = job_graph
             .get_operators()
             .into_iter()
@@ -319,16 +334,12 @@ impl Node {
             .collect();
 
         let num_local_operators = local_operators.len();
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
-            "{} local operators",
-            num_local_operators
-        );
+        tracing::debug!("{} local operators", num_local_operators);
 
         // TODO: choose a better value.
         let num_event_runners = std::cmp::max(
             self.config
-                .num_worker_threads
+                .num_threads
                 .checked_sub(num_local_operators)
                 .unwrap_or(1),
             num_local_operators,
@@ -343,12 +354,7 @@ impl Node {
                 .name
                 .clone()
                 .unwrap_or_else(|| format!("{}", operator_info.id));
-            slog::debug!(
-                self.config.logger,
-                "Node {}: starting operator {}",
-                self.id,
-                name
-            );
+            tracing::debug!("Node {}: starting operator {}", self.id, name);
             let channel_manager_copy = Arc::clone(&channel_manager);
             // Launch the operator as a separate async task.
             let operator_executor = (operator_info.runner)(channel_manager_copy);
@@ -379,20 +385,11 @@ impl Node {
     async fn async_run(&mut self) {
         // Assign values used later to avoid lifetime errors.
         let num_nodes = self.config.data_addresses.len();
-        let logger = self.config.logger.clone();
         // Create TCPStreams between all node pairs.
-        let control_streams = communication::create_tcp_streams(
-            self.config.control_addresses.clone(),
-            self.id,
-            &self.config.logger,
-        )
-        .await;
-        let data_streams = communication::create_tcp_streams(
-            self.config.data_addresses.clone(),
-            self.id,
-            &self.config.logger,
-        )
-        .await;
+        let control_streams =
+            communication::create_tcp_streams(self.config.control_addresses.clone(), self.id).await;
+        let data_streams =
+            communication::create_tcp_streams(self.config.data_addresses.clone(), self.id).await;
         let (control_senders, control_receivers) =
             self.split_control_streams(control_streams).await;
         let (senders, receivers) = self.split_data_streams(data_streams).await;
@@ -416,33 +413,32 @@ impl Node {
                 control_senders_fut,
                 control_recvs_fut
             ) {
-                slog::error!(
-                    logger,
+                tracing::error!(
                     "Non-fatal network communication error; this should not happen! {:?}",
                     e
                 );
             }
             tokio::select! {
-                Err(e) = ops_fut => slog::error!(
-                    logger,
+                Err(e) = ops_fut => tracing::error!(
+
                     "Error running operators on node {:?}: {:?}", self.id, e
                 ),
-                _ = shutdown_fut => slog::debug!(logger, "Node {}: shutting down", self.id),
+                _ = shutdown_fut => tracing::debug!("Node {}: shutting down", self.id),
             }
         } else {
             tokio::select! {
-                Err(e) = senders_fut => slog::error!(logger, "Error with data senders: {:?}", e),
-                Err(e) = recvs_fut => slog::error!(logger, "Error with data receivers: {:?}", e),
-                Err(e) = control_senders_fut => slog::error!(logger, "Error with control senders: {:?}", e),
-                Err(e) = control_recvs_fut => slog::error!(
-                    self.config.logger,
+                Err(e) = senders_fut => tracing::error!("Error with data senders: {:?}", e),
+                Err(e) = recvs_fut => tracing::error!("Error with data receivers: {:?}", e),
+                Err(e) = control_senders_fut => tracing::error!("Error with control senders: {:?}", e),
+                Err(e) = control_recvs_fut => tracing::error!(
+
                     "Error with control receivers: {:?}", e
                 ),
-                Err(e) = ops_fut => slog::error!(
-                    logger,
+                Err(e) = ops_fut => tracing::error!(
+
                     "Error running operators on node {:?}: {:?}", self.id, e
                 ),
-                _ = shutdown_fut => slog::debug!(logger, "Node {}: shutting down", self.id),
+                _ = shutdown_fut => tracing::debug!("Node {}: shutting down", self.id),
             }
         }
     }

@@ -121,8 +121,6 @@
 
 // Re-exports of libraries used in macros.
 #[doc(hidden)]
-pub use ::slog;
-#[doc(hidden)]
 pub use ::tokio;
 
 // Libraries used in this file.
@@ -130,11 +128,8 @@ use std::{cell::RefCell, fmt};
 
 use abomonation_derive::Abomonation;
 use clap::{self, App, Arg};
-use lazy_static::lazy_static;
 use rand::{Rng, SeedableRng, StdRng};
 use serde::{Deserialize, Serialize};
-use slog::{Drain, Logger};
-use slog_term::{self, term_full};
 use uuid;
 
 // Private submodules
@@ -214,16 +209,6 @@ pub fn reset() {
     dataflow::graph::default_graph::set(dataflow::graph::AbstractGraph::new());
 }
 
-lazy_static! {
-    static ref TERMINAL_LOGGER: Logger =
-        Logger::root(std::sync::Mutex::new(term_full()).fuse(), slog::o!());
-}
-
-/// Returns a logger that prints messages to the console.
-pub fn get_terminal_logger() -> slog::Logger {
-    TERMINAL_LOGGER.clone()
-}
-
 /// Defines command line arguments for running a multi-node ERDOS application.
 pub fn new_app(name: &str) -> clap::App {
     App::new(name)
@@ -261,5 +246,13 @@ pub fn new_app(name: &str) -> clap::App {
                 .long("graph-filename")
                 .default_value("")
                 .help("Exports the dataflow graph as a DOT file to the provided filename"),
+        )
+        .arg(
+            Arg::with_name("verbose")
+                .short("v")
+                .long("verbose")
+                .multiple(true)
+                .takes_value(false)
+                .help("Sets the level of verbosity"),
         )
 }

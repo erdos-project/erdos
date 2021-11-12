@@ -104,14 +104,14 @@ impl DestroyOperator {
 
     pub fn msg_callback(_t: &Timestamp, data: &usize) {
         let logger = erdos::get_terminal_logger();
-        slog::debug!(logger, "DestroyOperator: received {}", data);
+        tracing::debug!("DestroyOperator: received {}", data);
     }
 }
 
 impl Operator for DestroyOperator {
     fn destroy(&mut self) {
         let logger = erdos::get_terminal_logger();
-        slog::debug!(logger, "DestroyOperator: called destroy()");
+        tracing::debug!("DestroyOperator: called destroy()");
     }
 }
 
@@ -139,7 +139,7 @@ impl TwoStreamDestroyOperator {
 impl Operator for TwoStreamDestroyOperator {
     fn destroy(&mut self) {
         let logger = erdos::get_terminal_logger();
-        slog::debug!(logger, "TwoStreamDestroyOperator: called destroy()");
+        tracing::debug!("TwoStreamDestroyOperator: called destroy()");
     }
 }
 
@@ -233,10 +233,10 @@ fn test_ingest_extract() {
 
     for count in 0..5 {
         let msg = Message::new_message(Timestamp::Time(vec![count as u64]), count);
-        slog::debug!(logger, "Ingest stream: sending {:?}", msg);
+        tracing::debug!("Ingest stream: sending {:?}", msg);
         ingest_stream.send(msg).unwrap();
         let result = extract_stream.read();
-        slog::debug!(logger, "Received {:?}", result);
+        tracing::debug!("Received {:?}", result);
     }
 }
 
@@ -254,18 +254,18 @@ fn test_destroy() {
     let logger = erdos::get_terminal_logger();
 
     let msg = Message::new_message(Timestamp::Time(vec![0]), 0);
-    slog::debug!(logger, "IngestStream: sending {:?}", msg);
+    tracing::debug!("IngestStream: sending {:?}", msg);
     ingest_stream.send(msg).unwrap();
 
     let received_msg = extract_stream.read().unwrap();
-    slog::debug!(logger, "ExtractStream: received {:?}", received_msg);
+    tracing::debug!("ExtractStream: received {:?}", received_msg);
 
     let msg = Message::new_watermark(Timestamp::Top);
-    slog::debug!(logger, "IngestStream: sending {:?}", msg);
+    tracing::debug!("IngestStream: sending {:?}", msg);
     ingest_stream.send(msg).unwrap();
 
     let received_msg = extract_stream.read().unwrap();
-    slog::debug!(logger, "ExtractStream: received {:?}", received_msg);
+    tracing::debug!("ExtractStream: received {:?}", received_msg);
 
     // Check that the stream is closed.
     let msg = Message::new_message(Timestamp::Time(vec![0]), 0);

@@ -88,8 +88,7 @@ where
     /// * `stream`: The [`Stream`] returned by an [operator](crate::dataflow::operator)
     /// from which to extract messages.
     pub fn new(stream: &Stream<D>) -> Self {
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
+        tracing::debug!(
             "Initializing an ExtractStream with the ReadStream {} (ID: {})",
             stream.name(),
             stream.id(),
@@ -139,8 +138,7 @@ where
                         self.read_stream_option.replace(read_stream);
                         return result;
                     }
-                    Err(msg) => slog::error!(
-                        crate::TERMINAL_LOGGER,
+                    Err(msg) => tracing::error!(
                         "ExtractStream {} (ID: {}): error getting endpoint from \
                         channel manager \"{}\"",
                         self.name(),

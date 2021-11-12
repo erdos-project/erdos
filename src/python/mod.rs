@@ -56,12 +56,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
             .node(node_id)
             .flow_watermarks(flow_watermarks);
         config.id = OperatorId::new_deterministic();
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
-            "Assigning ID {} to {}.",
-            config.id,
-            name,
-        );
+        tracing::debug!("Assigning ID {} to {}.", config.id, name,);
         let config_copy = config.clone();
 
         // Arc objects to pass to the executor.
@@ -110,12 +105,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
             .node(node_id)
             .flow_watermarks(flow_watermarks);
         config.id = OperatorId::new_deterministic();
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
-            "Assigning ID {} to {}.",
-            config.id,
-            name,
-        );
+        tracing::debug!("Assigning ID {} to {}.", config.id, name,);
         let config_copy = config.clone();
 
         // Arc objects to pass to the constructor.
@@ -164,12 +154,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
             .node(node_id)
             .flow_watermarks(flow_watermarks);
         config.id = OperatorId::new_deterministic();
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
-            "Assigning ID {} to {}.",
-            config.id,
-            name,
-        );
+        tracing::debug!("Assigning ID {} to {}.", config.id, name,);
         let config_copy = config.clone();
 
         // Arc objects to pass to the executor.
@@ -219,12 +204,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
             .node(node_id)
             .flow_watermarks(flow_watermarks);
         config.id = OperatorId::new_deterministic();
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
-            "Assigning ID {} to {}",
-            config.id,
-            name,
-        );
+        tracing::debug!("Assigning ID {} to {}", config.id, name,);
         let config_copy = config.clone();
 
         // Arc objects to pass to the executor.
@@ -278,12 +258,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
             .node(node_id)
             .flow_watermarks(flow_watermarks);
         config.id = OperatorId::new_deterministic();
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
-            "Assigning ID {} to {}.",
-            config.id,
-            name,
-        );
+        tracing::debug!("Assigning ID {} to {}.", config.id, name,);
         let config_copy = config.clone();
 
         // Arc objects to pass to the executor.

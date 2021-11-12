@@ -9,7 +9,6 @@ use byteorder::{ByteOrder, NetworkEndian, WriteBytesExt};
 use bytes::BytesMut;
 use futures::future;
 use serde::{Deserialize, Serialize};
-use slog;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
@@ -96,13 +95,12 @@ impl InterProcessMessage {
 pub async fn create_tcp_streams(
     node_addrs: Vec<SocketAddr>,
     node_id: NodeId,
-    logger: &slog::Logger,
 ) -> Vec<(NodeId, TcpStream)> {
     let node_addr = node_addrs[node_id].clone();
     // Connect to the nodes that have a lower id than the node.
-    let connect_streams_fut = connect_to_nodes(node_addrs[..node_id].to_vec(), node_id, logger);
+    let connect_streams_fut = connect_to_nodes(node_addrs[..node_id].to_vec(), node_id);
     // Wait for connections from the nodes that have a higher id than the node.
-    let stream_fut = await_node_connections(node_addr, node_addrs.len() - node_id - 1, logger);
+    let stream_fut = await_node_connections(node_addr, node_addrs.len() - node_id - 1);
     // Wait until all connections are established.
     match future::try_join(connect_streams_fut, stream_fut).await {
         Ok((mut streams, await_streams)) => {
@@ -111,8 +109,7 @@ pub async fn create_tcp_streams(
             streams
         }
         Err(e) => {
-            slog::error!(
-                logger,
+            tracing::error!(
                 "Node {}: creating TCP streams errored with {:?}",
                 node_id,
                 e
@@ -131,12 +128,11 @@ pub async fn create_tcp_streams(
 async fn connect_to_nodes(
     addrs: Vec<SocketAddr>,
     node_id: NodeId,
-    logger: &slog::Logger,
 ) -> Result<Vec<(NodeId, TcpStream)>, std::io::Error> {
     let mut connect_futures = Vec::new();
     // For each node address, launch a task that tries to create a TCP stream to the node.
     for addr in addrs.iter() {
-        connect_futures.push(connect_to_node(addr, node_id, logger));
+        connect_futures.push(connect_to_node(addr, node_id));
     }
     // Wait for all tasks to complete successfully.
     let tcp_results = future::try_join_all(connect_futures).await?;
@@ -150,7 +146,6 @@ async fn connect_to_nodes(
 async fn connect_to_node(
     dst_addr: &SocketAddr,
     node_id: NodeId,
-    logger: &slog::Logger,
 ) -> Result<TcpStream, std::io::Error> {
     // Keeps on reatying to connect to `dst_addr` until it succeeds.
     let mut last_err_msg_time = Instant::now();
@@ -166,8 +161,7 @@ async fn connect_to_node(
                     match stream.write(&buffer[..]).await {
                         Ok(_) => return Ok(stream),
                         Err(e) => {
-                            slog::error!(
-                                logger,
+                            tracing::error!(
                                 "Node {}: could not send node id to {}; error {}; retrying in 100 ms",
                                 node_id,
                                 dst_addr,
@@ -181,8 +175,7 @@ async fn connect_to_node(
                 // Only print connection errors every 1s.
                 let now = Instant::now();
                 if now.duration_since(last_err_msg_time) >= Duration::from_secs(1) {
-                    slog::error!(
-                        logger,
+                    tracing::error!(
                         "Node {}: could not connect to {}; error {}; retrying",
                         node_id,
                         dst_addr,
@@ -204,7 +197,6 @@ async fn connect_to_node(
 async fn await_node_connections(
     addr: SocketAddr,
     expected_conns: usize,
-    logger: &slog::Logger,
 ) -> Result<Vec<(NodeId, TcpStream)>, std::io::Error> {
     let mut await_futures = Vec::new();
     let listener = TcpListener::bind(&addr).await?;
@@ -213,7 +205,7 @@ async fn await_node_connections(
         let (stream, _) = listener.accept().await?;
         stream.set_nodelay(true).expect("couldn't disable Nagle");
         // Launch a task that reads the node id from the TCP stream.
-        await_futures.push(read_node_id(stream, logger));
+        await_futures.push(read_node_id(stream));
     }
     // Await until we've received `expected_conns` node ids.
     Ok(future::try_join_all(await_futures).await?)
@@ -222,15 +214,12 @@ async fn await_node_connections(
 /// Reads a node id from a TCP stream.
 ///
 /// The method is used to discover the id of the node that initiated the connection.
-async fn read_node_id(
-    mut stream: TcpStream,
-    logger: &slog::Logger,
-) -> Result<(NodeId, TcpStream), std::io::Error> {
+async fn read_node_id(mut stream: TcpStream) -> Result<(NodeId, TcpStream), std::io::Error> {
     let mut buffer = [0u8; 4];
     match stream.read_exact(&mut buffer).await {
         Ok(n) => n,
         Err(e) => {
-            slog::error!(logger, "failed to read from socket; err = {:?}", e);
+            tracing::error!("failed to read from socket; err = {:?}", e);
             return Err(e);
         }
     };

@@ -22,11 +22,7 @@ impl PySource {
         config: OperatorConfig,
     ) -> Self {
         // Instantiate the Operator in Python.
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
-            "Instantiating the operator {:?}",
-            config.name
-        );
+        tracing::debug!("Instantiating the operator {:?}", config.name);
 
         let py_operator = super::construct_operator(
             py_operator_type,

@@ -22,8 +22,7 @@ impl SourceOperator {
 
 impl Source<(), usize> for SourceOperator {
     fn run(&mut self, write_stream: &mut WriteStream<usize>) {
-        let logger = erdos::get_terminal_logger();
-        slog::info!(logger, "Running Source Operator");
+        tracing::info!("Running Source Operator");
         for t in 0..10 {
             let timestamp = Timestamp::Time(vec![t as u64]);
             write_stream
@@ -38,7 +37,7 @@ impl Source<(), usize> for SourceOperator {
     }
 
     fn destroy(&mut self) {
-        slog::info!(erdos::get_terminal_logger(), "Destroying Source Operator");
+        tracing::info!("Destroying Source Operator");
     }
 }
 
@@ -77,20 +76,14 @@ impl OneInOneOut<SquareOperatorState, usize, usize> for SquareOperator {
         ctx.add_deadline(TimestampDeadline::new(
             move |_s: &SquareOperatorState, _t: &Timestamp| -> Duration { Duration::new(2, 0) },
             |_s: &SquareOperatorState, _t: &Timestamp| {
-                slog::info!(
-                    erdos::get_terminal_logger(),
-                    "SquareOperator @ {:?}: Missed deadline.",
-                    _t
-                );
+                tracing::info!("SquareOperator @ {:?}: Missed deadline.", _t);
             },
         ));
     }
 
     fn on_data(&mut self, ctx: &mut OneInOneOutContext<SquareOperatorState, usize>, data: &usize) {
         thread::sleep(Duration::new(2, 0));
-        let logger = erdos::get_terminal_logger();
-        slog::info!(
-            logger,
+        tracing::info!(
             "SquareOperator @ {:?}: received {}",
             ctx.get_timestamp(),
             data
@@ -99,8 +92,7 @@ impl OneInOneOut<SquareOperatorState, usize, usize> for SquareOperator {
         ctx.get_write_stream()
             .send(Message::new_message(timestamp, data * data))
             .unwrap();
-        slog::info!(
-            logger,
+        tracing::info!(
             "SquareOperator @ {:?}: sent {}",
             ctx.get_timestamp(),
             data * data
@@ -154,12 +146,7 @@ impl StateT for SumOperatorState {
 
 impl OneInOneOut<SumOperatorState, usize, usize> for SumOperator {
     fn on_data(&mut self, ctx: &mut OneInOneOutContext<SumOperatorState, usize>, data: &usize) {
-        slog::info!(
-            erdos::get_terminal_logger(),
-            "SumOperator @ {:?}: Received {}",
-            ctx.get_timestamp(),
-            data
-        );
+        tracing::info!("SumOperator @ {:?}: Received {}", ctx.get_timestamp(), data);
 
         let timestamp = ctx.get_timestamp().clone();
         ctx.get_state().increment_counter(*data);
@@ -167,12 +154,7 @@ impl OneInOneOut<SumOperatorState, usize, usize> for SumOperator {
         ctx.get_write_stream()
             .send(Message::new_message(timestamp, state))
             .unwrap();
-        slog::info!(
-            erdos::get_terminal_logger(),
-            "SumOperator @ {:?}: Sent {}",
-            ctx.get_timestamp(),
-            state
-        );
+        tracing::info!("SumOperator @ {:?}: Sent {}", ctx.get_timestamp(), state);
     }
 
     fn on_watermark(&mut self, _ctx: &mut OneInOneOutContext<SumOperatorState, usize>) {}
@@ -222,19 +204,13 @@ impl StateT for SinkOperatorState {
 impl Sink<SinkOperatorState, usize> for SinkOperator {
     fn on_data(&mut self, ctx: &mut SinkContext<SinkOperatorState>, data: &usize) {
         let timestamp = ctx.get_timestamp().clone();
-        slog::info!(
-            erdos::get_terminal_logger(),
-            "SinkOperator @ {:?}: Received {}",
-            timestamp,
-            data
-        );
+        tracing::info!("SinkOperator @ {:?}: Received {}", timestamp, data);
         ctx.get_state().increment_message_count(&timestamp);
     }
 
     fn on_watermark(&mut self, ctx: &mut SinkContext<SinkOperatorState>) {
         let timestamp = ctx.get_timestamp().clone();
-        slog::info!(
-            erdos::get_terminal_logger(),
+        tracing::info!(
             "SinkOperator @ {:?}: Received {} data messages.",
             timestamp,
             ctx.get_state().get_message_count(&timestamp),
@@ -293,8 +269,7 @@ impl TwoInOneOut<JoinSumOperatorState, usize, usize, usize> for JoinSumOperator 
         ctx.get_state().add(*data);
         let state = ctx.get_state().get_sum();
 
-        slog::info!(
-            erdos::get_terminal_logger(),
+        tracing::info!(
             "JoinSumOperator @ {:?}: Received {} on left stream, sum is {}",
             ctx.get_timestamp(),
             data,
@@ -310,8 +285,7 @@ impl TwoInOneOut<JoinSumOperatorState, usize, usize, usize> for JoinSumOperator 
         ctx.get_state().add(*data);
         let state = ctx.get_state().get_sum();
 
-        slog::info!(
-            erdos::get_terminal_logger(),
+        tracing::info!(
             "JoinSumOperator @ {:?}: Received {} on right stream, sum is {}",
             ctx.get_timestamp(),
             data,
@@ -322,8 +296,7 @@ impl TwoInOneOut<JoinSumOperatorState, usize, usize, usize> for JoinSumOperator 
     fn on_watermark(&mut self, ctx: &mut TwoInOneOutContext<JoinSumOperatorState, usize>) {
         let state = ctx.get_state().get_sum();
         let time = ctx.get_timestamp().clone();
-        slog::info!(
-            erdos::get_terminal_logger(),
+        tracing::info!(
             "JoinSumOperator @ {:?}: received watermark, sending sum of {}",
             time,
             state,
@@ -374,8 +347,7 @@ impl OneInTwoOut<EvenOddOperatorState, usize, usize, usize> for EvenOddOperator 
     ) {
         let time = ctx.get_timestamp().clone();
         if data % 2 == 0 {
-            slog::info!(
-                erdos::get_terminal_logger(),
+            tracing::info!(
                 "EvenOddOperator @ {:?}: sending even number {} on left stream",
                 ctx.get_timestamp(),
                 data,
@@ -384,8 +356,7 @@ impl OneInTwoOut<EvenOddOperatorState, usize, usize, usize> for EvenOddOperator 
                 .send(Message::new_message(time, *data))
                 .unwrap();
         } else {
-            slog::info!(
-                erdos::get_terminal_logger(),
+            tracing::info!(
                 "EvenOddOperator @ {:?}: sending odd number {} on right stream",
                 ctx.get_timestamp(),
                 data,

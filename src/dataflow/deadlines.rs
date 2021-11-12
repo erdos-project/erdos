@@ -117,8 +117,7 @@ where
         condition_context: &ConditionContext,
         current_timestamp: &Timestamp,
     ) -> bool {
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
+        tracing::debug!(
             "Executed default start condition for the streams {:?} and the \
             timestamp: {:?} with the context: {:?}",
             stream_ids,
@@ -140,8 +139,7 @@ where
         condition_context: &ConditionContext,
         current_timestamp: &Timestamp,
     ) -> bool {
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
+        tracing::debug!(
             "Executed default end condition for the streams {:?} and the \
             timestamp: {:?} with the context: {:?}",
             stream_ids,

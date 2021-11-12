@@ -78,7 +78,7 @@ where
 {
     /// Returns a new instance of the [`IngestStream`].
     pub fn new() -> Self {
-        slog::debug!(crate::TERMINAL_LOGGER, "Initializing an IngestStream");
+        tracing::debug!("Initializing an IngestStream");
         let id = StreamId::new_deterministic();
         let ingest_stream = Self {
             id,
@@ -117,8 +117,7 @@ where
                 thread::sleep(Duration::from_millis(100));
             }
         } else {
-            slog::warn!(
-                crate::TERMINAL_LOGGER,
+            tracing::warn!(
                 "Trying to send messages on a closed IngestStream {} (ID: {})",
                 default_graph::get_stream_name(&self.id()),
                 self.id(),

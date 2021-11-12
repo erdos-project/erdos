@@ -30,11 +30,7 @@ impl PyOneInTwoOut {
         config: OperatorConfig,
     ) -> Self {
         // Instantiate the Operator in Python.
-        slog::debug!(
-            crate::TERMINAL_LOGGER,
-            "Instantiating the operator {:?}",
-            config.name
-        );
+        tracing::debug!("Instantiating the operator {:?}", config.name);
 
         let py_operator_config_clone = Arc::clone(&py_operator_config);
         let py_operator = super::construct_operator(
