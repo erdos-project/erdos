@@ -52,6 +52,15 @@ class Stream(object):
     def name(self, name: str):
         self._py_stream.set_name(name)
 
+    def map(self, map_fn) -> PyStream:
+        return self._py_stream.map(map_fn)
+
+    def filter(self, filter_fn) -> PyStream:
+        return self._py_stream.filter(filter_fn)
+
+    def split(self, split_fn) -> Union[PyStream, PyStream]:
+        return self._py_stream.split(split_fn)
+
 
 class ReadStream(object):
     """ A :py:class:`ReadStream` allows an :py:class:`Operator` to read and

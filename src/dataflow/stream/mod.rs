@@ -22,7 +22,10 @@ use std::marker::PhantomData;
 
 use serde::Deserialize;
 
-use crate::dataflow::{Data, Message};
+use crate::dataflow::{
+    operators::FilterOperator, operators::MapOperator, operators::SplitOperator, Data, Message,
+    OperatorConfig,
+};
 
 // Private submodules
 mod extract_stream;
@@ -85,6 +88,133 @@ impl<D: Data> Stream<D> {
 
     pub fn id(&self) -> StreamId {
         self.id
+    }
+}
+
+// Extension Trait for MapOperator
+pub trait Map<D1, D2>
+where
+    D1: Data + for<'a> Deserialize<'a>,
+    D2: Data + for<'a> Deserialize<'a>,
+{
+    fn map<F: 'static + Fn(&D1) -> D2 + Send + Sync + Clone>(&self, map_fn: F) -> Stream<D2>;
+}
+
+impl<D1, D2> Map<D1, D2> for Stream<D1>
+where
+    D1: Data + for<'a> Deserialize<'a>,
+    D2: Data + for<'a> Deserialize<'a>,
+{
+    fn map<F: 'static + Fn(&D1) -> D2 + Send + Sync + Clone>(&self, map_fn: F) -> Stream<D2> {
+        let map_config = OperatorConfig::new().name("MapOperator");
+        crate::connect_one_in_one_out(
+            move || -> MapOperator<D1, D2> { MapOperator::new(map_fn.clone()) },
+            || {},
+            map_config,
+            self,
+        )
+    }
+}
+
+// pub trait Map<'a, D1, D2>
+// where
+//     D1: Data + for<'b> Deserialize<'b>,
+//     D2: Data + for<'b> Deserialize<'b>,
+// {
+//     fn map<F: 'static + Fn(&D1) -> D2 + Send + Sync + Clone>(&'a self, map_fn: F) -> Stream<D2>;
+// }
+
+// impl<'a, S, D1, D2> Map<'a, D1, D2> for S
+// where
+//     S: 'static,
+//     Stream<D1>: From<&'a S>,
+//     D1: Data + for<'b> Deserialize<'b>,
+//     D2: Data + for<'b> Deserialize<'b>,
+// {
+//     fn map<F: 'static + Fn(&D1) -> D2 + Send + Sync + Clone>(&'a self, map_fn: F) -> Stream<D2> {
+//         let map_config = OperatorConfig::new().name("MapOperator");
+//         crate::connect_one_in_one_out(
+//             move || -> MapOperator<D1, D2> { MapOperator::new(map_fn.clone()) },
+//             || {},
+//             map_config,
+//             Stream::<D1>::from(self),
+//         )
+//     }
+// }
+
+// impl<S, D1, D2> Map<D1, D2> for S
+// where
+//     S: Into<Stream<D1>>,
+//     D1: Data + for<'a> Deserialize<'a>,
+//     D2: Data + for<'a> Deserialize<'a>,
+// {
+//     fn map<F: 'static + Fn(&D1) -> D2 + Send + Sync + Clone>(&self, map_fn: F) -> Stream<D2> {
+//         let map_config = OperatorConfig::new().name("MapOperator");
+//         let stream: Stream<D1> = self.into();
+//         crate::connect_one_in_one_out(
+//             move || -> MapOperator<D1, D2> { MapOperator::new(map_fn.clone()) },
+//             || {},
+//             map_config,
+//             stream,
+//         )
+//     }
+// }
+
+// Extension trait for FilterOperator
+pub trait Filter<D1>
+where
+    D1: Data + for<'a> Deserialize<'a>,
+{
+    fn filter<F: 'static + Fn(&D1) -> bool + Send + Sync + Clone>(
+        &self,
+        filter_fn: F,
+    ) -> Stream<D1>;
+}
+
+impl<D1> Filter<D1> for Stream<D1>
+where
+    D1: Data + for<'a> Deserialize<'a>,
+{
+    fn filter<F: 'static + Fn(&D1) -> bool + Send + Sync + Clone>(
+        &self,
+        filter_fn: F,
+    ) -> Stream<D1> {
+        let filter_config = OperatorConfig::new().name("FilterOperator");
+        crate::connect_one_in_one_out(
+            move || -> FilterOperator<D1> { FilterOperator::new(filter_fn.clone()) },
+            || {},
+            filter_config,
+            self,
+        )
+    }
+}
+
+// Extension trait for SplitOperator
+pub trait Split<D1>
+where
+    D1: Data + for<'a> Deserialize<'a>,
+{
+    fn split<F: 'static + Fn(&D1) -> bool + Send + Sync + Clone>(
+        &self,
+        split_fn: F,
+    ) -> (Stream<D1>, Stream<D1>);
+}
+
+impl<D1> Split<D1> for Stream<D1>
+where
+    D1: Data + for<'a> Deserialize<'a>,
+{
+    fn split<F: 'static + Fn(&D1) -> bool + Send + Sync + Clone>(
+        &self,
+        split_fn: F,
+    ) -> (Stream<D1>, Stream<D1>) {
+        let split_config = OperatorConfig::new().name("SplitOperator");
+        crate::connect_one_in_two_out(
+            move || -> SplitOperator<D1> { SplitOperator::new(split_fn.clone()) },
+            || {},
+            split_config,
+            self,
+        )
     }
 }
 
