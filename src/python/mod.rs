@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use pyo3::{exceptions, prelude::*};
-use slog;
 
 use crate::{
     dataflow::OperatorConfig,
@@ -310,13 +309,11 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
                 .into_iter()
                 .map(|s| s.parse().expect("Unable to parse socket address"))
                 .collect();
-            let config = Configuration::new(
-                node_id,
-                data_addresses,
-                control_addresses,
-                7,
-                graph_filename,
-            );
+            let mut config = Configuration::new(node_id, data_addresses, control_addresses, 7);
+            if let Some(filename) = graph_filename {
+                config = config.export_dataflow_graph(filename.as_str());
+            }
+
             let mut node = Node::new(config);
             node.run();
         });
@@ -341,13 +338,11 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
                 .into_iter()
                 .map(|s| s.parse().expect("Unable to parse socket address"))
                 .collect();
-            let config = Configuration::new(
-                node_id,
-                data_addresses,
-                control_addresses,
-                7,
-                graph_filename,
-            );
+            let mut config = Configuration::new(node_id, data_addresses, control_addresses, 7);
+            if let Some(filename) = graph_filename {
+                config = config.export_dataflow_graph(filename.as_str());
+            }
+
             let node = Node::new(config);
             node.run_async()
         });
