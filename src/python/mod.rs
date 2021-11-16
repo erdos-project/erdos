@@ -310,9 +310,10 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
                 .map(|s| s.parse().expect("Unable to parse socket address"))
                 .collect();
             let mut config = Configuration::new(node_id, data_addresses, control_addresses, 7);
-            if !graph_filename.is_none() {
-                config = config.export_dataflow_graph(&graph_filename.unwrap());
+            if let Some(filename) = graph_filename {
+                config = config.export_dataflow_graph(filename.as_str());
             }
+
             let mut node = Node::new(config);
             node.run();
         });
@@ -338,9 +339,10 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
                 .map(|s| s.parse().expect("Unable to parse socket address"))
                 .collect();
             let mut config = Configuration::new(node_id, data_addresses, control_addresses, 7);
-            if !graph_filename.is_none() {
-                config = config.export_dataflow_graph(&graph_filename.unwrap());
+            if let Some(filename) = graph_filename {
+                config = config.export_dataflow_graph(filename.as_str());
             }
+
             let node = Node::new(config);
             node.run_async()
         });
