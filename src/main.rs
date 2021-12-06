@@ -435,12 +435,19 @@ fn main() {
     //     &split_stream_greater_50,
     // );
         
-    let ros_sink_config = OperatorConfig::new().name("ToRosOperator");
-    erdos::connect_sink(
-        ToRosOperator::new,
-        || {}, 
-        ros_sink_config,
-        &source_stream,
+    // let ros_sink_config = OperatorConfig::new().name("ToRosOperator");
+    // erdos::connect_sink(
+    //     ToRosOperator::new,
+    //     || {}, 
+    //     ros_sink_config,
+    //     &source_stream,
+    // );
+
+    let ros_source_config = OperatorConfig::new().name("FromRosOperator");
+    erdos::connect_source(
+        FromRosOperator::new,
+        || {},
+        ros_source_config,
     );
 
     //let join_sum_config = OperatorConfig::new().name("JoinSumOperator");

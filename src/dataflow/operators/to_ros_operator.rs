@@ -3,7 +3,6 @@ use crate::dataflow::{
     Data,
 };
 use serde::Deserialize;
-use std::sync::Arc;
 
 pub struct ToRosOperator {
     publisher: rosrust::Publisher<rosrust_msg::std_msgs::String>,
