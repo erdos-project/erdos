@@ -5,39 +5,41 @@ use crate::dataflow::{
 use serde::Deserialize;
 use std::sync::Arc;
 
-pub struct ToRosOperator<D1>
-where
-    D1: Data + for<'a> Deserialize<'a>,
-{
-    output_function: Arc<dyn Fn(&D1) -> bool + Send + Sync>,
+pub struct ToRosOperator {
+    publisher: rosrust::Publisher<rosrust_msg::std_msgs::String>,
 }
 
-impl<D1> ToRosOperator<D1> 
-where
-    D1: Data + for<'a> Deserialize<'a>,
+impl ToRosOperator
 {
-    pub fn new<F>(output_function: F) -> Self 
-    where
-        F: 'static + Fn(&D1) -> bool + Send + Sync, 
-    {
+    pub fn new() -> Self {
+        env_logger::init();
+        rosrust::init("publisher");
         Self {
-            output_function: Arc::new(output_function),
+            publisher: rosrust::publish("chatter", 1).unwrap(),
         }
     }
 }
 
-impl<D1> Sink<(), D1> for ToRosOperator<D1>
+impl<D1> Sink<(), D1> for ToRosOperator
 where
     D1: Data + for<'a> Deserialize<'a>,
 {
     fn on_data(&mut self, ctx: &mut SinkContext<()>, data: &D1) {
         let timestamp = ctx.get_timestamp().clone();
+        let msg = rosrust_msg::std_msgs::String {
+            data: format!("{:?}", data),
+        };
         slog::info!(
             crate::TERMINAL_LOGGER,
-            "ToRosOperator @ {:?}: Received {:?}",
+            "ToRosOperator @ {:?}: Sending {:?}",
             timestamp,
-            data
+            msg
         );
+        let result = self.publisher.send(msg);
+        // match result {
+        //     Ok(v) => println!("nice"),
+        //     Err(e) => println!("Error {}", e),
+        // }
     }
 
     fn on_watermark(&mut self, ctx: &mut SinkContext<()>) {}

@@ -437,7 +437,7 @@ fn main() {
         
     let ros_sink_config = OperatorConfig::new().name("ToRosOperator");
     erdos::connect_sink(
-        || -> ToRosOperator<usize> { ToRosOperator::new(|a: &usize| -> bool { false }) },
+        ToRosOperator::new,
         || {}, 
         ros_sink_config,
         &source_stream,
