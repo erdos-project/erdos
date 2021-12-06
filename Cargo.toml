@@ -36,6 +36,10 @@ tokio = { version = "1.8.1", features = ["full"] }
 tokio-util = { version = "0.6.7", features = ["codec"] }
 tokio-serde-bincode = "0.2.1"
 uuid = { version = "0.7", features = ["v4", "v5", "serde"] }
+rosrust = "0.9"
+rosrust_msg = "0.1"
+log = "0.4.0"
+env_logger = "0.8.4"
 
 [build-dependencies]
 slog = "2.4.2"

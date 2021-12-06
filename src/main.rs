@@ -379,37 +379,37 @@ fn main() {
     let source_config = OperatorConfig::new().name("SourceOperator");
     let source_stream = erdos::connect_source(SourceOperator::new, || {}, source_config);
 
-    let square_config = OperatorConfig::new().name("SquareOperator");
-    let square_stream = erdos::connect_one_in_one_out(
-        SquareOperator::new,
-        SquareOperatorState::new,
-        square_config,
-        &source_stream,
-    );
+    // let square_config = OperatorConfig::new().name("SquareOperator");
+    // let square_stream = erdos::connect_one_in_one_out(
+    //     SquareOperator::new,
+    //     SquareOperatorState::new,
+    //     square_config,
+    //     &source_stream,
+    // );
 
-    let map_config = OperatorConfig::new().name("MapOperator");
-    let map_stream = erdos::connect_one_in_one_out(
-        || -> MapOperator<usize, usize> { MapOperator::new(|a: &usize| -> usize { 2 * a }) },
-        || {},
-        map_config,
-        &square_stream,
-    );
+    // let map_config = OperatorConfig::new().name("MapOperator");
+    // let map_stream = erdos::connect_one_in_one_out(
+    //     || -> MapOperator<usize, usize> { MapOperator::new(|a: &usize| -> usize { 2 * a }) },
+    //     || {},
+    //     map_config,
+    //     &square_stream,
+    // );
 
-    let filter_config = OperatorConfig::new().name("FilterOperator");
-    let filter_stream = erdos::connect_one_in_one_out(
-        || -> FilterOperator<usize> { FilterOperator::new(|a: &usize| -> bool { a > &10 }) },
-        || {},
-        filter_config,
-        &map_stream,
-    );
+    // let filter_config = OperatorConfig::new().name("FilterOperator");
+    // let filter_stream = erdos::connect_one_in_one_out(
+    //     || -> FilterOperator<usize> { FilterOperator::new(|a: &usize| -> bool { a > &10 }) },
+    //     || {},
+    //     filter_config,
+    //     &map_stream,
+    // );
 
-    let split_config = OperatorConfig::new().name("SplitOperator");
-    let (split_stream_less_50, split_stream_greater_50) = erdos::connect_one_in_two_out(
-        || -> SplitOperator<usize> { SplitOperator::new(|a: &usize| -> bool { a < &50 }) },
-        || {},
-        split_config,
-        &filter_stream,
-    );
+    // let split_config = OperatorConfig::new().name("SplitOperator");
+    // let (split_stream_less_50, split_stream_greater_50) = erdos::connect_one_in_two_out(
+    //     || -> SplitOperator<usize> { SplitOperator::new(|a: &usize| -> bool { a < &50 }) },
+    //     || {},
+    //     split_config,
+    //     &filter_stream,
+    // );
 
     //let sum_config = OperatorConfig::new().name("SumOperator");
     //let sum_stream = erdos::connect_one_in_one_out(
@@ -419,30 +419,28 @@ fn main() {
     //    &square_stream,
     //);
 
-    let left_sink_config = OperatorConfig::new().name("LeftSinkOperator");
-    erdos::connect_sink(
-        SinkOperator::new,
-        SinkOperatorState::new,
-        left_sink_config,
-        &split_stream_less_50,
-    );
+    // let left_sink_config = OperatorConfig::new().name("LeftSinkOperator");
+    // erdos::connect_sink(
+    //     SinkOperator::new,
+    //     SinkOperatorState::new,
+    //     left_sink_config,
+    //     &split_stream_less_50,
+    // );
 
-    let right_sink_config = OperatorConfig::new().name("RightSinkOperator");
+    // let right_sink_config = OperatorConfig::new().name("RightSinkOperator");
+    // erdos::connect_sink(
+    //     SinkOperator::new,
+    //     SinkOperatorState::new,
+    //     right_sink_config,
+    //     &split_stream_greater_50,
+    // );
+        
+    let ros_sink_config = OperatorConfig::new().name("ToRosOperator");
     erdos::connect_sink(
-        SinkOperator::new,
-        SinkOperatorState::new,
-        right_sink_config,
-        &split_stream_greater_50,
-    );
-
-    // Example use of an ingest stream.
-    let ingest_stream = IngestStream::new();
-    let sink_config = OperatorConfig::new().name("IngestSinkOperator");
-    erdos::connect_sink(
-        SinkOperator::new,
-        SinkOperatorState::new,
-        sink_config,
-        &ingest_stream,
+        || -> ToRosOperator<usize> { ToRosOperator::new(|a: &usize| -> bool { false }) },
+        || {}, 
+        ros_sink_config,
+        &source_stream,
     );
 
     //let join_sum_config = OperatorConfig::new().name("JoinSumOperator");
