@@ -3,7 +3,6 @@ use crate::dataflow::{
     Data,
 };
 use serde::Deserialize;
-use rosrust::DynamicMsg;
 
 pub struct ToRosOperator {
     publisher: rosrust::Publisher<rosrust::RawMessage>,

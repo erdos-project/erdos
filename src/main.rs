@@ -9,6 +9,7 @@ use erdos::dataflow::operators::*;
 use erdos::dataflow::stream::IngestStream;
 use erdos::dataflow::stream::WriteStreamT;
 use erdos::dataflow::*;
+use erdos::dataflow::Message;
 use erdos::node::Node;
 use erdos::Configuration;
 
@@ -445,9 +446,13 @@ fn main() {
     //     &source_stream,
     // );
 
+    let conversion = |input: &rosrust_msg::std_msgs::String| -> Message<String> {
+        Message::new_message(Timestamp::Time(vec![1 as u64]), String::from("test"))
+    }; 
+
     let ros_source_config = OperatorConfig::new().name("FromRosOperator");
     erdos::connect_source(
-        FromRosOperator::new,
+        move || -> FromRosOperator<rosrust_msg::std_msgs::String, Message<String>> { FromRosOperator::new("chatter", conversion) },
         || {},
         ros_source_config,
     );
@@ -463,7 +468,7 @@ fn main() {
         string SOME_TEXT=this is # some text, don't be fooled by the hash
         "#,
     );
-    println!("{:?}", message);
+    // println!("{:?}", message);
 
     //let join_sum_config = OperatorConfig::new().name("JoinSumOperator");
     //let join_stream = erdos::connect_two_in_one_out(
