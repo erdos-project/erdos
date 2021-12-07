@@ -3,9 +3,10 @@ use crate::dataflow::{
     Data,
 };
 use serde::Deserialize;
+use rosrust::DynamicMsg;
 
 pub struct ToRosOperator {
-    publisher: rosrust::Publisher<rosrust_msg::std_msgs::String>,
+    publisher: rosrust::Publisher<rosrust::RawMessage>,
 }
 
 impl ToRosOperator
@@ -28,13 +29,14 @@ where
         let msg = rosrust_msg::std_msgs::String {
             data: format!("{:?}", data),
         };
+        let custom = rosrust::RawMessage(vec![1, 2, 3]);
         slog::info!(
             crate::TERMINAL_LOGGER,
             "ToRosOperator @ {:?}: Sending {:?}",
             timestamp,
-            msg
+            custom.0
         );
-        let result = self.publisher.send(msg);
+        let result = self.publisher.send(custom);
         // match result {
         //     Ok(v) => println!("nice"),
         //     Err(e) => println!("Error {}", e),

@@ -15,8 +15,8 @@ impl FromRosOperator {
 
 impl Source<(), String> for FromRosOperator {
     fn run(&mut self, write_stream: &mut WriteStream<String>) {
-        let _subscriber_raii = rosrust::subscribe("chatter", 2, |v: rosrust_msg::std_msgs::String| {
-            rosrust::ros_info!("Got: {}", v.data);
+        let _subscriber_raii = rosrust::subscribe("chatter", 2, |v: rosrust::RawMessage| {
+            rosrust::ros_info!("Got: {:?}", v.0);
         }).unwrap();
 
         rosrust::spin();

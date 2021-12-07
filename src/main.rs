@@ -12,6 +12,8 @@ use erdos::dataflow::*;
 use erdos::node::Node;
 use erdos::Configuration;
 
+use rosrust::DynamicMsg;
+
 struct SourceOperator {}
 
 impl SourceOperator {
@@ -449,6 +451,19 @@ fn main() {
         || {},
         ros_source_config,
     );
+
+    let message = DynamicMsg::new(
+        "foo/Bar",
+        r#"# a comment that is ignored
+        Header header
+        uint32 a
+        byte[16] b
+        geometry_msgs/Point[] point
+        uint32 FOO=5
+        string SOME_TEXT=this is # some text, don't be fooled by the hash
+        "#,
+    );
+    println!("{:?}", message);
 
     //let join_sum_config = OperatorConfig::new().name("JoinSumOperator");
     //let join_stream = erdos::connect_two_in_one_out(
