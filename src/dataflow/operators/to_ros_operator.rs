@@ -3,43 +3,47 @@ use crate::dataflow::{
     Data,
 };
 use serde::Deserialize;
+use std::sync::Arc;
 
-pub struct ToRosOperator {
-    publisher: rosrust::Publisher<rosrust::RawMessage>,
+pub struct ToRosOperator<T, U: rosrust::Message>
+where
+    T: Data + for<'a> Deserialize<'a>,
+{
+    publisher: rosrust::Publisher<U>,
+    to_ros_msg: Arc<dyn Fn(&T) -> U + Send + Sync>,
 }
 
-impl ToRosOperator
+impl<T, U: rosrust::Message> ToRosOperator<T, U>
+where
+    T: Data + for<'a> Deserialize<'a>,
 {
-    pub fn new() -> Self {
-        env_logger::init();
+    pub fn new<F>(topic: &str, to_ros_msg: F) -> Self 
+    where
+        F: 'static + Fn(&T) -> U + Send + Sync,
+    {
         rosrust::init("publisher");
         Self {
-            publisher: rosrust::publish("chatter", 1).unwrap(),
+            publisher: rosrust::publish(topic, 2).unwrap(),
+            to_ros_msg: Arc::new(to_ros_msg),
         }
     }
 }
 
-impl<D1> Sink<(), D1> for ToRosOperator
+impl<T, U: rosrust::Message> Sink<(), T> for ToRosOperator<T, U>
 where
-    D1: Data + for<'a> Deserialize<'a>,
+    T: Data + for<'a> Deserialize<'a>,
 {
-    fn on_data(&mut self, ctx: &mut SinkContext<()>, data: &D1) {
+    fn on_data(&mut self, ctx: &mut SinkContext<()>, data: &T) {
         let timestamp = ctx.get_timestamp().clone();
-        let msg = rosrust_msg::std_msgs::String {
-            data: format!("{:?}", data),
-        };
-        let custom = rosrust::RawMessage(vec![1, 2, 3]);
+        let msg = (self.to_ros_msg)(data);
+
         slog::info!(
             crate::TERMINAL_LOGGER,
             "ToRosOperator @ {:?}: Sending {:?}",
             timestamp,
-            custom.0
+            msg,
         );
-        let result = self.publisher.send(custom);
-        // match result {
-        //     Ok(v) => println!("nice"),
-        //     Err(e) => println!("Error {}", e),
-        // }
+        let result = self.publisher.send(msg);
     }
 
     fn on_watermark(&mut self, ctx: &mut SinkContext<()>) {}

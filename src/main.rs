@@ -13,7 +13,6 @@ use erdos::dataflow::Message;
 use erdos::node::Node;
 use erdos::Configuration;
 
-use rosrust::DynamicMsg;
 
 struct SourceOperator {}
 
@@ -29,7 +28,7 @@ impl Source<(), usize> for SourceOperator {
         for t in 0..10 {
             let timestamp = Timestamp::Time(vec![t as u64]);
             write_stream
-                .send(Message::new_message(timestamp.clone(), t))
+                .send(Message::new_message(timestamp.clone(), String::from("hello world")))
                 .unwrap();
             write_stream
                 .send(Message::new_watermark(timestamp))
@@ -204,8 +203,8 @@ impl StateT for SinkOperatorState {
     }
 }
 
-impl Sink<SinkOperatorState, usize> for SinkOperator {
-    fn on_data(&mut self, ctx: &mut SinkContext<SinkOperatorState>, data: &usize) {
+impl Sink<SinkOperatorState, String> for SinkOperator {
+    fn on_data(&mut self, ctx: &mut SinkContext<SinkOperatorState>, data: &String) {
         let timestamp = ctx.get_timestamp().clone();
         tracing::info!("SinkOperator @ {:?}: Received {}", timestamp, data);
         ctx.get_state().increment_message_count(&timestamp);
@@ -446,29 +445,40 @@ fn main() {
     //     &source_stream,
     // );
 
-    let conversion = |input: &rosrust_msg::std_msgs::String| -> Message<String> {
-        Message::new_message(Timestamp::Time(vec![1 as u64]), String::from("test"))
-    }; 
+    let ros_to_erdos = |input: &rosrust_msg::std_msgs::String| -> Message<String> {
+        Message::new_message(Timestamp::Time(vec![0 as u64]), String::from(input.data.as_str()))
+    };
 
-    let ros_source_config = OperatorConfig::new().name("FromRosOperator");
-    erdos::connect_source(
-        move || -> FromRosOperator<rosrust_msg::std_msgs::String, Message<String>> { FromRosOperator::new("chatter", conversion) },
-        || {},
-        ros_source_config,
+    let erdos_to_ros = |input: &String| -> rosrust::RawMessage {
+        rosrust::RawMessage(Vec::from(input.to_string().as_bytes()))
+    };
+
+    // let ros_source_config = OperatorConfig::new().name("FromRosOperator");
+    // let ros_source = erdos::connect_source(
+    //     move || -> FromRosOperator<rosrust_msg::std_msgs::String, String> { FromRosOperator::new("chatter", ros_to_erdos) },
+    //     || {},
+    //     ros_source_config,
+    // );
+
+    // let erdos_sink_from_ros = OperatorConfig::new().name("SinkOperator");
+    // erdos::connect_sink(
+    //     SinkOperator::new,
+    //     SinkOperatorState::new,
+    //     erdos_sink_from_ros,
+    //     &ros_source,
+    // );
+
+    let ros_sink_config = OperatorConfig::new().name("ToRosOperator");
+    erdos::connect_sink(
+        move || -> ToRosOperator<String, rosrust::RawMessage> { ToRosOperator::new("chatter", erdos_to_ros) },
+        || {}, 
+        ros_sink_config,
+        &source_stream,
     );
 
-    let message = DynamicMsg::new(
-        "foo/Bar",
-        r#"# a comment that is ignored
-        Header header
-        uint32 a
-        byte[16] b
-        geometry_msgs/Point[] point
-        uint32 FOO=5
-        string SOME_TEXT=this is # some text, don't be fooled by the hash
-        "#,
-    );
-    // println!("{:?}", message);
+    // for i in 0..10 {
+    //     source_stream.send(Message::new_message(Timestamp::new(vec![i as u64]), i)).unwrap();
+    // }
 
     //let join_sum_config = OperatorConfig::new().name("JoinSumOperator");
     //let join_stream = erdos::connect_two_in_one_out(
