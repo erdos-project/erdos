@@ -2,6 +2,7 @@ import pickle
 import logging
 import uuid
 from typing import Union
+from __future__ import annotations
 
 from erdos.message import Message, WatermarkMessage
 from erdos.internal import (PyReadStream, PyWriteStream, PyLoopStream,
@@ -52,14 +53,29 @@ class Stream(object):
     def name(self, name: str):
         self._py_stream.set_name(name)
 
-    def map(self, map_fn) -> PyStream:
-        return self._py_stream.map(map_fn)
+    def map(self, map_fn) -> Stream:
+        def f(serialized_data):
+            data = pickle.load(serialized_data)
+            result = map_fn(data)
+            return pickle.dumps(result)
 
-    def filter(self, filter_fn) -> PyStream:
-        return self._py_stream.filter(filter_fn)
+        return Stream(self._py_stream.map(f))
 
-    def split(self, split_fn) -> Union[PyStream, PyStream]:
-        return self._py_stream.split(split_fn)
+    def filter(self, filter_fn) -> Stream:
+        def f(serialized_data):
+            data = pickle.load(serialized_data)
+            result = filter_fn(data)
+            return pickle.dumps(result)
+
+        return Stream(self._py_stream.filter(f))
+
+    def split(self, split_fn) -> Union[Stream, Stream]:
+        def f(serialized_data):
+            data = pickle.load(serialized_data)
+            left_res, right_res = split_fn(data)
+            return pickle.dumps(left_res), pickle.dumps(right_res)
+        left_res, right_res = self._py_stream.split(f)
+        return Stream(left_res), Stream(right_res)
 
 
 class ReadStream(object):

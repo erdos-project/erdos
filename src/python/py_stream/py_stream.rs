@@ -29,19 +29,19 @@ impl PyStream {
         format!("{}", self.stream.id())
     }
 
-    fn map(&self, map_fn: &PyAny) -> PyStream {
-        // let my_fn = map_fn.clone();
+    fn map(&self, map_fn: PyObject) -> PyStream {
         let my_fn = Arc::new(map_fn);
-        let my_fn2 = Arc::clone(&my_fn);
-        let f = |data: &Vec<u8>| -> Vec<u8> {
+        let f = move |data: &Vec<u8>| -> Vec<u8> {
             Python::with_gil(|py| {
                 let serialized_data = PyBytes::new(py, &data[..]);
-                my_fn2.call1((serialized_data,));
-                // let py_data: PyObject = my_fn.call1((serialized_data,)).unwrap().extract().unwrap();
-                // py_data
-            });
-            Vec::new()
+                my_fn
+                    .call1(py, (serialized_data,))
+                    .unwrap()
+                    .extract(py)
+                    .unwrap()
+            })
         };
+
         Self {
             stream: self.stream.map(f),
         }
