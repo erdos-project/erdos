@@ -10,6 +10,8 @@ use erdos::dataflow::Message;
 use erdos::node::Node;
 use erdos::Configuration;
 
+/// Publishes erdos messages of type String to ROS topic "chatter".
+
 struct SourceOperator {}
 
 impl SourceOperator {
@@ -25,13 +27,12 @@ impl Source<(), String> for SourceOperator {
         for t in 0..10 {
             let timestamp = Timestamp::Time(vec![t as u64]);
             write_stream
-                .send(Message::new_message(timestamp.clone(), String::from("hello world")))
+                .send(Message::new_message(timestamp.clone(), String::from("Hello from erdos")))
                 .unwrap();
             write_stream
                 .send(Message::new_watermark(timestamp))
                 .unwrap();
             thread::sleep(Duration::from_millis(100));
-            // thread::sleep(Duration::new(5, 0));
         }
     }
 

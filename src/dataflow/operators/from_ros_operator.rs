@@ -5,6 +5,9 @@ use crate::dataflow::{
 use serde::Deserialize;
 use std::sync::{Arc, Mutex};
 
+/// Subscribes to ROS topic and outputs incoming messages to erdos stream using the
+/// provided message conversion function.
+
 #[derive(Clone)]
 pub struct FromRosOperator<T: rosrust::Message, U>
 where
@@ -40,8 +43,11 @@ where
 
         let _subscriber_raii = rosrust::subscribe(self.topic.as_str(), 2, move |v: T| {
             let converted = (to_erdos_msg)(&v);
-
-            rosrust::ros_info!("Converted from Ros: {:?}", converted);
+            slog::info!(
+                crate::TERMINAL_LOGGER,
+                "FromRosOperator: Received and Converted {:?}",
+                converted,
+            );
             w_s.lock().unwrap().send(converted).unwrap();
         }).unwrap();
 

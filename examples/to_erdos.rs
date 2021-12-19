@@ -1,7 +1,5 @@
 extern crate erdos;
 
-use std::{collections::HashMap};
-
 use erdos::dataflow::context::*;
 use erdos::dataflow::operator::*;
 use erdos::dataflow::operators::*;
@@ -9,6 +7,9 @@ use erdos::dataflow::*;
 use erdos::dataflow::Message;
 use erdos::node::Node;
 use erdos::Configuration;
+
+/// Subscribes to ROS topic named "chatter" which consists of String messages. 
+/// Messages are converted and sent on an erdos stream which is captured by a Sink node.
 
 struct SinkOperator {}
 
@@ -19,25 +20,14 @@ impl SinkOperator {
 }
 
 struct SinkOperatorState {
-    message_counter: HashMap<Timestamp, usize>,
     current_timestamp: Timestamp,
 }
 
 impl SinkOperatorState {
     fn new() -> Self {
         Self {
-            message_counter: HashMap::new(),
             current_timestamp: Timestamp::Bottom,
         }
-    }
-
-    fn increment_message_count(&mut self, timestamp: &Timestamp) {
-        let count = self.message_counter.entry(timestamp.clone()).or_insert(0);
-        *count += 1;
-    }
-
-    fn get_message_count(&self, timestamp: &Timestamp) -> usize {
-        *self.message_counter.get(timestamp).unwrap_or_else(|| &0)
     }
 }
 
@@ -60,18 +50,9 @@ impl Sink<SinkOperatorState, String> for SinkOperator {
             timestamp,
             data,
         );
-        ctx.get_state().increment_message_count(&timestamp);
     }
 
-    fn on_watermark(&mut self, ctx: &mut SinkContext<SinkOperatorState>) {
-        let timestamp = ctx.get_timestamp().clone();
-        slog::info!(
-            erdos::get_terminal_logger(),
-            "SinkOperator @ {:?}: Received {} data messages.",
-            timestamp,
-            ctx.get_state().get_message_count(&timestamp),
-        );
-    }
+    fn on_watermark(&mut self, ctx: &mut SinkContext<SinkOperatorState>) {}
 }
 
 

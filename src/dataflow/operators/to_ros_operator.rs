@@ -5,6 +5,9 @@ use crate::dataflow::{
 use serde::Deserialize;
 use std::sync::Arc;
 
+/// Takes input erdos stream and publishes to ROS topic using the provided message 
+/// conversion function.
+
 pub struct ToRosOperator<T, U: rosrust::Message>
 where
     T: Data + for<'a> Deserialize<'a>,
@@ -43,7 +46,7 @@ where
             timestamp,
             msg,
         );
-        let result = self.publisher.send(msg);
+        self.publisher.send(msg).unwrap();
     }
 
     fn on_watermark(&mut self, ctx: &mut SinkContext<()>) {}
