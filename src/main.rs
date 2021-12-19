@@ -443,42 +443,7 @@ fn main() {
     //     || {}, 
     //     ros_sink_config,
     //     &source_stream,
-    // );
-
-    let ros_to_erdos = |input: &rosrust_msg::std_msgs::String| -> Message<String> {
-        Message::new_message(Timestamp::Time(vec![0 as u64]), String::from(input.data.as_str()))
-    };
-
-    let erdos_to_ros = |input: &String| -> rosrust::RawMessage {
-        rosrust::RawMessage(Vec::from(input.to_string().as_bytes()))
-    };
-
-    // let ros_source_config = OperatorConfig::new().name("FromRosOperator");
-    // let ros_source = erdos::connect_source(
-    //     move || -> FromRosOperator<rosrust_msg::std_msgs::String, String> { FromRosOperator::new("chatter", ros_to_erdos) },
-    //     || {},
-    //     ros_source_config,
-    // );
-
-    // let erdos_sink_from_ros = OperatorConfig::new().name("SinkOperator");
-    // erdos::connect_sink(
-    //     SinkOperator::new,
-    //     SinkOperatorState::new,
-    //     erdos_sink_from_ros,
-    //     &ros_source,
-    // );
-
-    let ros_sink_config = OperatorConfig::new().name("ToRosOperator");
-    erdos::connect_sink(
-        move || -> ToRosOperator<String, rosrust::RawMessage> { ToRosOperator::new("chatter", erdos_to_ros) },
-        || {}, 
-        ros_sink_config,
-        &source_stream,
-    );
-
-    // for i in 0..10 {
-    //     source_stream.send(Message::new_message(Timestamp::new(vec![i as u64]), i)).unwrap();
-    // }
+    // ); 
 
     //let join_sum_config = OperatorConfig::new().name("JoinSumOperator");
     //let join_stream = erdos::connect_two_in_one_out(
