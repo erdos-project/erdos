@@ -61,9 +61,9 @@ def main():
     """Creates and runs the dataflow graph."""
     count_stream = erdos.connect_source(SendOp,
                                         erdos.operator.OperatorConfig())
-    
+
     count_stream.map(lambda x: x * 4)
-    
+
     erdos.connect_sink(CallbackOp, erdos.operator.OperatorConfig(),
                        count_stream)
     erdos.connect_sink(PullOp, erdos.operator.OperatorConfig(), count_stream)
