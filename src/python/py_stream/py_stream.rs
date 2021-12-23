@@ -30,14 +30,25 @@ impl PyStream {
     }
 
     fn map(&self, map_fn: PyObject) -> PyStream {
-        let my_fn = Arc::new(map_fn);
+        let new_fn = Arc::new(map_fn);
         let f = move |data: &Vec<u8>| -> Vec<u8> {
             Python::with_gil(|py| {
                 let serialized_data = PyBytes::new(py, &data[..]);
-                my_fn
-                    .call1(py, (serialized_data,))
+                let pickle = PyModule::import(py, "pickle").unwrap();
+                let des_data: PyObject = pickle
+                    .getattr("loads")
                     .unwrap()
-                    .extract(py)
+                    .call1((serialized_data,))
+                    .unwrap()
+                    .extract()
+                    .unwrap();
+                let result: PyObject = new_fn.call1(py, (des_data,)).unwrap().extract(py).unwrap();
+                pickle
+                    .getattr("dumps")
+                    .unwrap()
+                    .call1((result,))
+                    .unwrap()
+                    .extract()
                     .unwrap()
             })
         };
@@ -47,46 +58,56 @@ impl PyStream {
         }
     }
 
-    fn filter(&self, filter_fn: &PyAny) -> PyStream {
+    fn filter(&self, filter_fn: PyObject) -> PyStream {
+        let new_fn = Arc::new(filter_fn);
+        let f = move |data: &Vec<u8>| -> bool {
+            Python::with_gil(|py| {
+                let serialized_data = PyBytes::new(py, &data[..]);
+                let pickle = PyModule::import(py, "pickle").unwrap();
+                let des_data: PyObject = pickle
+                    .getattr("loads")
+                    .unwrap()
+                    .call1((serialized_data,))
+                    .unwrap()
+                    .extract()
+                    .unwrap();
+                new_fn.call1(py, (des_data,)).unwrap().extract(py).unwrap()
+            })
+        };
+
         Self {
-            stream: self.stream.clone(),
+            stream: self.stream.filter(f),
         }
     }
 
-    fn split(&self, split_fn: &PyAny) -> (PyStream, PyStream) {
+    fn split(&self, split_fn: PyObject) -> (PyStream, PyStream) {
+        let new_fn = Arc::new(split_fn);
+        let f = move |data: &Vec<u8>| -> bool {
+            Python::with_gil(|py| {
+                let serialized_data = PyBytes::new(py, &data[..]);
+                let pickle = PyModule::import(py, "pickle").unwrap();
+                let des_data: PyObject = pickle
+                    .getattr("loads")
+                    .unwrap()
+                    .call1((serialized_data,))
+                    .unwrap()
+                    .extract()
+                    .unwrap();
+                new_fn.call1(py, (des_data,)).unwrap().extract(py).unwrap()
+            })
+        };
+
+        let (left_stream, right_stream) = self.stream.split(f);
+
         (
             Self {
-                stream: self.stream.clone(),
+                stream: left_stream,
             },
             Self {
-                stream: self.stream.clone(),
+                stream: right_stream,
             },
         )
     }
-
-    // fn filter<F: 'static + Fn(Vec<u8>) -> bool + Send + Sync + Clone>(
-    //     &self,
-    //     filter_fn: F,
-    // ) -> PyStream {
-    //     Self {
-    //         stream: self.stream.filter(filter_fn),
-    //     }
-    // }
-
-    // fn split<F: 'static + Fn(Vec<u8>) -> bool + Send + Sync + Clone>(
-    //     &self,
-    //     split_fn: F,
-    // ) -> (PyStream, Vec<u8>) {
-    //     let (left_stream, right_stream) = self.stream.split(split_fn);
-    //     (
-    //         Self {
-    //             stream: left_stream,
-    //         },
-    //         Self {
-    //             stream: right_stream,
-    //         },
-    //     )
-    // }
 }
 
 impl From<Stream<Vec<u8>>> for PyStream {
