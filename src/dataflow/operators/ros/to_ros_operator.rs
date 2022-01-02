@@ -5,8 +5,21 @@ use crate::dataflow::{
 use serde::Deserialize;
 use std::sync::Arc;
 
-/// Takes input erdos stream and publishes to ROS topic using the provided message 
-/// conversion function.
+/// Takes an input ERDOS stream and publishes to a ROS topic using the provided message conversion 
+/// function.
+/// 
+/// Conversion function should convert a Rust data type and return a ROS type which implements 
+/// the [`rosrust::Message`] trait.
+/// 
+/// # Example
+/// The following example shows a conversion function which takes a Rust [`i32`] and converts it
+/// to a ROS message with [`rosrust_msg::std_msgs::Int32`] data. 
+/// 
+/// ```
+/// fn erdos_to_ros(input: &i32) -> rosrust_msg::std_msgs::Int32 {
+///     rosrust_msg::std_msgs::Int32 { data: input.data }
+/// }
+/// ```
 
 pub struct ToRosOperator<T, U: rosrust::Message>
 where
@@ -40,14 +53,15 @@ where
         let timestamp = ctx.get_timestamp().clone();
         let msg = (self.to_ros_msg)(data);
 
-        slog::info!(
-            crate::TERMINAL_LOGGER,
-            "ToRosOperator @ {:?}: Sending {:?}",
+        tracing::info!(
+            "{} @ {:?}: Sending {:?}",
+            ctx.get_operator_config().get_name(),
             timestamp,
             msg,
         );
+        // Publishes converted message on topic.
         self.publisher.send(msg).unwrap();
     }
 
-    fn on_watermark(&mut self, ctx: &mut SinkContext<()>) {}
+    fn on_watermark(&mut self, _ctx: &mut SinkContext<()>) {}
 }

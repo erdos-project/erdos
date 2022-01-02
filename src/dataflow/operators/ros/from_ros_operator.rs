@@ -5,8 +5,22 @@ use crate::dataflow::{
 use serde::Deserialize;
 use std::sync::{Arc, Mutex};
 
-/// Subscribes to ROS topic and outputs incoming messages to erdos stream using the
+/// Subscribes to a ROS topic and outputs incoming messages to an ERDOS stream using the
 /// provided message conversion function.
+/// 
+/// Conversion function should convert a ROS type which implements the [`rosrust::Message`] 
+/// trait and return a ERDOS [`Message`] containing data of a Rust data type. See [`rosrust_msg`]
+/// for a variety of supported standard ROS messages.
+/// 
+/// # Example
+/// The following example shows a conversion function which takes a [`rosrust_msg::sensor_msgs::Image`]
+/// and returns an ERDOS message containing [`Vec<u8>`] a vector of bytes.
+/// 
+/// ```
+/// fn ros_to_erdos(input: &rosrust_msg::sensor_msgs::Image) -> Message<Vec<u8>> {
+///     Message::new_message(Timestamp::Time(vec![0 as u64]), input.data)
+/// }
+/// ```
 
 #[derive(Clone)]
 pub struct FromRosOperator<T: rosrust::Message, U>
@@ -43,11 +57,11 @@ where
 
         let _subscriber_raii = rosrust::subscribe(self.topic.as_str(), 2, move |v: T| {
             let converted = (to_erdos_msg)(&v);
-            slog::info!(
-                crate::TERMINAL_LOGGER,
+            tracing::debug!(
                 "FromRosOperator: Received and Converted {:?}",
                 converted,
             );
+            // Sends converted message on ERDOS stream.
             w_s.lock().unwrap().send(converted).unwrap();
         }).unwrap();
 
