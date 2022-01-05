@@ -16,7 +16,7 @@ use std::sync::Arc;
 /// to a ROS message with [`rosrust_msg::std_msgs::Int32`] data. 
 /// 
 /// ```
-/// fn erdos_to_ros(input: &i32) -> rosrust_msg::std_msgs::Int32 {
+/// fn erdos_int_to_ros_int(input: &i32) -> rosrust_msg::std_msgs::Int32 {
 ///     rosrust_msg::std_msgs::Int32 { data: input.data }
 /// }
 /// ```

@@ -13,13 +13,22 @@ use std::sync::{Arc, Mutex};
 /// for a variety of supported standard ROS messages.
 /// 
 /// # Example
-/// The following example shows a conversion function which takes a [`rosrust_msg::sensor_msgs::Image`]
-/// and returns an ERDOS message containing [`Vec<u8>`] a vector of bytes.
+/// The following example shows how to use a [`FromRosOperator`] with a conversion function 
+/// which takes a [`rosrust_msg::sensor_msgs::Image`] and returns an ERDOS message containing 
+/// [`Vec<u8>`] a vector of bytes.
 /// 
 /// ```
-/// fn ros_to_erdos(input: &rosrust_msg::sensor_msgs::Image) -> Message<Vec<u8>> {
+/// fn ros_image_to_bytes(input: &rosrust_msg::sensor_msgs::Image) -> Message<Vec<u8>> {
 ///     Message::new_message(Timestamp::Time(vec![0 as u64]), input.data)
 /// }
+/// 
+/// let ros_source_config = OperatorConfig::new().name("FromRosImage");
+/// let ros_source = erdos::connect_source(
+///     move || -> FromRosOperator<rosrust_msg::sensor_msgs::Image, Vec<u8>> { 
+///         FromRosOperator::new("image_topic", ros_image_to_bytes) },
+///     || {},
+///     ros_source_config,
+/// );
 /// ```
 
 #[derive(Clone)]
