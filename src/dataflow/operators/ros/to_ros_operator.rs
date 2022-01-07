@@ -11,7 +11,7 @@ use std::sync::Arc;
 /// # Example
 /// The following example shows how to use a [`ToRosOperator`] with a conversion function which takes
 /// a Rust [`i32`] and converts it to a ROS message with [`rosrust_msg::std_msgs::Int32`] data.
-/// 
+///
 /// Assume that `source_stream` is an ERDOS stream sending the correct messages.
 ///
 /// ```
