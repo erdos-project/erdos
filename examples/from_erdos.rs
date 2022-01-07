@@ -1,3 +1,6 @@
+/// Publishes erdos messages of type String to ROS topic "chatter".
+/// Pipeline is as follows:
+/// ERDOS SourceOperator -> ToRosOperator converts and publishes ROS messages
 extern crate erdos;
 
 use std::{thread, time::Duration};
@@ -5,14 +8,10 @@ use std::{thread, time::Duration};
 use erdos::dataflow::operator::*;
 use erdos::dataflow::operators::ros::*;
 use erdos::dataflow::stream::WriteStreamT;
-use erdos::dataflow::*;
 use erdos::dataflow::Message;
+use erdos::dataflow::*;
 use erdos::node::Node;
 use erdos::Configuration;
-
-/// Publishes erdos messages of type String to ROS topic "chatter".
-/// Pipeline is as follows:
-/// ERDOS SourceOperator -> ToRosOperator converts and publishes ROS messages
 
 struct SourceOperator {}
 
@@ -29,7 +28,10 @@ impl Source<(), String> for SourceOperator {
         for t in 0..10 {
             let timestamp = Timestamp::Time(vec![t as u64]);
             write_stream
-                .send(Message::new_message(timestamp.clone(), String::from("Hello from erdos")))
+                .send(Message::new_message(
+                    timestamp.clone(),
+                    String::from("Hello from erdos"),
+                ))
                 .unwrap();
             write_stream
                 .send(Message::new_watermark(timestamp))
@@ -45,7 +47,9 @@ impl Source<(), String> for SourceOperator {
 
 // Defines a function that converts an ERDOS message containing String data to a ROS String message.
 fn erdos_to_ros(input: &String) -> rosrust_msg::std_msgs::String {
-    rosrust_msg::std_msgs::String { data: input.to_string() }
+    rosrust_msg::std_msgs::String {
+        data: input.to_string(),
+    }
 }
 
 fn main() {
@@ -60,8 +64,10 @@ fn main() {
     // The operator will convert the messages using conversion function above, and publish the messages on the ROS topic "chatter".
     let ros_sink_config = OperatorConfig::new().name("ToRosOperator");
     erdos::connect_sink(
-        move || -> ToRosOperator<String, rosrust_msg::std_msgs::String> { ToRosOperator::new("chatter", erdos_to_ros) },
-        || {}, 
+        move || -> ToRosOperator<String, rosrust_msg::std_msgs::String> {
+            ToRosOperator::new("chatter", erdos_to_ros)
+        },
+        || {},
         ros_sink_config,
         &source_stream,
     );

@@ -1,24 +1,33 @@
-use crate::dataflow::{
-    context::SinkContext, operator::Sink,
-    Data,
-};
+use crate::dataflow::{context::SinkContext, operator::Sink, Data};
 use serde::Deserialize;
 use std::sync::Arc;
 
-/// Takes an input ERDOS stream and publishes to a ROS topic using the provided message conversion 
+/// Takes an input ERDOS stream and publishes to a ROS topic using the provided message conversion
 /// function.
-/// 
-/// Conversion function should convert a Rust data type and return a ROS type which implements 
+///
+/// Conversion function should convert a Rust data type and return a ROS type which implements
 /// the [`rosrust::Message`] trait.
-/// 
+///
 /// # Example
-/// The following example shows a conversion function which takes a Rust [`i32`] and converts it
-/// to a ROS message with [`rosrust_msg::std_msgs::Int32`] data. 
+/// The following example shows how to use a [`ToRosOperator`] with a conversion function which takes
+/// a Rust [`i32`] and converts it to a ROS message with [`rosrust_msg::std_msgs::Int32`] data.
 /// 
+/// Assume that `source_stream` is an ERDOS stream sending the correct messages.
+///
 /// ```
 /// fn erdos_int_to_ros_int(input: &i32) -> rosrust_msg::std_msgs::Int32 {
 ///     rosrust_msg::std_msgs::Int32 { data: input.data }
 /// }
+///
+/// let ros_sink_config = OperatorConfig::new().name("ToRosInt32");
+/// erdos::connect_sink(
+///     move || -> ToRosOperator<i32, rosrust_msg::std_msgs::Int32> {
+///         ToRosOperator::new("int_topic", erdos_int_to_ros_int)
+///     },
+///     || {},
+///     ros_sink_config,
+///     &source_stream,
+/// );
 /// ```
 
 pub struct ToRosOperator<T, U: rosrust::Message>
@@ -33,7 +42,7 @@ impl<T, U: rosrust::Message> ToRosOperator<T, U>
 where
     T: Data + for<'a> Deserialize<'a>,
 {
-    pub fn new<F>(topic: &str, to_ros_msg: F) -> Self 
+    pub fn new<F>(topic: &str, to_ros_msg: F) -> Self
     where
         F: 'static + Fn(&T) -> U + Send + Sync,
     {

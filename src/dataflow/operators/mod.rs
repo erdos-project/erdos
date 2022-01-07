@@ -1,7 +1,7 @@
 //! Library of generic operators for building ERDOS applications.
 
 // Public submodules
-#[cfg(feature = "ros")]    
+#[cfg(feature = "ros")]
 pub mod ros;
 
 // Private submodules
