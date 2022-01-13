@@ -1,4 +1,4 @@
-use crate::dataflow::{context::SinkContext, operator::Sink, Data};
+use crate::dataflow::{context::SinkContext, operator::Sink, operators::ros::*, Data, Message};
 use serde::Deserialize;
 use std::sync::Arc;
 
@@ -15,7 +15,7 @@ use std::sync::Arc;
 /// Assume that `source_stream` is an ERDOS stream sending the correct messages.
 ///
 /// ```
-/// fn erdos_int_to_ros_int(input: &i32) -> rosrust_msg::std_msgs::Int32 {
+/// fn erdos_int_to_ros_int(input: &Message<i32>) -> rosrust_msg::std_msgs::Int32 {
 ///     rosrust_msg::std_msgs::Int32 { data: input.data }
 /// }
 ///
@@ -35,7 +35,7 @@ where
     T: Data + for<'a> Deserialize<'a>,
 {
     publisher: rosrust::Publisher<U>,
-    to_ros_msg: Arc<dyn Fn(&T) -> U + Send + Sync>,
+    to_ros_msg: Arc<dyn Fn(&Message<T>) -> U + Send + Sync>,
 }
 
 impl<T, U: rosrust::Message> ToRosOperator<T, U>
@@ -44,11 +44,11 @@ where
 {
     pub fn new<F>(topic: &str, to_ros_msg: F) -> Self
     where
-        F: 'static + Fn(&T) -> U + Send + Sync,
+        F: 'static + Fn(&Message<T>) -> U + Send + Sync,
     {
-        rosrust::init("publisher");
+        rosrust::init("ERDOS Publisher");
         Self {
-            publisher: rosrust::publish(topic, 2).unwrap(),
+            publisher: rosrust::publish(topic, ROS_QUEUE_SIZE).unwrap(),
             to_ros_msg: Arc::new(to_ros_msg),
         }
     }
@@ -60,16 +60,16 @@ where
 {
     fn on_data(&mut self, ctx: &mut SinkContext<()>, data: &T) {
         let timestamp = ctx.get_timestamp().clone();
-        let msg = (self.to_ros_msg)(data);
+        let ros_msg = (self.to_ros_msg)(&Message::new_message(timestamp.clone(), data.clone()));
 
-        tracing::info!(
+        tracing::trace!(
             "{} @ {:?}: Sending {:?}",
             ctx.get_operator_config().get_name(),
             timestamp,
-            msg,
+            ros_msg,
         );
         // Publishes converted message on topic.
-        self.publisher.send(msg).unwrap();
+        self.publisher.send(ros_msg).unwrap();
     }
 
     fn on_watermark(&mut self, _ctx: &mut SinkContext<()>) {}

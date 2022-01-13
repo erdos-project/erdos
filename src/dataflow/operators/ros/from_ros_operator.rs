@@ -1,5 +1,6 @@
 use crate::dataflow::{
     operator::Source,
+    operators::ros::*,
     stream::{WriteStream, WriteStreamT},
     Data, Message,
 };
@@ -50,7 +51,7 @@ where
     where
         F: 'static + Fn(&T) -> Message<U> + Send + Sync,
     {
-        rosrust::init("subscriber");
+        rosrust::init("ERDOS Subscriber");
         Self {
             topic: topic.to_string(),
             to_erdos_msg: Arc::new(to_erdos_msg),
@@ -64,15 +65,16 @@ where
 {
     fn run(&mut self, write_stream: &mut WriteStream<U>) {
         let to_erdos_msg = self.to_erdos_msg.clone();
-        let w_s = Arc::new(Mutex::new(write_stream.clone()));
+        let write_stream_clone = Arc::new(Mutex::new(write_stream.clone()));
 
-        let _subscriber_raii = rosrust::subscribe(self.topic.as_str(), 2, move |v: T| {
-            let converted = (to_erdos_msg)(&v);
-            tracing::debug!("FromRosOperator: Received and Converted {:?}", converted,);
-            // Sends converted message on ERDOS stream.
-            w_s.lock().unwrap().send(converted).unwrap();
-        })
-        .unwrap();
+        let _subscriber_raii =
+            rosrust::subscribe(self.topic.as_str(), ROS_QUEUE_SIZE, move |ros_msg: T| {
+                let erdos_msg = (to_erdos_msg)(&ros_msg);
+                tracing::trace!("FromRosOperator: Received and Converted {:?}", erdos_msg,);
+                // Sends converted message on ERDOS stream.
+                write_stream_clone.lock().unwrap().send(erdos_msg).unwrap();
+            })
+            .unwrap();
 
         rosrust::spin();
     }

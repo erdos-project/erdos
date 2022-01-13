@@ -30,7 +30,7 @@ impl Source<(), String> for SourceOperator {
             write_stream
                 .send(Message::new_message(
                     timestamp.clone(),
-                    String::from("Hello from erdos"),
+                    String::from("Hello from ERDOS"),
                 ))
                 .unwrap();
             write_stream
@@ -46,9 +46,9 @@ impl Source<(), String> for SourceOperator {
 }
 
 // Defines a function that converts an ERDOS message containing String data to a ROS String message.
-fn erdos_to_ros(input: &String) -> rosrust_msg::std_msgs::String {
+fn erdos_to_ros(input: &Message<String>) -> rosrust_msg::std_msgs::String {
     rosrust_msg::std_msgs::String {
-        data: input.to_string(),
+        data: input.data.to_string(),
     }
 }
 
