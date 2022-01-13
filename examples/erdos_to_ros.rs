@@ -45,10 +45,16 @@ impl Source<(), String> for SourceOperator {
     }
 }
 
-// Defines a function that converts an ERDOS message containing String data to a ROS String message.
-fn erdos_to_ros(input: &Message<String>) -> rosrust_msg::std_msgs::String {
-    rosrust_msg::std_msgs::String {
-        data: input.data().unwrap().to_string(),
+// Defines a function that converts an ERDOS message containing String data to a vector containing a ROS String message.
+// If the message is a Watermark and contains no data, an empty vector is returned.
+fn erdos_to_ros(input: &Message<String>) -> Vec<rosrust_msg::std_msgs::String> {
+    match input.data() {
+        Some(x) => {
+            vec![rosrust_msg::std_msgs::String {
+                data: x.to_string(),
+            }]
+        }
+        None => vec![],
     }
 }
 

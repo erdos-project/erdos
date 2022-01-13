@@ -20,8 +20,8 @@ use std::sync::{Arc, Mutex};
 /// [`Vec<u8>`] a vector of bytes.
 ///
 /// ```
-/// fn ros_image_to_bytes(input: &rosrust_msg::sensor_msgs::Image) -> Message<Vec<u8>> {
-///     Message::new_message(Timestamp::Time(vec![0 as u64]), input.data)
+/// fn ros_image_to_bytes(input: &rosrust_msg::sensor_msgs::Image) -> Vector<Message<Vec<u8>>> {
+///     vec![Message::new_message(Timestamp::Time(vec![0 as u64]), input.data)]
 /// }
 ///
 /// let ros_source_config = OperatorConfig::new().name("FromRosImage");
@@ -40,20 +40,20 @@ where
     U: Data + for<'a> Deserialize<'a>,
 {
     topic: String,
-    to_erdos_msg: Arc<dyn Fn(&T) -> Message<U> + Send + Sync>,
+    from_ros_msg: Arc<dyn Fn(&T) -> Vec<Message<U>> + Send + Sync>,
 }
 
 impl<T: rosrust::Message, U> FromRosOperator<T, U>
 where
     U: Data + for<'a> Deserialize<'a>,
 {
-    pub fn new<F>(topic: &str, to_erdos_msg: F) -> Self
+    pub fn new<F>(topic: &str, from_ros_msg: F) -> Self
     where
-        F: 'static + Fn(&T) -> Message<U> + Send + Sync,
+        F: 'static + Fn(&T) -> Vec<Message<U>> + Send + Sync,
     {
         Self {
             topic: topic.to_string(),
-            to_erdos_msg: Arc::new(to_erdos_msg),
+            from_ros_msg: Arc::new(from_ros_msg),
         }
     }
 }
@@ -63,15 +63,18 @@ where
     U: Data + for<'a> Deserialize<'a>,
 {
     fn run(&mut self, write_stream: &mut WriteStream<U>) {
-        let to_erdos_msg = self.to_erdos_msg.clone();
+        let from_ros_msg = self.from_ros_msg.clone();
         let write_stream_clone = Arc::new(Mutex::new(write_stream.clone()));
 
         let _subscriber_raii =
             rosrust::subscribe(self.topic.as_str(), ROS_QUEUE_SIZE, move |ros_msg: T| {
-                let erdos_msg = (to_erdos_msg)(&ros_msg);
-                tracing::trace!("FromRosOperator: Received and Converted {:?}", erdos_msg,);
-                // Sends converted message on ERDOS stream.
-                write_stream_clone.lock().unwrap().send(erdos_msg).unwrap();
+                let erdos_msg_vec = (from_ros_msg)(&ros_msg);
+
+                for erdos_msg in erdos_msg_vec.into_iter() {
+                    tracing::trace!("FromRosOperator: Received and Converted {:?}", erdos_msg,);
+                    // Sends converted message on ERDOS stream.
+                    write_stream_clone.lock().unwrap().send(erdos_msg).unwrap();
+                }
             })
             .unwrap();
 

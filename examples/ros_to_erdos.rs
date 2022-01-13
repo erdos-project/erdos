@@ -30,12 +30,12 @@ impl Sink<(), String> for SinkOperator {
     fn on_watermark(&mut self, _ctx: &mut SinkContext<()>) {}
 }
 
-// Defines a function that converts a ROS String message to an ERDOS message with String data.
-fn ros_to_erdos(input: &rosrust_msg::std_msgs::String) -> Message<String> {
-    Message::new_message(
+// Defines a function that converts a ROS String message to a vector containing an ERDOS message with String data.
+fn ros_to_erdos(input: &rosrust_msg::std_msgs::String) -> Vec<Message<String>> {
+    vec![Message::new_message(
         Timestamp::Time(vec![0 as u64]),
         String::from(input.data.as_str()),
-    )
+    )]
 }
 
 fn main() {

@@ -15,8 +15,15 @@ use std::sync::Arc;
 /// Assume that `source_stream` is an ERDOS stream sending the correct messages.
 ///
 /// ```
-/// fn erdos_int_to_ros_int(input: &Message<i32>) -> rosrust_msg::std_msgs::Int32 {
-///     rosrust_msg::std_msgs::Int32 { data: input.data().unwrap() }
+/// fn erdos_int_to_ros_int(input: &Message<i32>) -> Vec<rosrust_msg::std_msgs::Int32> {
+///     match input.data() {
+///         Some(x) => {
+///             vec![rosrust_msg::std_msgs::Int32 {
+///                 data: x,
+///             }]
+///         }
+///         None => vec![],
+///     }
 /// }
 ///
 /// let ros_sink_config = OperatorConfig::new().name("ToRosInt32");
@@ -35,7 +42,7 @@ where
     T: Data + for<'a> Deserialize<'a>,
 {
     publisher: rosrust::Publisher<U>,
-    to_ros_msg: Arc<dyn Fn(&Message<T>) -> U + Send + Sync>,
+    to_ros_msg: Arc<dyn Fn(&Message<T>) -> Vec<U> + Send + Sync>,
 }
 
 impl<T, U: rosrust::Message> ToRosOperator<T, U>
@@ -44,11 +51,27 @@ where
 {
     pub fn new<F>(topic: &str, to_ros_msg: F) -> Self
     where
-        F: 'static + Fn(&Message<T>) -> U + Send + Sync,
+        F: 'static + Fn(&Message<T>) -> Vec<U> + Send + Sync,
     {
         Self {
             publisher: rosrust::publish(topic, ROS_QUEUE_SIZE).unwrap(),
             to_ros_msg: Arc::new(to_ros_msg),
+        }
+    }
+
+    // Converts ERDOS message using conversion function and publishes all messages in returned vector
+    fn convert_and_publish(&mut self, ctx: &mut SinkContext<()>, erdos_msg: &Message<T>) {
+        let ros_msg_vec = (self.to_ros_msg)(erdos_msg);
+
+        for ros_msg in ros_msg_vec.into_iter() {
+            tracing::trace!(
+                "{} @ {:?}: Sending {:?}",
+                ctx.get_operator_config().get_name(),
+                ctx.get_timestamp().clone(),
+                ros_msg,
+            );
+            // Publishes converted message on topic.
+            self.publisher.send(ros_msg).unwrap();
         }
     }
 }
@@ -59,17 +82,11 @@ where
 {
     fn on_data(&mut self, ctx: &mut SinkContext<()>, data: &T) {
         let timestamp = ctx.get_timestamp().clone();
-        let ros_msg = (self.to_ros_msg)(&Message::new_message(timestamp.clone(), data.clone()));
-
-        tracing::trace!(
-            "{} @ {:?}: Sending {:?}",
-            ctx.get_operator_config().get_name(),
-            timestamp,
-            ros_msg,
-        );
-        // Publishes converted message on topic.
-        self.publisher.send(ros_msg).unwrap();
+        self.convert_and_publish(ctx, &Message::new_message(timestamp.clone(), data.clone()));
     }
 
-    fn on_watermark(&mut self, _ctx: &mut SinkContext<()>) {}
+    fn on_watermark(&mut self, ctx: &mut SinkContext<()>) {
+        let timestamp = ctx.get_timestamp().clone();
+        self.convert_and_publish(ctx, &Message::new_watermark(timestamp.clone()));
+    }
 }
