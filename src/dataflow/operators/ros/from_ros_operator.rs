@@ -51,7 +51,6 @@ where
     where
         F: 'static + Fn(&T) -> Message<U> + Send + Sync,
     {
-        rosrust::init("ERDOS Subscriber");
         Self {
             topic: topic.to_string(),
             to_erdos_msg: Arc::new(to_erdos_msg),

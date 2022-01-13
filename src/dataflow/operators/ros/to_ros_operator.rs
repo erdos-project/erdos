@@ -16,7 +16,7 @@ use std::sync::Arc;
 ///
 /// ```
 /// fn erdos_int_to_ros_int(input: &Message<i32>) -> rosrust_msg::std_msgs::Int32 {
-///     rosrust_msg::std_msgs::Int32 { data: input.data }
+///     rosrust_msg::std_msgs::Int32 { data: input.data().unwrap() }
 /// }
 ///
 /// let ros_sink_config = OperatorConfig::new().name("ToRosInt32");
@@ -46,7 +46,6 @@ where
     where
         F: 'static + Fn(&Message<T>) -> U + Send + Sync,
     {
-        rosrust::init("ERDOS Publisher");
         Self {
             publisher: rosrust::publish(topic, ROS_QUEUE_SIZE).unwrap(),
             to_ros_msg: Arc::new(to_ros_msg),

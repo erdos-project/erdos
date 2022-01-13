@@ -48,7 +48,7 @@ impl Source<(), String> for SourceOperator {
 // Defines a function that converts an ERDOS message containing String data to a ROS String message.
 fn erdos_to_ros(input: &Message<String>) -> rosrust_msg::std_msgs::String {
     rosrust_msg::std_msgs::String {
-        data: input.data.to_string(),
+        data: input.data().unwrap().to_string(),
     }
 }
 

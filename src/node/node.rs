@@ -83,6 +83,11 @@ impl Node {
         };
 
         let id = config.index;
+
+        // Initialize ROS node.
+        #[cfg(feature = "ros")]
+        rosrust::init(&format!("erdos_node_{}", id));
+
         let (shutdown_tx, shutdown_rx) = mpsc::channel(1);
         Self {
             config,
