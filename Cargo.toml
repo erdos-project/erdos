@@ -55,6 +55,3 @@ ros = ["rosrust", "rosrust_msg"]  # Add ROS operator support with 'cargo build -
 
 [lib]
 crate-type=["rlib", "cdylib"]   # Required for python
-
-[[bench]]
-name = "latency"
