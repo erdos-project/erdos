@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::dataflow::operator::OperatorConfig;
+use erdos::dataflow::operator::OperatorConfig;
 use pyo3::{prelude::*, types::*};
 
 // Private submodules

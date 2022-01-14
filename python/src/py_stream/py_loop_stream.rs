@@ -1,6 +1,5 @@
+use erdos::dataflow::{LoopStream, Stream};
 use pyo3::prelude::*;
-
-use crate::dataflow::{LoopStream, Stream};
 
 use super::PyStream;
 

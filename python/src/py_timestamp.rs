@@ -1,4 +1,4 @@
-use crate::dataflow::Timestamp;
+use erdos::dataflow::Timestamp;
 use pyo3::{basic::CompareOp, exceptions, prelude::*, PyObjectProtocol};
 
 /// A Python version of ERDOS' Timestamp.

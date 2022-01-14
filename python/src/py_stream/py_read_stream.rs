@@ -1,14 +1,12 @@
-use pyo3::create_exception;
-use pyo3::{exceptions, prelude::*};
 use std::sync::Arc;
 
-use crate::{
-    dataflow::stream::{
-        errors::{ReadError, TryReadError},
-        ReadStream,
-    },
-    python::PyMessage,
+use erdos::dataflow::stream::{
+    errors::{ReadError, TryReadError},
+    ReadStream,
 };
+use pyo3::{create_exception, exceptions, prelude::*};
+
+use crate::PyMessage;
 
 // Define errors that can be raised by a read stream.
 create_exception!(ReadStreamError, SerializationError, exceptions::PyException);

@@ -1,11 +1,10 @@
-use pyo3::create_exception;
-use pyo3::{exceptions, prelude::*};
-
-use crate::{
+use erdos::{
     dataflow::stream::{errors::SendError, WriteStreamT},
     dataflow::{Message, WriteStream},
-    python::PyMessage,
 };
+use pyo3::{create_exception, exceptions, prelude::*};
+
+use crate::PyMessage;
 
 // Define errors that can be raised by a write stream.
 create_exception!(SendError, TimestampError, exceptions::PyException);
