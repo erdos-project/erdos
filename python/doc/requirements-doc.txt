@@ -1,4 +1,3 @@
-absl-py
 mock
 sphinx
 sphinx-click

@@ -22,7 +22,7 @@ dist
 *~
 
 # Generated documentation files
-/doc/build
+/python/doc/build
 .idea/
 venv/
-/doc/source/_build
+/python/doc/source/_build
