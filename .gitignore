@@ -11,7 +11,7 @@ Cargo.lock
 # Python files
 *.egg-info
 __pycache__
-/env
+env
 *.pyc
 dist
 /build
