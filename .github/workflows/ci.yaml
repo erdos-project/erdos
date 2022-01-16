@@ -43,7 +43,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install Python dependencies
         run: |
-          python -m pip install maturin flake8 yapf flake8-quotes
+          python -m pip install maturin flake8 yapf==0.31.0 flake8-quotes
       - name: Check Python formatting
         run: |
           flake8 --inline-quotes="double" ./python/doc/
