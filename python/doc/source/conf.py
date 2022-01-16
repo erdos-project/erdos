@@ -44,7 +44,7 @@ extensions = [
 ]
 
 # Enable autodoc without requiring installation of listed modules
-import mock
+from unittest import mock
 
 mock_modules = ["numpy"]
 for mod_name in mock_modules:
