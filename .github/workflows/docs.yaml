@@ -35,4 +35,4 @@ jobs:
       - name: Build Documentation
         run: |
           cd python/doc
-          SPHINXOPTS="-W" make html
+          make html SPHINXOPTS="-W --keep-going -n"
