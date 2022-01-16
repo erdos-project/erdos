@@ -46,9 +46,9 @@ jobs:
           python -m pip install maturin flake8 yapf flake8-quotes
       - name: Check Python formatting
         run: |
-          flake8 --inline-quotes="double" ./doc/
+          flake8 --inline-quotes="double" ./python/doc/
           flake8 --inline-quotes="double" ./python/
-          yapf --diff --recursive ./doc/
+          yapf --diff --recursive ./python/doc/
           yapf --diff --recursive ./python/
       - name: Install supported Rust nightly
         uses: actions-rs/toolchain@v1
