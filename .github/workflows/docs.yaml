@@ -12,8 +12,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Install latest Rust nightly
+      - name: Install supported Rust nightly
         uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          profile: minimal
+          override: true
+          components: rustfmt, rust-src
       - name: Build Documentation
         run: cargo doc --all --no-deps
 

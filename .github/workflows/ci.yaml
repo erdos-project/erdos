@@ -15,8 +15,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Install latest Rust nightly
+      - name: Install supported Rust nightly
         uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          profile: minimal
+          override: true
+          components: rustfmt, rust-src
       - name: Check Rust formatting
         run: cargo fmt -- --check
       - name: Build
@@ -45,7 +50,12 @@ jobs:
           flake8 --inline-quotes="double" ./python/
           yapf --diff --recursive ./doc/
           yapf --diff --recursive ./python/
-      - name: Install Rust
+      - name: Install supported Rust nightly
         uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          profile: minimal
+          override: true
+          components: rustfmt, rust-src
       - name: Build
         run: cd python && maturin develop
