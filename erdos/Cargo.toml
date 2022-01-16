@@ -39,19 +39,7 @@ tokio-util = { version = "0.6.7", features = ["codec"] }
 tokio-serde-bincode = "0.2.1"
 uuid = { version = "0.7", features = ["v4", "v5", "serde"] }
 
-[build-dependencies]
-slog = "2.4.2"
-slog-term = "2.4.2"
-
-[dev-dependencies]
-criterion = "0.3.3"
-criterion-macro = "0.3.3"
-nix = "0.17.0"
-
 [features]
 default = []
 python = ["pyo3"]  # Target python with 'cargo build --features=python
 ros = ["rosrust", "rosrust_msg"]  # Add ROS operator support with 'cargo build --features=ros
-
-[lib]
-crate-type=["rlib", "cdylib"]   # Required for python
