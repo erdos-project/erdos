@@ -9,7 +9,7 @@ pyo3 = { version = "0.15.1", features = ["extension-module"] }
 tracing = "0.1.29"
 
 [lib]
-name = "erdos"
+name = "erdos_python"
 crate-type = ["cdylib"]
 
 [package.metadata.maturin]
