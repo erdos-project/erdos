@@ -58,4 +58,4 @@ jobs:
           override: true
           components: rustfmt, rust-src
       - name: Build
-        run: cd python && maturin develop
+        run: cd python && maturin build

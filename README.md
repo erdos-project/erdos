@@ -47,7 +47,8 @@ To develop an ERDOS application in Python, simply run
 
 If you'd like to contribute to ERDOS, first
 [install Rust](https://www.rust-lang.org/tools/install).
-Then run the following to clone the repository and build ERDOS:
+Within a [virtual environment](https://docs.python.org/3/tutorial/venv.html),
+run the following to clone the repository and build ERDOS:
 ```console
 git clone https://github.com/erdos-project/erdos.git && cd erdos/python
 pip3 install maturin
