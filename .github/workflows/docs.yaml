@@ -6,7 +6,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  SPHINXOPTS: "-W"
 
 jobs:
   rustdoc:
@@ -36,4 +35,4 @@ jobs:
       - name: Build Documentation
         run: |
           cd python/doc
-          make html
+          SPHINXOPTS="-W" make html
