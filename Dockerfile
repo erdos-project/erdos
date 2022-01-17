@@ -28,7 +28,6 @@ RUN mkdir -p /home/erdos/workspace
 RUN cd /home/erdos/workspace && git clone https://github.com/erdos-project/erdos.git
 WORKDIR /home/erdos/workspace/erdos
 RUN cd /home/erdos/workspace/erdos
-RUN git checkout restructure
 
 # Install erdos.
 RUN cargo build --release
