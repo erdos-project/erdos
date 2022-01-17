@@ -1,8 +1,10 @@
+#![feature(get_mut_unchecked)]
+
 use std::sync::Arc;
 
 use pyo3::{exceptions, prelude::*};
 
-use crate::{
+use erdos::{
     dataflow::OperatorConfig,
     node::{Node, NodeHandle, NodeId},
     Configuration, OperatorId,
@@ -64,7 +66,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
         let args_arc = Arc::new(args);
         let kwargs_arc = Arc::new(kwargs);
 
-        let write_stream = crate::connect_source(
+        let write_stream = erdos::connect_source(
             move || -> PySource {
                 PySource::new(
                     Arc::clone(&py_type_arc),
@@ -113,7 +115,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
         let args_arc = Arc::new(args);
         let kwargs_arc = Arc::new(kwargs);
 
-        crate::connect_sink(
+        erdos::connect_sink(
             move || -> PySink {
                 PySink::new(
                     Arc::clone(&py_type_arc),
@@ -162,7 +164,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
         let args_arc = Arc::new(args);
         let kwargs_arc = Arc::new(kwargs);
 
-        let write_stream = crate::connect_one_in_one_out(
+        let write_stream = erdos::connect_one_in_one_out(
             move || -> PyOneInOneOut {
                 PyOneInOneOut::new(
                     Arc::clone(&py_type_arc),
@@ -212,7 +214,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
         let args_arc = Arc::new(args);
         let kwargs_arc = Arc::new(kwargs);
 
-        let (left_write_stream, right_write_stream) = crate::connect_one_in_two_out(
+        let (left_write_stream, right_write_stream) = erdos::connect_one_in_two_out(
             move || -> PyOneInTwoOut {
                 PyOneInTwoOut::new(
                     Arc::clone(&py_type_arc),
@@ -266,7 +268,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
         let args_arc = Arc::new(args);
         let kwargs_arc = Arc::new(kwargs);
 
-        let write_stream = crate::connect_two_in_one_out(
+        let write_stream = erdos::connect_two_in_one_out(
             move || -> PyTwoInOneOut {
                 PyTwoInOneOut::new(
                     Arc::clone(&py_type_arc),
@@ -288,7 +290,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
     #[pyfn(m)]
     #[pyo3(name = "reset")]
     fn reset_py() {
-        crate::reset();
+        erdos::reset();
     }
 
     #[pyfn(m)]

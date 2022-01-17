@@ -1,14 +1,13 @@
 use std::{mem, sync::Arc};
 
-use crate::{
-    dataflow::{
-        context::SinkContext,
-        operator::{OperatorConfig, Sink},
-        ReadStream,
-    },
-    python::{PyReadStream, PyTimestamp},
+use erdos::dataflow::{
+    context::SinkContext,
+    operator::{OperatorConfig, Sink},
+    ReadStream,
 };
 use pyo3::{prelude::*, types::*};
+
+use crate::{PyReadStream, PyTimestamp};
 
 pub(crate) struct PySink {
     py_operator_config: Arc<PyObject>,

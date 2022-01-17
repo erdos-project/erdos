@@ -1,6 +1,5 @@
+use erdos::dataflow::stream::Stream;
 use pyo3::prelude::*;
-
-use crate::dataflow::stream::Stream;
 
 /// The internal Python abstraction over an `Stream`.
 ///

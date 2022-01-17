@@ -1,9 +1,7 @@
+use erdos::dataflow::{stream::IngestStream, Message, Stream};
 use pyo3::{exceptions, prelude::*};
 
-use crate::{
-    dataflow::{stream::IngestStream, Message, Stream},
-    python::{PyMessage, PyStream},
-};
+use crate::{PyMessage, PyStream};
 
 /// The internal Python abstraction over an `IngestStream`.
 ///

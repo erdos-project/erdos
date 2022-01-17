@@ -15,7 +15,7 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath("../../python"))
+sys.path.insert(0, os.path.abspath("../../"))
 
 # -- Project information -----------------------------------------------------
 
@@ -44,11 +44,11 @@ extensions = [
 ]
 
 # Enable autodoc without requiring installation of listed modules
-# import mock
+from unittest import mock  # noqa: E402
 
-# mock_modules = ["ray", "rospy", "actionlib"]
-# for mod_name in mock_modules:
-#     sys.modules[mod_name] = mock.Mock()
+mock_modules = ["numpy"]
+for mod_name in mock_modules:
+    sys.modules[mod_name] = mock.Mock()
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]

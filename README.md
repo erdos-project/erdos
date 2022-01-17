@@ -35,7 +35,6 @@ If you'd like to contribute to ERDOS, first
 [install Rust](https://www.rust-lang.org/tools/install).
 Then run the following to clone the repository and build ERDOS:
 ```console
-rustup default nightly  # use nightly Rust toolchain
 git clone https://github.com/erdos-project/erdos.git && cd erdos
 cargo build
 ```
@@ -48,33 +47,25 @@ To develop an ERDOS application in Python, simply run
 
 If you'd like to contribute to ERDOS, first
 [install Rust](https://www.rust-lang.org/tools/install).
-Then run the following to clone the repository and build ERDOS:
+Within a [virtual environment](https://docs.python.org/3/tutorial/venv.html),
+run the following to clone the repository and build ERDOS:
 ```console
-rustup default nightly  # use nightly Rust toolchain
-git clone https://github.com/erdos-project/erdos.git && cd erdos
-python3 python/setup.py develop
+git clone https://github.com/erdos-project/erdos.git && cd erdos/python
+pip3 install maturin
+maturin develop
 ```
 
-Python files are available under the `python/` directory, and the Python-Rust
-bridge interface is developed under `src/python/`.
+The Python-Rust bridge interface is developed in the `python` crate, which
+also contains user-facing python files under the `python/erdos` directory.
 
 If you'd like to build ERDOS for release (has better performance, but longer
-build times), run `python3 python/setup.py install`.
+build times), run `maturin develop --release`.
 
 ## Running an example
 
 ```console
 python3 python/examples/simple_pipeline.py
 ```
-
-## Build parameters
-
-By default, ERDOS supports up to 20 read streams and 10 write streams in a stream bundle (used to add callbacks across multiple streams; see callback builder in Rust docs for more details).
-Some applications may require bundles that support more read and write streams. This can be configured by setting the `ERDOS_BUNDLE_MAX_READ_STREAMS` and `ERDOS_BUNDLE_MAX_WRITE_STREAMS` environment variables when building.
-
-Building ERDOS for the first time may be slow because these parameters result in generated code which dominates the build time.
-Subsequent builds should be much faster due to caching unless `build.rs` or the code generation scripts are modified.
-In that case, consider setting `ERDOS_BUNDLE_MAX_READ_STREAMS` and `ERDOS_BUNDLE_MAX_WRITE_STREAMS` to speed up builds.
 
 # Writing Applications
 
@@ -112,7 +103,7 @@ second of data on small clusters. Therefore, ERDOS is optimized to
 send small amounts of data (gigabytes as opposed to terabytes)
 as quickly as possible.
 
-ERDOS provides determinisim through **watermarks**. Low watermarks
+ERDOS provides determinism through **watermarks**. Low watermarks
 are a bound on the age of messages received and operators will ignore
 any messages older than the most recent watermark received. By processing
 on watermarks, applications can avoid non-determinism from processing

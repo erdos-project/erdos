@@ -1,13 +1,12 @@
 use std::sync::Arc;
 
-use crate::{
-    dataflow::{
-        operator::{OperatorConfig, Source},
-        WriteStream,
-    },
-    python::PyWriteStream,
+use erdos::dataflow::{
+    operator::{OperatorConfig, Source},
+    WriteStream,
 };
 use pyo3::{prelude::*, types::*};
+
+use crate::PyWriteStream;
 
 pub(crate) struct PySource {
     py_operator: Arc<PyObject>,

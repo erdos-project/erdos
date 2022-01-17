@@ -1,27 +1,24 @@
 use std::{mem, sync::Arc};
 
-use crate::{
-    dataflow::{
-        context::OneInTwoOutContext,
-        operator::{OneInTwoOut, OperatorConfig},
-        stream::WriteStreamT,
-        Message, ReadStream, WriteStream,
-    },
-    python::{PyReadStream, PyTimestamp, PyWriteStream},
+use erdos::dataflow::{
+    context::OneInOneOutContext,
+    operator::{OneInOneOut, OperatorConfig},
+    stream::WriteStreamT,
+    Message, ReadStream, WriteStream,
 };
 use pyo3::{prelude::*, types::*};
 
-pub(crate) struct PyOneInTwoOut {
+use crate::{PyReadStream, PyTimestamp, PyWriteStream};
+
+pub(crate) struct PyOneInOneOut {
     py_operator_config: Arc<PyObject>,
     py_operator: Arc<PyObject>,
-    // The py_write_streams are set to Option, since the constructor does not receive a
-    // WriteStream, but we expect this to be populated once the executor calls the `run` method of
-    // the operator.
-    py_left_write_stream: Option<Arc<PyObject>>,
-    py_right_write_stream: Option<Arc<PyObject>>,
+    // The py_write_stream is set to Option, since the constructor does not receive a WriteStream,
+    // but we expect this to be populated once the executor calls the `run` method of the operator.
+    py_write_stream: Option<Arc<PyObject>>,
 }
 
-impl PyOneInTwoOut {
+impl PyOneInOneOut {
     pub(crate) fn new(
         py_operator_type: Arc<PyObject>,
         py_operator_args: Arc<PyObject>,
@@ -40,22 +37,19 @@ impl PyOneInTwoOut {
             py_operator_config,
             config,
         );
-
         Self {
             py_operator_config: py_operator_config_clone,
             py_operator,
-            py_left_write_stream: None,
-            py_right_write_stream: None,
+            py_write_stream: None,
         }
     }
 }
 
-impl OneInTwoOut<(), Vec<u8>, Vec<u8>, Vec<u8>> for PyOneInTwoOut {
+impl OneInOneOut<(), Vec<u8>, Vec<u8>> for PyOneInOneOut {
     fn run(
         &mut self,
         read_stream: &mut ReadStream<Vec<u8>>,
-        left_write_stream: &mut WriteStream<Vec<u8>>,
-        right_write_stream: &mut WriteStream<Vec<u8>>,
+        write_stream: &mut WriteStream<Vec<u8>>,
     ) {
         // Note on the unsafe execution: To conform to the Operator API that passes a mutable
         // reference to the `run` method of an operator, we convert the reference to a raw pointer
@@ -76,21 +70,15 @@ impl OneInTwoOut<(), Vec<u8>, Vec<u8>, Vec<u8>> for PyOneInTwoOut {
             let read_stream_arc = Arc::new(read_stream);
             let py_read_stream = PyReadStream::from(&read_stream_arc);
 
-            // Create the Python version of the left WriteStream.
-            let left_write_stream_clone = left_write_stream.clone();
-            let left_write_stream_id = left_write_stream.id();
-            let left_write_stream_name = String::from(left_write_stream.name().clone());
-            let py_left_write_stream = PyWriteStream::from(left_write_stream_clone);
-
-            // Create the Python version of the right WriteStream.
-            let right_write_stream_clone = right_write_stream.clone();
-            let right_write_stream_id = right_write_stream.id();
-            let right_write_stream_name = String::from(right_write_stream.name().clone());
-            let py_right_write_stream = PyWriteStream::from(right_write_stream_clone);
+            // Create the Python version of the WriteStream.
+            let write_stream_clone = write_stream.clone();
+            let write_stream_id = write_stream.id();
+            let write_stream_name = String::from(write_stream.name().clone());
+            let py_write_stream = PyWriteStream::from(write_stream_clone);
 
             // Create the locals to run the constructor for the ReadStream and WriteStream.
-            let (py_read_stream_obj, py_left_write_stream_obj, py_right_write_stream_obj) =
-                Python::with_gil(|py| -> (PyObject, PyObject, PyObject) {
+            let (py_read_stream_obj, py_write_stream_obj) =
+                Python::with_gil(|py| -> (PyObject, PyObject) {
                     let locals = PyDict::new(py);
                     locals
                         .set_item("py_read_stream", &Py::new(py, py_read_stream).unwrap())
@@ -105,42 +93,15 @@ impl OneInTwoOut<(), Vec<u8>, Vec<u8>, Vec<u8>> for PyOneInTwoOut {
                         .err()
                         .map(|e| e.print(py));
                     locals
-                        .set_item(
-                            "py_left_write_stream",
-                            &Py::new(py, py_left_write_stream).unwrap(),
-                        )
+                        .set_item("py_write_stream", &Py::new(py, py_write_stream).unwrap())
                         .err()
                         .map(|e| e.print(py));
                     locals
-                        .set_item("left_write_stream_id", format!("{}", left_write_stream_id))
+                        .set_item("write_stream_id", format!("{}", write_stream_id))
                         .err()
                         .map(|e| e.print(py));
                     locals
-                        .set_item(
-                            "left_write_stream_name",
-                            format!("{}", left_write_stream_name),
-                        )
-                        .err()
-                        .map(|e| e.print(py));
-                    locals
-                        .set_item(
-                            "py_right_write_stream",
-                            &Py::new(py, py_right_write_stream).unwrap(),
-                        )
-                        .err()
-                        .map(|e| e.print(py));
-                    locals
-                        .set_item(
-                            "right_write_stream_id",
-                            format!("{}", right_write_stream_id),
-                        )
-                        .err()
-                        .map(|e| e.print(py));
-                    locals
-                        .set_item(
-                            "right_write_stream_name",
-                            format!("{}", right_write_stream_name),
-                        )
+                        .set_item("write_stream_name", format!("{}", write_stream_name))
                         .err()
                         .map(|e| e.print(py));
                     let stream_construction_result = py.run(
@@ -150,11 +111,8 @@ import uuid, erdos
 # Create the ReadStream.
 read_stream = erdos.ReadStream(_py_read_stream=py_read_stream)
 
-# Create the left WriteStream.
-left_write_stream = erdos.WriteStream(_py_write_stream=py_left_write_stream)
-
-# Create the right WriteStream.
-right_write_stream = erdos.WriteStream(_py_write_stream=py_right_write_stream)
+# Create the WriteStream.
+write_stream = erdos.WriteStream(_py_write_stream=py_write_stream)
             "#,
                         None,
                         Some(&locals),
@@ -163,45 +121,28 @@ right_write_stream = erdos.WriteStream(_py_write_stream=py_right_write_stream)
                         e.print(py);
                     }
 
-                    // Retrieve the constructed streams.
+                    // Retrieve the constructed stream.
                     let py_read_stream_obj = py
                         .eval("read_stream", None, Some(&locals))
                         .unwrap()
                         .to_object(py);
-                    let py_left_write_stream_obj = py
-                        .eval("left_write_stream", None, Some(&locals))
-                        .unwrap()
-                        .to_object(py);
-                    let py_right_write_stream_obj = py
-                        .eval("right_write_stream", None, Some(&locals))
+                    let py_write_stream_obj = py
+                        .eval("write_stream", None, Some(&locals))
                         .unwrap()
                         .to_object(py);
 
-                    (
-                        py_read_stream_obj,
-                        py_left_write_stream_obj,
-                        py_right_write_stream_obj,
-                    )
+                    (py_read_stream_obj, py_write_stream_obj)
                 });
 
-            // Save the constructed WriteStreams, and invoke the `run` method.
-            let py_left_write_stream_arc = Arc::new(py_left_write_stream_obj);
-            let py_left_write_stream_arc_clone = Arc::clone(&py_left_write_stream_arc);
-            self.py_left_write_stream = Some(py_left_write_stream_arc);
-
-            let py_right_write_stream_arc = Arc::new(py_right_write_stream_obj);
-            let py_right_write_stream_arc_clone = Arc::clone(&py_right_write_stream_arc);
-            self.py_right_write_stream = Some(py_right_write_stream_arc);
-
+            // Save the constructed WriteStream, and invoke the `run` method.
+            let py_write_stream_arc = Arc::new(py_write_stream_obj);
+            let py_write_stream_arc_clone = Arc::clone(&py_write_stream_arc);
+            self.py_write_stream = Some(py_write_stream_arc);
             Python::with_gil(|py| {
                 if let Err(e) = self.py_operator.call_method1(
                     py,
                     "run",
-                    (
-                        py_read_stream_obj,
-                        py_left_write_stream_arc_clone.clone_ref(py),
-                        py_right_write_stream_arc_clone.clone_ref(py),
-                    ),
+                    (py_read_stream_obj, py_write_stream_arc_clone.clone_ref(py)),
                 ) {
                     e.print(py);
                 }
@@ -222,18 +163,13 @@ right_write_stream = erdos.WriteStream(_py_write_stream=py_right_write_stream)
         });
     }
 
-    fn on_data(&mut self, ctx: &mut OneInTwoOutContext<(), Vec<u8>, Vec<u8>>, data: &Vec<u8>) {
+    fn on_data(&mut self, ctx: &mut OneInOneOutContext<(), Vec<u8>>, data: &Vec<u8>) {
         let py_time = PyTimestamp::from(ctx.get_timestamp().clone());
         let py_operator_config = Arc::clone(&self.py_operator_config);
-        let py_left_write_stream = match &self.py_left_write_stream {
+        let py_write_stream = match &self.py_write_stream {
             Some(d) => Arc::clone(d),
             None => unreachable!(),
         };
-        let py_right_write_stream = match &self.py_right_write_stream {
-            Some(d) => Arc::clone(d),
-            None => unreachable!(),
-        };
-
         Python::with_gil(|py| {
             let erdos = PyModule::import(py, "erdos").unwrap();
             let pickle = PyModule::import(py, "pickle").unwrap();
@@ -241,13 +177,12 @@ right_write_stream = erdos.WriteStream(_py_write_stream=py_right_write_stream)
             let context: PyObject = erdos
                 .getattr("context")
                 .unwrap()
-                .getattr("OneInTwoOutContext")
+                .getattr("OneInOneOutContext")
                 .unwrap()
                 .call1((
                     py_time,
                     py_operator_config.clone_ref(py),
-                    py_left_write_stream.clone_ref(py),
-                    py_right_write_stream.clone_ref(py),
+                    py_write_stream.clone_ref(py),
                 ))
                 .unwrap()
                 .extract()
@@ -269,14 +204,10 @@ right_write_stream = erdos.WriteStream(_py_write_stream=py_right_write_stream)
         });
     }
 
-    fn on_watermark(&mut self, ctx: &mut OneInTwoOutContext<(), Vec<u8>, Vec<u8>>) {
+    fn on_watermark(&mut self, ctx: &mut OneInOneOutContext<(), Vec<u8>>) {
         let py_time = PyTimestamp::from(ctx.get_timestamp().clone());
         let py_operator_config = Arc::clone(&self.py_operator_config);
-        let py_left_write_stream = match &self.py_left_write_stream {
-            Some(d) => Arc::clone(d),
-            None => unreachable!(),
-        };
-        let py_right_write_stream = match &self.py_right_write_stream {
+        let py_write_stream = match &self.py_write_stream {
             Some(d) => Arc::clone(d),
             None => unreachable!(),
         };
@@ -286,13 +217,12 @@ right_write_stream = erdos.WriteStream(_py_write_stream=py_right_write_stream)
             let context: PyObject = erdos
                 .getattr("context")
                 .unwrap()
-                .getattr("OneInTwoOutContext")
+                .getattr("OneInOneOutContext")
                 .unwrap()
                 .call1((
                     py_time,
                     py_operator_config.clone_ref(py),
-                    py_left_write_stream.clone_ref(py),
-                    py_right_write_stream.clone_ref(py),
+                    py_write_stream.clone_ref(py),
                 ))
                 .unwrap()
                 .extract()
@@ -307,13 +237,9 @@ right_write_stream = erdos.WriteStream(_py_write_stream=py_right_write_stream)
 
         // Send a watermark if flow_watermarks is set in the OperatorConfig.
         if ctx.get_operator_config().flow_watermarks {
-            let left_timestamp = ctx.get_timestamp().clone();
-            let right_timestamp = ctx.get_timestamp().clone();
-            ctx.get_left_write_stream()
-                .send(Message::new_watermark(left_timestamp))
-                .ok();
-            ctx.get_right_write_stream()
-                .send(Message::new_watermark(right_timestamp))
+            let timestamp = ctx.get_timestamp().clone();
+            ctx.get_write_stream()
+                .send(Message::new_watermark(timestamp))
                 .ok();
         }
     }
