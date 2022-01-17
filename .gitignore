@@ -11,18 +11,25 @@ Cargo.lock
 # Python files
 *.egg-info
 __pycache__
-env
 *.pyc
 dist
 /build
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
 # Editor files
 .vscode
 .ipynb_checkpoints
 *~
+.idea/
 
 # Generated documentation files
 /python/doc/build
-.idea/
-venv/
 /python/doc/source/_build
