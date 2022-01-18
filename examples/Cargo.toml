@@ -1,18 +1,13 @@
 [package]
-name = "erdos"
-version = "0.3.1"
+name = "examples"
+version = "0.0.0"
 authors = ["The ERDOS Team"]
 edition = "2018"
-license = "Apache-2.0"
-readme = "README.md"
-documentation = "https://docs.rs/crate/erdos/"
-repository = "https://github.com/erdos-project/erdos"
-description = """
-ERDOS is a platform for developing self-driving cars and robotics applications.
-"""
-keywords = ["data-flow", "robotics", "autonomos", "driving"]
+publish = false
 
 [dependencies]
+erdos = { version = "0.3.1", path = "../erdos", features = ["ros"] }
+
 abomonation = "0.7.3"
 abomonation_derive = "0.5.0"
 async-trait = "0.1.18"
@@ -28,6 +23,7 @@ petgraph = "0.5.0"
 pyo3 = { version = "0.14.3", optional = true }
 rand = "0.3"
 rosrust = { version = "0.9", optional = true }
+rosrust_msg = { version = "0.1", optional = true }
 serde = { version = "1.0.115", features = ["derive"] }
 tracing = "0.1.29"
 tracing-appender = "0.2.0"
@@ -39,4 +35,12 @@ uuid = { version = "0.7", features = ["v4", "v5", "serde"] }
 
 [features]
 default = []
-ros = ["rosrust"]  # Add ROS operator support with 'cargo build --features=ros
+ros = ["erdos/ros", "rosrust_msg"]
+
+[[example]]
+name = "erdos_to_ros"
+path = "erdos_to_ros.rs"
+
+[[example]]
+name = "ros_to_erdos"
+path = "ros_to_erdos.rs"

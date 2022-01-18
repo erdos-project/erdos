@@ -3,4 +3,5 @@
 members = [
     "erdos",
     "python",
+    "examples",
 ]
