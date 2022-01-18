@@ -44,3 +44,7 @@ path = "erdos_to_ros.rs"
 [[example]]
 name = "ros_to_erdos"
 path = "ros_to_erdos.rs"
+
+[[example]]
+name = "full_pipeline"
+path = "full_pipeline.rs"
