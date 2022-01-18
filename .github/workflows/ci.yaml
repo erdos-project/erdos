@@ -47,7 +47,7 @@ jobs:
       - name: Check Rust formatting
         run: cargo fmt -- --check
       - name: Source ROS installation
-        run: source /opt/ros/noetic/setup.bash
+        run: . /opt/ros/noetic/setup.bash
       - name: Start roscore
         run: roscore &
       - name: Build
