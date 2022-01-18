@@ -48,7 +48,9 @@ jobs:
         run: cargo fmt -- --check
       - name: Build
         shell: bash
-        run: source /opt/ros/noetic/setup.bash; roscore &; cargo build --examples --verbose --features=ros
+        run: source /opt/ros/noetic/setup.bash
+        run: roscore &
+        run: cargo build --examples --verbose --features=ros
       - name: Run tests
         run: cargo test --verbose --features=ros
 
