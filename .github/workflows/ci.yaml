@@ -35,6 +35,8 @@ jobs:
     container: ros:noetic
     steps:
       - uses: actions/checkout@v2
+      - name: Install Curl
+        run: apt-get update; apt-get install curl
       - name: Install supported Rust nightly
         uses: actions-rs/toolchain@v1
         with:
