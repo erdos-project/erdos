@@ -32,6 +32,7 @@ jobs:
   ros-integration:
     name: "Rust Build (ROS Integration)"
     runs-on: ubuntu-latest
+    container: ros:noetic
     steps:
       - uses: actions/checkout@v2
       - name: Install supported Rust nightly
@@ -43,6 +44,8 @@ jobs:
           components: rustfmt, rust-src
       - name: Check Rust formatting
         run: cargo fmt -- --check
+      - name: Start roscore
+        run: roscore &
       - name: Build
         run: cargo build --examples --verbose --features=ros
       - name: Run tests
