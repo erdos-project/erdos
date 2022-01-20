@@ -46,13 +46,10 @@ jobs:
           components: rustfmt, rust-src
       - name: Check Rust formatting
         run: cargo fmt -- --check
-      - name: Source ROS Installation
-        shell: bash
-        run: source /opt/ros/noetic/setup.bash
       - name: Build
         shell: bash
         run: |
-          roscore &
+          source /opt/ros/noetic/setup.bash
           cargo build --examples --verbose --features=ros
       - name: Run tests
         run: cargo test --verbose --features=ros
