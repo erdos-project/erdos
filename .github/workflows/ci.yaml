@@ -30,7 +30,7 @@ jobs:
         run: cargo test --verbose
 
   ros-integration:
-    name: "Rust Build (ROS Integration)"
+    name: "ROS Integration"
     runs-on: ubuntu-latest
     container: ros:noetic
     steps:
@@ -49,12 +49,12 @@ jobs:
       - name: Build
         shell: bash
         run: |
-          source /opt/ros/noetic/setup.bash
+          source /opt/ros/$ROS_DISTO/setup.bash
           cargo build --examples --verbose --features=ros
       - name: Run tests
         shell: bash
         run: |
-          source /opt/ros/noetic/setup.bash
+          source /opt/ros/$ROS_DISTO/setup.bash
           cargo test --verbose --features=ros
 
   build-python:
