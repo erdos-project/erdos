@@ -3,7 +3,6 @@ name = "erdos"
 version = "0.3.1"
 authors = ["The ERDOS Team"]
 edition = "2018"
-default-run = "erdos"
 license = "Apache-2.0"
 readme = "README.md"
 documentation = "https://docs.rs/crate/erdos/"
@@ -26,10 +25,8 @@ futures-delay-queue = "0.4.2"
 futures-intrusive = "0.4"  # Required for futures-delay-queue
 futures-util = "0.3.5"
 petgraph = "0.5.0"
-pyo3 = { version = "0.14.3", optional = true }
 rand = "0.3"
 rosrust = { version = "0.9", optional = true }
-rosrust_msg = { version = "0.1", optional = true }
 serde = { version = "1.0.115", features = ["derive"] }
 tracing = "0.1.29"
 tracing-appender = "0.2.0"
@@ -41,5 +38,4 @@ uuid = { version = "0.7", features = ["v4", "v5", "serde"] }
 
 [features]
 default = []
-python = ["pyo3"]  # Target python with 'cargo build --features=python
-ros = ["rosrust", "rosrust_msg"]  # Add ROS operator support with 'cargo build --features=ros
+ros = ["rosrust"]  # Add ROS operator support with 'cargo build --features=ros

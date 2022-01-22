@@ -25,9 +25,37 @@ jobs:
       - name: Check Rust formatting
         run: cargo fmt -- --check
       - name: Build
-        run: cargo build --verbose
+        run: cargo build --examples --verbose
       - name: Run tests
         run: cargo test --verbose
+
+  ros-integration:
+    name: "ROS Integration"
+    runs-on: ubuntu-latest
+    container: ros:noetic
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install curl
+        run: apt-get update; apt-get install curl
+      - name: Install supported Rust nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          profile: minimal
+          override: true
+          components: rustfmt, rust-src
+      - name: Check Rust formatting
+        run: cargo fmt -- --check
+      - name: Build
+        shell: bash
+        run: |
+          source /opt/ros/$ROS_DISTRO/setup.bash
+          cargo build --examples --verbose --features=ros
+      - name: Run tests
+        shell: bash
+        run: |
+          source /opt/ros/$ROS_DISTRO/setup.bash
+          cargo test --verbose --features=ros
 
   build-python:
     name: "Python ${{ matrix.python-version }} Build"
