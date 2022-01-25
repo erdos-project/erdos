@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 use crate::{
-    dataflow::{context::*, AppendableStateT, Data, ReadStream, State, StateT, WriteStream},
+    dataflow::{context::*, AppendableStateT, Data, ReadStream, StateT, WriteStream},
     node::NodeId,
     OperatorId,
 };
@@ -15,9 +15,8 @@ use crate::{
 /// generates data on an output write stream. The operator must take control of its execution by
 /// implementing the `run` method, and generating output on the `write_stream` passed to it.
 #[allow(unused_variables)]
-pub trait Source<S, T>: Send + Sync
+pub trait Source<T>: Send + Sync
 where
-    S: State,
     T: Data + for<'a> Deserialize<'a>,
 {
     fn run(&mut self, config: &OperatorConfig, write_stream: &mut WriteStream<T>) {}

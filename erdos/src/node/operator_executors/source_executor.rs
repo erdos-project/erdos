@@ -9,7 +9,7 @@ use crate::{
     dataflow::{
         operator::{OperatorConfig, Source},
         stream::WriteStreamT,
-        Data, Message, State, Timestamp, WriteStream,
+        Data, Message, Timestamp, WriteStream,
     },
     node::{
         lattice::ExecutionLattice,
@@ -19,36 +19,31 @@ use crate::{
     OperatorId,
 };
 
-pub struct SourceExecutor<O, S, T>
+pub struct SourceExecutor<O, T>
 where
-    O: Source<S, T>,
-    S: State,
+    O: Source<T>,
     T: Data + for<'a> Deserialize<'a>,
 {
     config: OperatorConfig,
     operator: O,
-    _state: S,
     write_stream: WriteStream<T>,
     helper: OperatorExecutorHelper,
 }
 
-impl<O, S, T> SourceExecutor<O, S, T>
+impl<O, T> SourceExecutor<O, T>
 where
-    O: Source<S, T>,
-    S: State,
+    O: Source<T>,
     T: Data + for<'a> Deserialize<'a>,
 {
     pub fn new(
         config: OperatorConfig,
         operator_fn: impl Fn() -> O + Send,
-        state_fn: impl Fn() -> S + Send,
         write_stream: WriteStream<T>,
     ) -> Self {
         let operator_id = config.id;
         Self {
             config,
             operator: operator_fn(),
-            _state: state_fn(),
             write_stream,
             helper: OperatorExecutorHelper::new(operator_id),
         }
@@ -84,10 +79,9 @@ where
     }
 }
 
-impl<O, S, T> OperatorExecutorT for SourceExecutor<O, S, T>
+impl<O, T> OperatorExecutorT for SourceExecutor<O, T>
 where
-    O: Source<S, T>,
-    S: State,
+    O: Source<T>,
     T: Data + for<'a> Deserialize<'a>,
 {
     fn execute<'a>(

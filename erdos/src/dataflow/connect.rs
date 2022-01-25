@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use serde::Deserialize;
 
 use crate::{
-    dataflow::{graph::default_graph, operator::*, AppendableStateT, Data, State, StateT, Stream},
+    dataflow::{graph::default_graph, operator::*, AppendableStateT, Data, StateT, Stream},
     node::operator_executors::{
         OneInExecutor, OneInOneOutMessageProcessor, OneInTwoOutMessageProcessor, OperatorExecutorT,
         ParallelOneInOneOutMessageProcessor, ParallelOneInTwoOutMessageProcessor,
@@ -18,14 +18,12 @@ use super::stream::OperatorStream;
 
 /// Adds a [`Source`] operator, which has no read streams, but introduces data into the dataflow
 /// graph by interacting with external data sources (e.g., other systems, sensor data).
-pub fn connect_source<O, S, T>(
+pub fn connect_source<O, T>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
-    state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
 ) -> OperatorStream<T>
 where
-    O: 'static + Source<S, T>,
-    S: State,
+    O: 'static + Source<T>,
     T: Data + for<'a> Deserialize<'a>,
 {
     config.id = OperatorId::new_deterministic();
@@ -42,7 +40,6 @@ where
             let executor = SourceExecutor::new(
                 config_copy.clone(),
                 operator_fn.clone(),
-                state_fn.clone(),
                 write_stream,
             );
 
