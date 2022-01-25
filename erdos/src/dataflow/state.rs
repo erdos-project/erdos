@@ -2,13 +2,6 @@
 
 use crate::dataflow::Timestamp;
 
-// TODO: keep around messages. Add an iterator over messages.
-// Add set_timestamp and set_access_context to State.
-
-/// Trait that must be implemented by stream state.
-pub trait State: 'static + Clone + Send + Sync {}
-impl<T: 'static + Clone + Send + Sync> State for T {}
-
 // TODO (Sukrit): Do these state traits also require a way to read the state for a given timestamp?
 
 /// Trait that must be implemented by a state structure that is used in a Parallel operator.
