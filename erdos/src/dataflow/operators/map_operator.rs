@@ -13,6 +13,8 @@ use std::sync::Arc;
 /// and return them.
 ///
 /// ```
+/// # use erdos::dataflow::{stream::IngestStream, operator::{OperatorConfig}, operators::{MapOperator}};
+/// # let source_stream = IngestStream::new();
 /// let map_stream = erdos::connect_one_in_one_out(
 ///     || -> MapOperator<usize, usize> { MapOperator::new(|a: &usize| -> usize { 2 * a }) },
 ///     || {},

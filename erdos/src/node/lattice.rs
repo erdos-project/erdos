@@ -461,6 +461,7 @@ impl fmt::Debug for ExecutionLattice {
     }
 }
 
+/*
 #[cfg(test)]
 mod test {
     use super::*;
@@ -936,3 +937,4 @@ mod test {
         );
     }
 }
+*/
