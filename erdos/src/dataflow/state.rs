@@ -7,13 +7,13 @@ use crate::dataflow::Timestamp;
 /// Trait that must be implemented by a state structure that is used in a Parallel operator.
 /// This structure must implement a `commit` method that commits the final state for a given
 /// timestamp `t`.
-pub trait StateT: 'static + Send + Sync {
+pub trait State: 'static + Send + Sync {
     fn commit(&mut self, timestamp: &Timestamp);
 
     fn get_last_committed_timestamp(&self) -> Timestamp;
 }
 
-impl StateT for () {
+impl State for () {
     fn commit(&mut self, _timestamp: &Timestamp) {}
 
     fn get_last_committed_timestamp(&self) -> Timestamp {
@@ -25,7 +25,7 @@ impl StateT for () {
 /// This state structure must implement an `append` method that enables message callbacks to add
 /// intermediate state to the structure, and a `commit` method that commits the final state for a
 /// given timestamp t.
-pub trait AppendableStateT<S>: 'static + Clone + Send + Sync {
+pub trait AppendableState<S>: 'static + Clone + Send + Sync {
     fn append(&self, data: &S);
 
     fn commit(&self, timestamp: &Timestamp);

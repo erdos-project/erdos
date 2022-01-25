@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use serde::Deserialize;
 
 use crate::{
-    dataflow::{graph::default_graph, operator::*, AppendableStateT, Data, StateT, Stream},
+    dataflow::{graph::default_graph, operator::*, AppendableState, Data, State, Stream},
     node::operator_executors::{
         OneInExecutor, OneInOneOutMessageProcessor, OneInTwoOutMessageProcessor, OperatorExecutorT,
         ParallelOneInOneOutMessageProcessor, ParallelOneInTwoOutMessageProcessor,
@@ -67,7 +67,7 @@ pub fn connect_parallel_sink<O, S, T, U>(
     read_stream: &dyn Stream<T>,
 ) where
     O: 'static + ParallelSink<S, T, U>,
-    S: AppendableStateT<U>,
+    S: AppendableState<U>,
     T: Data + for<'a> Deserialize<'a>,
     U: 'static + Send + Sync,
 {
@@ -113,7 +113,7 @@ pub fn connect_sink<O, S, T>(
     read_stream: &dyn Stream<T>,
 ) where
     O: 'static + Sink<S, T>,
-    S: StateT,
+    S: State,
     T: Data + for<'a> Deserialize<'a>,
 {
     config.id = OperatorId::new_deterministic();
@@ -159,7 +159,7 @@ pub fn connect_parallel_one_in_one_out<O, S, T, U, V>(
 ) -> OperatorStream<U>
 where
     O: 'static + ParallelOneInOneOut<S, T, U, V>,
-    S: AppendableStateT<V>,
+    S: AppendableState<V>,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: 'static + Send + Sync,
@@ -212,7 +212,7 @@ pub fn connect_one_in_one_out<O, S, T, U>(
 ) -> OperatorStream<U>
 where
     O: 'static + OneInOneOut<S, T, U>,
-    S: StateT,
+    S: State,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
@@ -266,7 +266,7 @@ pub fn connect_parallel_two_in_one_out<O, S, T, U, V, W>(
 ) -> OperatorStream<V>
 where
     O: 'static + ParallelTwoInOneOut<S, T, U, V, W>,
-    S: AppendableStateT<W>,
+    S: AppendableState<W>,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
@@ -326,7 +326,7 @@ pub fn connect_two_in_one_out<O, S, T, U, V>(
 ) -> OperatorStream<V>
 where
     O: 'static + TwoInOneOut<S, T, U, V>,
-    S: StateT,
+    S: State,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
@@ -385,7 +385,7 @@ pub fn connect_parallel_one_in_two_out<O, S, T, U, V, W>(
 ) -> (OperatorStream<U>, OperatorStream<V>)
 where
     O: 'static + ParallelOneInTwoOut<S, T, U, V, W>,
-    S: AppendableStateT<W>,
+    S: AppendableState<W>,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
@@ -447,7 +447,7 @@ pub fn connect_one_in_two_out<O, S, T, U, V>(
 ) -> (OperatorStream<U>, OperatorStream<V>)
 where
     O: 'static + OneInTwoOut<S, T, U, V>,
-    S: StateT,
+    S: State,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,

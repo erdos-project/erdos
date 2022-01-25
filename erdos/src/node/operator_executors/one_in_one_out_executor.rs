@@ -11,7 +11,7 @@ use crate::{
         deadlines::{ConditionContext, DeadlineEvent, DeadlineId},
         operator::{OneInOneOut, OperatorConfig, ParallelOneInOneOut},
         stream::{StreamId, WriteStreamT},
-        AppendableStateT, Data, Message, ReadStream, StateT, Timestamp, WriteStream,
+        AppendableState, Data, Message, ReadStream, State, Timestamp, WriteStream,
     },
     node::{
         operator_event::{OperatorEvent, OperatorType},
@@ -23,14 +23,14 @@ use crate::{
 /// Message Processor that defines the generation and execution of events for a ParallelOneInOneOut
 /// operator, where
 /// O: An operator that implements the ParallelOneInOneOut trait,
-/// S: A state structure that implements the AppendableStateT trait,
+/// S: A state structure that implements the AppendableState trait,
 /// T: Type of messages received on the read stream,
 /// U: Type of messages sent on the write stream,
 /// V: Type of intermediate data appended to the state structure S.
 pub struct ParallelOneInOneOutMessageProcessor<O, S, T, U, V>
 where
     O: 'static + ParallelOneInOneOut<S, T, U, V>,
-    S: AppendableStateT<V>,
+    S: AppendableState<V>,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: 'static + Send + Sync,
@@ -47,7 +47,7 @@ where
 impl<O, S, T, U, V> ParallelOneInOneOutMessageProcessor<O, S, T, U, V>
 where
     O: 'static + ParallelOneInOneOut<S, T, U, V>,
-    S: AppendableStateT<V>,
+    S: AppendableState<V>,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: 'static + Send + Sync,
@@ -74,7 +74,7 @@ impl<O, S, T, U, V> OneInMessageProcessorT<S, T>
     for ParallelOneInOneOutMessageProcessor<O, S, T, U, V>
 where
     O: 'static + ParallelOneInOneOut<S, T, U, V>,
-    S: AppendableStateT<V>,
+    S: AppendableState<V>,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: 'static + Send + Sync,
@@ -251,13 +251,13 @@ where
 /// Message Processor that defines the generation and execution of events for a OneInOneOut
 /// operator, where
 /// O: An operator that implements the OneInOneOut trait,
-/// S: A state structure that implements the StateT trait,
+/// S: A state structure that implements the State trait,
 /// T: Type of messages received on the read stream,
 /// U: Type of messages sent on the write stream,
 pub struct OneInOneOutMessageProcessor<O, S, T, U>
 where
     O: 'static + OneInOneOut<S, T, U>,
-    S: StateT,
+    S: State,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
@@ -272,7 +272,7 @@ where
 impl<O, S, T, U> OneInOneOutMessageProcessor<O, S, T, U>
 where
     O: 'static + OneInOneOut<S, T, U>,
-    S: StateT,
+    S: State,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
@@ -296,7 +296,7 @@ where
 impl<O, S, T, U> OneInMessageProcessorT<S, T> for OneInOneOutMessageProcessor<O, S, T, U>
 where
     O: 'static + OneInOneOut<S, T, U>,
-    S: StateT,
+    S: State,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {

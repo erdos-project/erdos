@@ -11,7 +11,7 @@ use crate::{
         deadlines::{ConditionContext, DeadlineEvent, DeadlineId},
         operator::{OperatorConfig, ParallelSink, Sink},
         stream::StreamId,
-        AppendableStateT, Data, Message, ReadStream, StateT, Timestamp,
+        AppendableState, Data, Message, ReadStream, State, Timestamp,
     },
     node::{
         operator_event::{OperatorEvent, OperatorType},
@@ -23,13 +23,13 @@ use crate::{
 /// Message Processor that defines the generation and execution of events for a ParallelSink
 /// operator, where
 /// O: An operator that implements the ParallelSink trait,
-/// S: A state structure that implements the AppendableStateT trait,
+/// S: A state structure that implements the AppendableState trait,
 /// T: Type of messages received on the read stream,
 /// U: Type of intermediate data appended to the state structure S.
 pub struct ParallelSinkMessageProcessor<O, S, T, U>
 where
     O: 'static + ParallelSink<S, T, U>,
-    S: AppendableStateT<U>,
+    S: AppendableState<U>,
     T: Data + for<'a> Deserialize<'a>,
     U: 'static + Send + Sync,
 {
@@ -44,7 +44,7 @@ where
 impl<O, S, T, U> ParallelSinkMessageProcessor<O, S, T, U>
 where
     O: 'static + ParallelSink<S, T, U>,
-    S: AppendableStateT<U>,
+    S: AppendableState<U>,
     T: Data + for<'a> Deserialize<'a>,
     U: 'static + Send + Sync,
 {
@@ -67,7 +67,7 @@ where
 impl<O, S, T, U> OneInMessageProcessorT<S, T> for ParallelSinkMessageProcessor<O, S, T, U>
 where
     O: 'static + ParallelSink<S, T, U>,
-    S: AppendableStateT<U>,
+    S: AppendableState<U>,
     T: Data + for<'a> Deserialize<'a>,
     U: 'static + Send + Sync,
 {
@@ -184,12 +184,12 @@ where
 /// Message Processor that defines the generation and execution of events for a Sink operator,
 /// where
 /// O: An operator that implements the Sink trait,
-/// S: A state structure that implements the StateT trait,
+/// S: A state structure that implements the State trait,
 /// T: Type of messages received on the read stream,
 pub struct SinkMessageProcessor<O, S, T>
 where
     O: 'static + Sink<S, T>,
-    S: StateT,
+    S: State,
     T: Data + for<'a> Deserialize<'a>,
 {
     config: OperatorConfig,
@@ -202,7 +202,7 @@ where
 impl<O, S, T> SinkMessageProcessor<O, S, T>
 where
     O: 'static + Sink<S, T>,
-    S: StateT,
+    S: State,
     T: Data + for<'a> Deserialize<'a>,
 {
     pub fn new(
@@ -223,7 +223,7 @@ where
 impl<O, S, T> OneInMessageProcessorT<S, T> for SinkMessageProcessor<O, S, T>
 where
     O: 'static + Sink<S, T>,
-    S: StateT,
+    S: State,
     T: Data + for<'a> Deserialize<'a>,
 {
     fn execute_setup(&mut self, read_stream: &mut ReadStream<T>) -> SetupContext<S> {

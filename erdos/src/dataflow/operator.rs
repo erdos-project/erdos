@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
 use crate::{
-    dataflow::{context::*, AppendableStateT, Data, ReadStream, StateT, WriteStream},
+    dataflow::{context::*, AppendableState, Data, ReadStream, State, WriteStream},
     node::NodeId,
     OperatorId,
 };
@@ -41,7 +41,7 @@ where
 /// callbacks can execute in any order, the watermark callbacks execute sequentially and are
 /// ordered by the timestamp order.
 #[allow(unused_variables)]
-pub trait ParallelSink<S: AppendableStateT<U>, T: Data, U>: Send + Sync {
+pub trait ParallelSink<S: AppendableState<U>, T: Data, U>: Send + Sync {
     fn setup(&mut self, setup_context: &mut SetupContext<S>) {}
 
     fn run(&mut self, config: &OperatorConfig, read_stream: &mut ReadStream<T>) {}
@@ -66,7 +66,7 @@ pub trait ParallelSink<S: AppendableStateT<U>, T: Data, U>: Send + Sync {
 /// The callbacks registered in this operator execute sequentially by timestamp order and are
 /// allowed to mutate state in both the message and the watermark callbacks.
 #[allow(unused_variables)]
-pub trait Sink<S: StateT, T: Data>: Send + Sync {
+pub trait Sink<S: State, T: Data>: Send + Sync {
     fn setup(&mut self, setup_context: &mut SetupContext<S>) {}
 
     fn run(&mut self, config: &OperatorConfig, read_stream: &mut ReadStream<T>) {}
@@ -97,7 +97,7 @@ pub trait Sink<S: StateT, T: Data>: Send + Sync {
 #[allow(unused_variables)]
 pub trait ParallelOneInOneOut<S, T, U, V>: Send + Sync
 where
-    S: AppendableStateT<V>,
+    S: AppendableState<V>,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
@@ -133,7 +133,7 @@ where
 #[allow(unused_variables)]
 pub trait OneInOneOut<S, T, U>: Send + Sync
 where
-    S: StateT,
+    S: State,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
@@ -173,7 +173,7 @@ where
 #[allow(unused_variables)]
 pub trait ParallelTwoInOneOut<S, T, U, V, W>: Send + Sync
 where
-    S: AppendableStateT<W>,
+    S: AppendableState<W>,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
@@ -213,7 +213,7 @@ where
 #[allow(unused_variables)]
 pub trait TwoInOneOut<S, T, U, V>: Send + Sync
 where
-    S: StateT,
+    S: State,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
@@ -257,7 +257,7 @@ where
 #[allow(unused_variables)]
 pub trait ParallelOneInTwoOut<S, T, U, V, W>: Send + Sync
 where
-    S: AppendableStateT<W>,
+    S: AppendableState<W>,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
@@ -295,7 +295,7 @@ where
 #[allow(unused_variables)]
 pub trait OneInTwoOut<S, T, U, V>: Send + Sync
 where
-    S: StateT,
+    S: State,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,

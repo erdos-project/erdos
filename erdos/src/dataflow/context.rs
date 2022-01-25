@@ -6,7 +6,7 @@ use crate::dataflow::{
     deadlines::{DeadlineId, DeadlineT},
     operator::OperatorConfig,
     stream::StreamId,
-    AppendableStateT, Data, StateT, Timestamp, WriteStream,
+    AppendableState, Data, State, Timestamp, WriteStream,
 };
 
 /*************************************************************************************************
@@ -72,7 +72,7 @@ impl<S> SetupContext<S> {
 /// A context structure made available to the callbacks of a `ParallelSink` operator. The context
 /// provides access to the current timestamp for which the callback is invoked along with the state
 /// of the operator.
-pub struct ParallelSinkContext<'a, S: AppendableStateT<T>, T> {
+pub struct ParallelSinkContext<'a, S: AppendableState<T>, T> {
     timestamp: Timestamp,
     config: OperatorConfig,
     state: &'a S,
@@ -81,7 +81,7 @@ pub struct ParallelSinkContext<'a, S: AppendableStateT<T>, T> {
 
 impl<'a, S, T> ParallelSinkContext<'a, S, T>
 where
-    S: 'static + AppendableStateT<T>,
+    S: 'static + AppendableState<T>,
 {
     pub fn new(timestamp: Timestamp, config: OperatorConfig, state: &'a S) -> Self {
         Self {
@@ -116,7 +116,7 @@ where
 /// A context structure made available to the callbacks of a `Sink` operator. The context provides
 /// access to the current timestamp for which the callback is invoked along with the state
 /// of the operator.
-pub struct SinkContext<'a, S: StateT> {
+pub struct SinkContext<'a, S: State> {
     timestamp: Timestamp,
     config: OperatorConfig,
     state: &'a mut S,
@@ -124,7 +124,7 @@ pub struct SinkContext<'a, S: StateT> {
 
 impl<'a, S> SinkContext<'a, S>
 where
-    S: StateT,
+    S: State,
 {
     pub fn new(timestamp: Timestamp, config: OperatorConfig, state: &'a mut S) -> Self {
         Self {
@@ -160,7 +160,7 @@ where
 /// the state of the operator and the write stream to send the outputs on.
 pub struct ParallelOneInOneOutContext<'a, S, T, U>
 where
-    S: AppendableStateT<U>,
+    S: AppendableState<U>,
     T: Data + for<'b> Deserialize<'b>,
 {
     timestamp: Timestamp,
@@ -172,7 +172,7 @@ where
 
 impl<'a, S, T, U> ParallelOneInOneOutContext<'a, S, T, U>
 where
-    S: AppendableStateT<U>,
+    S: AppendableState<U>,
     T: Data + for<'b> Deserialize<'b>,
 {
     pub fn new(
@@ -221,7 +221,7 @@ where
 /// state of the operator and the write stream to send the outputs on.
 pub struct OneInOneOutContext<'a, S, T>
 where
-    S: StateT,
+    S: State,
     T: Data + for<'b> Deserialize<'b>,
 {
     timestamp: Timestamp,
@@ -232,7 +232,7 @@ where
 
 impl<'a, S, T> OneInOneOutContext<'a, S, T>
 where
-    S: StateT,
+    S: State,
     T: Data + for<'b> Deserialize<'b>,
 {
     pub fn new(
@@ -280,7 +280,7 @@ where
 /// the state of the operator and the write stream to send the outputs on.
 pub struct ParallelTwoInOneOutContext<'a, S, T, U>
 where
-    S: AppendableStateT<U>,
+    S: AppendableState<U>,
     T: Data + for<'b> Deserialize<'b>,
 {
     timestamp: Timestamp,
@@ -292,7 +292,7 @@ where
 
 impl<'a, S, T, U> ParallelTwoInOneOutContext<'a, S, T, U>
 where
-    S: AppendableStateT<U>,
+    S: AppendableState<U>,
     T: Data + for<'b> Deserialize<'b>,
 {
     pub fn new(
@@ -341,7 +341,7 @@ where
 /// state of the operator and the write stream to send the outputs on.
 pub struct TwoInOneOutContext<'a, S, T>
 where
-    S: StateT,
+    S: State,
     T: Data + for<'b> Deserialize<'b>,
 {
     timestamp: Timestamp,
@@ -352,7 +352,7 @@ where
 
 impl<'a, S, T> TwoInOneOutContext<'a, S, T>
 where
-    S: StateT,
+    S: State,
     T: Data + for<'b> Deserialize<'b>,
 {
     pub fn new(
@@ -400,7 +400,7 @@ where
 /// the state of the operator and the write streams to send the outputs on.
 pub struct ParallelOneInTwoOutContext<'a, S, T, U, V>
 where
-    S: AppendableStateT<V>,
+    S: AppendableState<V>,
     T: Data + for<'b> Deserialize<'b>,
     U: Data + for<'b> Deserialize<'b>,
 {
@@ -414,7 +414,7 @@ where
 
 impl<'a, S, T, U, V> ParallelOneInTwoOutContext<'a, S, T, U, V>
 where
-    S: AppendableStateT<V>,
+    S: AppendableState<V>,
     T: Data + for<'b> Deserialize<'b>,
     U: Data + for<'b> Deserialize<'b>,
 {
@@ -471,7 +471,7 @@ where
 /// state of the operator and the write streams to send the outputs on.
 pub struct OneInTwoOutContext<'a, S, T, U>
 where
-    S: StateT,
+    S: State,
     T: Data + for<'b> Deserialize<'b>,
     U: Data + for<'b> Deserialize<'b>,
 {
@@ -484,7 +484,7 @@ where
 
 impl<'a, S, T, U> OneInTwoOutContext<'a, S, T, U>
 where
-    S: StateT,
+    S: State,
     T: Data + for<'b> Deserialize<'b>,
     U: Data + for<'b> Deserialize<'b>,
 {

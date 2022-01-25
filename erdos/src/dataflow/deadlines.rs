@@ -1,4 +1,4 @@
-use crate::dataflow::{stream::StreamId, time::Timestamp, StateT};
+use crate::dataflow::{stream::StreamId, time::Timestamp, State};
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
@@ -52,7 +52,7 @@ pub trait DeadlineT<S>: Send + Sync {
 /// particular timestamp.
 pub struct TimestampDeadline<S>
 where
-    S: StateT,
+    S: State,
 {
     start_condition_fn: Arc<dyn CondFn>,
     end_condition_fn: Arc<dyn CondFn>,
@@ -66,7 +66,7 @@ where
 #[allow(dead_code)]
 impl<S> TimestampDeadline<S>
 where
-    S: StateT,
+    S: State,
 {
     pub fn new(
         deadline_fn: impl DeadlineFn<S> + 'static,
@@ -161,7 +161,7 @@ where
 
 impl<S> DeadlineT<S> for TimestampDeadline<S>
 where
-    S: StateT,
+    S: State,
 {
     fn get_constrained_read_stream_ids(&self) -> &HashSet<StreamId> {
         &self.read_stream_ids
