@@ -1,9 +1,14 @@
+use std::sync::Arc;
+
+use serde::Deserialize;
+
 use crate::dataflow::{
-    context::OneInTwoOutContext, message::Message, operator::OneInTwoOut, stream::WriteStreamT,
+    context::OneInTwoOutContext,
+    message::Message,
+    operator::{OneInTwoOut, OperatorConfig},
+    stream::{Stream, WriteStreamT},
     Data,
 };
-use serde::Deserialize;
-use std::sync::Arc;
 
 /// Splits an incoming stream of type D1 into two different streams of type D1 using the provided
 /// condition function. When evaluated to true, sends messages to left stream, and right stream
@@ -72,4 +77,32 @@ where
     }
 
     fn on_watermark(&mut self, _ctx: &mut OneInTwoOutContext<(), D1, D1>) {}
+}
+
+// Extension trait for SplitOperator
+pub trait Split<D1>
+where
+    D1: Data + for<'a> Deserialize<'a>,
+{
+    fn split<F: 'static + Fn(&D1) -> bool + Send + Sync + Clone>(
+        &self,
+        split_fn: F,
+    ) -> (Stream<D1>, Stream<D1>);
+}
+
+impl<D1> Split<D1> for Stream<D1>
+where
+    D1: Data + for<'a> Deserialize<'a>,
+{
+    fn split<F: 'static + Fn(&D1) -> bool + Send + Sync + Clone>(
+        &self,
+        split_fn: F,
+    ) -> (Stream<D1>, Stream<D1>) {
+        crate::connect_one_in_two_out(
+            move || -> SplitOperator<D1> { SplitOperator::new(split_fn.clone()) },
+            || {},
+            OperatorConfig::new().name("SplitOperator"),
+            self,
+        )
+    }
 }

@@ -1,9 +1,14 @@
+use std::sync::Arc;
+
+use serde::Deserialize;
+
 use crate::dataflow::{
-    context::OneInOneOutContext, message::Message, operator::OneInOneOut, stream::WriteStreamT,
+    context::OneInOneOutContext,
+    message::Message,
+    operator::{OneInOneOut, OperatorConfig},
+    stream::{Stream, WriteStreamT},
     Data,
 };
-use serde::Deserialize;
-use std::sync::Arc;
 
 /// Filters an incoming stream of type D1, retaining messages in the stream that
 /// the provided condition function evaluates to true when applied.
@@ -63,4 +68,32 @@ where
     }
 
     fn on_watermark(&mut self, _ctx: &mut OneInOneOutContext<(), D1>) {}
+}
+
+// Extension trait for FilterOperator
+pub trait Filter<D1>
+where
+    D1: Data + for<'a> Deserialize<'a>,
+{
+    fn filter<F: 'static + Fn(&D1) -> bool + Send + Sync + Clone>(
+        &self,
+        filter_fn: F,
+    ) -> Stream<D1>;
+}
+
+impl<D1> Filter<D1> for Stream<D1>
+where
+    D1: Data + for<'a> Deserialize<'a>,
+{
+    fn filter<F: 'static + Fn(&D1) -> bool + Send + Sync + Clone>(
+        &self,
+        filter_fn: F,
+    ) -> Stream<D1> {
+        crate::connect_one_in_one_out(
+            move || -> FilterOperator<D1> { FilterOperator::new(filter_fn.clone()) },
+            || {},
+            OperatorConfig::new().name("FilterOperator"),
+            self,
+        )
+    }
 }

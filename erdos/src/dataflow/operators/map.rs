@@ -1,9 +1,14 @@
+use std::sync::Arc;
+
+use serde::Deserialize;
+
 use crate::dataflow::{
-    context::OneInOneOutContext, message::Message, operator::OneInOneOut, stream::WriteStreamT,
+    context::OneInOneOutContext,
+    message::Message,
+    operator::{OneInOneOut, OperatorConfig},
+    stream::{Stream, WriteStreamT},
     Data,
 };
-use serde::Deserialize;
-use std::sync::Arc;
 
 /// Maps an incoming stream of type D1 to a stream of type D2 using the provided
 /// function.
@@ -64,4 +69,28 @@ where
     }
 
     fn on_watermark(&mut self, _ctx: &mut OneInOneOutContext<(), D2>) {}
+}
+
+// Extension Trait for MapOperator
+pub trait Map<D1, D2>
+where
+    D1: Data + for<'a> Deserialize<'a>,
+    D2: Data + for<'a> Deserialize<'a>,
+{
+    fn map<F: 'static + Fn(&D1) -> D2 + Send + Sync + Clone>(&self, map_fn: F) -> Stream<D2>;
+}
+
+impl<D1, D2> Map<D1, D2> for Stream<D1>
+where
+    D1: Data + for<'a> Deserialize<'a>,
+    D2: Data + for<'a> Deserialize<'a>,
+{
+    fn map<F: 'static + Fn(&D1) -> D2 + Send + Sync + Clone>(&self, map_fn: F) -> Stream<D2> {
+        crate::connect_one_in_one_out(
+            move || -> MapOperator<D1, D2> { MapOperator::new(map_fn.clone()) },
+            || {},
+            OperatorConfig::new().name("MapOperator"),
+            self,
+        )
+    }
 }

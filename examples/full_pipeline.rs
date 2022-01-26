@@ -5,10 +5,10 @@ use std::{collections::HashMap, thread, time::Duration};
 use erdos::dataflow::context::*;
 use erdos::dataflow::deadlines::*;
 use erdos::dataflow::operator::*;
-use erdos::dataflow::stream::Filter;
+use erdos::dataflow::operators::Filter;
 use erdos::dataflow::stream::IngestStream;
-use erdos::dataflow::stream::Map;
-use erdos::dataflow::stream::Split;
+use erdos::dataflow::operators::Map;
+use erdos::dataflow::operators::Split;
 use erdos::dataflow::stream::WriteStreamT;
 use erdos::dataflow::*;
 use erdos::node::Node;
@@ -452,14 +452,14 @@ fn main() {
         &ingest_stream,
     );
 
-    //let join_sum_config = OperatorConfig::new().name("JoinSumOperator");
-    //let join_stream = erdos::connect_two_in_one_out(
+    // let join_sum_config = OperatorConfig::new().name("JoinSumOperator");
+    // let join_stream = erdos::connect_two_in_one_out(
     //    JoinSumOperator::new,
     //    JoinSumOperatorState::new,
     //    join_sum_config,
     //    &source_stream,
     //    &sum_stream,
-    //);
+    // );
 
     //let even_odd_config = OperatorConfig::new().name("EvenOddOperator");
     //let (even_stream, odd_stream) =
