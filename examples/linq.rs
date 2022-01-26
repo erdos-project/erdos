@@ -1,16 +1,16 @@
-extern crate erdos;
-
 use std::{collections::HashMap, thread, time::Duration};
 
-use erdos::dataflow::context::*;
-use erdos::dataflow::operator::*;
-use erdos::dataflow::operators::Filter;
-use erdos::dataflow::operators::Map;
-use erdos::dataflow::operators::Split;
-use erdos::dataflow::stream::WriteStreamT;
-use erdos::dataflow::*;
-use erdos::node::Node;
-use erdos::Configuration;
+use erdos::{
+    dataflow::{
+        context::SinkContext,
+        operator::{Sink, Source},
+        operators::{Filter, Map, Split},
+        stream::{WriteStream, WriteStreamT},
+        Message, OperatorConfig, StateT, Timestamp,
+    },
+    node::Node,
+    Configuration,
+};
 
 struct SourceOperator {}
 

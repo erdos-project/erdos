@@ -14,8 +14,8 @@ use crate::dataflow::{
 /// the provided condition function evaluates to true when applied.
 ///
 /// # Example
-/// The below example shows how to use a FilterOperator to keep only messages > 10 in an incoming stream of usize messages,
-/// and send them.
+/// The below example shows how to use a FilterOperator to keep only messages > 10 in an incoming
+/// stream of usize messages, and send them.
 ///
 /// ```
 /// // Add the mapping function as an argument to the operator via the OperatorConfig.
@@ -75,20 +75,19 @@ pub trait Filter<D1>
 where
     D1: Data + for<'a> Deserialize<'a>,
 {
-    fn filter<F: 'static + Fn(&D1) -> bool + Send + Sync + Clone>(
-        &self,
-        filter_fn: F,
-    ) -> Stream<D1>;
+    fn filter<F>(&self, filter_fn: F) -> Stream<D1>
+    where
+        F: 'static + Fn(&D1) -> bool + Send + Sync + Clone;
 }
 
 impl<D1> Filter<D1> for Stream<D1>
 where
     D1: Data + for<'a> Deserialize<'a>,
 {
-    fn filter<F: 'static + Fn(&D1) -> bool + Send + Sync + Clone>(
-        &self,
-        filter_fn: F,
-    ) -> Stream<D1> {
+    fn filter<F>(&self, filter_fn: F) -> Stream<D1>
+    where
+        F: 'static + Fn(&D1) -> bool + Send + Sync + Clone,
+    {
         let op_name = format!("FilterOp_{}", self.id());
 
         crate::connect_one_in_one_out(

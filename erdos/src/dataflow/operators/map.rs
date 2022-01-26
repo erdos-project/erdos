@@ -14,8 +14,8 @@ use crate::dataflow::{
 /// function.
 ///
 /// # Example
-/// The below example shows how to use a MapOperator to double an incoming stream of usize messages,
-/// and return them.
+/// The below example shows how to use a MapOperator to double an incoming stream of usize
+/// messages, and return them.
 ///
 /// ```
 /// // Add the mapping function as an argument to the operator via the OperatorConfig.
@@ -77,7 +77,9 @@ where
     D1: Data + for<'a> Deserialize<'a>,
     D2: Data + for<'a> Deserialize<'a>,
 {
-    fn map<F: 'static + Fn(&D1) -> D2 + Send + Sync + Clone>(&self, map_fn: F) -> Stream<D2>;
+    fn map<F>(&self, map_fn: F) -> Stream<D2>
+    where
+        F: 'static + Fn(&D1) -> D2 + Send + Sync + Clone;
 }
 
 impl<D1, D2> Map<D1, D2> for Stream<D1>
@@ -85,7 +87,10 @@ where
     D1: Data + for<'a> Deserialize<'a>,
     D2: Data + for<'a> Deserialize<'a>,
 {
-    fn map<F: 'static + Fn(&D1) -> D2 + Send + Sync + Clone>(&self, map_fn: F) -> Stream<D2> {
+    fn map<F>(&self, map_fn: F) -> Stream<D2>
+    where
+        F: 'static + Fn(&D1) -> D2 + Send + Sync + Clone,
+    {
         let op_name = format!("MapOp_{}", self.id());
 
         crate::connect_one_in_one_out(

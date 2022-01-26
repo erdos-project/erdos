@@ -15,8 +15,9 @@ use crate::dataflow::{
 /// otherwise.
 ///
 /// # Example
-/// The below example shows how to use a SplitOperator to split an incoming stream of usize messages into two different streams
-/// one with messages > 10 (left stream) and one with messages <= 10 (right stream), and send them.
+/// The below example shows how to use a SplitOperator to split an incoming stream of usize
+/// messages into two different streams one with messages > 10 (left stream) and one with
+/// messages <= 10 (right stream), and send them.
 ///
 /// ```
 /// // Add the mapping function as an argument to the operator via the OperatorConfig.
@@ -84,20 +85,19 @@ pub trait Split<D1>
 where
     D1: Data + for<'a> Deserialize<'a>,
 {
-    fn split<F: 'static + Fn(&D1) -> bool + Send + Sync + Clone>(
-        &self,
-        split_fn: F,
-    ) -> (Stream<D1>, Stream<D1>);
+    fn split<F>(&self, split_fn: F) -> (Stream<D1>, Stream<D1>)
+    where
+        F: 'static + Fn(&D1) -> bool + Send + Sync + Clone;
 }
 
 impl<D1> Split<D1> for Stream<D1>
 where
     D1: Data + for<'a> Deserialize<'a>,
 {
-    fn split<F: 'static + Fn(&D1) -> bool + Send + Sync + Clone>(
-        &self,
-        split_fn: F,
-    ) -> (Stream<D1>, Stream<D1>) {
+    fn split<F>(&self, split_fn: F) -> (Stream<D1>, Stream<D1>)
+    where
+        F: 'static + Fn(&D1) -> bool + Send + Sync + Clone,
+    {
         let op_name = format!("SplitOp_{}", self.id());
 
         crate::connect_one_in_two_out(
