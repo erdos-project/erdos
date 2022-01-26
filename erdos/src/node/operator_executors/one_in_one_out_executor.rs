@@ -89,9 +89,11 @@ where
     }
 
     fn execute_run(&mut self, read_stream: &mut ReadStream<T>) {
-        Arc::get_mut(&mut self.operator)
-            .unwrap()
-            .run(&self.config, read_stream, &mut self.write_stream);
+        Arc::get_mut(&mut self.operator).unwrap().run(
+            &self.config,
+            read_stream,
+            &mut self.write_stream,
+        );
     }
 
     fn execute_destroy(&mut self) {

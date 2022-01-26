@@ -104,7 +104,13 @@ where
 {
     fn setup(&mut self, setup_context: &mut SetupContext<S>) {}
 
-    fn run(&mut self, config: &OperatorConfig, read_stream: &mut ReadStream<T>, write_stream: &mut WriteStream<U>) {}
+    fn run(
+        &mut self,
+        config: &OperatorConfig,
+        read_stream: &mut ReadStream<T>,
+        write_stream: &mut WriteStream<U>,
+    ) {
+    }
 
     fn destroy(&mut self) {}
 
@@ -134,7 +140,13 @@ where
 {
     fn setup(&mut self, setup_context: &mut SetupContext<S>) {}
 
-    fn run(&mut self, config: &OperatorConfig, read_stream: &mut ReadStream<T>, write_stream: &mut WriteStream<U>) {}
+    fn run(
+        &mut self,
+        config: &OperatorConfig,
+        read_stream: &mut ReadStream<T>,
+        write_stream: &mut WriteStream<U>,
+    ) {
+    }
 
     fn destroy(&mut self) {}
 

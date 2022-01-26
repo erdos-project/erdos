@@ -1,5 +1,5 @@
 use crate::dataflow::{
-    operator::{Source, OperatorConfig},
+    operator::{OperatorConfig, Source},
     operators::ros::*,
     stream::{WriteStream, WriteStreamT},
     Data, Message,
@@ -72,7 +72,11 @@ where
                 let erdos_msg_vec = (from_ros_msg)(&ros_msg);
 
                 for erdos_msg in erdos_msg_vec.into_iter() {
-                    tracing::trace!("{}: Received and Converted {:?}", config_clone.get_name(), erdos_msg,);
+                    tracing::trace!(
+                        "{}: Received and Converted {:?}",
+                        config_clone.get_name(),
+                        erdos_msg,
+                    );
                     // Sends converted message on ERDOS stream.
                     write_stream_clone.lock().unwrap().send(erdos_msg).unwrap();
                 }
