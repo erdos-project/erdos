@@ -82,7 +82,7 @@ where
     D: Data + for<'a> Deserialize<'a>,
 {
     fn concat(&self, other: &Stream<D>) -> Stream<D> {
-        let name = format!("Concat_{}_{}", self.name(), other.name());
+        let name = format!("ConcatOp_{}_{}", self.name(), other.name());
         crate::connect_two_in_one_out(
             ConcatOperator::new,
             || {},
