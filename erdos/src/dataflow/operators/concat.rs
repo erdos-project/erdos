@@ -1,7 +1,11 @@
 use serde::Deserialize;
 
-use crate::dataflow::{
-    context::TwoInOneOutContext, operator::TwoInOneOut, stream::WriteStreamT, Data, Message,
+use crate::{
+    dataflow::{
+        context::TwoInOneOutContext, operator::TwoInOneOut, stream::WriteStreamT, Data, Message,
+        Stream,
+    },
+    OperatorConfig,
 };
 
 /// Merges the contents of two streams.
@@ -11,7 +15,22 @@ use crate::dataflow::{
 /// In other words, when `min(left_watermark_timestamp, right_watermark_timestamp)` increases,
 /// the operator sends a watermark with an equivalent timestamp.
 ///
-///
+/// ```
+/// # use erdos::dataflow::{stream::{IngestStream, Stream}, operator::OperatorConfig, operators::ConcatOperator};
+/// # let left_stream: IngestStream<usize> = IngestStream::new();
+/// # let right_stream: IngestStream<usize> = IngestStream::new();
+/// #
+/// # let left_stream: Stream<_> = From::from(&left_stream);
+/// # let right_stream: Stream<_> = From::from(&right_stream);
+/// #
+/// let merged_stream = erdos::connect_two_in_one_out(
+///     ConcatOperator::new,
+///     || {},
+///     OperatorConfig::new().name("ConcatOperator"),
+///     &left_stream,
+///     &right_stream,
+/// );
+/// ```
 pub struct ConcatOperator {}
 
 impl ConcatOperator {
@@ -37,8 +56,36 @@ where
     fn on_watermark(&mut self, ctx: &mut TwoInOneOutContext<(), D>) {}
 }
 
-#[cfg(test)]
-mod test {
-    #[test]
-    fn test_concat() {}
+/// Convenience trait for merging the contents of two streams.
+///
+/// ```
+/// # use erdos::dataflow::{stream::{IngestStream, Stream}, operator::OperatorConfig, operators::Concat};
+/// # let left_stream: IngestStream<usize> = IngestStream::new();
+/// # let right_stream: IngestStream<usize> = IngestStream::new();
+/// #
+/// # let left_stream: Stream<_> = From::from(&left_stream);
+/// # let right_stream: Stream<_> = From::from(&right_stream);
+/// #
+/// let merged_stream = left_stream.concat(&right_stream);
+/// ```
+pub trait Concat<D>
+where
+    D: Data + for<'a> Deserialize<'a>,
+{
+    fn concat(&self, other: &Stream<D>) -> Stream<D>;
+}
+
+impl<D> Concat<D> for Stream<D>
+where
+    D: Data + for<'a> Deserialize<'a>,
+{
+    fn concat(&self, other: &Stream<D>) -> Stream<D> {
+        crate::connect_two_in_one_out(
+            ConcatOperator::new,
+            || {},
+            OperatorConfig::new().name("ConcatOperator"),
+            self,
+            other,
+        )
+    }
 }
