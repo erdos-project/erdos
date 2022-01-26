@@ -32,7 +32,6 @@ impl Source<(), usize> for SourceOperator {
                 .send(Message::new_watermark(timestamp))
                 .unwrap();
             thread::sleep(Duration::from_millis(100));
-            // thread::sleep(Duration::new(5, 0));
         }
     }
 
