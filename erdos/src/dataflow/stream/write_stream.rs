@@ -27,13 +27,13 @@ use super::{errors::SendError, StreamId, WriteStreamT};
 /// # use std::{thread, time::Duration};
 /// #
 /// # use erdos::dataflow::{
-/// #     operator::Source, stream::WriteStreamT, Message, Timestamp, WriteStream
+/// #     operator::{Source, OperatorConfig}, stream::WriteStreamT, Message, Timestamp, WriteStream
 /// # };
 /// #
 /// struct CounterOperator {}
 ///
 /// impl Source<(), usize> for CounterOperator {
-///     fn run(&mut self, write_stream: &mut WriteStream<usize>) {
+///     fn run(&mut self, config: &OperatorConfig, write_stream: &mut WriteStream<usize>) {
 ///         for t in 0..10 {
 ///             let timestamp = Timestamp::Time(vec![t as u64]);
 ///             write_stream
