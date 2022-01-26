@@ -22,7 +22,7 @@ use std::marker::PhantomData;
 
 use serde::Deserialize;
 
-use crate::dataflow::{Data, Message};
+use crate::dataflow::{operators::*, Data, Message, OperatorConfig};
 
 // Private submodules
 mod extract_stream;
@@ -85,6 +85,86 @@ impl<D: Data> Stream<D> {
 
     pub fn id(&self) -> StreamId {
         self.id
+    }
+}
+
+// Extension Trait for MapOperator
+pub trait Map<D1, D2>
+where
+    D1: Data + for<'a> Deserialize<'a>,
+    D2: Data + for<'a> Deserialize<'a>,
+{
+    fn map<F: 'static + Fn(&D1) -> D2 + Send + Sync + Clone>(&self, map_fn: F) -> Stream<D2>;
+}
+
+impl<D1, D2> Map<D1, D2> for Stream<D1>
+where
+    D1: Data + for<'a> Deserialize<'a>,
+    D2: Data + for<'a> Deserialize<'a>,
+{
+    fn map<F: 'static + Fn(&D1) -> D2 + Send + Sync + Clone>(&self, map_fn: F) -> Stream<D2> {
+        crate::connect_one_in_one_out(
+            move || -> MapOperator<D1, D2> { MapOperator::new(map_fn.clone()) },
+            || {},
+            OperatorConfig::new().name("MapOperator"),
+            self,
+        )
+    }
+}
+
+// Extension trait for FilterOperator
+pub trait Filter<D1>
+where
+    D1: Data + for<'a> Deserialize<'a>,
+{
+    fn filter<F: 'static + Fn(&D1) -> bool + Send + Sync + Clone>(
+        &self,
+        filter_fn: F,
+    ) -> Stream<D1>;
+}
+
+impl<D1> Filter<D1> for Stream<D1>
+where
+    D1: Data + for<'a> Deserialize<'a>,
+{
+    fn filter<F: 'static + Fn(&D1) -> bool + Send + Sync + Clone>(
+        &self,
+        filter_fn: F,
+    ) -> Stream<D1> {
+        crate::connect_one_in_one_out(
+            move || -> FilterOperator<D1> { FilterOperator::new(filter_fn.clone()) },
+            || {},
+            OperatorConfig::new().name("FilterOperator"),
+            self,
+        )
+    }
+}
+
+// Extension trait for SplitOperator
+pub trait Split<D1>
+where
+    D1: Data + for<'a> Deserialize<'a>,
+{
+    fn split<F: 'static + Fn(&D1) -> bool + Send + Sync + Clone>(
+        &self,
+        split_fn: F,
+    ) -> (Stream<D1>, Stream<D1>);
+}
+
+impl<D1> Split<D1> for Stream<D1>
+where
+    D1: Data + for<'a> Deserialize<'a>,
+{
+    fn split<F: 'static + Fn(&D1) -> bool + Send + Sync + Clone>(
+        &self,
+        split_fn: F,
+    ) -> (Stream<D1>, Stream<D1>) {
+        crate::connect_one_in_two_out(
+            move || -> SplitOperator<D1> { SplitOperator::new(split_fn.clone()) },
+            || {},
+            OperatorConfig::new().name("SplitOperator"),
+            self,
+        )
     }
 }
 
