@@ -20,9 +20,11 @@ use crate::dataflow::{
 /// messages <= 10 (right stream), and send them.
 ///
 /// ```
+/// # use erdos::dataflow::{stream::IngestStream, operator::{OperatorConfig}, operators::{SplitOperator}};
+/// # let source_stream = IngestStream::new();
 /// // Add the mapping function as an argument to the operator via the OperatorConfig.
 /// let split_config = OperatorConfig::new().name("SplitOperator");
-/// let (left_stream, right_stream) = erdos::connect_one_in_one_out(
+/// let (left_stream, right_stream) = erdos::connect_one_in_two_out(
 ///     || -> SplitOperator<usize> { SplitOperator::new(|a: &usize| -> bool { a > &10 }) },
 ///     || {},
 ///     split_config,

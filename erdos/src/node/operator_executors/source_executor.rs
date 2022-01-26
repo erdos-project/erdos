@@ -68,7 +68,7 @@ where
             self.config.get_name()
         );
 
-        tokio::task::block_in_place(|| self.operator.run(&mut self.write_stream));
+        tokio::task::block_in_place(|| self.operator.run(&self.config, &mut self.write_stream));
         tokio::task::block_in_place(|| self.operator.destroy());
 
         // Close the stream.

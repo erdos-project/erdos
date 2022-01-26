@@ -48,6 +48,7 @@ impl PyTwoInOneOut {
 impl TwoInOneOut<(), Vec<u8>, Vec<u8>, Vec<u8>> for PyTwoInOneOut {
     fn run(
         &mut self,
+        _config: &OperatorConfig,
         left_read_stream: &mut ReadStream<Vec<u8>>,
         right_read_stream: &mut ReadStream<Vec<u8>>,
         write_stream: &mut WriteStream<Vec<u8>>,

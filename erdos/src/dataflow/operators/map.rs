@@ -18,7 +18,8 @@ use crate::dataflow::{
 /// messages, and return them.
 ///
 /// ```
-/// // Add the mapping function as an argument to the operator via the OperatorConfig.
+/// # use erdos::dataflow::{stream::IngestStream, operator::{OperatorConfig}, operators::{MapOperator}};
+/// # let source_stream = IngestStream::new();
 /// let map_stream = erdos::connect_one_in_one_out(
 ///     || -> MapOperator<usize, usize> { MapOperator::new(|a: &usize| -> usize { 2 * a }) },
 ///     || {},

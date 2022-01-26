@@ -80,7 +80,9 @@ where
     }
 
     fn execute_run(&mut self, read_stream: &mut ReadStream<T>) {
-        Arc::get_mut(&mut self.operator).unwrap().run(read_stream);
+        Arc::get_mut(&mut self.operator)
+            .unwrap()
+            .run(&self.config, read_stream);
     }
 
     fn execute_destroy(&mut self) {
@@ -231,7 +233,7 @@ where
     }
 
     fn execute_run(&mut self, read_stream: &mut ReadStream<T>) {
-        self.operator.lock().unwrap().run(read_stream);
+        self.operator.lock().unwrap().run(&self.config, read_stream);
     }
 
     fn execute_destroy(&mut self) {

@@ -18,6 +18,8 @@ use crate::dataflow::{
 /// stream of usize messages, and send them.
 ///
 /// ```
+/// # use erdos::dataflow::{stream::IngestStream, operator::{OperatorConfig}, operators::{FilterOperator}};
+/// # let source_stream = IngestStream::new();
 /// // Add the mapping function as an argument to the operator via the OperatorConfig.
 /// let filter_config = OperatorConfig::new().name("FilterOperator");
 /// let filter_stream = erdos::connect_one_in_one_out(
