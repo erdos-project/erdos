@@ -53,7 +53,7 @@ where
         ctx.get_write_stream().send(msg).unwrap();
     }
 
-    fn on_watermark(&mut self, ctx: &mut TwoInOneOutContext<(), D>) {}
+    fn on_watermark(&mut self, _ctx: &mut TwoInOneOutContext<(), D>) {}
 }
 
 /// Convenience trait for merging the contents of two streams.
