@@ -1,90 +1,20 @@
 import json
 from collections import defaultdict, deque
+from typing import Any
+
+from erdos.streams import ReadStream, WriteStream
+from erdos.context import (SinkContext, OneInOneOutContext, OneInTwoOutContext,
+                           TwoInOneOutContext)
 
 import numpy as np
 
 MAX_NUM_RUNTIME_SAMPLES = 1000
 
 
-class Operator(object):
-    """An :py:class:`Operator` is an abstract base class that needs to be
-    inherited by user-defined operators in order to be run in an ERDOS dataflow
-    graph.
-
-    A user-defined operator needs to inherit from :py:class:`Operator` and
-    implement :py:func:`Operator.__init__` and :py:func:`Operator.connect` in
-    order to be connected to the dataflow graph. For example, a `MapOperator`
-    that takes in a single input stream and outputs data on a single output
-    stream can be implemented as follows::
-
-        class MapOperator(erdos.Operator):
-            def __init__(self, read_stream, write_stream):
-                # Register callbacks on read streams and save write streams.
-                pass
-
-            @staticmethod
-            def connect(read_stream):
-                return erdos.WriteStream()
-
-    Instead of ERDOS invoking callbacks registered on the read streams, an
-    operator can also take control of the execution by overriding the
-    :py:func:`Operator.run` method as follows::
-
-        class MapOperator(erdos.Operator):
-            def run(self):
-                message = self.read_stream.read()
-                # Work on the message.
+class BaseOperator(object):
+    """A :py:class:`BaseOperator` is an internal class that provides the
+    methods common to the individual operators.
     """
-    def __init__(self, *streams):
-        """Instantiates the operator.
-
-        ERDOS will pass read streams followed by write streams as arguments,
-        matching the read streams and write streams in
-        :py:func:`Operator.connect`.
-
-        Invoked automatically during :py:func:`.run`.
-
-        Note:
-            An ERDOS operator implementation should not call
-            `super().__init__()` because the setup is handled by ERDOS.
-        """
-        pass
-
-    def __new__(cls, *args, **kwargs):
-        """Set up variables before call to `__init__` on the python end.
-
-        More setup is done in the Rust backend at `src/python/mod.rs`.
-        """
-        instance = super(Operator, cls).__new__(cls, *args, **kwargs)
-        instance._trace_events = []
-        instance._runtime_stats = defaultdict(deque)
-        return instance
-
-    @staticmethod
-    def connect(*read_streams):
-        """Connects the operator to its read streams and returns its
-        write streams. This method should return all the write streams that the
-        operator intends to use.
-
-        Invoked automatically during :py:func:`.connect`.
-        """
-        raise NotImplementedError
-
-    def run(self):
-        """Runs the operator.
-
-        Invoked automatically during :py:func:`.run`.
-        """
-        pass
-
-    def destroy(self):
-        """Destroys the operator.
-
-        Invoked automatically once all `ReadStreams` the operator reads from
-        are closed and `run()` completes.
-        """
-        pass
-
     @property
     def id(self):
         """Returns the operator's ID."""
@@ -125,6 +55,343 @@ class Operator(object):
         import json
         with open(file_name, "w") as write_file:
             json.dump(self._trace_events, write_file)
+
+
+class Source(BaseOperator):
+    """A :py:class:`Source` is an abstract base class that needs to be
+    inherited by user-defined source operators that generate data on a single
+    :py:class:`WriteStream` in an ERDOS dataflow graph.
+
+    A user-defined operator needs to implement the :py:func:`Source.run` and
+    :py:func:`Source.destroy` in order to take control of the execution and the
+    teardown of the operator respectively.
+    """
+    def __new__(cls, *args, **kwargs):
+        """Set up variables before call to `__init__` on the python end.
+
+        More setup is done in the Rust backend at `src/python/mod.rs`.
+        """
+        instance = super(Source, cls).__new__(cls, *args, **kwargs)
+        instance._trace_events = []
+        instance._runtime_stats = defaultdict(deque)
+        return instance
+
+    def run(self, write_stream: WriteStream):
+        """Runs the operator.
+
+        Invoked automatically by ERDOS, and provided with a
+        :py:class:`WriteStream` to send data on.
+
+        Args:
+            write_stream: A :py:class:`WriteStream` instance to send data on.
+        """
+        pass
+
+    def destroy(self):
+        """Destroys the operator.
+
+        Invoked automatically by ERDOS once :py:func:`.run` finishes its
+        execution, and can be used by the operator to teardown its state
+        gracefully.
+        """
+        pass
+
+
+class Sink(BaseOperator):
+    """A :py:class:`Sink` is an abstract class that needs to be inherited by
+    user-defined sink operators that consume data from a single
+    :py:class:`ReadStream` in an ERDOS dataflow graph.
+
+    The user-defined operator can either implement the :py:func:`run` method
+    and retrieve data from the provided `read_stream` or implement the
+    :py:func:`on_data` and :py:func:`on_watermark` methods to request a
+    callback upon receipt of messages and watermarks.
+    """
+    def __new__(cls, *args, **kwargs):
+        """Set up variables before call to `__init__` on the python end.
+
+        More setup is done in the Rust backend at `src/python/mod.rs`.
+        """
+        instance = super(Sink, cls).__new__(cls, *args, **kwargs)
+        instance._trace_events = []
+        instance._runtime_stats = defaultdict(deque)
+        return instance
+
+    def run(self, read_stream: ReadStream):
+        """Runs the operator.
+
+        Invoked automatically by ERDOS, and provided with a
+        :py:class:`ReadStream` to retrieve data from.
+
+        Args:
+            read_stream: A :py:class:`ReadStream` instance to read data from.
+        """
+        pass
+
+    def on_data(self, context: SinkContext, data: Any):
+        """Callback invoked upon receipt of a :py:class:`Message` on the
+        operator's :py:class:`ReadStream`.
+
+        Args:
+            context: A :py:class:`SinkContext` instance to retrieve metadata
+                about the current invocation of the callback.
+            data: The data contained in the message received on the read
+                stream.
+        """
+        pass
+
+    def on_watermark(self, context: SinkContext):
+        """Callback invoked upon receipt of a :py:class:`WatermarkMessage` on
+        the operator's :py:class:`ReadStream`.
+
+        Args:
+            context: A :py:class:`SinkContext` instance to retrieve metadata
+                about the current invocation of the callback.
+        """
+        pass
+
+    def destroy(self):
+        """Destroys the operator.
+
+        Invoked automatically by ERDOS once :py:func:`.run` finishes its
+        execution, or when a watermark for the top timestamp is received on the
+        read stream, and can be used by the operator to teardown its state
+        gracefully.
+        """
+        pass
+
+
+class OneInOneOut(BaseOperator):
+    """A :py:class:`OneInOneOut` is an abstract base class that needs to be
+    inherited by user-defined operators that consume data from a single
+    :py:class:`ReadStream` and produce data on a single :py:class:`WriteStream`
+    in an ERDOS dataflow graph.
+
+    The user-defined operator can either implement the :py:func:`run` method
+    and retrieve data from the provided `read_stream` and send data on the
+    `write_stream` or implement the :py:func:`on_data` and
+    :py:func:`on_watermark` methods to request a callback upon receipt of
+    messages and watermarks.
+    """
+    def __new__(cls, *args, **kwargs):
+        """Set up variables before call to `__init__` on the python end.
+
+        More setup is done in the Rust backend at `src/python/mod.rs`.
+        """
+        instance = super(OneInOneOut, cls).__new__(cls, *args, **kwargs)
+        instance._trace_events = []
+        instance._runtime_stats = defaultdict(deque)
+        return instance
+
+    def run(self, read_stream: ReadStream, write_stream: WriteStream):
+        """Runs the operator.
+
+        Invoked automatically by ERDOS, and provided with a
+        :py:class:`ReadStream` to retrieve data from, and a
+        :py:class:`WriteStream` to send data on.
+
+        Args:
+            read_stream: A :py:class:`ReadStream` instance to read data from.
+            write_stream: A :py:class:`WriteStream` instance to send data on.
+        """
+        pass
+
+    def on_data(self, context: OneInOneOutContext, data: Any):
+        """Callback invoked upon receipt of a :py:class:`Message` on the
+        operator's :py:class:`ReadStream`.
+
+        Args:
+            context: A :py:class:`OneInOneOutContext` instance to retrieve
+                metadata about the current invocation of the callback.
+            data: The data contained in the message received on the read
+                stream.
+        """
+        pass
+
+    def on_watermark(self, context: OneInOneOutContext):
+        """Callback invoked upon receipt of a :py:class:`WatermarkMessage` on
+        the operator's :py:class:`ReadStream`.
+
+        Args:
+            context: A :py:class:`OneInOneOutContext` instance to retrieve
+                metadata about the current invocation of the callback.
+        """
+        pass
+
+    def destroy(self):
+        """Destroys the operator.
+
+        Invoked automatically by ERDOS once :py:func:`.run` finishes its
+        execution, or when a watermark for the top timestamp is received on the
+        read stream, and can be used by the operator to teardown its state
+        gracefully.
+        """
+        pass
+
+
+class TwoInOneOut(BaseOperator):
+    """A :py:class:`TwoInOneOut` is an abstract base class that needs to be
+    inherited by user-defined operators that consume data from two
+    :py:class:`ReadStream` instances and produces data on a single
+    :py:class:`WriteStream` in an ERDOS dataflow graph.
+
+    The user-defined operator can either implement the :py:func:`run` method
+    and retrieve data from the provided `left_read_stream` and
+    `right_read_stream` or implement the :py:func:`on_left_data`,
+    :py:func:`on_right_data` and :py:func:`on_watermark` methods to request a
+    callback upon receipt of messages and watermarks.
+    """
+    def __new__(cls, *args, **kwargs):
+        """Set up variables before call to `__init__` on the python end.
+
+        More setup is done in the Rust backend at `src/python/mod.rs`.
+        """
+        instance = super(TwoInOneOut, cls).__new__(cls, *args, **kwargs)
+        instance._trace_events = []
+        instance._runtime_stats = defaultdict(deque)
+        return instance
+
+    def run(
+        self,
+        left_read_stream: ReadStream,
+        right_read_stream: ReadStream,
+        write_stream: WriteStream,
+    ):
+        """Runs the operator.
+
+        Invoked automatically by ERDOS, and provided with two instances of
+        :py:class:`ReadStream` to retrieve data from, and a
+        :py:class:`WriteStream` to send data on.
+
+        Args:
+            left_read_stream: The first :py:class:`ReadStream` instance to
+                read data from.
+            right_read_stream: The second :py:class:`ReadStream` instance to
+                read data from.
+            write_stream: A :py:class:`WriteStream` instance to send data on.
+        """
+        pass
+
+    def on_left_data(self, context: TwoInOneOutContext, data: Any):
+        """Callback invoked upon receipt of a :py:class:`Message` on the
+        `left_read_stream`.
+
+        Args:
+            context: A :py:class:`TwoInOneOutContext` instance to retrieve
+                metadata about the current invocation of the callback.
+            data: The data contained in the message received on the read
+                stream.
+        """
+        pass
+
+    def on_right_data(self, context: TwoInOneOutContext, data: Any):
+        """Callback invoked puon receipt of a :py:class:`Message` on the
+        `right_read_stream`.
+
+        Args:
+            context: A :py:class:`TwoInOneOutContext` instance to retrieve
+                metadata about the current invocation of the callback.
+            data: The data contained in the message received on the read
+                stream.
+        """
+        pass
+
+    def on_watermark(self, context: TwoInOneOutContext):
+        """Callback invoked upon receipt of a :py:class:`WatermarkMessage`
+        across the two instances of the operator's :py:class:`ReadStream`.
+
+        Args:
+            context: A :py:class:`TwoInOneOutContext` instance to retrieve
+                metadata about the current invocation of the callback.
+        """
+        pass
+
+    def destroy(self):
+        """Destroys the operator.
+
+        Invoked automatically by ERDOS once :py:func:`.run` finishes its
+        execution, or when a watermark for the top timestamp is received on
+        both the read streams, and can be used by the operator to teardown its
+        state gracefully.
+        """
+        pass
+
+
+class OneInTwoOut(BaseOperator):
+    """A :py:class:`OneInTwoOut` is an abstract base class that needs to be
+    inherited by user-defined operators that consume data from a single
+    :py:class:`ReadStream` instance and produce data on two instances of
+    :py:class:`WriteStream` in an ERDOS dataflow graph.
+
+    The user-defined operator can either implement the :py:func:`run` method
+    and retrieve data from the provided `read_stream` and produce data on the
+    `left_write_stream` and `right_write_stream`, or implement the
+    :py:func:`on_data` and :py:func:`on_watermark` methods to request a
+    callback upon receipt of messages and watermarks.
+    """
+    def __new__(cls, *args, **kwargs):
+        """Set up variables before call to `__init__` on the python end.
+
+        More setup is done in the Rust backend at `src/python/mod.rs`.
+        """
+        instance = super(OneInTwoOut, cls).__new__(cls, *args, **kwargs)
+        instance._trace_events = []
+        instance._runtime_stats = defaultdict(deque)
+        return instance
+
+    def run(
+        self,
+        read_stream: ReadStream,
+        left_write_stream: WriteStream,
+        right_write_stream: WriteStream,
+    ):
+        """Runs the operator.
+
+        Invoked automatically by ERDOS, and provided with a
+        :py:class:`ReadStream` instance to retrieve data from, and two
+        :py:class:`WriteStream` instances to send data on.
+
+        Args:
+            read_stream: The :py:class:`ReadStream` instance to retrieve data
+                from.
+            left_write_stream: The first :py:class:`WriteStream` instance to
+                send data on.
+            right_write_stream: The second :py:class:`WriteStream` instance to
+                send data on.
+        """
+        pass
+
+    def on_data(self, context: OneInTwoOutContext, data: Any):
+        """Callback invoked upon receipt of a :py:class:`Message` on the
+        `read_stream`.
+
+        Args:
+            context: A :py:class:`OneInTwoOutContext` instance to retrieve
+                metadata about the current invocation of the callback.
+            data: The data contained in the message received on the read
+                stream.
+        """
+        pass
+
+    def on_watermark(self, context: OneInTwoOutContext):
+        """Callback invoked upon receipt of a :py:class:`WatermarkMessage` on
+        the operator's :py:class:`ReadStream`.
+
+        Args:
+            context: A :py:class:`OneInTwoOutContext` instance to retrieve
+                metadata about the current invocation of the callback.
+        """
+        pass
+
+    def destroy(self):
+        """Destroys the operator.
+
+        Invoked automatically by ERDOS once :py:func:`.run` finishes its
+        execution, or when a watermark for the top timestamp is received on
+        the read stream, and can be used by the operator to teardown its state
+        gracefully.
+        """
+        pass
 
 
 class OperatorConfig(object):
@@ -178,3 +445,10 @@ class OperatorConfig(object):
     def profile_file_name(self):
         """File named used for profiling an operator's performance."""
         return self._profile_file_name
+
+    def __str__(self):
+        return "OperatorConfig(name={}, flow_watermarks={})".format(
+            self.name, self.flow_watermarks)
+
+    def __repr__(self):
+        return str(self)

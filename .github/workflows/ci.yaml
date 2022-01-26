@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Install latest Rust nightly
+      - name: Install supported Rust nightly
         uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
@@ -24,21 +24,45 @@ jobs:
           components: rustfmt, rust-src
       - name: Check Rust formatting
         run: cargo fmt -- --check
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.6
       - name: Build
-        run: cargo build --verbose
+        run: cargo build --examples --verbose
       - name: Run tests
         run: cargo test --verbose
+
+  ros-integration:
+    name: "ROS Integration"
+    runs-on: ubuntu-latest
+    container: ros:noetic
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install curl
+        run: apt-get update; apt-get install curl
+      - name: Install supported Rust nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          profile: minimal
+          override: true
+          components: rustfmt, rust-src
+      - name: Check Rust formatting
+        run: cargo fmt -- --check
+      - name: Build
+        shell: bash
+        run: |
+          source /opt/ros/$ROS_DISTRO/setup.bash
+          cargo build --examples --verbose --features=ros
+      - name: Run tests
+        shell: bash
+        run: |
+          source /opt/ros/$ROS_DISTRO/setup.bash
+          cargo test --verbose --features=ros
 
   build-python:
     name: "Python ${{ matrix.python-version }} Build"
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.6, 3.7, 3.8]
+        python-version: ["3.7", "3.8", "3.9", "3.10"]
     steps:
       - uses: actions/checkout@v2
       - name: Setup python
@@ -47,21 +71,19 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install Python dependencies
         run: |
-          python -m pip install setuptools_rust flake8 yapf flake8-quotes
+          python -m pip install maturin flake8 yapf==0.31.0 flake8-quotes
       - name: Check Python formatting
         run: |
-          flake8 --inline-quotes="double" ./doc/
+          flake8 --inline-quotes="double" ./python/doc/
           flake8 --inline-quotes="double" ./python/
-          flake8 --inline-quotes="double" ./scripts/
-          yapf --diff --recursive ./doc/
+          yapf --diff --recursive ./python/doc/
           yapf --diff --recursive ./python/
-          yapf --diff --recursive ./scripts/
-      - name: Install latest Rust nightly
+      - name: Install supported Rust nightly
         uses: actions-rs/toolchain@v1
         with:
           toolchain: nightly
+          profile: minimal
           override: true
-          components: rustfmt
+          components: rustfmt, rust-src
       - name: Build
-        # Building with develop is faster than with install
-        run: python python/setup.py develop
+        run: cd python && maturin build

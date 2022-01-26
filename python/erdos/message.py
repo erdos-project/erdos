@@ -1,6 +1,8 @@
+import pickle
 from typing import Any
 
 from erdos.timestamp import Timestamp
+from erdos.internal import PyMessage
 
 
 class Message(object):
@@ -24,6 +26,15 @@ class Message(object):
         self.timestamp = timestamp
         self.data = data
 
+    def _to_py_message(self) -> PyMessage:
+        """Converts the current message to a :py:class:`PyMessage`.
+
+        Returns:
+            The :py:class:`PyMessage` instance representing self.
+        """
+        data = pickle.dumps(self.data, protocol=pickle.HIGHEST_PROTOCOL)
+        return PyMessage(self.timestamp._to_py_timestamp(), data)
+
     def __str__(self):
         return "{{timestamp: {}, data: {}}}".format(self.timestamp, self.data)
 
@@ -41,6 +52,14 @@ class WatermarkMessage(Message):
 
     def __str__(self):
         return "{{timestamp: {}, watermark: True}}".format(self.timestamp)
+
+    def _to_py_message(self) -> PyMessage:
+        """Converts the current message to a :py:class:`PyMessage`.
+
+        Returns:
+            The :py:class:`PyMessage` instance representing self.
+        """
+        return PyMessage(self.timestamp._to_py_timestamp(), None)
 
     @property
     def is_top(self) -> bool:

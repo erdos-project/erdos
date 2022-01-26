@@ -1,56 +1,7 @@
-[package]
-name = "erdos"
-version = "0.3.1"
-authors = ["The ERDOS Team"]
-edition = "2018"
-build = "build.rs"
-default-run = "erdos"
-license = "Apache-2.0"
-readme = "README.md"
-documentation = "https://docs.rs/crate/erdos/"
-repository = "https://github.com/erdos-project/erdos"
-description = """
-ERDOS is a platform for developing self-driving cars and robotics applications.
-"""
-keywords = ["data-flow", "robotics", "autonomos", "driving"]
+[workspace]
 
-[dependencies]
-abomonation = "0.7.3"
-abomonation_derive = "0.5.0"
-async-trait = "0.1.18"
-bincode = "1.3.1"
-bytes = "0.5.6"
-byteorder = "1.3.4"
-clap = "2.33.0"
-futures = "0.3.5"
-futures-util = "0.3.5"
-lazy_static = "1.4.0"
-petgraph = "0.5.0"
-pyo3 = { version = "0.8.2", features = ["unsound-subclass"], optional = true }
-rand = "0.3"
-serde = { version = "1.0.115", features = ["derive"] }
-slog = "2.4.2"
-slog-term = "2.4.2"
-tokio = { version = "0.2.22", features = ["sync", "tcp", "io-util", "rt-core", "rt-threaded", "time", "macros", "stream", "blocking"] }
-tokio-util = { version = "0.3.1", features = ["codec"] }
-tokio-serde-bincode = "0.2"
-uuid = { version = "0.7", features = ["v4", "v5", "serde"] }
-
-[build-dependencies]
-slog = "2.4.2"
-slog-term = "2.4.2"
-
-[dev-dependencies]
-criterion = "0.3.3"
-criterion-macro = "0.3.3"
-nix = "0.17.0"
-
-[features]
-default = []
-python = ["pyo3"]  # Target python with 'cargo build --features=python
-
-[lib]
-crate-type=["rlib", "cdylib"]   # Required for python
-
-[[bench]]
-name = "latency"
+members = [
+    "erdos",
+    "python",
+    "examples",
+]
