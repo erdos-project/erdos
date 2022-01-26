@@ -8,6 +8,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
+  rust_toolchain: nightly-2021-12-04
 
 jobs:
   build-rust:
@@ -18,10 +19,11 @@ jobs:
       - name: Install supported Rust nightly
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: ${{ env.rust_toolchain }}
           profile: minimal
           override: true
           components: rustfmt, rust-src
+      - uses: Swatinem/rust-cache@v1
       - name: Check Rust formatting
         run: cargo fmt -- --check
       - name: Build
@@ -40,10 +42,11 @@ jobs:
       - name: Install supported Rust nightly
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: ${{ env.rust_toolchain }}
           profile: minimal
           override: true
           components: rustfmt, rust-src
+      - uses: Swatinem/rust-cache@v1
       - name: Check Rust formatting
         run: cargo fmt -- --check
       - name: Build
@@ -81,9 +84,10 @@ jobs:
       - name: Install supported Rust nightly
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
+          toolchain: ${{ env.rust_toolchain }}
           profile: minimal
           override: true
           components: rustfmt, rust-src
+      - uses: Swatinem/rust-cache@v1
       - name: Build
         run: cd python && maturin build
