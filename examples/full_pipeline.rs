@@ -5,7 +5,6 @@ use std::{collections::HashMap, thread, time::Duration};
 use erdos::dataflow::context::*;
 use erdos::dataflow::deadlines::*;
 use erdos::dataflow::operator::*;
-use erdos::dataflow::operators::*;
 use erdos::dataflow::stream::Filter;
 use erdos::dataflow::stream::IngestStream;
 use erdos::dataflow::stream::Map;
