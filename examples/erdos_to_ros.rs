@@ -23,8 +23,8 @@ impl SourceOperator {
 
 // This Source operator repeatedly sends String messages.
 impl Source<(), String> for SourceOperator {
-    fn run(&mut self, context: &OperatorConfig, write_stream: &mut WriteStream<String>) {
-        tracing::info!("Running {}", context.get_name());
+    fn run(&mut self, config: &OperatorConfig, write_stream: &mut WriteStream<String>) {
+        tracing::info!("Running {}", config.get_name());
         for t in 0..10 {
             let timestamp = Timestamp::Time(vec![t as u64]);
             write_stream
