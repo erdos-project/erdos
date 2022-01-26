@@ -445,14 +445,14 @@ fn main() {
         &ingest_stream,
     );
 
-    //let join_sum_config = OperatorConfig::new().name("JoinSumOperator");
-    //let join_stream = erdos::connect_two_in_one_out(
+    // let join_sum_config = OperatorConfig::new().name("JoinSumOperator");
+    // let join_stream = erdos::connect_two_in_one_out(
     //    JoinSumOperator::new,
     //    JoinSumOperatorState::new,
     //    join_sum_config,
     //    &source_stream,
     //    &sum_stream,
-    //);
+    // );
 
     //let even_odd_config = OperatorConfig::new().name("EvenOddOperator");
     //let (even_stream, odd_stream) =
