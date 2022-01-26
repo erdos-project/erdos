@@ -20,7 +20,7 @@ where
     S: State,
     T: Data + for<'a> Deserialize<'a>,
 {
-    fn run(&mut self, write_stream: &mut WriteStream<T>) {}
+    fn run(&mut self, config: &OperatorConfig, write_stream: &mut WriteStream<T>) {}
 
     fn destroy(&mut self) {}
 }
@@ -45,7 +45,7 @@ where
 pub trait ParallelSink<S: AppendableStateT<U>, T: Data, U>: Send + Sync {
     fn setup(&mut self, setup_context: &mut SetupContext<S>) {}
 
-    fn run(&mut self, read_stream: &mut ReadStream<T>) {}
+    fn run(&mut self, config: &OperatorConfig, read_stream: &mut ReadStream<T>) {}
 
     fn destroy(&mut self) {}
 
@@ -70,7 +70,7 @@ pub trait ParallelSink<S: AppendableStateT<U>, T: Data, U>: Send + Sync {
 pub trait Sink<S: StateT, T: Data>: Send + Sync {
     fn setup(&mut self, setup_context: &mut SetupContext<S>) {}
 
-    fn run(&mut self, read_stream: &mut ReadStream<T>) {}
+    fn run(&mut self, config: &OperatorConfig, read_stream: &mut ReadStream<T>) {}
 
     fn destroy(&mut self) {}
 
@@ -104,7 +104,7 @@ where
 {
     fn setup(&mut self, setup_context: &mut SetupContext<S>) {}
 
-    fn run(&mut self, read_stream: &mut ReadStream<T>, write_stream: &mut WriteStream<U>) {}
+    fn run(&mut self, config: &OperatorConfig, read_stream: &mut ReadStream<T>, write_stream: &mut WriteStream<U>) {}
 
     fn destroy(&mut self) {}
 
@@ -134,7 +134,7 @@ where
 {
     fn setup(&mut self, setup_context: &mut SetupContext<S>) {}
 
-    fn run(&mut self, read_stream: &mut ReadStream<T>, write_stream: &mut WriteStream<U>) {}
+    fn run(&mut self, config: &OperatorConfig, read_stream: &mut ReadStream<T>, write_stream: &mut WriteStream<U>) {}
 
     fn destroy(&mut self) {}
 
@@ -171,6 +171,7 @@ where
 
     fn run(
         &mut self,
+        config: &OperatorConfig,
         left_read_stream: &mut ReadStream<T>,
         right_read_stream: &mut ReadStream<U>,
         write_stream: &mut WriteStream<V>,
@@ -210,6 +211,7 @@ where
 
     fn run(
         &mut self,
+        config: &OperatorConfig,
         left_read_stream: &mut ReadStream<T>,
         right_read_stream: &mut ReadStream<U>,
         write_stream: &mut WriteStream<V>,
@@ -253,6 +255,7 @@ where
 
     fn run(
         &mut self,
+        config: &OperatorConfig,
         read_stream: &mut ReadStream<T>,
         left_write_stream: &mut WriteStream<U>,
         right_write_stream: &mut WriteStream<V>,
@@ -290,6 +293,7 @@ where
 
     fn run(
         &mut self,
+        config: &OperatorConfig,
         read_stream: &mut ReadStream<T>,
         left_write_stream: &mut WriteStream<U>,
         right_write_stream: &mut WriteStream<V>,

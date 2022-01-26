@@ -99,6 +99,7 @@ where
 
     fn execute_run(&mut self, read_stream: &mut ReadStream<T>) {
         Arc::get_mut(&mut self.operator).unwrap().run(
+            &self.config,
             read_stream,
             &mut self.left_write_stream,
             &mut self.right_write_stream,
@@ -363,6 +364,7 @@ where
 
     fn execute_run(&mut self, read_stream: &mut ReadStream<T>) {
         self.operator.lock().unwrap().run(
+            &self.config,
             read_stream,
             &mut self.left_write_stream,
             &mut self.right_write_stream,

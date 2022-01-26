@@ -42,7 +42,7 @@ impl PySink {
 }
 
 impl Sink<(), Vec<u8>> for PySink {
-    fn run(&mut self, read_stream: &mut ReadStream<Vec<u8>>) {
+    fn run(&mut self, config: &OperatorConfig, read_stream: &mut ReadStream<Vec<u8>>) {
         // Note on the unsafe execution: To conform to the Operator API that passes a mutable
         // reference to the `run` method of an operator, we convert the reference to a raw pointer
         // and create another object that points to the same memory location as the original
