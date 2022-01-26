@@ -5,8 +5,14 @@ edition = "2018"
 
 [dependencies]
 erdos = { path = "../erdos" }
-pyo3 = { version = "0.15.1", features = ["extension-module"] }
 tracing = "0.1.29"
+
+[dependencies.pyo3]
+version = "0.15.1"
+
+[features]
+extension-module = ["pyo3/extension-module"]
+default = ["extension-module"]
 
 [lib]
 name = "erdos_python"
