@@ -36,7 +36,7 @@ impl PySource {
 }
 
 impl Source<(), Vec<u8>> for PySource {
-    fn run(&mut self, config: &OperatorConfig, write_stream: &mut WriteStream<Vec<u8>>) {
+    fn run(&mut self, _config: &OperatorConfig, write_stream: &mut WriteStream<Vec<u8>>) {
         // Create the Python version of the WriteStream.
         let write_stream_clone = write_stream.clone();
         let write_stream_id = write_stream.id();
