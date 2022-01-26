@@ -86,10 +86,12 @@ where
     D2: Data + for<'a> Deserialize<'a>,
 {
     fn map<F: 'static + Fn(&D1) -> D2 + Send + Sync + Clone>(&self, map_fn: F) -> Stream<D2> {
+        let op_name = format!("{} MapOp", self.name());
+
         crate::connect_one_in_one_out(
             move || -> MapOperator<D1, D2> { MapOperator::new(map_fn.clone()) },
             || {},
-            OperatorConfig::new().name("MapOperator"),
+            OperatorConfig::new().name(&op_name),
             self,
         )
     }

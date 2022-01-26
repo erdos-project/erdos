@@ -98,10 +98,12 @@ where
         &self,
         split_fn: F,
     ) -> (Stream<D1>, Stream<D1>) {
+        let op_name = format!("{} SplitOp", self.name());
+
         crate::connect_one_in_two_out(
             move || -> SplitOperator<D1> { SplitOperator::new(split_fn.clone()) },
             || {},
-            OperatorConfig::new().name("SplitOperator"),
+            OperatorConfig::new().name(&op_name),
             self,
         )
     }

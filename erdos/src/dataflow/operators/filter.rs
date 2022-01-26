@@ -89,10 +89,12 @@ where
         &self,
         filter_fn: F,
     ) -> Stream<D1> {
+        let op_name = format!("{} FilterOp", self.name());
+
         crate::connect_one_in_one_out(
             move || -> FilterOperator<D1> { FilterOperator::new(filter_fn.clone()) },
             || {},
-            OperatorConfig::new().name("FilterOperator"),
+            OperatorConfig::new().name(&op_name),
             self,
         )
     }
