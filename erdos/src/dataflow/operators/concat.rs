@@ -58,6 +58,7 @@ where
 
 /// Convenience trait for merging the contents of two streams.
 ///
+/// Names the [`ConcatOperator`] using the names of the two merged streams.
 /// ```
 /// # use erdos::dataflow::{stream::{IngestStream, Stream}, operator::OperatorConfig, operators::Concat};
 /// # let left_stream: IngestStream<usize> = IngestStream::new();
@@ -80,10 +81,11 @@ where
     D: Data + for<'a> Deserialize<'a>,
 {
     fn concat(&self, other: &Stream<D>) -> Stream<D> {
+        let name = format!("concat-{}-{}", self.name(), other.name());
         crate::connect_two_in_one_out(
             ConcatOperator::new,
             || {},
-            OperatorConfig::new().name("ConcatOperator"),
+            OperatorConfig::new().name(&name),
             self,
             other,
         )
