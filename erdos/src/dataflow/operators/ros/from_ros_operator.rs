@@ -1,5 +1,5 @@
 use crate::dataflow::{
-    operator::Source,
+    operator::{OperatorConfig, Source},
     operators::ros::*,
     stream::{WriteStream, WriteStreamT},
     Data, Message,
@@ -62,8 +62,9 @@ impl<T: rosrust::Message, U> Source<(), U> for FromRosOperator<T, U>
 where
     U: Data + for<'a> Deserialize<'a>,
 {
-    fn run(&mut self, write_stream: &mut WriteStream<U>) {
+    fn run(&mut self, config: &OperatorConfig, write_stream: &mut WriteStream<U>) {
         let from_ros_msg = self.from_ros_msg.clone();
+        let config_clone = config.clone();
         let write_stream_clone = Arc::new(Mutex::new(write_stream.clone()));
 
         let _subscriber_raii =
@@ -71,7 +72,11 @@ where
                 let erdos_msg_vec = (from_ros_msg)(&ros_msg);
 
                 for erdos_msg in erdos_msg_vec.into_iter() {
-                    tracing::trace!("FromRosOperator: Received and Converted {:?}", erdos_msg,);
+                    tracing::trace!(
+                        "{}: Received and Converted {:?}",
+                        config_clone.get_name(),
+                        erdos_msg,
+                    );
                     // Sends converted message on ERDOS stream.
                     write_stream_clone.lock().unwrap().send(erdos_msg).unwrap();
                 }
