@@ -58,7 +58,8 @@ where
 
 /// Convenience trait for merging the contents of two streams.
 ///
-/// Names the [`ConcatOperator`] using the names of the two merged streams.
+/// Names the [`ConcatOperator`] using the names of the two merged streams,
+/// in the format `concat-{left_stream_name}-{right_stream_name}`.
 /// ```
 /// # use erdos::dataflow::{stream::{IngestStream, Stream}, operator::OperatorConfig, operators::Concat};
 /// # let left_stream: IngestStream<usize> = IngestStream::new();
