@@ -111,21 +111,21 @@ fn main() {
         .filter(|a: &usize| -> bool { a > &10 })
         .split(|a: &usize| -> bool { a < &50 });
 
-    // let left_sink_config = OperatorConfig::new().name("LeftSinkOperator");
-    // erdos::connect_sink(
-    //     SinkOperator::new,
-    //     SinkOperatorState::new,
-    //     left_sink_config,
-    //     &split_stream_less_50,
-    // );
+    let left_sink_config = OperatorConfig::new().name("LeftSinkOperator");
+    erdos::connect_sink(
+        SinkOperator::new,
+        SinkOperatorState::new,
+        left_sink_config,
+        &split_stream_less_50,
+    );
 
-    // let right_sink_config = OperatorConfig::new().name("RightSinkOperator");
-    // erdos::connect_sink(
-    //     SinkOperator::new,
-    //     SinkOperatorState::new,
-    //     right_sink_config,
-    //     &split_stream_greater_50,
-    // );
+    let right_sink_config = OperatorConfig::new().name("RightSinkOperator");
+    erdos::connect_sink(
+        SinkOperator::new,
+        SinkOperatorState::new,
+        right_sink_config,
+        &split_stream_greater_50,
+    );
 
     node.run();
 }
