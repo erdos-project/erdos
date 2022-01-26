@@ -21,7 +21,7 @@ impl SourceOperator {
 }
 
 impl Source<(), usize> for SourceOperator {
-    fn run(&mut self, write_stream: &mut WriteStream<usize>) {
+    fn run(&mut self, _operator_config: &OperatorConfig, write_stream: &mut WriteStream<usize>) {
         tracing::info!("Running Source Operator");
         for t in 0..10 {
             let timestamp = Timestamp::Time(vec![t as u64]);
