@@ -15,7 +15,7 @@ use std::sync::Arc;
 ///
 /// Assume that `source_stream` is an ERDOS stream sending the correct messages.
 ///
-/// ```no_run
+/// ```
 /// # use erdos::{
 /// #     dataflow::{Message, operators::ros::ToRosOperator, stream::IngestStream},
 /// #     OperatorConfig

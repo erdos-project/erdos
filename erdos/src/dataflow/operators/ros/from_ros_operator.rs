@@ -19,7 +19,7 @@ use std::sync::{Arc, Mutex};
 /// which takes a [`rosrust_msg::sensor_msgs::Image`] and returns an ERDOS message containing
 /// [`Vec<u8>`] a vector of bytes.
 ///
-/// ```no_run
+/// ```
 /// # use erdos::{
 /// #     dataflow::{Message, operators::ros::FromRosOperator, Timestamp},
 /// #     OperatorConfig,
