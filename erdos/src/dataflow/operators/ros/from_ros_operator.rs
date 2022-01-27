@@ -33,9 +33,9 @@ use std::sync::{Arc, Mutex};
 /// #         pub struct Image {
 /// #             pub data: Vec<u8>,
 /// #         }
-/// # 
+/// #
 /// #         impl Image {
-/// #             fn new() -> Self { 
+/// #             fn new() -> Self {
 /// #                 Self { data: vec![] }
 /// #             }
 /// #         }

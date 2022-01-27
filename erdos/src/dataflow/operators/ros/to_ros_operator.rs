@@ -29,9 +29,9 @@ use std::sync::Arc;
 /// #         pub struct Int32 {
 /// #             pub data: i32,
 /// #         }
-/// # 
+/// #
 /// #         impl Int32 {
-/// #             fn new() -> Self { 
+/// #             fn new() -> Self {
 /// #                 Self { data: 0 }
 /// #             }
 /// #         }
