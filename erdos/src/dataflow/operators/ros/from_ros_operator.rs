@@ -34,12 +34,6 @@ use std::sync::{Arc, Mutex};
 /// #             pub data: Vec<u8>,
 /// #         }
 /// #
-/// #         impl Image {
-/// #             fn new() -> Self {
-/// #                 Self { data: vec![] }
-/// #             }
-/// #         }
-/// #
 /// #         impl rosrust::Message for Image {
 /// #             fn msg_definition() -> String { String::new() }
 /// #             fn md5sum() -> String { String::new() }
@@ -48,7 +42,7 @@ use std::sync::{Arc, Mutex};
 /// #
 /// #         impl rosrust::RosMsg for Image {
 /// #             fn encode<W: io::Write>(&self, mut w: W) -> io::Result<()> { Ok(()) }
-/// #             fn decode<R: io::Read>(mut r: R) -> io::Result<Self> { Ok(Self::new()) }
+/// #             fn decode<R: io::Read>(mut r: R) -> io::Result<Self> { Ok(Default::default()) }
 /// #         }
 /// #     }
 /// # };

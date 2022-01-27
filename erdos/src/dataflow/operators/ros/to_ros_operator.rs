@@ -30,12 +30,6 @@ use std::sync::Arc;
 /// #             pub data: i32,
 /// #         }
 /// #
-/// #         impl Int32 {
-/// #             fn new() -> Self {
-/// #                 Self { data: 0 }
-/// #             }
-/// #         }
-/// #
 /// #         impl rosrust::Message for Int32 {
 /// #             fn msg_definition() -> String { String::new() }
 /// #             fn md5sum() -> String { String::new() }
@@ -44,7 +38,7 @@ use std::sync::Arc;
 /// #
 /// #         impl rosrust::RosMsg for Int32 {
 /// #             fn encode<W: io::Write>(&self, mut w: W) -> io::Result<()> { Ok(()) }
-/// #             fn decode<R: io::Read>(mut r: R) -> io::Result<Self> { Ok(Self::new()) }
+/// #             fn decode<R: io::Read>(mut r: R) -> io::Result<Self> { Ok(Default::default()) }
 /// #         }
 /// #     }
 /// # };
