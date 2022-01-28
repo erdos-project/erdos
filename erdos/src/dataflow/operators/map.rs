@@ -140,7 +140,7 @@ where
         F: 'static + Fn(&D1) -> I + Send + Sync + Clone,
         I: 'static + IntoIterator<Item = D2>,
     {
-        let op_name = format!("FlatMapOp_{}", self.name());
+        let op_name = format!("FlatMapOp_{}", self.id());
 
         crate::connect_one_in_one_out(
             move || -> FlatMapOperator<D1, _> { FlatMapOperator::new(flat_map_fn.clone()) },
