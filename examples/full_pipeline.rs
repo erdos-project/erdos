@@ -387,9 +387,11 @@ fn main() {
         &source_stream,
     );
 
-    let map_config = OperatorConfig::new().name("MapOperator");
+    let map_config = OperatorConfig::new().name("FlatMapOperator");
     let map_stream = erdos::connect_one_in_one_out(
-        || -> MapOperator<usize, usize> { MapOperator::new(|a: &usize| -> usize { 2 * a }) },
+        || -> FlatMapOperator<usize, _> {
+            FlatMapOperator::new(|a: &usize| std::iter::once(2 * a))
+        },
         || {},
         map_config,
         &square_stream,

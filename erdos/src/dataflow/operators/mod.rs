@@ -15,5 +15,5 @@ mod split;
 // pub use crate::dataflow::operators::join_operator::JoinOperator;
 pub use concat::{Concat, ConcatOperator};
 pub use filter::{Filter, FilterOperator};
-pub use map::{Map, MapOperator};
+pub use map::{FlatMapOperator, Map};
 pub use split::{Split, SplitOperator};
