@@ -26,7 +26,7 @@ use super::{errors::SendError, StreamId, WriteStream, WriteStreamT};
 /// [`MapOperator`](crate::dataflow::operators::MapOperator),
 /// and retrieve the processed values through an
 /// [`ExtractStream`](crate::dataflow::stream::ExtractStream).
-/// ```
+/// ```no_run
 /// # use erdos::dataflow::{
 /// #    stream::{IngestStream, ExtractStream},
 /// #    operators::MapOperator,

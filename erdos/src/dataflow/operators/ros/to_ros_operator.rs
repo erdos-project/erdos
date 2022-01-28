@@ -9,23 +9,51 @@ use std::sync::Arc;
 /// the [`rosrust::Message`] trait.
 ///
 /// # Example
-/// The following example shows how to use a [`ToRosOperator`] with a conversion function which takes
-/// a Rust [`i32`] and converts it to a ROS message with [`rosrust_msg::std_msgs::Int32`] data.
+/// The following example shows how to use a [`ToRosOperator`] with a conversion function which
+/// takes a Rust [`i32`] and converts it to a ROS message with [`rosrust_msg::std_msgs::Int32`]
+/// data.
 ///
 /// Assume that `source_stream` is an ERDOS stream sending the correct messages.
 ///
 /// ```
+/// # use erdos::{
+/// #     dataflow::{Message, operators::ros::ToRosOperator, stream::IngestStream},
+/// #     OperatorConfig
+/// # };
+/// #
+/// # pub mod rosrust_msg {
+/// #     pub mod std_msgs {
+/// #         use std::io;
+/// #
+/// #         #[derive(Debug, Clone, PartialEq, Default)]
+/// #         pub struct Int32 {
+/// #             pub data: i32,
+/// #         }
+/// #
+/// #         impl rosrust::Message for Int32 {
+/// #             fn msg_definition() -> String { String::new() }
+/// #             fn md5sum() -> String { String::new() }
+/// #             fn msg_type() -> String { String::new() }
+/// #         }
+/// #
+/// #         impl rosrust::RosMsg for Int32 {
+/// #             fn encode<W: io::Write>(&self, mut w: W) -> io::Result<()> { Ok(()) }
+/// #             fn decode<R: io::Read>(mut r: R) -> io::Result<Self> { Ok(Default::default()) }
+/// #         }
+/// #     }
+/// # };
 /// fn erdos_int_to_ros_int(input: &Message<i32>) -> Vec<rosrust_msg::std_msgs::Int32> {
 ///     match input.data() {
 ///         Some(x) => {
 ///             vec![rosrust_msg::std_msgs::Int32 {
-///                 data: x,
+///                 data: *x,
 ///             }]
 ///         }
 ///         None => vec![],
 ///     }
 /// }
 ///
+/// # let source_stream = IngestStream::new();
 /// let ros_sink_config = OperatorConfig::new().name("ToRosInt32");
 /// erdos::connect_sink(
 ///     move || -> ToRosOperator<i32, rosrust_msg::std_msgs::Int32> {
@@ -59,7 +87,8 @@ where
         }
     }
 
-    // Converts ERDOS message using conversion function and publishes all messages in returned vector
+    // Converts ERDOS message using conversion function and publishes all messages in
+    // returned vector
     fn convert_and_publish(&mut self, ctx: &mut SinkContext<()>, erdos_msg: &Message<T>) {
         let ros_msg_vec = (self.to_ros_msg)(erdos_msg);
 
