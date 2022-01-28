@@ -61,9 +61,8 @@ where
     I::Item: Data + for<'a> Deserialize<'a>,
 {
     fn on_data(&mut self, ctx: &mut OneInOneOutContext<(), I::Item>, data: &D) {
-        tracing::info!("on data");
         for item in (self.flat_map_fn)(data).into_iter() {
-            tracing::debug!(
+            tracing::trace!(
                 "{} @ {:?}: received {:?} and sending {:?}",
                 ctx.get_operator_config().get_name(),
                 ctx.get_timestamp(),
@@ -77,9 +76,7 @@ where
         }
     }
 
-    fn on_watermark(&mut self, _ctx: &mut OneInOneOutContext<(), I::Item>) {
-        tracing::info!("{}: got watermark", _ctx.get_operator_config().get_name());
-    }
+    fn on_watermark(&mut self, _ctx: &mut OneInOneOutContext<(), I::Item>) {}
 }
 
 /// Extension trait for mapping a stream of type `D1` to a stream of type `D2`.
