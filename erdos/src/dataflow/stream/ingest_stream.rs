@@ -28,8 +28,8 @@ use super::{errors::SendError, StreamId, WriteStream, WriteStreamT};
 /// [`ExtractStream`](crate::dataflow::stream::ExtractStream).
 /// ```no_run
 /// # use erdos::dataflow::{
-/// #    stream::{IngestStream, ExtractStream},
-/// #    operators::MapOperator,
+/// #    stream::{IngestStream, ExtractStream, Stream},
+/// #    operators::FlatMapOperator,
 /// #    OperatorConfig, Message, Timestamp
 /// # };
 /// # use erdos::*;
@@ -41,13 +41,14 @@ use super::{errors::SendError, StreamId, WriteStream, WriteStreamT};
 /// // Create an IngestStream.
 /// let mut ingest_stream = IngestStream::new();
 ///
-/// // Create an ExtractStream from the ReadStream of the MapOperator.
-/// let operator_stream = erdos::connect_one_in_one_out(
-///     || { MapOperator::new(|data: &u32| -> u64 { (2 * data) as u64 }) },
+/// // Create an ExtractStream from the ReadStream of the FlatMapOperator.
+/// let output_stream = erdos::connect_one_in_one_out(
+///     || FlatMapOperator::new(|x: &usize| { std::iter::once(2 * x) }),
 ///     || {},
 ///     OperatorConfig::new().name("MapOperator"),
-///     &ingest_stream);
-/// let mut extract_stream = ExtractStream::new(&operator_stream);
+///     &ingest_stream,
+/// );
+/// let mut extract_stream = ExtractStream::new(&output_stream);
 ///
 /// node.run_async();
 ///
@@ -58,7 +59,7 @@ use super::{errors::SendError, StreamId, WriteStream, WriteStreamT};
 ///
 /// // Retrieve mapped values using an ExtractStream.
 /// for i in 1..10 {
-///     let message: Message<u64> = extract_stream.read().unwrap();
+///     let message = extract_stream.read().unwrap();
 ///     assert_eq!(*message.data().unwrap(), 2 * i);
 /// }
 /// ```

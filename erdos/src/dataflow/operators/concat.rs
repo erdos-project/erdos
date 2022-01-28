@@ -56,10 +56,11 @@ where
     fn on_watermark(&mut self, _ctx: &mut TwoInOneOutContext<(), D>) {}
 }
 
-/// Convenience trait for merging the contents of two streams.
+/// Extension trait for merging the contents of two streams.
 ///
-/// Names the [`ConcatOperator`] using the names of the two merged streams,
-/// in the format `concat-{left_stream_name}-{right_stream_name}`.
+/// Names the [`ConcatOperator`] using the names of the two merged streams.
+///
+/// # Example
 /// ```
 /// # use erdos::dataflow::{stream::{IngestStream, Stream}, operator::OperatorConfig, operators::Concat};
 /// # let left_stream: IngestStream<usize> = IngestStream::new();

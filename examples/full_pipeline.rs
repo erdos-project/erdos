@@ -387,9 +387,11 @@ fn main() {
         &source_stream,
     );
 
-    let map_config = OperatorConfig::new().name("MapOperator");
+    let map_config = OperatorConfig::new().name("FlatMapOperator");
     let map_stream = erdos::connect_one_in_one_out(
-        || -> MapOperator<usize, usize> { MapOperator::new(|a: &usize| -> usize { 2 * a }) },
+        || -> FlatMapOperator<usize, _> {
+            FlatMapOperator::new(|x: &usize| std::iter::once(2 * x))
+        },
         || {},
         map_config,
         &square_stream,
@@ -397,7 +399,7 @@ fn main() {
 
     let filter_config = OperatorConfig::new().name("FilterOperator");
     let filter_stream = erdos::connect_one_in_one_out(
-        || -> FilterOperator<usize> { FilterOperator::new(|a: &usize| -> bool { a > &10 }) },
+        || -> FilterOperator<usize> { FilterOperator::new(|x: &usize| -> bool { *x > 10 }) },
         || {},
         filter_config,
         &map_stream,
@@ -405,7 +407,7 @@ fn main() {
 
     let split_config = OperatorConfig::new().name("SplitOperator");
     let (split_stream_less_50, split_stream_greater_50) = erdos::connect_one_in_two_out(
-        || -> SplitOperator<usize> { SplitOperator::new(|a: &usize| -> bool { a < &50 }) },
+        || -> SplitOperator<usize> { SplitOperator::new(|x: &usize| -> bool { *x < 50 }) },
         || {},
         split_config,
         &filter_stream,
