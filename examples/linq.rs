@@ -106,9 +106,9 @@ fn main() {
     let source_stream = erdos::connect_source(SourceOperator::new, || {}, source_config);
 
     let (split_stream_less_50, split_stream_greater_50) = source_stream
-        .map(|a: &usize| -> usize { 2 * a })
-        .filter(|a: &usize| -> bool { a > &10 })
-        .split(|a: &usize| -> bool { a < &50 });
+        .map(|x: &usize| -> usize { 2 * x })
+        .filter(|x: &usize| -> bool { x > &10 })
+        .split(|x: &usize| -> bool { x < &50 });
 
     let left_sink_config = OperatorConfig::new().name("LeftSinkOperator");
     erdos::connect_sink(

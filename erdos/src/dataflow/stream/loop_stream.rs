@@ -10,10 +10,10 @@ use super::{Stream, StreamId};
 ///
 /// # Example
 /// ```
-/// # use erdos::dataflow::{stream::LoopStream, operator::{OperatorConfig}, operators::{MapOperator}};
+/// # use erdos::dataflow::{stream::LoopStream, operator::{OperatorConfig}, operators::{FlatMapOperator}};
 /// let loop_stream = LoopStream::new();
 /// let output_stream = erdos::connect_one_in_one_out(
-///     || -> MapOperator<usize, usize> { MapOperator::new(|a: &usize| -> usize { 2 * a }) },
+///     || FlatMapOperator::new(|x: &usize| { std::iter::once(2 * x) }),
 ///     || {},
 ///     OperatorConfig::new().name("MapOperator"),
 ///     &loop_stream,

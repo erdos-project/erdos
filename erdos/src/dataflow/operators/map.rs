@@ -17,11 +17,13 @@ use crate::dataflow::{
 /// The below example shows how to use a [`FlatMapOperator`] to double an incoming stream of usize
 /// messages, and return them.
 ///
-/// ```F
+/// ```
 /// # use erdos::dataflow::{stream::IngestStream, operator::{OperatorConfig}, operators::{FlatMapOperator}};
 /// # let source_stream = IngestStream::new();
 /// let map_stream = erdos::connect_one_in_one_out(
-///     || -> FlatMapOperator<usize, usize, _> { MapOperator::new(|a: &usize| -> Vec<usize> { vec![2 * a] }) },
+///     || -> FlatMapOperator<usize, _> {
+///         FlatMapOperator::new(|x: &usize| -> Vec<usize> { vec![2 * x] })
+///     },
 ///     || {},
 ///     OperatorConfig::new().name("FlatMapOperator"),
 ///     &source_stream,
@@ -80,19 +82,37 @@ where
     }
 }
 
-// Extension Trait for MapOperator
-pub trait Map<D, D2>
+/// Extension trait for mapping a stream of type `D1` to a stream of type `D2`.
+///
+/// Names the [`FlatMapOperator`] using the name of the incoming stream.
+pub trait Map<D1, D2>
 where
-    D: Data + for<'a> Deserialize<'a>,
+    D1: Data + for<'a> Deserialize<'a>,
     D2: Data + for<'a> Deserialize<'a>,
 {
+    /// Applies the provided function to each element, and sends the return value.
+    ///
+    /// # Example
+    /// ```
+    /// # use erdos::dataflow::{stream::{IngestStream, Stream}, operator::OperatorConfig, operators::Map};
+    /// # let source_stream = Stream::from(&IngestStream::new());
+    /// let map_stream = source_stream.map(|x: &usize| -> usize { 2 * x });
+    /// ```
     fn map<F>(&self, map_fn: F) -> Stream<D2>
     where
-        F: 'static + Fn(&D) -> D2 + Send + Sync + Clone;
+        F: 'static + Fn(&D1) -> D2 + Send + Sync + Clone;
 
+    /// Applies the provided function to each element, and sends each returned value.
+    ///
+    /// # Example
+    /// ```
+    /// # use erdos::dataflow::{stream::{IngestStream, Stream}, operator::OperatorConfig, operators::Map};
+    /// # let source_stream = Stream::from(&IngestStream::new());
+    /// let map_stream = source_stream.flat_map(|x: &usize| 0..*x );
+    /// ```
     fn flat_map<F, I>(&self, flat_map_fn: F) -> Stream<D2>
     where
-        F: 'static + Fn(&D) -> I + Send + Sync + Clone,
+        F: 'static + Fn(&D1) -> I + Send + Sync + Clone,
         I: 'static + IntoIterator<Item = D2>;
 }
 
@@ -123,7 +143,7 @@ where
         F: 'static + Fn(&D1) -> I + Send + Sync + Clone,
         I: 'static + IntoIterator<Item = D2>,
     {
-        let op_name = format!("MapOp_{}", self.id());
+        let op_name = format!("FlatMapOp_{}", self.name());
 
         crate::connect_one_in_one_out(
             move || -> FlatMapOperator<D1, _> { FlatMapOperator::new(flat_map_fn.clone()) },
