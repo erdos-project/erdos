@@ -20,7 +20,7 @@ impl SourceOperator {
     }
 }
 
-impl Source<(), usize> for SourceOperator {
+impl Source<usize> for SourceOperator {
     fn run(&mut self, config: &OperatorConfig, write_stream: &mut WriteStream<usize>) {
         tracing::info!("Running {}", config.get_name());
         for t in 0..10 {
@@ -61,7 +61,7 @@ impl SquareOperatorState {
     }
 }
 
-impl StateT for SquareOperatorState {
+impl State for SquareOperatorState {
     fn commit(&mut self, timestamp: &Timestamp) {
         self.current_timestamp = timestamp.clone();
     }
@@ -134,7 +134,7 @@ impl SumOperatorState {
     }
 }
 
-impl StateT for SumOperatorState {
+impl State for SumOperatorState {
     fn commit(&mut self, timestamp: &Timestamp) {
         self.current_timestamp = timestamp.clone();
     }
@@ -191,7 +191,7 @@ impl SinkOperatorState {
     }
 }
 
-impl StateT for SinkOperatorState {
+impl State for SinkOperatorState {
     fn commit(&mut self, timestamp: &Timestamp) {
         self.current_timestamp = timestamp.clone();
     }
@@ -250,7 +250,7 @@ impl JoinSumOperatorState {
     }
 }
 
-impl StateT for JoinSumOperatorState {
+impl State for JoinSumOperatorState {
     fn commit(&mut self, timestamp: &Timestamp) {
         self.current_timestamp = timestamp.clone();
     }
@@ -329,7 +329,7 @@ impl EvenOddOperatorState {
     }
 }
 
-impl StateT for EvenOddOperatorState {
+impl State for EvenOddOperatorState {
     fn commit(&mut self, timestamp: &Timestamp) {
         self.current_timestamp = timestamp.clone();
     }
@@ -377,7 +377,7 @@ fn main() {
     let mut node = Node::new(Configuration::from_args(&args));
 
     let source_config = OperatorConfig::new().name("SourceOperator");
-    let source_stream = erdos::connect_source(SourceOperator::new, || {}, source_config);
+    let source_stream = erdos::connect_source(SourceOperator::new, source_config);
 
     let square_config = OperatorConfig::new().name("SquareOperator");
     let square_stream = erdos::connect_one_in_one_out(

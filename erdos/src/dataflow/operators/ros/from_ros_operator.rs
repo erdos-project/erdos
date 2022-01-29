@@ -84,7 +84,7 @@ where
     }
 }
 
-impl<T: rosrust::Message, U> Source<(), U> for FromRosOperator<T, U>
+impl<T: rosrust::Message, U> Source<U> for FromRosOperator<T, U>
 where
     U: Data + for<'a> Deserialize<'a>,
 {

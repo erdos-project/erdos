@@ -22,7 +22,7 @@ impl SourceOperator {
 }
 
 // This Source operator repeatedly sends String messages.
-impl Source<(), String> for SourceOperator {
+impl Source<String> for SourceOperator {
     fn run(&mut self, config: &OperatorConfig, write_stream: &mut WriteStream<String>) {
         tracing::info!("Running {}", config.get_name());
         for t in 0..10 {
@@ -64,7 +64,7 @@ fn main() {
 
     // Creates a Source node on the ERDOS side which contains the messages of interest to publish to ROS.
     let source_config = OperatorConfig::new().name("SourceOperator");
-    let source_stream = erdos::connect_source(SourceOperator::new, || {}, source_config);
+    let source_stream = erdos::connect_source(SourceOperator::new, source_config);
 
     // Connects a ToRosOperator as a Sink node in the ERDOS pipeline.
     // The operator will convert the messages using conversion function above, and publish the messages on the ROS topic "chatter".
