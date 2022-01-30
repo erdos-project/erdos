@@ -193,6 +193,7 @@ impl PartialOrd for OperatorEvent {
     }
 }
 
+/*
 #[cfg(test)]
 mod test {
     use super::*;
@@ -473,3 +474,4 @@ mod test {
         );
     }
 }
+*/

@@ -9,11 +9,17 @@ use super::{Stream, StreamId};
 /// Enables loops in the dataflow.
 ///
 /// # Example
-/// ```ignore
+/// ```
+/// # use erdos::dataflow::{stream::LoopStream, operator::{OperatorConfig}, operators::{FlatMapOperator}};
 /// let loop_stream = LoopStream::new();
-/// let output_stream = erdos::connect_1_write!(MyOperator, OperatorConfig::new(), loop_stream);
+/// let output_stream = erdos::connect_one_in_one_out(
+///     || FlatMapOperator::new(|x: &usize| { std::iter::once(2 * x) }),
+///     || {},
+///     OperatorConfig::new().name("MapOperator"),
+///     &loop_stream,
+/// );
 /// // Makes sending on output_stream equivalent to sending on loop_stream.
-/// loop_stream.set(&output_stream);
+/// loop_stream.connect_loop(&output_stream);
 /// ```
 pub struct LoopStream<D: Data>
 where

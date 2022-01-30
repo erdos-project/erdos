@@ -16,7 +16,7 @@ use super::{
 /// The following example shows an operator that prints out messages received from a [`ReadStream`].
 /// ```
 /// # use std::marker::PhantomData;
-/// # use erdos::dataflow::{operator::Sink, context::SinkContext, Data, ReadStream};
+/// # use erdos::dataflow::{operator::{OperatorConfig, Sink}, context::SinkContext, Data, ReadStream};
 /// #
 /// struct PrintMessageOperator<D: Data> {
 ///     phantom: PhantomData<D>,
@@ -26,7 +26,7 @@ use super::{
 /// #    fn on_data(&mut self, ctx: &mut SinkContext<()>, data: &D) {}
 /// #    fn on_watermark(&mut self, ctx: &mut SinkContext<()>) {}
 /// #
-///     fn run(&mut self, read_stream: &mut ReadStream<D>) {
+///     fn run(&mut self, config: &OperatorConfig, read_stream: &mut ReadStream<D>) {
 ///         while let Ok(message) = read_stream.read() {
 ///             println!("Recieved message: {:?}", message);
 ///         }

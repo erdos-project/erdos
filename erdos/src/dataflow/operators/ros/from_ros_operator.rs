@@ -20,8 +20,34 @@ use std::sync::{Arc, Mutex};
 /// [`Vec<u8>`] a vector of bytes.
 ///
 /// ```
-/// fn ros_image_to_bytes(input: &rosrust_msg::sensor_msgs::Image) -> Vector<Message<Vec<u8>>> {
-///     vec![Message::new_message(Timestamp::Time(vec![0 as u64]), input.data)]
+/// # use erdos::{
+/// #     dataflow::{Message, operators::ros::FromRosOperator, Timestamp},
+/// #     OperatorConfig,
+/// # };
+/// #
+/// # pub mod rosrust_msg {
+/// #     pub mod sensor_msgs {
+/// #         use std::io;
+/// #
+/// #         #[derive(Debug, Clone, PartialEq, Default)]
+/// #         pub struct Image {
+/// #             pub data: Vec<u8>,
+/// #         }
+/// #
+/// #         impl rosrust::Message for Image {
+/// #             fn msg_definition() -> String { String::new() }
+/// #             fn md5sum() -> String { String::new() }
+/// #             fn msg_type() -> String { String::new() }
+/// #         }
+/// #
+/// #         impl rosrust::RosMsg for Image {
+/// #             fn encode<W: io::Write>(&self, mut w: W) -> io::Result<()> { Ok(()) }
+/// #             fn decode<R: io::Read>(mut r: R) -> io::Result<Self> { Ok(Default::default()) }
+/// #         }
+/// #     }
+/// # };
+/// fn ros_image_to_bytes(input: &rosrust_msg::sensor_msgs::Image) -> Vec<Message<Vec<u8>>> {
+///     vec![Message::new_message(Timestamp::Time(vec![0 as u64]), input.data.clone())]
 /// }
 ///
 /// let ros_source_config = OperatorConfig::new().name("FromRosImage");

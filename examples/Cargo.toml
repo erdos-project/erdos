@@ -28,3 +28,7 @@ required-features = ["ros"]
 [[example]]
 name = "full_pipeline"
 path = "full_pipeline.rs"
+
+[[example]]
+name = "linq"
+path = "linq.rs"
