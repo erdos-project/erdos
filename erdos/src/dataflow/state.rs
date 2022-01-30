@@ -8,16 +8,26 @@ use crate::dataflow::Timestamp;
 /// This structure must implement a `commit` method that commits the final state for a given
 /// timestamp `t`.
 pub trait State: 'static + Send + Sync {
+    type Item: Default;
+
     fn commit(&mut self, timestamp: &Timestamp);
 
-    fn get_last_committed_timestamp(&self) -> Timestamp;
+    fn last_committed_timestamp(&self) -> Timestamp;
+
+    fn at(&mut self, timestamp: &Timestamp) -> Option<&mut Self::Item>;
 }
 
 impl State for () {
+    type Item = ();
+
     fn commit(&mut self, _timestamp: &Timestamp) {}
 
-    fn get_last_committed_timestamp(&self) -> Timestamp {
+    fn last_committed_timestamp(&self) -> Timestamp {
         Timestamp::Bottom
+    }
+
+    fn at(&mut self, _timestamp: &Timestamp) -> Option<&mut Self::Item> {
+        None
     }
 }
 
