@@ -1,7 +1,8 @@
+from __future__ import annotations
 import pickle
 import logging
 import uuid
-from typing import Union
+from typing import Tuple, Union
 
 from erdos.message import Message, WatermarkMessage
 from erdos.internal import (PyReadStream, PyWriteStream, PyLoopStream,
@@ -51,6 +52,16 @@ class Stream(object):
     @name.setter
     def name(self, name: str):
         self._py_stream.set_name(name)
+
+    def map(self, map_fn) -> Stream:
+        return Stream(self._py_stream.map(map_fn))
+
+    def filter(self, filter_fn) -> Stream:
+        return Stream(self._py_stream.filter(filter_fn))
+
+    def split(self, split_fn) -> Tuple[Stream, Stream]:
+        left_stream, right_stream = self._py_stream.split(split_fn)
+        return Stream(left_stream), Stream(right_stream)
 
 
 class ReadStream(object):
