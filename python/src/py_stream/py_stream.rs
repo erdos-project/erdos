@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
-use erdos::dataflow::{operators::Filter, operators::Map, operators::Split, stream::Stream};
 use pyo3::prelude::*;
 use pyo3::types::*;
+
+use erdos::dataflow::{operators::Filter, operators::Map, operators::Split, stream::Stream};
 
 /// The internal Python abstraction over an `Stream`.
 ///
