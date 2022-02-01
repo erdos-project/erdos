@@ -144,9 +144,27 @@ where
         &self.config
     }
 
-    /// Get the state attached to the operator.
-    pub fn get_state(&mut self) -> &mut S {
-        &mut self.state
+    /// Get the current state attached to the operator.
+    pub fn get_current_state(&mut self) -> Option<&mut S::Item> {
+        let timestamp = self.get_timestamp().clone();
+        self.state.at(&timestamp)
+    }
+
+    /// Get the past state attached to the operator.
+    pub fn get_past_state(&mut self, time: &Timestamp) -> Option<&S::Item> {
+        if *time <= self.state.last_committed_timestamp() {
+            match self.state.at(time) {
+                Some(state_val) => Some(state_val),
+                None => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Get the timestamp of the last committed state.
+    pub fn get_last_committed_timestamp(&self) -> Timestamp {
+        self.state.last_committed_timestamp()
     }
 }
 
@@ -259,9 +277,27 @@ where
         &self.config
     }
 
-    /// Get the state attached to the operator.
-    pub fn get_state(&mut self) -> &mut S {
-        &mut self.state
+    /// Get the current state attached to the operator.
+    pub fn get_current_state(&mut self) -> Option<&mut S::Item> {
+        let timestamp = self.get_timestamp().clone();
+        self.state.at(&timestamp)
+    }
+
+    /// Get the past state attached to the operator.
+    pub fn get_past_state(&mut self, time: &Timestamp) -> Option<&S::Item> {
+        if *time <= self.state.last_committed_timestamp() {
+            match self.state.at(time) {
+                Some(state_val) => Some(state_val),
+                None => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Get the timestamp of the last committed state.
+    pub fn get_last_committed_timestamp(&self) -> Timestamp {
+        self.state.last_committed_timestamp()
     }
 
     /// Get the write stream to send the output on.
@@ -379,9 +415,27 @@ where
         &self.config
     }
 
-    /// Get the state attached to the operator.
-    pub fn get_state(&mut self) -> &mut S {
-        &mut self.state
+    /// Get the current state attached to the operator.
+    pub fn get_current_state(&mut self) -> Option<&mut S::Item> {
+        let timestamp = self.get_timestamp().clone();
+        self.state.at(&timestamp)
+    }
+
+    /// Get the past state attached to the operator.
+    pub fn get_past_state(&mut self, time: &Timestamp) -> Option<&S::Item> {
+        if *time <= self.state.last_committed_timestamp() {
+            match self.state.at(time) {
+                Some(state_val) => Some(state_val),
+                None => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Get the timestamp of the last committed state.
+    pub fn get_last_committed_timestamp(&self) -> Timestamp {
+        self.state.last_committed_timestamp()
     }
 
     /// Get the write stream to send the output on.
@@ -514,9 +568,27 @@ where
         &self.config
     }
 
-    /// Get the state attached to the operator.
-    pub fn get_state(&mut self) -> &mut S {
-        &mut self.state
+    /// Get the current state attached to the operator.
+    pub fn get_current_state(&mut self) -> Option<&mut S::Item> {
+        let timestamp = self.get_timestamp().clone();
+        self.state.at(&timestamp)
+    }
+
+    /// Get the past state attached to the operator.
+    pub fn get_past_state(&mut self, time: &Timestamp) -> Option<&S::Item> {
+        if *time <= self.state.last_committed_timestamp() {
+            match self.state.at(time) {
+                Some(state_val) => Some(state_val),
+                None => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Get the timestamp of the last committed state.
+    pub fn get_last_committed_timestamp(&self) -> Timestamp {
+        self.state.last_committed_timestamp()
     }
 
     /// Get the left write stream to send the output on.

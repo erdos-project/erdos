@@ -1,6 +1,7 @@
 //! Structures and traits for states added to streams.
 
 use crate::dataflow::Timestamp;
+use std::collections::HashMap;
 
 // TODO (Sukrit): Do these state traits also require a way to read the state for a given timestamp?
 
@@ -28,6 +29,45 @@ impl State for () {
 
     fn at(&mut self, _timestamp: &Timestamp) -> Option<&mut Self::Item> {
         None
+    }
+}
+
+pub struct TimeVersionedState<S>
+where
+    S: 'static + Default + Send + Sync,
+{
+    state: HashMap<Timestamp, S>,
+    last_committed_timestamp: Timestamp,
+}
+
+impl<S> TimeVersionedState<S>
+where
+    S: 'static + Default + Send + Sync,
+{
+    pub fn new() -> Self {
+        Self {
+            state: HashMap::new(),
+            last_committed_timestamp: Timestamp::Bottom,
+        }
+    }
+}
+
+impl<S> State for TimeVersionedState<S>
+where
+    S: 'static + Default + Send + Sync,
+{
+    type Item = S;
+
+    fn commit(&mut self, timestamp: &Timestamp) {
+        self.last_committed_timestamp = timestamp.clone();
+    }
+
+    fn last_committed_timestamp(&self) -> Timestamp {
+        self.last_committed_timestamp.clone()
+    }
+
+    fn at(&mut self, timestamp: &Timestamp) -> Option<&mut Self::Item> {
+        Some(self.state.entry(timestamp.clone()).or_default())
     }
 }
 
