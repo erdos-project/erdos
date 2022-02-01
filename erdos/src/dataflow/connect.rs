@@ -37,11 +37,8 @@ where
 
             let write_stream = channel_manager.get_write_stream(write_stream_id).unwrap();
 
-            let executor = SourceExecutor::new(
-                config_copy.clone(),
-                operator_fn.clone(),
-                write_stream,
-            );
+            let executor =
+                SourceExecutor::new(config_copy.clone(), operator_fn.clone(), write_stream);
 
             Box::new(executor)
         };
