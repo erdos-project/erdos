@@ -45,8 +45,9 @@ impl Source<String> for SourceOperator {
     }
 }
 
-// Defines a function that converts an ERDOS message containing String data to a vector containing a ROS String message.
-// If the message is a Watermark and contains no data, an empty vector is returned.
+// Defines a function that converts an ERDOS message containing String data to a vector containing
+// a ROS String message. If the message is a Watermark and contains no data, an empty vector
+// is returned.
 fn erdos_to_ros(input: &Message<String>) -> Vec<rosrust_msg::std_msgs::String> {
     match input.data() {
         Some(x) => {
@@ -62,12 +63,14 @@ fn main() {
     let args = erdos::new_app("ERDOS").get_matches();
     let mut node = Node::new(Configuration::from_args(&args));
 
-    // Creates a Source node on the ERDOS side which contains the messages of interest to publish to ROS.
+    // Creates a Source node on the ERDOS side which contains the messages of interest to publish
+    // to ROS.
     let source_config = OperatorConfig::new().name("SourceOperator");
     let source_stream = erdos::connect_source(SourceOperator::new, source_config);
 
     // Connects a ToRosOperator as a Sink node in the ERDOS pipeline.
-    // The operator will convert the messages using conversion function above, and publish the messages on the ROS topic "chatter".
+    // The operator will convert the messages using conversion function above, and publish the
+    // messages on the ROS topic "chatter".
     let ros_sink_config = OperatorConfig::new().name("ToRosOperator");
     erdos::connect_sink(
         move || -> ToRosOperator<String, rosrust_msg::std_msgs::String> {

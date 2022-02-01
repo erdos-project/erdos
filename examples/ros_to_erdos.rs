@@ -30,7 +30,8 @@ impl Sink<(), String> for SinkOperator {
     fn on_watermark(&mut self, _ctx: &mut SinkContext<()>) {}
 }
 
-// Defines a function that converts a ROS String message to a vector containing an ERDOS message with String data.
+// Defines a function that converts a ROS String message to a vector containing an ERDOS message
+// with String data.
 fn ros_to_erdos(input: &rosrust_msg::std_msgs::String) -> Vec<Message<String>> {
     vec![Message::new_message(
         Timestamp::Time(vec![0 as u64]),
@@ -42,13 +43,13 @@ fn main() {
     let args = erdos::new_app("ERDOS").get_matches();
     let mut node = Node::new(Configuration::from_args(&args));
 
-    // Creates FromRosOperator which subscribes to topic "chatter" and converts ROS messages to ERDOS messages.
+    // Creates FromRosOperator which subscribes to topic "chatter" and converts ROS messages
+    // to ERDOS messages.
     let ros_source_config = OperatorConfig::new().name("FromRosOperator");
     let ros_source = erdos::connect_source(
         move || -> FromRosOperator<rosrust_msg::std_msgs::String, String> {
             FromRosOperator::new("chatter", ros_to_erdos)
         },
-        || {},
         ros_source_config,
     );
 
