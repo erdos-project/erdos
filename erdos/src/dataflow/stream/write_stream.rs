@@ -32,7 +32,7 @@ use super::{errors::SendError, StreamId, WriteStreamT};
 /// #
 /// struct CounterOperator {}
 ///
-/// impl Source<(), usize> for CounterOperator {
+/// impl Source<usize> for CounterOperator {
 ///     fn run(&mut self, config: &OperatorConfig, write_stream: &mut WriteStream<usize>) {
 ///         for t in 0..10 {
 ///             let timestamp = Timestamp::Time(vec![t as u64]);
