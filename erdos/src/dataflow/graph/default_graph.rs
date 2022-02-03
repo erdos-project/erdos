@@ -11,7 +11,7 @@ use serde::Deserialize;
 
 use crate::{
     dataflow::{
-        stream::{ExtractStream, IngestStream, LoopStream, Stream, StreamId},
+        stream::{ExtractStream, IngestStream, LoopStream, OperatorStream, Stream, StreamId},
         Data,
     },
     OperatorConfig,
@@ -27,10 +27,10 @@ thread_local!(static DEFAULT_GRAPH: RefCell<AbstractGraph> = RefCell::new(Abstra
 pub(crate) fn add_operator<F, T, U, V, W>(
     config: OperatorConfig,
     runner: F,
-    left_read_stream: Option<&Stream<T>>,
-    right_read_stream: Option<&Stream<U>>,
-    left_write_stream: Option<&Stream<V>>,
-    right_write_stream: Option<&Stream<W>>,
+    left_read_stream: Option<&dyn Stream<T>>,
+    right_read_stream: Option<&dyn Stream<U>>,
+    left_write_stream: Option<&OperatorStream<V>>,
+    right_write_stream: Option<&OperatorStream<W>>,
 ) where
     F: OperatorRunner,
     for<'a> T: Data + Deserialize<'a>,
@@ -86,7 +86,7 @@ where
     });
 }
 
-pub(crate) fn connect_loop<D>(loop_stream: &LoopStream<D>, stream: &Stream<D>)
+pub(crate) fn connect_loop<D>(loop_stream: &LoopStream<D>, stream: &OperatorStream<D>)
 where
     for<'a> D: Data + Deserialize<'a>,
 {

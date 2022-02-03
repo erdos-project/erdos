@@ -17,7 +17,7 @@ use crate::{
 
 use super::{
     errors::{ReadError, TryReadError},
-    ReadStream, Stream, StreamId,
+    OperatorStream, ReadStream, Stream, StreamId,
 };
 
 /// An [`ExtractStream`] enables drivers to read data from a running ERDOS application.
@@ -88,7 +88,7 @@ where
     /// # Arguments
     /// * `stream`: The [`Stream`] returned by an [operator](crate::dataflow::operator)
     /// from which to extract messages.
-    pub fn new(stream: &Stream<D>) -> Self {
+    pub fn new(stream: &OperatorStream<D>) -> Self {
         tracing::debug!(
             "Initializing an ExtractStream with the ReadStream {} (ID: {})",
             stream.name(),

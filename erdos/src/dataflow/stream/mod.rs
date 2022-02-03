@@ -20,8 +20,6 @@
 //! before falling back to [bincode](https://github.com/servo/bincode).
 use std::marker::PhantomData;
 
-use serde::Deserialize;
-
 use crate::dataflow::{Data, Message};
 
 // Private submodules
@@ -57,8 +55,12 @@ pub trait WriteStreamT<D: Data> {
 }
 
 pub trait Stream<D: Data> {
-    fn name(&self) -> String;
-    fn set_name(&mut self, name: &str);
+    fn name(&self) -> String {
+        default_graph::get_stream_name(&self.id())
+    }
+    fn set_name(&mut self, name: &str) {
+        default_graph::set_stream_name(&self.id(), name);
+    }
     fn id(&self) -> StreamId;
 }
 
@@ -83,14 +85,6 @@ impl<D: Data> OperatorStream<D> {
 }
 
 impl<D: Data> Stream<D> for OperatorStream<D> {
-    fn set_name(&mut self, name: &str) {
-        default_graph::set_stream_name(&self.id, name);
-    }
-
-    fn name(&self) -> String {
-        default_graph::get_stream_name(&self.id)
-    }
-
     fn id(&self) -> StreamId {
         self.id
     }

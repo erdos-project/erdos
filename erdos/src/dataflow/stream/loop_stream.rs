@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::dataflow::{graph::default_graph, Data};
 
-use super::{Stream, StreamId};
+use super::{OperatorStream, Stream, StreamId};
 
 /// Enables loops in the dataflow.
 ///
