@@ -6,7 +6,7 @@ use crate::dataflow::{
     context::OneInTwoOutContext,
     message::Message,
     operator::{OneInTwoOut, OperatorConfig},
-    stream::{Stream, WriteStreamT},
+    stream::{OperatorStream, Stream, WriteStreamT},
     Data,
 };
 
@@ -87,16 +87,17 @@ pub trait Split<D1>
 where
     D1: Data + for<'a> Deserialize<'a>,
 {
-    fn split<F>(&self, split_fn: F) -> (Stream<D1>, Stream<D1>)
+    fn split<F>(&self, split_fn: F) -> (OperatorStream<D1>, OperatorStream<D1>)
     where
         F: 'static + Fn(&D1) -> bool + Send + Sync + Clone;
 }
 
-impl<D1> Split<D1> for Stream<D1>
+impl<S, D1> Split<D1> for S
 where
+    S: Stream<D1>,
     D1: Data + for<'a> Deserialize<'a>,
 {
-    fn split<F>(&self, split_fn: F) -> (Stream<D1>, Stream<D1>)
+    fn split<F>(&self, split_fn: F) -> (OperatorStream<D1>, OperatorStream<D1>)
     where
         F: 'static + Fn(&D1) -> bool + Send + Sync + Clone,
     {

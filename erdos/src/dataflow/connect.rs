@@ -71,7 +71,7 @@ pub fn connect_parallel_sink<O, S, T, U>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: impl Stream<T>,
+    read_stream: &dyn Stream<T>,
 ) where
     O: 'static + ParallelSink<S, T, U>,
     S: AppendableStateT<U>,
@@ -109,7 +109,7 @@ pub fn connect_parallel_sink<O, S, T, U>(
     default_graph::add_operator::<_, T, (), (), ()>(
         config,
         op_runner,
-        Some(&read_stream),
+        Some(read_stream),
         None,
         None,
         None,
@@ -122,7 +122,7 @@ pub fn connect_sink<O, S, T>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: impl Stream<T>,
+    read_stream: &dyn Stream<T>,
 ) where
     O: 'static + Sink<S, T>,
     S: StateT,
@@ -159,7 +159,7 @@ pub fn connect_sink<O, S, T>(
     default_graph::add_operator::<_, T, (), (), ()>(
         config.clone(),
         op_runner,
-        Some(&read_stream),
+        Some(read_stream),
         None,
         None,
         None,
@@ -172,7 +172,7 @@ pub fn connect_parallel_one_in_one_out<O, S, T, U, V>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: impl Stream<T>,
+    read_stream: &dyn Stream<T>,
 ) -> OperatorStream<U>
 where
     O: 'static + ParallelOneInOneOut<S, T, U, V>,
@@ -219,7 +219,7 @@ where
     default_graph::add_operator::<_, T, (), U, ()>(
         config.clone(),
         op_runner,
-        Some(&read_stream),
+        Some(read_stream),
         None,
         Some(&write_stream),
         None,
@@ -233,7 +233,7 @@ pub fn connect_one_in_one_out<O, S, T, U>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: impl Stream<T>,
+    read_stream: &dyn Stream<T>,
 ) -> OperatorStream<U>
 where
     O: 'static + OneInOneOut<S, T, U>,
@@ -280,7 +280,7 @@ where
     default_graph::add_operator::<_, T, (), U, ()>(
         config.clone(),
         op_runner,
-        Some(&read_stream),
+        Some(read_stream),
         None,
         Some(&write_stream),
         None,
@@ -295,8 +295,8 @@ pub fn connect_parallel_two_in_one_out<O, S, T, U, V, W>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    left_read_stream: impl Stream<T>,
-    right_read_stream: impl Stream<U>,
+    left_read_stream: &dyn Stream<T>,
+    right_read_stream: &dyn Stream<U>,
 ) -> OperatorStream<V>
 where
     O: 'static + ParallelTwoInOneOut<S, T, U, V, W>,
@@ -351,8 +351,8 @@ where
     default_graph::add_operator::<_, T, U, V, ()>(
         config.clone(),
         op_runner,
-        Some(&left_read_stream),
-        Some(&right_read_stream),
+        Some(left_read_stream),
+        Some(right_read_stream),
         Some(&write_stream),
         None,
     );
@@ -365,8 +365,8 @@ pub fn connect_two_in_one_out<O, S, T, U, V>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    left_read_stream: impl Stream<T>,
-    right_read_stream: impl Stream<U>,
+    left_read_stream: &dyn Stream<T>,
+    right_read_stream: &dyn Stream<U>,
 ) -> OperatorStream<V>
 where
     O: 'static + TwoInOneOut<S, T, U, V>,
@@ -419,8 +419,8 @@ where
     default_graph::add_operator::<_, T, U, V, ()>(
         config.clone(),
         op_runner,
-        Some(&left_read_stream),
-        Some(&right_read_stream),
+        Some(left_read_stream),
+        Some(right_read_stream),
         Some(&write_stream),
         None,
     );
@@ -434,7 +434,7 @@ pub fn connect_parallel_one_in_two_out<O, S, T, U, V, W>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: impl Stream<T>,
+    read_stream: &dyn Stream<T>,
 ) -> (OperatorStream<U>, OperatorStream<V>)
 where
     O: 'static + ParallelOneInTwoOut<S, T, U, V, W>,
@@ -487,7 +487,7 @@ where
     default_graph::add_operator::<_, T, (), U, V>(
         config.clone(),
         op_runner,
-        Some(&read_stream),
+        Some(read_stream),
         None,
         Some(&left_write_stream),
         Some(&right_write_stream),
@@ -501,7 +501,7 @@ pub fn connect_one_in_two_out<O, S, T, U, V>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
-    read_stream: impl Stream<T>,
+    read_stream: &dyn Stream<T>,
 ) -> (OperatorStream<U>, OperatorStream<V>)
 where
     O: 'static + OneInTwoOut<S, T, U, V>,
@@ -553,7 +553,7 @@ where
     default_graph::add_operator::<_, T, (), U, V>(
         config.clone(),
         op_runner,
-        Some(&read_stream),
+        Some(read_stream),
         None,
         Some(&left_write_stream),
         Some(&right_write_stream),
