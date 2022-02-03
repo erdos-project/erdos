@@ -1,31 +1,29 @@
-use erdos::dataflow::stream::Stream;
+use erdos::dataflow::stream::{OperatorStream, Stream, StreamId};
 use pyo3::prelude::*;
 
-/// The internal Python abstraction over an `Stream`.
-///
-/// This class is exposed on the Python interface as `erdos.streams.Stream`.
-#[pyclass]
+/// The internal Python abstraction over a [`Stream`].
+#[pyclass(subclass)]
 pub struct PyStream {
-    pub stream: Stream<Vec<u8>>,
+    pub id: StreamId,
 }
 
 #[pymethods]
 impl PyStream {
     fn name(&self) -> String {
-        self.stream.name()
+        self.name()
     }
 
     fn set_name(&mut self, name: String) {
-        self.stream.set_name(&name)
+        self.set_name(name)
     }
 
     fn id(&self) -> String {
-        format!("{}", self.stream.id())
+        format!("{}", self.id)
     }
 }
 
-impl From<Stream<Vec<u8>>> for PyStream {
-    fn from(stream: Stream<Vec<u8>>) -> Self {
-        Self { stream }
+impl Stream<Vec<u8>> for PyStream {
+    fn id(&self) -> StreamId {
+        self.id
     }
 }
