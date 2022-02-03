@@ -92,7 +92,7 @@ where
     /// # Example
     /// ```
     /// # use erdos::dataflow::{stream::{IngestStream, Stream}, operator::OperatorConfig, operators::Map};
-    /// # let source_stream = Stream::from(&IngestStream::new());
+    /// # let source_stream = IngestStream::new();
     /// let map_stream = source_stream.map(|x: &usize| -> usize { 2 * x });
     /// ```
     fn map<F>(&self, map_fn: F) -> OperatorStream<D2>
@@ -104,7 +104,7 @@ where
     /// # Example
     /// ```
     /// # use erdos::dataflow::{stream::{IngestStream, Stream}, operator::OperatorConfig, operators::Map};
-    /// # let source_stream = Stream::from(&IngestStream::new());
+    /// # let source_stream = IngestStream::new();
     /// let map_stream = source_stream.flat_map(|x: &usize| 0..*x );
     /// ```
     fn flat_map<F, I>(&self, flat_map_fn: F) -> OperatorStream<D2>

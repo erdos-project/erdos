@@ -22,9 +22,6 @@ use crate::{
 /// # let left_stream: IngestStream<usize> = IngestStream::new();
 /// # let right_stream: IngestStream<usize> = IngestStream::new();
 /// #
-/// # let left_stream: Stream<_> = From::from(&left_stream);
-/// # let right_stream: Stream<_> = From::from(&right_stream);
-/// #
 /// let merged_stream = erdos::connect_two_in_one_out(
 ///     ConcatOperator::new,
 ///     || {},
@@ -67,9 +64,6 @@ where
 /// # use erdos::dataflow::{stream::{IngestStream, Stream}, operator::OperatorConfig, operators::Concat};
 /// # let left_stream: IngestStream<usize> = IngestStream::new();
 /// # let right_stream: IngestStream<usize> = IngestStream::new();
-/// #
-/// # let left_stream: Stream<_> = From::from(&left_stream);
-/// # let right_stream: Stream<_> = From::from(&right_stream);
 /// #
 /// let merged_stream = left_stream.concat(&right_stream);
 /// ```
