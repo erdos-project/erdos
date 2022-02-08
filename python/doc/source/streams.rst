@@ -13,8 +13,6 @@ Streams expose 2 classes of interfaces that access the underlying stream:
 
 #. Read-interfaces expose methods to receive and process data. They allow
    pulling data by calling ``read()`` and ``try_read()``.
-   Often, they also support a push data model accessed by registering
-   callbacks (e.g. ``add_callback`` and ``add_watermark_callback``).
    Structures that implement read interfaces include:
 
   * :py:class:`~erdos.ReadStream`: used by operators to read data and register callbacks.
@@ -44,15 +42,10 @@ Operators use Write Streams to send data.
 Receiving Messages
 ------------------
 
-Operators receive data by registering callbacks or manually reading messages
-from Read Streams.
-
-Callbacks are functions which take an ERDOS message and any necessary write
-streams as arguments. Generally, callbacks process received messages and
-publish the results on write streams.
+Operators receive data by reading messages from Read Streams.
 
 .. autoclass:: erdos.ReadStream
-    :members: read, try_read, add_callback, add_watermark_callback
+    :members: read, try_read
 
 
 Ingesting and Extracting Data
@@ -80,4 +73,4 @@ dataflow.
 A comprehensive example is available `here <https://github.com/erdos-project/erdos/blob/master/python/examples/loop.py>`_.
 
 .. autoclass:: erdos.LoopStream
-    :members: set
+    :members: connect_loop

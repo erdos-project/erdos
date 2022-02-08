@@ -1,53 +1,61 @@
 Operators
 =========
 
-An ERDOS operator receives data on :py:class:`ReadStreams <erdos.ReadStream>`,
-and sends processed data on :py:class:`WriteStreams <erdos.WriteStream>`.
+ERDOS operators process received data, and use streams to broadcast Messages 
+to downstream operators.
 We provide a standard library of operators for common dataflow patterns
-under :py:mod:`erdos.operators`.
+under :py:mod:`erdos.operator`.
 While the standard operators are general and versatile, some applications may
 implement custom operators to better optimize performance and take
 fine-grained control over exection.
 
-All operators must inherit from the :py:class:`~erdos.Operator` base class and
-implement :py:meth:`~erdos.Operator.__init__` and
-:py:meth:`~erdos.Operator.connect` methods.
+Operators are structures which implement a certain communication pattern. For example, 
+the `SendOp` from 
+`python/examples/simple_pipeline.py <https://github.com/erdos-project/erdos/blob/master/python/examples/simple_pipeline.py>`_ 
+implements a :py:class:`erdos.operator.Source` operator because it does not receive any data, 
+and sends messages on a single output stream.
 
-* :py:meth:`~erdos.Operator.__init__` takes all
-  :py:class:`ReadStreams <erdos.ReadStream>` from which the operator receives
-  data, all :py:class:`WriteStreams <erdos.WriteStream>` on which the operator
-  sends data, and any other arguments passed when calling
-  :py:meth:`~erdos.Operator.connect`.
-  Within :py:meth:`~erdos.Operator.__init__`, the state should be initialized,
-  and callbacks may be registered across
-  :py:class:`ReadStreams <erdos.ReadStream>`.
-
-* The :py:meth:`~erdos.Operator.connect` method takes
-  :py:class:`ReadStreams <erdos.ReadStream>` and returns
-  :py:class:`WriteStreams <erdos.WriteStream>`
-  which are all later passed to :py:meth:`~erdos.Operator.__init__` by ERDOS.
-  The :py:class:`ReadStreams <erdos.ReadStream>` and
-  :py:class:`WriteStreams <erdos.WriteStream>`
-  must appear in the same order as in :py:meth:`~erdos.Operator.__init__`.
+Operators can support both push and pull-based models of execution by 
+implementing methods defined for each operator. By implementing callbacks 
+such as :py:meth:`erdos.operator.OneInOneOut.on_data()`, operators can process 
+messages as they arrive. Moreover, operators can implement callbacks over watermarks 
+(e.g. :py:meth:`erdos.operator.OneInOneOut.on_watermark()`) to ensure ordered 
+processing over timestamps. ERDOS ensures lock-free, safe, and concurrent processing 
+by ordering callbacks in an ERDOS-managed execution lattice, which serves as a 
+run queue for the system's multithreaded runtime.
 
 While ERDOS manages the execution of callbacks, some operators require
 more finegrained control. Operators can take manual control over the
-thread of execution by implementing
-:py:meth:`Operator.run() <erdos.Operator.run>`,
-and pulling data from :py:class:`ReadStreams <erdos.ReadStream>`.
+thread of execution by implementing the `run()` 
+(e.g. :py:meth:`erdos.operator.OneInOneOut.run()`) method.
 *Callbacks are not invoked while run executes.*
-
 
 Operator API
 ------------
 
-.. autoclass:: erdos.Operator
-    :members: __init__, connect, run, id, config,
+.. autoclass:: erdos.operator.BaseOperator
+    :members: id, config, add_trace_event, get_runtime
 
-.. autoclass:: erdos.OperatorConfig
-    :members: name, flow_watermarks, log_file_name, csv_log_file_name, profile_file_name
+.. autoclass:: erdos.operator.Source
+    :members: __new__, run, destroy
 
+.. autoclass:: erdos.operator.Sink
+    :members: __new__, run, on_data, on_watermark, destroy
 
+.. autoclass:: erdos.operator.OneInOneOut
+    :members: __new__, run, on_data, on_watermark, destroy
+
+.. autoclass:: erdos.operator.TwoInOneOut
+    :members: __new__, run, on_left_data, on_right_data, on_watermark, destroy
+
+.. autoclass:: erdos.operator.OneInTwoOut
+    :members: __new__, run, on_data, on_watermark, destroy
+
+Operator Config
+---------------
+
+.. autoclass:: erdos.operator.OperatorConfig
+    :members: name, flow_watermarks, log_file_name, csv_log_file_name, profile_file_name 
 
 Examples
 --------

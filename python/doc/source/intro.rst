@@ -19,7 +19,8 @@ The following example demonstrates a toy robotics application which uses
 semantic segmentation and the bounding boxes of detected objects to control a
 robot.
 The example consists of the driver part of the program, which is responsible
-for connecting operators via streams.
+for connecting operators via streams. For information on building operators, see 
+:doc:`operators <operators>`.
 
 .. code-block:: python
 
@@ -49,7 +50,6 @@ for connecting operators via streams.
 Further examples are available on
 `GitHub <https://github.com/erdos-project/erdos/tree/master/python/examples>`_
 
-For information on building operators, see :doc:`§ Operators <operators>`.
 
 Driver
 ------
@@ -70,13 +70,9 @@ Determinism
 
 ERDOS provides mechanisms to enable the building of deterministic
 applications.
-For instance, processing sets of messages separated by watermarks using
-watermark callbacks and the Rust time-versioned state data structure
-turns ERDOS pipelines into
+For instance, processing sets of messages separated by watermarks using 
+watermark callbacks can turn ERDOS pipelines into
 `Kahn process networks <https://en.wikipedia.org/wiki/Kahn_process_networks>`_.
-
-For more information, see :py:class:`~erdos.WatermarkMessage` and
-:py:meth:`erdos.add_watermark_callback`.
 
 
 Performance
