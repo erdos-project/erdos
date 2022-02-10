@@ -46,7 +46,7 @@ extensions = [
 # Enable autodoc without requiring installation of listed modules
 from unittest import mock  # noqa: E402
 
-mock_modules = ["numpy"]
+mock_modules = ["numpy", "erdos.internal"]
 for mod_name in mock_modules:
     sys.modules[mod_name] = mock.Mock()
 
