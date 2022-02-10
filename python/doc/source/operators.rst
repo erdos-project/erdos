@@ -1,19 +1,29 @@
 Operators
 =========
 
-ERDOS operators process received data, and use streams to broadcast Messages 
-to downstream operators.
+ERDOS operators process received data, and use streams to broadcast :py:class:`erdos.Message`
+and :py:class:`erdos.WatermarkMessage` objects to downstream operators.
 We provide a standard library of operators for common dataflow patterns
 under :py:mod:`erdos.operator`.
 While the standard operators are general and versatile, some applications may
 implement custom operators to better optimize performance and take
 fine-grained control over exection.
 
-Operators are structures which implement a certain communication pattern. For example, 
+Operators are implemented as classes which implement a certain communication pattern. The built-in 
+operators are subclassed based on the wanted communication pattern. For example, 
 the `SendOp` from 
 `python/examples/simple_pipeline.py <https://github.com/erdos-project/erdos/blob/master/python/examples/simple_pipeline.py>`_ 
 implements a :py:class:`erdos.operator.Source` operator because it does not receive any data, 
 and sends messages on a single output stream.
+
+* The :py:class:`erdos.operator.Source` operator is used to write data on a single :py:class:`erdos.WriteStream`.
+* The :py:class:`erdos.operator.Sink` operator is used to read data from a single :py:class:`erdos.ReadStream`.
+* The :py:class:`erdos.operator.OneInOneOut` operator is used to read data from a single :py:class:`erdos.ReadStream`
+  and write data on a single :py:class:`erdos.WriteStream`.
+* The :py:class:`erdos.operator.TwoInOneOut` operator is used to read data from 2 :py:class:`erdos.ReadStream`
+  s and write data on a single :py:class:`erdos.WriteStream`.
+* The :py:class:`erdos.operator.OneInTwoOut` operator is used to read data from a single :py:class:`erdos.ReadStream`
+  s and write data on 2 :py:class:`erdos.WriteStream` s.
 
 Operators can support both push and pull-based models of execution by 
 implementing methods defined for each operator. By implementing callbacks 
@@ -21,7 +31,7 @@ such as :py:meth:`erdos.operator.OneInOneOut.on_data()`, operators can process
 messages as they arrive. Moreover, operators can implement callbacks over watermarks 
 (e.g. :py:meth:`erdos.operator.OneInOneOut.on_watermark()`) to ensure ordered 
 processing over timestamps. ERDOS ensures lock-free, safe, and concurrent processing 
-by ordering callbacks in an ERDOS-managed execution lattice, which serves as a 
+via a system-managed ordering of callbacks, which is implemented as a 
 run queue for the system's multithreaded runtime.
 
 While ERDOS manages the execution of callbacks, some operators require
