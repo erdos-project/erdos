@@ -8,7 +8,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
-  rust_toolchain: nightly-2021-12-04
+  rust_toolchain: nightly-2022-02-09
 
 jobs:
   build-rust:
