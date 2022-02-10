@@ -42,7 +42,9 @@ Operators use Write Streams to send data.
 Receiving Messages
 ------------------
 
-Operators receive data by reading messages from Read Streams.
+Operators receive data by reading messages from Read Streams. Operators also 
+receive data by implementing callbacks that are automatically invoked upon 
+the receipt of a message.
 
 .. autoclass:: erdos.ReadStream
     :members: read, try_read
