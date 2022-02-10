@@ -14,15 +14,29 @@ pub struct PyOperatorStream {
 #[pymethods]
 impl PyOperatorStream {
     fn name(&self) -> String {
-        self.name()
+        self.stream.name()
     }
 
     fn set_name(&mut self, name: String) {
-        self.set_name(name)
+        self.stream.set_name(&name)
     }
 
     fn id(&self) -> String {
         format!("{}", self.stream.id())
+    }
+}
+
+// Rust-only methods
+impl PyOperatorStream {
+    /// Produces a [`PyOperatorStream`] and its [`PyStream`] base class
+    /// from a Rust [`OperatorStream`].
+    pub(crate) fn new(py: Python, operator_stream: OperatorStream<Vec<u8>>) -> PyResult<Py<Self>> {
+        let base_class = PyStream {
+            id: operator_stream.id(),
+        };
+        let initializer =
+            PyClassInitializer::from(base_class).add_subclass(Self::from(operator_stream));
+        Py::new(py, initializer)
     }
 }
 

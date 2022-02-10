@@ -127,9 +127,9 @@ def connect_sink(
     if isinstance(read_stream, Stream):
         py_stream = read_stream._py_stream
     elif isinstance(read_stream, IngestStream):
-        py_stream = read_stream._py_ingest_stream.to_py_stream()
+        py_stream = read_stream._py_ingest_stream
     elif isinstance(read_stream, LoopStream):
-        py_stream = read_stream._py_loop_stream.to_py_stream()
+        py_stream = read_stream._py_loop_stream
 
     _internal.connect_sink(op_type, config, py_stream, args, kwargs, node_id)
 
@@ -192,9 +192,9 @@ def connect_one_in_one_out(
     if isinstance(read_stream, Stream):
         py_stream = read_stream._py_stream
     elif isinstance(read_stream, IngestStream):
-        py_stream = read_stream._py_ingest_stream.to_py_stream()
+        py_stream = read_stream._py_ingest_stream
     elif isinstance(read_stream, LoopStream):
-        py_stream = read_stream._py_loop_stream.to_py_stream()
+        py_stream = read_stream._py_loop_stream
 
     internal_stream = _internal.connect_one_in_one_out(op_type, config,
                                                        py_stream, args, kwargs,
@@ -272,17 +272,17 @@ def connect_two_in_one_out(
     if isinstance(left_read_stream, Stream):
         left_py_stream = left_read_stream._py_stream
     elif isinstance(left_read_stream, IngestStream):
-        left_py_stream = left_read_stream._py_ingest_stream.to_py_stream()
+        left_py_stream = left_read_stream._py_ingest_stream
     elif isinstance(left_read_stream, LoopStream):
-        left_py_stream = left_read_stream._py_loop_stream.to_py_stream()
+        left_py_stream = left_read_stream._py_loop_stream
 
     right_py_stream = None
     if isinstance(right_read_stream, Stream):
         right_py_stream = right_read_stream._py_stream
     elif isinstance(right_read_stream, IngestStream):
-        right_py_stream = right_read_stream._py_ingest_stream.to_py_stream()
+        right_py_stream = right_read_stream._py_ingest_stream
     elif isinstance(right_read_stream, LoopStream):
-        right_py_stream = right_read_stream._py_loop_stream.to_py_stream()
+        right_py_stream = right_read_stream._py_loop_stream
 
     internal_stream = _internal.connect_two_in_one_out(op_type, config,
                                                        left_py_stream,
@@ -350,9 +350,9 @@ def connect_one_in_two_out(
     if isinstance(read_stream, Stream):
         py_stream = read_stream._py_stream
     elif isinstance(read_stream, IngestStream):
-        py_stream = read_stream._py_ingest_stream.to_py_stream()
+        py_stream = read_stream._py_ingest_stream
     elif isinstance(read_stream, LoopStream):
-        py_stream = read_stream._py_loop_stream.to_py_stream()
+        py_stream = read_stream._py_loop_stream
 
     left_stream, right_stream = _internal.connect_one_in_two_out(
         op_type, config, py_stream, args, kwargs, node_id)

@@ -1,9 +1,7 @@
 use erdos::dataflow::stream::{errors::TryReadError, ExtractStream};
 use pyo3::{exceptions, prelude::*};
 
-use crate::PyMessage;
-
-use super::PyStream;
+use crate::{py_stream::PyOperatorStream, PyMessage};
 
 /// The internal Python abstraction over an `ExtractStream`.
 ///
@@ -16,7 +14,7 @@ pub struct PyExtractStream {
 #[pymethods]
 impl PyExtractStream {
     #[new]
-    fn new(py_stream: &PyStream) -> Self {
+    fn new(py_stream: &PyOperatorStream) -> Self {
         Self {
             extract_stream: ExtractStream::new(&py_stream.stream),
         }
