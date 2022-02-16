@@ -78,7 +78,7 @@ pub trait AppendableState<S>: 'static + Clone + Send + Sync {
 
     fn commit(&self, timestamp: &Timestamp);
 
-    fn get_last_committed_timestamp(&self) -> Timestamp;
+    fn last_committed_timestamp(&self) -> Timestamp;
 }
 
 // /// Error thrown upon an invalid attempt to access a portion of the

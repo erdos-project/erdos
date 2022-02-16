@@ -168,7 +168,7 @@ where
 
     fn disarm_deadline(&self, deadline_event: &DeadlineEvent) -> bool {
         // Check if the state has been committed for the given timestamp.
-        self.state.get_last_committed_timestamp() >= deadline_event.timestamp
+        self.state.last_committed_timestamp() >= deadline_event.timestamp
     }
 
     fn invoke_handler(
