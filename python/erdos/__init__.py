@@ -4,11 +4,11 @@ import signal
 import sys
 
 from functools import wraps
-from typing import Type, Optional, Union
+from typing import Tuple, Type, Optional, Union
 
 import erdos.internal as _internal
 from erdos.streams import (ReadStream, WriteStream, LoopStream, IngestStream,
-                           ExtractStream, Stream)
+                           ExtractStream, OperatorStream, Stream)
 from erdos.profile import Profile
 from erdos.message import Message, WatermarkMessage
 from erdos.timestamp import Timestamp
@@ -38,7 +38,7 @@ def connect_source(
     config: erdos.operator.OperatorConfig,
     *args,
     **kwargs,
-) -> Stream:
+) -> OperatorStream:
     """Registers a :py:class:`Source` operator to the dataflow graph, and
     returns the :py:class:`Stream` that the operator will write the data on.
 
@@ -73,13 +73,13 @@ def connect_source(
 
     internal_stream = _internal.connect_source(op_type, config, args, kwargs,
                                                node_id)
-    return Stream(_py_stream=internal_stream)
+    return OperatorStream(internal_stream)
 
 
 def connect_sink(
     op_type: Type[erdos.operator.Sink],
     config: erdos.operator.OperatorConfig,
-    read_stream: Union[Stream, IngestStream, LoopStream],
+    read_stream: Stream,
     *args,
     **kwargs,
 ):
@@ -98,12 +98,8 @@ def connect_sink(
     if not issubclass(op_type, erdos.operator.Sink):
         raise TypeError("{} must subclass erdos.operator.Sink".format(op_type))
 
-    if not isinstance(read_stream, Stream) and not isinstance(
-            read_stream, IngestStream) and not isinstance(
-                read_stream, LoopStream):
-        raise TypeError(
-            "{} must be of type Stream, IngestStream, or LoopStream.".format(
-                read_stream))
+    if not isinstance(read_stream, Stream):
+        raise TypeError("{} must subclass `Stream`.".format(read_stream))
 
     if (op_type.run.__code__.co_code
             == erdos.operator.Sink.run.__code__.co_code
@@ -123,24 +119,17 @@ def connect_sink(
     logger.debug("Connecting operator #{num} ({name}) to the graph.".format(
         num=node_id, name=config.name))
 
-    py_stream = None
-    if isinstance(read_stream, Stream):
-        py_stream = read_stream._py_stream
-    elif isinstance(read_stream, IngestStream):
-        py_stream = read_stream._py_ingest_stream
-    elif isinstance(read_stream, LoopStream):
-        py_stream = read_stream._py_loop_stream
-
-    _internal.connect_sink(op_type, config, py_stream, args, kwargs, node_id)
+    _internal.connect_sink(op_type, config, read_stream._internal_stream, args,
+                           kwargs, node_id)
 
 
 def connect_one_in_one_out(
     op_type: Type[erdos.operator.OneInOneOut],
     config: erdos.operator.OperatorConfig,
-    read_stream: Union[Stream, IngestStream, LoopStream],
+    read_stream: Stream,
     *args,
     **kwargs,
-) -> Stream:
+) -> OperatorStream:
     """Registers a :py:class:`OneInOneOut` operator to the dataflow graph that
     receives input from the given `read_stream`, and returns the
     :py:class:`Stream` that the operator will write the data on.
@@ -163,12 +152,8 @@ def connect_one_in_one_out(
         raise TypeError(
             "{} must subclass erdos.operator.OneInOneOut".format(op_type))
 
-    if not isinstance(read_stream, Stream) and not isinstance(
-            read_stream, IngestStream) and not isinstance(
-                read_stream, LoopStream):
-        raise TypeError(
-            "{} must be of type Stream, IngestStream, or LoopStream.".format(
-                read_stream))
+    if not isinstance(read_stream, Stream):
+        raise TypeError("{} must subclass `Stream`.".format(read_stream))
 
     if (op_type.run.__code__.co_code
             == erdos.operator.OneInOneOut.run.__code__.co_code
@@ -188,28 +173,19 @@ def connect_one_in_one_out(
     logger.debug("Connecting operator #{num} ({name}) to the graph.".format(
         num=node_id, name=config.name))
 
-    py_stream = None
-    if isinstance(read_stream, Stream):
-        py_stream = read_stream._py_stream
-    elif isinstance(read_stream, IngestStream):
-        py_stream = read_stream._py_ingest_stream
-    elif isinstance(read_stream, LoopStream):
-        py_stream = read_stream._py_loop_stream
-
-    internal_stream = _internal.connect_one_in_one_out(op_type, config,
-                                                       py_stream, args, kwargs,
-                                                       node_id)
-    return Stream(_py_stream=internal_stream)
+    internal_stream = _internal.connect_one_in_one_out(
+        op_type, config, read_stream._internal_stream, args, kwargs, node_id)
+    return OperatorStream(internal_stream)
 
 
 def connect_two_in_one_out(
     op_type: Type[erdos.operator.TwoInOneOut],
     config: erdos.operator.OperatorConfig,
-    left_read_stream: Union[Stream, IngestStream, LoopStream],
-    right_read_stream: Union[Stream, IngestStream, LoopStream],
+    left_read_stream: Stream,
+    right_read_stream: Stream,
     *args,
     **kwargs,
-) -> Stream:
+) -> OperatorStream:
     """Registers a :py:class:`TwoInOneOut` operator to the dataflow graph that
     receives input from the given `left_read_stream` and `right_read_stream`,
     and returns the :py:class:`Stream` that the operator will write data on.
@@ -234,19 +210,11 @@ def connect_two_in_one_out(
         raise TypeError(
             "{} must subclass erdos.operator.TwoInOneOut".format(op_type))
 
-    if not isinstance(left_read_stream, Stream) and not isinstance(
-            left_read_stream, IngestStream) and not isinstance(
-                left_read_stream, LoopStream):
-        raise TypeError(
-            "{} must be of type Stream, IngestStream, or LoopStream.".format(
-                left_read_stream))
+    if not isinstance(left_read_stream, Stream):
+        raise TypeError("{} must subclass `Stream`.".format(left_read_stream))
 
-    if not isinstance(right_read_stream, Stream) and not isinstance(
-            right_read_stream, IngestStream) and not isinstance(
-                right_read_stream, LoopStream):
-        raise TypeError(
-            "{} must be of type Stream, IngestStream, or LoopStream.".format(
-                right_read_stream))
+    if not isinstance(right_read_stream, Stream):
+        raise TypeError("{} must subclass `Stream`.".format(right_read_stream))
 
     if (op_type.run.__code__.co_code
             == erdos.operator.TwoInOneOut.run.__code__.co_code
@@ -268,36 +236,19 @@ def connect_two_in_one_out(
     logger.debug("Connecting operator #{num} ({name}) to the graph.".format(
         num=node_id, name=config.name))
 
-    left_py_stream = None
-    if isinstance(left_read_stream, Stream):
-        left_py_stream = left_read_stream._py_stream
-    elif isinstance(left_read_stream, IngestStream):
-        left_py_stream = left_read_stream._py_ingest_stream
-    elif isinstance(left_read_stream, LoopStream):
-        left_py_stream = left_read_stream._py_loop_stream
-
-    right_py_stream = None
-    if isinstance(right_read_stream, Stream):
-        right_py_stream = right_read_stream._py_stream
-    elif isinstance(right_read_stream, IngestStream):
-        right_py_stream = right_read_stream._py_ingest_stream
-    elif isinstance(right_read_stream, LoopStream):
-        right_py_stream = right_read_stream._py_loop_stream
-
-    internal_stream = _internal.connect_two_in_one_out(op_type, config,
-                                                       left_py_stream,
-                                                       right_py_stream, args,
-                                                       kwargs, node_id)
-    return Stream(_py_stream=internal_stream)
+    internal_stream = _internal.connect_two_in_one_out(
+        op_type, config, left_read_stream._internal_stream,
+        right_read_stream._internal_stream, args, kwargs, node_id)
+    return OperatorStream(internal_stream)
 
 
 def connect_one_in_two_out(
     op_type: Type[erdos.operator.OneInTwoOut],
     config: erdos.operator.OperatorConfig,
-    read_stream: Union[Stream, IngestStream, LoopStream],
+    read_stream: Stream,
     *args,
     **kwargs,
-) -> (Stream, Stream):
+) -> Tuple[OperatorStream, OperatorStream]:
     """Registers a :py:class:`OneInTwoOut` operator to the dataflow graph that
     receives input from the given `read_stream`, and returns the pair of
     :py:class:`Stream` instances that the operator will write data on.
@@ -321,12 +272,8 @@ def connect_one_in_two_out(
         raise TypeError(
             "{} must subclass erdos.operator.OneInTwoOut".format(op_type))
 
-    if not isinstance(read_stream, Stream) and not isinstance(
-            read_stream, IngestStream) and not isinstance(
-                read_stream, LoopStream):
-        raise TypeError(
-            "{} must be of type Stream, IngestStream, or LoopStream.".format(
-                read_stream))
+    if not isinstance(read_stream, Stream):
+        raise TypeError("{} must subclass `Stream`.".format(read_stream))
 
     if (op_type.run.__code__.co_code
             == erdos.operator.OneInTwoOut.run.__code__.co_code
@@ -346,17 +293,9 @@ def connect_one_in_two_out(
     logger.debug("Connecting operator #{num} ({name}) to the graph.".format(
         num=node_id, name=config.name))
 
-    py_stream = None
-    if isinstance(read_stream, Stream):
-        py_stream = read_stream._py_stream
-    elif isinstance(read_stream, IngestStream):
-        py_stream = read_stream._py_ingest_stream
-    elif isinstance(read_stream, LoopStream):
-        py_stream = read_stream._py_loop_stream
-
     left_stream, right_stream = _internal.connect_one_in_two_out(
-        op_type, config, py_stream, args, kwargs, node_id)
-    return Stream(_py_stream=left_stream), Stream(_py_stream=right_stream)
+        op_type, config, read_stream._internal_stream, args, kwargs, node_id)
+    return OperatorStream(left_stream), OperatorStream(right_stream)
 
 
 def reset():
