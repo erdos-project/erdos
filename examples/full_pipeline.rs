@@ -49,21 +49,17 @@ impl SquareOperator {
     }
 }
 
-impl OneInOneOut<TimeVersionedState<()>, usize, usize> for SquareOperator {
-    fn setup(&mut self, ctx: &mut SetupContext<TimeVersionedState<()>>) {
+impl OneInOneOut<(), usize, usize> for SquareOperator {
+    fn setup(&mut self, ctx: &mut SetupContext<()>) {
         ctx.add_deadline(TimestampDeadline::new(
-            move |_s: &TimeVersionedState<()>, _t: &Timestamp| -> Duration { Duration::new(2, 0) },
-            |_s: &TimeVersionedState<()>, _t: &Timestamp| {
+            move |_s: &(), _t: &Timestamp| -> Duration { Duration::new(2, 0) },
+            |_s: &(), _t: &Timestamp| {
                 tracing::info!("SquareOperator @ {:?}: Missed deadline.", _t);
             },
         ));
     }
 
-    fn on_data(
-        &mut self,
-        ctx: &mut OneInOneOutContext<TimeVersionedState<()>, usize>,
-        data: &usize,
-    ) {
+    fn on_data(&mut self, ctx: &mut OneInOneOutContext<(), usize>, data: &usize) {
         thread::sleep(Duration::new(2, 0));
         tracing::info!(
             "SquareOperator @ {:?}: received {}",
@@ -81,7 +77,7 @@ impl OneInOneOut<TimeVersionedState<()>, usize, usize> for SquareOperator {
         );
     }
 
-    fn on_watermark(&mut self, _ctx: &mut OneInOneOutContext<TimeVersionedState<()>, usize>) {}
+    fn on_watermark(&mut self, _ctx: &mut OneInOneOutContext<(), usize>) {}
 }
 
 struct SumOperator {}
@@ -263,12 +259,8 @@ fn main() {
     let source_stream = erdos::connect_source(SourceOperator::new, source_config);
 
     let square_config = OperatorConfig::new().name("SquareOperator");
-    let square_stream = erdos::connect_one_in_one_out(
-        SquareOperator::new,
-        TimeVersionedState::new,
-        square_config,
-        &source_stream,
-    );
+    let square_stream =
+        erdos::connect_one_in_one_out(SquareOperator::new, || {}, square_config, &source_stream);
 
     let map_config = OperatorConfig::new().name("FlatMapOperator");
     let map_stream = erdos::connect_one_in_one_out(
