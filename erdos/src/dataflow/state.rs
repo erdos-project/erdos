@@ -3,8 +3,6 @@
 use crate::dataflow::Timestamp;
 use std::collections::HashMap;
 
-// TODO (Sukrit): Do these state traits also require a way to read the state for a given timestamp?
-
 /// Trait that must be implemented by a state structure that is used in a Parallel operator.
 /// This structure must implement a `commit` method that commits the final state for a given
 /// timestamp `t`.
