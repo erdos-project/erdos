@@ -69,7 +69,7 @@ impl Sink<TimeVersionedState<usize>, usize> for SinkOperator {
             "{} @ {:?}: Received {} data messages.",
             ctx.get_operator_config().get_name(),
             timestamp,
-            *ctx.get_current_state().unwrap(),
+            ctx.get_current_state().unwrap(),
         );
     }
 }

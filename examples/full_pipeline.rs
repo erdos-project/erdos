@@ -140,8 +140,7 @@ impl Sink<TimeVersionedState<usize>, usize> for SinkOperator {
             timestamp,
             data
         );
-        let current_state = ctx.get_current_state().unwrap();
-        *current_state += 1;
+        *ctx.get_current_state().unwrap() += 1;
     }
 
     fn on_watermark(&mut self, ctx: &mut SinkContext<TimeVersionedState<usize>>) {
