@@ -28,7 +28,7 @@ def _parse_message(internal_msg):
 
 class Stream(ABC):
     """Base class representing a stream to operators can be connected.
-    
+
      from which is subclassed by streams that are used to
     connect operators in the driver.
     """
@@ -156,7 +156,7 @@ class WriteStream:
 
 class OperatorStream(Stream):
     """Returned when connecting an :py:class:`Operator` to the dataflow graph.
-    
+
     Note:
         This class is created automatically by the `connect` functions, and
         should never be initialized manually.

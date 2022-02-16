@@ -4,7 +4,7 @@ import signal
 import sys
 
 from functools import wraps
-from typing import Tuple, Type, Optional, Union
+from typing import Tuple, Type, Optional
 
 import erdos.internal as _internal
 from erdos.streams import (ReadStream, WriteStream, LoopStream, IngestStream,
@@ -40,7 +40,8 @@ def connect_source(
     **kwargs,
 ) -> OperatorStream:
     """Registers a :py:class:`Source` operator to the dataflow graph, and
-    returns the :py:class:`Stream` that the operator will write the data on.
+    returns the :py:class:`OperatorStream` that the operator will write the
+    data on.
 
     Args:
         op_type: The :py:class:`Source` operator that needs to be added to the
@@ -51,8 +52,9 @@ def connect_source(
             initialization.
 
     Returns:
-        A :py:class:`Stream` corresponding to the :py:class:`WriteStream` made
-        available to the operator's :py:func:`run` method.
+        A :py:class:`OperatorStream` corresponding to the
+        :py:class:`WriteStream` made available to the operator's
+        :py:func:`run` method.
     """
     if not issubclass(op_type, erdos.operator.Source):
         raise TypeError(
@@ -132,7 +134,7 @@ def connect_one_in_one_out(
 ) -> OperatorStream:
     """Registers a :py:class:`OneInOneOut` operator to the dataflow graph that
     receives input from the given `read_stream`, and returns the
-    :py:class:`Stream` that the operator will write the data on.
+    :py:class:`OperatorStream` that the operator will write the data on.
 
     Args:
         op_type: The :py:class:`OneInOneOut` operator that needs to be added
@@ -145,8 +147,9 @@ def connect_one_in_one_out(
             initialization.
 
     Returns:
-        A :py:class:`Stream` corresponding to the :py:class:`WriteStream` made
-        available to the operator's :py:func:`run` method.
+        A :py:class:`OperatorStream` corresponding to the
+        :py:class:`WriteStream` made available to the operator's
+        :py:func:`run` method.
     """
     if not issubclass(op_type, erdos.operator.OneInOneOut):
         raise TypeError(
@@ -188,7 +191,8 @@ def connect_two_in_one_out(
 ) -> OperatorStream:
     """Registers a :py:class:`TwoInOneOut` operator to the dataflow graph that
     receives input from the given `left_read_stream` and `right_read_stream`,
-    and returns the :py:class:`Stream` that the operator will write data on.
+    and returns the :py:class:`OperatorStream` that the operator will write
+    data on.
 
     Args:
         op_type: The :py:class:`TwoInOneOut` operator that needs to be added
@@ -203,8 +207,9 @@ def connect_two_in_one_out(
             initialization.
 
     Returns:
-        A :py:class:`Stream` corresponding to the :py:class:`WriteStream` made
-        available to the operator's :py:func:`run` method.
+        A :py:class:`OperatorStream` corresponding to the
+        :py:class:`WriteStream` made available to the operator's
+        :py:func:`run` method.
     """
     if not issubclass(op_type, erdos.operator.TwoInOneOut):
         raise TypeError(
@@ -251,7 +256,7 @@ def connect_one_in_two_out(
 ) -> Tuple[OperatorStream, OperatorStream]:
     """Registers a :py:class:`OneInTwoOut` operator to the dataflow graph that
     receives input from the given `read_stream`, and returns the pair of
-    :py:class:`Stream` instances that the operator will write data on.
+    :py:class:`OperatorStream` instances that the operator will write data on.
 
     Args:
         op_type: The :py:class:`OneInTwoOut` operator that needs to be added
@@ -264,7 +269,7 @@ def connect_one_in_two_out(
             initialization.
 
     Returns:
-        A pair of :py:class:`Stream`s corresponding to the
+        A pair of :py:class:`OperatorStream`s corresponding to the
         :py:class:`WriteStream`s made available to the operator's
         :py:func:`run` method.
     """
