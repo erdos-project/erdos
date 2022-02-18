@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::{
     dataflow::{
-        stream::{ExtractStream, IngestStream, Stream, StreamId},
+        stream::{ExtractStream, IngestStream, OperatorStream, Stream, StreamId},
         Data, LoopStream,
     },
     OperatorConfig, OperatorId,
@@ -48,10 +48,10 @@ impl AbstractGraph {
         &mut self,
         config: OperatorConfig,
         runner: F,
-        left_read_stream: Option<&Stream<T>>,
-        right_read_stream: Option<&Stream<U>>,
-        left_write_stream: Option<&Stream<V>>,
-        right_write_stream: Option<&Stream<W>>,
+        left_read_stream: Option<&dyn Stream<T>>,
+        right_read_stream: Option<&dyn Stream<U>>,
+        left_write_stream: Option<&OperatorStream<V>>,
+        right_write_stream: Option<&OperatorStream<W>>,
     ) where
         F: OperatorRunner,
         for<'a> T: Data + Deserialize<'a>,
@@ -143,8 +143,11 @@ impl AbstractGraph {
     }
 
     /// Connects a [`LoopStream`] to another stream in order to close a loop.
-    pub(crate) fn connect_loop<D>(&mut self, loop_stream: &LoopStream<D>, stream: &Stream<D>)
-    where
+    pub(crate) fn connect_loop<D>(
+        &mut self,
+        loop_stream: &LoopStream<D>,
+        stream: &OperatorStream<D>,
+    ) where
         for<'a> D: Data + Deserialize<'a>,
     {
         if let Some(v) = self.loop_streams.get_mut(&loop_stream.id()) {

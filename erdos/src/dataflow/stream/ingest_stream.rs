@@ -14,7 +14,7 @@ use crate::{
     scheduler::channel_manager::ChannelManager,
 };
 
-use super::{errors::SendError, StreamId, WriteStream, WriteStreamT};
+use super::{errors::SendError, Stream, StreamId, WriteStream, WriteStreamT};
 
 /// An [`IngestStream`] enables drivers to inject data into a running ERDOS application.
 ///
@@ -127,18 +127,6 @@ where
         }
     }
 
-    pub fn id(&self) -> StreamId {
-        self.id
-    }
-
-    pub fn name(&self) -> String {
-        default_graph::get_stream_name(&self.id)
-    }
-
-    pub fn set_name(&self, name: &str) {
-        default_graph::set_stream_name(&self.id, name);
-    }
-
     /// Returns a function which sets up self.write_stream_option using the channel_manager.
     pub(crate) fn get_setup_hook(&self) -> impl StreamSetupHook {
         let id = self.id();
@@ -158,6 +146,15 @@ where
             }
             Err(msg) => panic!("Unable to set up IngestStream {}: {}", id, msg),
         }
+    }
+}
+
+impl<D> Stream<D> for IngestStream<D>
+where
+    for<'a> D: Data + Deserialize<'a>,
+{
+    fn id(&self) -> StreamId {
+        self.id
     }
 }
 

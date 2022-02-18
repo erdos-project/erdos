@@ -20,13 +20,15 @@ mod py_timestamp;
 use py_message::PyMessage;
 use py_operators::{PyOneInOneOut, PyOneInTwoOut, PySink, PySource, PyTwoInOneOut};
 use py_stream::{
-    PyExtractStream, PyIngestStream, PyLoopStream, PyReadStream, PyStream, PyWriteStream,
+    PyExtractStream, PyIngestStream, PyLoopStream, PyOperatorStream, PyReadStream, PyStream,
+    PyWriteStream,
 };
 use py_timestamp::PyTimestamp;
 
 #[pymodule]
 fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyStream>()?;
+    m.add_class::<PyOperatorStream>()?;
     m.add_class::<PyLoopStream>()?;
     m.add_class::<PyReadStream>()?;
     m.add_class::<PyWriteStream>()?;
@@ -44,7 +46,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
         args: PyObject,
         kwargs: PyObject,
         node_id: NodeId,
-    ) -> PyResult<PyStream> {
+    ) -> PyResult<Py<PyOperatorStream>> {
         // Create the config.
         let operator_name: Option<String> = py_config.getattr(py, "name")?.extract(py)?;
         let name = match &operator_name {
@@ -80,7 +82,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
             config,
         );
 
-        Ok(PyStream::from(write_stream))
+        PyOperatorStream::new(py, write_stream)
     }
 
     #[pyfn(m)]
@@ -127,7 +129,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
             },
             || {},
             config,
-            &read_stream.stream,
+            read_stream,
         );
         Ok(())
     }
@@ -142,7 +144,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
         args: PyObject,
         kwargs: PyObject,
         node_id: NodeId,
-    ) -> PyResult<PyStream> {
+    ) -> PyResult<Py<PyOperatorStream>> {
         // Create the config.
         let operator_name: Option<String> = py_config.getattr(py, "name")?.extract(py)?;
         let name = match &operator_name {
@@ -176,10 +178,10 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
             },
             || {},
             config,
-            &read_stream.stream,
+            read_stream,
         );
 
-        Ok(PyStream::from(write_stream))
+        PyOperatorStream::new(py, write_stream)
     }
 
     #[pyfn(m)]
@@ -192,7 +194,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
         args: PyObject,
         kwargs: PyObject,
         node_id: NodeId,
-    ) -> PyResult<(PyStream, PyStream)> {
+    ) -> PyResult<(Py<PyOperatorStream>, Py<PyOperatorStream>)> {
         // Create the config.
         let operator_name: Option<String> = py_config.getattr(py, "name")?.extract(py)?;
         let name = match &operator_name {
@@ -226,13 +228,13 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
             },
             || {},
             config,
-            &read_stream.stream,
+            read_stream,
         );
 
-        Ok((
-            PyStream::from(left_write_stream),
-            PyStream::from(right_write_stream),
-        ))
+        let py_left_write_stream = PyOperatorStream::new(py, left_write_stream)?;
+        let py_right_write_stream = PyOperatorStream::new(py, right_write_stream)?;
+
+        Ok((py_left_write_stream, py_right_write_stream))
     }
 
     #[pyfn(m)]
@@ -246,7 +248,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
         args: PyObject,
         kwargs: PyObject,
         node_id: NodeId,
-    ) -> PyResult<PyStream> {
+    ) -> PyResult<Py<PyOperatorStream>> {
         // Create the config.
         let operator_name: Option<String> = py_config.getattr(py, "name")?.extract(py)?;
         let name = match &operator_name {
@@ -280,11 +282,11 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
             },
             || {},
             config,
-            &left_read_stream.stream,
-            &right_read_stream.stream,
+            left_read_stream,
+            right_read_stream,
         );
 
-        Ok(PyStream::from(write_stream))
+        PyOperatorStream::new(py, write_stream)
     }
 
     #[pyfn(m)]

@@ -1,5 +1,6 @@
-import pickle
+from abc import ABC
 import logging
+import pickle
 import uuid
 from typing import Union
 
@@ -25,35 +26,31 @@ def _parse_message(internal_msg):
     raise Exception("Unable to parse message")
 
 
-class Stream(object):
-    """A :py:class:`Stream` enables the driver to connect operators.
+class Stream(ABC):
+    """Base class representing a stream to operators can be connected.
 
-    A :py:class`Stream` is returned by the :py:func`connect` method as an
-    abstraction of the :py:class:`WriteStream` of an operator, and can be
-    passed to the :py:func:`connect` method to allow other operators to read
-    data from it.
+     from which is subclassed by streams that are used to
+    connect operators in the driver.
     """
-    def __init__(self, _py_stream: PyStream):
-        logger.debug("Initializing a Stream with ID: {}.".format(
-            _py_stream.id))
-        self._py_stream = _py_stream
+    def __init__(self, internal_stream: PyStream):
+        self._internal_stream = internal_stream
 
     @property
     def id(self) -> str:
         """ The id of the stream. """
-        return uuid.UUID(self._py_stream.id())
+        return uuid.UUID(self._internal_stream.id())
 
     @property
     def name(self) -> str:
         """ The name of the stream. The stream ID if none was given. """
-        return self._py_stream.name()
+        return self._internal_stream.name()
 
     @name.setter
     def name(self, name: str):
-        self._py_stream.set_name(name)
+        self._internal_stream.set_name(name)
 
 
-class ReadStream(object):
+class ReadStream:
     """ A :py:class:`ReadStream` allows an :py:class:`Operator` to read and
     do work on data sent by other operators on a corresponding
     :py:class:`WriteStream`.
@@ -64,6 +61,8 @@ class ReadStream(object):
     :py:func:`ReadStream.try_read` methods.
 
     Note:
+        This class is created automatically during :py:func:`run`, and
+        should never be initialized manually.
         No callbacks are invoked if an operator takes control of the execution
         in :py:func:`Operator.run`.
     """
@@ -71,8 +70,7 @@ class ReadStream(object):
         logger.debug(
             "Initializing ReadStream with the name: {}, and ID: {}.".format(
                 _py_read_stream.name(), _py_read_stream.id))
-        self._py_read_stream = PyReadStream(
-        ) if _py_read_stream is None else _py_read_stream
+        self._py_read_stream = _py_read_stream
 
     @property
     def name(self) -> str:
@@ -104,7 +102,7 @@ class ReadStream(object):
         return _parse_message(internal_msg)
 
 
-class WriteStream(object):
+class WriteStream:
     """ A :py:class:`WriteStream` allows an :py:class:`Operator` to send
     messages and watermarks to other operators that connect to the
     corresponding :py:class:`ReadStream`.
@@ -156,7 +154,18 @@ class WriteStream(object):
                 self.name, self.id)) from e
 
 
-class LoopStream(object):
+class OperatorStream(Stream):
+    """Returned when connecting an :py:class:`Operator` to the dataflow graph.
+
+    Note:
+        This class is created automatically by the `connect` functions, and
+        should never be initialized manually.
+    """
+    def __init__(self, py_operator_stream):
+        super().__init__(py_operator_stream)
+
+
+class LoopStream(Stream):
     """Stream placeholder used to construct loops in the dataflow graph.
 
     Note:
@@ -164,13 +173,15 @@ class LoopStream(object):
         the loop.
     """
     def __init__(self):
-        self._py_loop_stream = PyLoopStream()
+        super().__init__(PyLoopStream())
 
-    def connect_loop(self, stream: Stream):
-        self._py_loop_stream.connect_loop(stream._py_stream)
+    def connect_loop(self, stream: OperatorStream):
+        if not isinstance(stream, OperatorStream):
+            raise TypeError("Loop must be connected to an `OperatorStream`")
+        self._internal_stream.connect_loop(stream._internal_stream)
 
 
-class IngestStream(object):
+class IngestStream(Stream):
     """An :py:class:`IngestStream` enables drivers to inject data into a
     running ERDOS application.
 
@@ -180,22 +191,8 @@ class IngestStream(object):
     :py:func:`IngestStream.send` to enable the driver to send data to the
     operator to which it was connected.
     """
-    def __init__(self, _name: Union[str, None] = None):
-        self._py_ingest_stream = PyIngestStream(_name)
-
-    @property
-    def name(self) -> str:
-        """ The name of the stream. The stream ID if none was given."""
-        return self._py_ingest_stream.name()
-
-    @name.setter
-    def name(self, name: str):
-        self._py_ingest_stream.set_name(name)
-
-    @property
-    def id(self) -> str:
-        """ The id of the IngestStream. """
-        return uuid.UUID(self._py_ingest_stream.id())
+    def __init__(self, name: Union[str, None] = None):
+        super().__init__(PyIngestStream(name))
 
     def is_closed(self) -> bool:
         """Whether the stream is closed.
@@ -203,7 +200,7 @@ class IngestStream(object):
         Returns True if the a top watermark message was sent or the
         IngestStream was unable to successfully set up.
         """
-        return self._py_ingest_stream.is_closed()
+        return self._internal_stream.is_closed()
 
     def send(self, msg: Message):
         """Sends a message on the stream.
@@ -219,10 +216,10 @@ class IngestStream(object):
             msg, self.name))
 
         internal_msg = msg._to_py_message()
-        self._py_ingest_stream.send(internal_msg)
+        self._internal_stream.send(internal_msg)
 
 
-class ExtractStream(object):
+class ExtractStream:
     """An :py:class:`ExtractStream` enables drivers to read data from a running
     ERDOS applications.
 
@@ -240,7 +237,7 @@ class ExtractStream(object):
             raise ValueError(
                 "ExtractStream needs to be initialized with a Stream. "
                 "Received a {}".format(type(stream)))
-        self._py_extract_stream = PyExtractStream(stream._py_stream, )
+        self._py_extract_stream = PyExtractStream(stream._internal_stream)
 
     @property
     def name(self) -> str:

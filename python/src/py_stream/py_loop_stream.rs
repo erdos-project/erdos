@@ -1,12 +1,12 @@
-use erdos::dataflow::{LoopStream, Stream};
+use erdos::dataflow::{stream::StreamId, LoopStream, Stream};
 use pyo3::prelude::*;
 
-use super::PyStream;
+use super::{PyOperatorStream, PyStream};
 
 /// The internal Python abstraction over a `LoopStream`.
 ///
 /// This class is exposed on the Python interface as `erdos.streams.LoopStream`.
-#[pyclass]
+#[pyclass(extends=PyStream)]
 pub struct PyLoopStream {
     loop_stream: LoopStream<Vec<u8>>,
 }
@@ -14,19 +14,19 @@ pub struct PyLoopStream {
 #[pymethods]
 impl PyLoopStream {
     #[new]
-    fn new() -> Self {
-        Self {
-            loop_stream: LoopStream::new(),
-        }
+    fn new() -> (Self, PyStream) {
+        let loop_stream = LoopStream::new();
+        let id = loop_stream.id();
+        (Self { loop_stream }, PyStream { id })
     }
 
-    fn connect_loop(&self, stream: &PyStream) {
+    fn connect_loop(&self, stream: &PyOperatorStream) {
         self.loop_stream.connect_loop(&stream.stream);
     }
+}
 
-    fn to_py_stream(&self) -> PyStream {
-        PyStream {
-            stream: Stream::from(&self.loop_stream),
-        }
+impl Stream<Vec<u8>> for PyLoopStream {
+    fn id(&self) -> StreamId {
+        self.loop_stream.id()
     }
 }

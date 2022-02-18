@@ -6,7 +6,7 @@ use crate::dataflow::{
     context::OneInOneOutContext,
     message::Message,
     operator::{OneInOneOut, OperatorConfig},
-    stream::{Stream, WriteStreamT},
+    stream::{OperatorStream, Stream, WriteStreamT},
     Data,
 };
 
@@ -92,10 +92,10 @@ where
     /// # Example
     /// ```
     /// # use erdos::dataflow::{stream::{IngestStream, Stream}, operator::OperatorConfig, operators::Map};
-    /// # let source_stream = Stream::from(&IngestStream::new());
+    /// # let source_stream = IngestStream::new();
     /// let map_stream = source_stream.map(|x: &usize| -> usize { 2 * x });
     /// ```
-    fn map<F>(&self, map_fn: F) -> Stream<D2>
+    fn map<F>(&self, map_fn: F) -> OperatorStream<D2>
     where
         F: 'static + Fn(&D1) -> D2 + Send + Sync + Clone;
 
@@ -104,21 +104,22 @@ where
     /// # Example
     /// ```
     /// # use erdos::dataflow::{stream::{IngestStream, Stream}, operator::OperatorConfig, operators::Map};
-    /// # let source_stream = Stream::from(&IngestStream::new());
+    /// # let source_stream = IngestStream::new();
     /// let map_stream = source_stream.flat_map(|x: &usize| 0..*x );
     /// ```
-    fn flat_map<F, I>(&self, flat_map_fn: F) -> Stream<D2>
+    fn flat_map<F, I>(&self, flat_map_fn: F) -> OperatorStream<D2>
     where
         F: 'static + Fn(&D1) -> I + Send + Sync + Clone,
         I: 'static + IntoIterator<Item = D2>;
 }
 
-impl<D1, D2> Map<D1, D2> for Stream<D1>
+impl<S, D1, D2> Map<D1, D2> for S
 where
+    S: Stream<D1>,
     D1: Data + for<'a> Deserialize<'a>,
     D2: Data + for<'a> Deserialize<'a>,
 {
-    fn map<F>(&self, map_fn: F) -> Stream<D2>
+    fn map<F>(&self, map_fn: F) -> OperatorStream<D2>
     where
         F: 'static + Fn(&D1) -> D2 + Send + Sync + Clone,
     {
@@ -135,7 +136,7 @@ where
         )
     }
 
-    fn flat_map<F, I>(&self, flat_map_fn: F) -> Stream<D2>
+    fn flat_map<F, I>(&self, flat_map_fn: F) -> OperatorStream<D2>
     where
         F: 'static + Fn(&D1) -> I + Send + Sync + Clone,
         I: 'static + IntoIterator<Item = D2>,

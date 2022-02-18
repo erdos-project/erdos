@@ -6,11 +6,11 @@ use crate::dataflow::{
     context::OneInOneOutContext,
     message::Message,
     operator::{OneInOneOut, OperatorConfig},
-    stream::{Stream, WriteStreamT},
+    stream::{OperatorStream, Stream, WriteStreamT},
     Data,
 };
 
-/// Filters an incoming stream of type D1, retaining messages in the stream that
+/// Filters an incoming stream of type D, retaining messages in the stream that
 /// the provided condition function evaluates to true when applied.
 ///
 /// # Example
@@ -29,20 +29,20 @@ use crate::dataflow::{
 ///     &source_stream,
 /// );
 /// ```
-pub struct FilterOperator<D1>
+pub struct FilterOperator<D>
 where
-    D1: Data + for<'a> Deserialize<'a>,
+    D: Data + for<'a> Deserialize<'a>,
 {
-    filter_function: Arc<dyn Fn(&D1) -> bool + Send + Sync>,
+    filter_function: Arc<dyn Fn(&D) -> bool + Send + Sync>,
 }
 
-impl<D1> FilterOperator<D1>
+impl<D> FilterOperator<D>
 where
-    D1: Data + for<'a> Deserialize<'a>,
+    D: Data + for<'a> Deserialize<'a>,
 {
     pub fn new<F>(filter_function: F) -> Self
     where
-        F: 'static + Fn(&D1) -> bool + Send + Sync,
+        F: 'static + Fn(&D) -> bool + Send + Sync,
     {
         Self {
             filter_function: Arc::new(filter_function),
@@ -50,11 +50,11 @@ where
     }
 }
 
-impl<D1> OneInOneOut<(), D1, D1> for FilterOperator<D1>
+impl<D> OneInOneOut<(), D, D> for FilterOperator<D>
 where
-    D1: Data + for<'a> Deserialize<'a>,
+    D: Data + for<'a> Deserialize<'a>,
 {
-    fn on_data(&mut self, ctx: &mut OneInOneOutContext<(), D1>, data: &D1) {
+    fn on_data(&mut self, ctx: &mut OneInOneOutContext<(), D>, data: &D) {
         let timestamp = ctx.get_timestamp().clone();
         if (self.filter_function)(data) {
             ctx.get_write_stream()
@@ -69,31 +69,32 @@ where
         }
     }
 
-    fn on_watermark(&mut self, _ctx: &mut OneInOneOutContext<(), D1>) {}
+    fn on_watermark(&mut self, _ctx: &mut OneInOneOutContext<(), D>) {}
 }
 
 // Extension trait for FilterOperator
-pub trait Filter<D1>
+pub trait Filter<D>
 where
-    D1: Data + for<'a> Deserialize<'a>,
+    D: Data + for<'a> Deserialize<'a>,
 {
-    fn filter<F>(&self, filter_fn: F) -> Stream<D1>
+    fn filter<F>(&self, filter_fn: F) -> OperatorStream<D>
     where
-        F: 'static + Fn(&D1) -> bool + Send + Sync + Clone;
+        F: 'static + Fn(&D) -> bool + Send + Sync + Clone;
 }
 
-impl<D1> Filter<D1> for Stream<D1>
+impl<S, D> Filter<D> for S
 where
-    D1: Data + for<'a> Deserialize<'a>,
+    S: Stream<D>,
+    D: Data + for<'a> Deserialize<'a>,
 {
-    fn filter<F>(&self, filter_fn: F) -> Stream<D1>
+    fn filter<F>(&self, filter_fn: F) -> OperatorStream<D>
     where
-        F: 'static + Fn(&D1) -> bool + Send + Sync + Clone,
+        F: 'static + Fn(&D) -> bool + Send + Sync + Clone,
     {
         let op_name = format!("FilterOp_{}", self.id());
 
         crate::connect_one_in_one_out(
-            move || -> FilterOperator<D1> { FilterOperator::new(filter_fn.clone()) },
+            move || -> FilterOperator<D> { FilterOperator::new(filter_fn.clone()) },
             || {},
             OperatorConfig::new().name(&op_name),
             self,

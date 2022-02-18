@@ -2,8 +2,10 @@ use serde::Deserialize;
 
 use crate::{
     dataflow::{
-        context::TwoInOneOutContext, operator::TwoInOneOut, stream::WriteStreamT, Data, Message,
-        Stream,
+        context::TwoInOneOutContext,
+        operator::TwoInOneOut,
+        stream::{OperatorStream, WriteStreamT},
+        Data, Message, Stream,
     },
     OperatorConfig,
 };
@@ -19,9 +21,6 @@ use crate::{
 /// # use erdos::dataflow::{stream::{IngestStream, Stream}, operator::OperatorConfig, operators::ConcatOperator};
 /// # let left_stream: IngestStream<usize> = IngestStream::new();
 /// # let right_stream: IngestStream<usize> = IngestStream::new();
-/// #
-/// # let left_stream: Stream<_> = From::from(&left_stream);
-/// # let right_stream: Stream<_> = From::from(&right_stream);
 /// #
 /// let merged_stream = erdos::connect_two_in_one_out(
 ///     ConcatOperator::new,
@@ -66,23 +65,21 @@ where
 /// # let left_stream: IngestStream<usize> = IngestStream::new();
 /// # let right_stream: IngestStream<usize> = IngestStream::new();
 /// #
-/// # let left_stream: Stream<_> = From::from(&left_stream);
-/// # let right_stream: Stream<_> = From::from(&right_stream);
-/// #
 /// let merged_stream = left_stream.concat(&right_stream);
 /// ```
 pub trait Concat<D>
 where
     D: Data + for<'a> Deserialize<'a>,
 {
-    fn concat(&self, other: &Stream<D>) -> Stream<D>;
+    fn concat(&self, other: &dyn Stream<D>) -> OperatorStream<D>;
 }
 
-impl<D> Concat<D> for Stream<D>
+impl<S, D> Concat<D> for S
 where
+    S: Stream<D>,
     D: Data + for<'a> Deserialize<'a>,
 {
-    fn concat(&self, other: &Stream<D>) -> Stream<D> {
+    fn concat(&self, other: &dyn Stream<D>) -> OperatorStream<D> {
         let name = format!("ConcatOp_{}_{}", self.name(), other.name());
         crate::connect_two_in_one_out(
             ConcatOperator::new,
