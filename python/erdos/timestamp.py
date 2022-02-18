@@ -1,18 +1,10 @@
-from typing import Sequence
+from typing import Sequence, List
 from erdos.internal import PyTimestamp
 
 
-class Timestamp(object):
-    """An ERDOS timestamp representing the time for which the messages or
-   watermarks are sent.
-
-   A :py:class:`Timestamp` can have one of the following three values:
-    - Timestamp::Bottom: Representing the initial time, and used for
-        initializing operators.
-    - Timestamp::Time(c): An integer timestamp representing the time attached
-        to the message or watermark.
-    - Timestamp::Top: The final timestamp, and used for destruction of
-        operators.
+class Timestamp:
+    """An ERDOS timestamp representing the time for which a
+    :py:class:`Message` or :py:class:`WatermarkMessage` is sent.
     """
     def __init__(self,
                  timestamp=None,
@@ -20,6 +12,21 @@ class Timestamp(object):
                  is_top: bool = False,
                  is_bottom: bool = False,
                  _py_timestamp: PyTimestamp = None):
+        """Constructs a :py:class:`Timestamp`.
+
+        Args:
+            timestamp: Constructs a :py:class:`Timestamp` from another
+                :py:class:`Timestamp`
+            coordinates: Constructs a :py:class:`Timestamp` from a sequence of
+                integers representing the time.
+            is_top: Constructs a :py:class:`Timestamp` representing the final
+                point in time.
+            is_bottom: Constructs a :py:class:`Timestamp` representing the
+                initial point in time.
+            _py_timestamp: Constructs a :py:class:`Timestamp` from an internal
+                timestamp object. This argument should not be provided by the
+                user.
+        """
         if _py_timestamp is not None:
             # Initialize from PyTimestamp, if available.
             self._py_timestamp = _py_timestamp
@@ -41,11 +48,6 @@ class Timestamp(object):
                                  "or be either Top or Bottom")
 
     def _to_py_timestamp(self) -> PyTimestamp:
-        """Converts the current timestamp to a :py:class:`PyTimestamp`.
-
-        Returns:
-            The :py:class:`PyTimestamp` instance representing self.
-        """
         return self._py_timestamp
 
     def __repr__(self):
@@ -79,13 +81,16 @@ class Timestamp(object):
         return hash((coordinates, self.is_top, self.is_bottom))
 
     @property
-    def coordinates(self):
+    def coordinates(self) -> List[int]:
+        """A list of integers representing the time."""
         return self._py_timestamp.coordinates()
 
     @property
-    def is_top(self):
+    def is_top(self) -> bool:
+        """Whether the timestamp represents the final point in time."""
         return self._py_timestamp.is_top()
 
     @property
-    def is_bottom(self):
+    def is_bottom(self) -> bool:
+        """Whether the timestamp represents the initial point in time."""
         return self._py_timestamp.is_bottom()

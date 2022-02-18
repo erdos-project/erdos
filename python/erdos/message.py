@@ -5,7 +5,7 @@ from erdos.timestamp import Timestamp
 from erdos.internal import PyMessage
 
 
-class Message(object):
+class Message:
     """A :py:class:`Message` allows an :py:class:`Operator` to send timestamped
     data to other operators via a :py:class:`WriteStream`.
 
@@ -14,7 +14,7 @@ class Message(object):
         data (Any): The data of the message.
     """
     def __init__(self, timestamp: Timestamp, data: Any):
-        """ Construct a :py:class:`Message` with the given `data` and
+        """ Constructs a :py:class:`Message` with the given `data` and
         `timestamp`.
 
         Args:
