@@ -28,8 +28,7 @@ def _parse_message(internal_msg):
 
 class Stream(ABC):
     """Base class representing a stream to operators can be connected.
-
-     from which is subclassed by streams that are used to
+    from which is subclassed by streams that are used to
     connect operators in the driver.
     """
     def __init__(self, internal_stream: PyStream):

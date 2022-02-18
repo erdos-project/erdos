@@ -318,7 +318,7 @@ def reset():
 
 # TODO (Sukrit) : Should this be called a GraphHandle?
 # What is the significance of the "Node" here?
-class NodeHandle(object):
+class NodeHandle:
     """ A handle to the dataflow graph returned by the :py:func:`run_async`
     method.
 

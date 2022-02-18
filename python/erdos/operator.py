@@ -11,7 +11,7 @@ import numpy as np
 MAX_NUM_RUNTIME_SAMPLES = 1000
 
 
-class BaseOperator(object):
+class BaseOperator:
     """A :py:class:`BaseOperator` is an internal class that provides the
     methods common to the individual operators.
     """
@@ -394,7 +394,7 @@ class OneInTwoOut(BaseOperator):
         pass
 
 
-class OperatorConfig(object):
+class OperatorConfig:
     """ An :py:class:`OperatorConfig` allows developers to configure an
     :py:class:`Operator`.
 
