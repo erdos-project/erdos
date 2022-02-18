@@ -25,7 +25,7 @@ def _parse_message(internal_msg):
     raise Exception("Unable to parse message")
 
 
-class Stream(object):
+class Stream:
     """A :py:class:`Stream` enables the driver to connect operators.
 
     A :py:class`Stream` is returned by the :py:func`connect` method as an
@@ -53,7 +53,7 @@ class Stream(object):
         self._py_stream.set_name(name)
 
 
-class ReadStream(object):
+class ReadStream:
     """ A :py:class:`ReadStream` allows an :py:class:`Operator` to read and
     do work on data sent by other operators on a corresponding
     :py:class:`WriteStream`.
@@ -104,7 +104,7 @@ class ReadStream(object):
         return _parse_message(internal_msg)
 
 
-class WriteStream(object):
+class WriteStream:
     """ A :py:class:`WriteStream` allows an :py:class:`Operator` to send
     messages and watermarks to other operators that connect to the
     corresponding :py:class:`ReadStream`.
@@ -156,7 +156,7 @@ class WriteStream(object):
                 self.name, self.id)) from e
 
 
-class LoopStream(object):
+class LoopStream:
     """Stream placeholder used to construct loops in the dataflow graph.
 
     Note:
@@ -170,7 +170,7 @@ class LoopStream(object):
         self._py_loop_stream.connect_loop(stream._py_stream)
 
 
-class IngestStream(object):
+class IngestStream:
     """An :py:class:`IngestStream` enables drivers to inject data into a
     running ERDOS application.
 
@@ -222,7 +222,7 @@ class IngestStream(object):
         self._py_ingest_stream.send(internal_msg)
 
 
-class ExtractStream(object):
+class ExtractStream:
     """An :py:class:`ExtractStream` enables drivers to read data from a running
     ERDOS applications.
 
