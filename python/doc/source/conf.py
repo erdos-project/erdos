@@ -46,9 +46,29 @@ extensions = [
 # Enable autodoc without requiring installation of listed modules
 from unittest import mock  # noqa: E402
 
-mock_modules = ["numpy", "erdos.internal"]
+mock_modules = ["numpy"]
 for mod_name in mock_modules:
     sys.modules[mod_name] = mock.Mock()
+
+
+def mock_internal_type(qualname: str) -> mock.Mock:
+    """Fixes an autodoc error when mocking internal types as arguments."""
+    mocked_class = mock.Mock()
+    mocked_class.__qualname__ = qualname
+    return mocked_class
+
+
+# Fix autodoc errors when using internal types as arguments.
+internal_classes = {
+    "PyTimestamp": "erdos.internal.PyTimestamp",
+    "PyWriteStream": "erdos.internal.PyWriteStream",
+    "PyReadStream": "erdos.internal.PyReadStream",
+}
+
+mock_erdos_internal = mock.Mock()
+for classname, qualname in internal_classes.items():
+    setattr(mock_erdos_internal, classname, mock_internal_type(qualname))
+sys.modules["erdos.internal"] = mock_erdos_internal
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
