@@ -206,7 +206,7 @@ class IngestStream(Stream):
 
         Args:
             msg: the message to send. This may be a
-            :py:class:`WatermarkMessage` or a :py:class:`Message`.
+                :py:class:`WatermarkMessage` or a :py:class:`Message`.
         """
         if not isinstance(msg, Message):
             raise TypeError("msg must inherent from erdos.Message!")
@@ -223,16 +223,18 @@ class ExtractStream:
     ERDOS applications.
 
     The driver can initialize a new :py:class:`ExtractStream` by passing the
-    instance of :py:class:`Stream` returned by :py:func:`connect`. Similar
-    to a :py:class:`ReadStream`, an :py:class:`ExtractStream` provides
-    :py:func:`ExtractStream.read` and :py:func:`ExtractStream.try_read` for
-    reading data published on the corresponding `stream`.
+    instance of :py:class:`Stream` returned by the `connect` family of
+    functions. Similar to a :py:class:`ReadStream`, an
+    :py:class:`ExtractStream` provides :py:func:`ExtractStream.read` and
+    :py:func:`ExtractStream.try_read` for reading data published on the
+    corresponding `stream`.
 
     Args:
-        stream (:py:class:`Stream`): The stream from which to read messages.
+        stream (:py:class:`OperatorStream`): The stream from which to read
+            messages.
     """
-    def __init__(self, stream: Stream):
-        if not isinstance(stream, Stream):
+    def __init__(self, stream: OperatorStream):
+        if not isinstance(stream, OperatorStream):
             raise ValueError(
                 "ExtractStream needs to be initialized with a Stream. "
                 "Received a {}".format(type(stream)))

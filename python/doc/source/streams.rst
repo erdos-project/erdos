@@ -57,7 +57,7 @@ Some applications have trouble placing all of the data processing logic inside
 operators. For these applications, ERDOS provides special stream interfaces to
 *ingest* and *extract* data.
 
-A comprehensive example is available `here <https://github.com/erdos-project/erdos/blob/master/python/examples/ingest_extract.py>`_.
+A comprehensive example is available `here <https://github.com/erdos-project/erdos/blob/master/python/examples/ingest_extract.py>`__.
 
 .. autoclass:: erdos.IngestStream
     :members: send
@@ -72,7 +72,7 @@ Certain applications require feedback in the dataflow. To support this use
 case, ERDOS provides the LoopStream interface to support loops in the
 dataflow.
 
-A comprehensive example is available `here <https://github.com/erdos-project/erdos/blob/master/python/examples/loop.py>`_.
+A comprehensive example is available `here <https://github.com/erdos-project/erdos/blob/master/python/examples/loop.py>`__.
 
 .. autoclass:: erdos.LoopStream
     :members: connect_loop
