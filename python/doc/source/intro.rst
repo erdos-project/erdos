@@ -25,24 +25,25 @@ for connecting operators via streams. For information on building operators, see
 .. code-block:: python
 
   # Create a camera operator which generates a stream of RGB images.
-  camera_frames = erdos.connect(CameraOp)
-
+  camera_frames = erdos.connect_source(CameraOp, erdos.OperatorConfig())
   # Connect an object detection operator which uses the provided model to
   # detect objects and compute bounding boxes.
-  bounding_boxes = erdos.connect(ObjectDetectorOp, erdos.OperatorConfig(),
-                                 [camera_frames],
-                                 model="models/ssd_mobilenet_v1_coco")
+  bounding_boxes = erdos.connect_one_in_one_out(
+      ObjectDetectorOp,
+      erdos.OperatorConfig(),
+      camera_frames,
+      model="models/ssd_mobilenet_v1_coco")
   # Connect semantic segmentation operator to the camera which computes the
   # semantic segmentation for each image.
-  segmentation = erdos.connect(SegmentationOp, [camera_frames],
-                               erdos.OperatorConfig(),
-                               model="models/drn_d_22_cityscapes")
-
+  segmentation = erdos.connect_one_in_one_out(SegmentationOp,
+                                              erdos.OperatorConfig(),
+                                              camera_frames,
+                                              model="models/drn_d_22_cityscapes")
   # Connect an action operator to propose actions from provided features.
-  actions = erdos.connect(ActionOp, erdos.OperatorConfig(),
-                          [bounding_boxes, segmentation])
+  actions = erdos.connect_two_in_one_out(ActionOp, erdos.OperatorConfig(),
+                                         bounding_boxes, segmentation)
   # Create a robot operator which interfaces with the robot to apply actions.
-  erdos.connect(RobotOp, erdos.OperatorConfig(), [actions])
+  erdos.connect_sink(RobotOp, erdos.OperatorConfig(), actions)
 
   # Execute the application.
   erdos.run()
