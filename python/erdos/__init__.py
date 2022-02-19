@@ -52,9 +52,8 @@ def connect_source(
             initialization.
 
     Returns:
-        A :py:class:`OperatorStream` corresponding to the
-        :py:class:`WriteStream` made available to the operator's
-        :py:meth:`.Source.run` method.
+        An :py:class:`OperatorStream` corresponding to the
+        :py:class:`WriteStream` made available to :py:meth:`.Source.run`.
     """
     if not issubclass(op_type, erdos.operator.Source):
         raise TypeError(
@@ -148,10 +147,9 @@ def connect_one_in_one_out(
             initialization.
 
     Returns:
-        A :py:class:`OperatorStream` corresponding to the
-        :py:class:`WriteStream` made available to the operator's
-        :py:meth:`.OneInOneOut.run` method, or to the
-        operator's callbacks via the
+        An :py:class:`OperatorStream` corresponding to the
+        :py:class:`WriteStream` made available to :py:meth:`.OneInOneOut.run`,
+        or to the operator's callbacks via the
         :py:class:`.OneInOneOutContext`.
     """
     if not issubclass(op_type, erdos.operator.OneInOneOut):
@@ -210,10 +208,9 @@ def connect_two_in_one_out(
             initialization.
 
     Returns:
-        A :py:class:`OperatorStream` corresponding to the
-        :py:class:`WriteStream` made available to the operator's
-        :py:meth:`.TwoInOneOut.run` method, or to the
-        operator's callbacks via the
+        An :py:class:`OperatorStream` corresponding to the
+        :py:class:`WriteStream` made available to :py:meth:`.TwoInOneOut.run`,
+        or to the operator's callbacks via the
         :py:class:`.TwoInOneOutContext`.
     """
     if not issubclass(op_type, erdos.operator.TwoInOneOut):
@@ -274,11 +271,10 @@ def connect_one_in_two_out(
             initialization.
 
     Returns:
-        A pair of :py:class:`OperatorStream`\s corresponding to the
-        :py:class:`WriteStream`\s made available to the operator's
-        :py:meth:`.OneInOneOut.run` method, or to the
-        operator's callbacks via the
-        :py:class:`.OneInOneOutContext`.
+        A pair of :py:class:`OperatorStream` instances corresponding to the
+        :py:class:`WriteStream` instances made available to
+        :py:meth:`.OneInOneOut.run`, or to the operator's callbacks via the
+        :py:class:`.OneInTwoOutContext`.
     """
     if not issubclass(op_type, erdos.operator.OneInTwoOut):
         raise TypeError(
@@ -327,7 +323,7 @@ def reset():
 # What is the significance of the "Node" here?
 class NodeHandle:
     """ A handle to the dataflow graph returned by the :py:func:`run_async`
-    method.
+    function.
 
     The handle exposes functions to :py:func:`shutdown` the dataflow, or
     :py:func:`wait` for its completion.

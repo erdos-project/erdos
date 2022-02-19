@@ -158,8 +158,8 @@ class Sink(BaseOperator):
 class OneInOneOut(BaseOperator):
     """A :py:class:`OneInOneOut` is an abstract base class that needs to be
     inherited by user-defined operators that consume data from a single
-    :py:class:`.ReadStream` and produce data on a single :py:class:`.WriteStream`
-    in an ERDOS dataflow graph.
+    :py:class:`.ReadStream` and produce data on a single
+    :py:class:`.WriteStream` in an ERDOS dataflow graph.
 
     The user-defined operator can either implement the :py:func:`run` method
     and retrieve data from the provided `read_stream` and send data on the
