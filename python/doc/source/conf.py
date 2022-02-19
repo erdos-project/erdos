@@ -63,6 +63,8 @@ internal_classes = {
     "PyTimestamp": "erdos.internal.PyTimestamp",
     "PyWriteStream": "erdos.internal.PyWriteStream",
     "PyReadStream": "erdos.internal.PyReadStream",
+    "PyOperatorStream": "erdos.internal.PyOperatorStream",
+    "PyStream": "erdos.internal.PyStream",
 }
 
 mock_erdos_internal = mock.Mock()

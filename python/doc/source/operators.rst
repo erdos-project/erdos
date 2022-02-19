@@ -4,7 +4,7 @@ Operators
 ERDOS operators process received data, and use streams to broadcast :py:class:`erdos.Message`
 and :py:class:`erdos.WatermarkMessage` objects to downstream operators.
 We provide a standard library of operators for common dataflow patterns
-under :py:mod:`erdos.operator`.
+under :py:mod:`erdos.operators`.
 While the standard operators are general and versatile, some applications may
 implement custom operators to better optimize performance and take
 fine-grained control over exection.
