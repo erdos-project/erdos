@@ -72,6 +72,12 @@ for classname, qualname in internal_classes.items():
     setattr(mock_erdos_internal, classname, mock_internal_type(qualname))
 sys.modules["erdos.internal"] = mock_erdos_internal
 
+# Ensure that all references resolve.
+nitpicky = True
+# Ignore bugs for references to the typing library.
+nitpick_ignore = [("py:data", "typing.Any"), ("py:data", "typing.Optional"),
+                  ("py:data", "typing.Tuple")]
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
 

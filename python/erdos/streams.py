@@ -187,7 +187,7 @@ class IngestStream(Stream):
     running ERDOS application.
 
     The driver can initialize a new :py:class:`IngestStream` and connect it to
-    an operator through the `connect` family of functions. Similar to a
+    an operator through the :code:`connect` family of functions. Similar to a
     :py:class:`WriteStream`, an :py:class:`IngestStream` provides a
     :py:func:`IngestStream.send` to enable the driver to send data to the
     operator to which it was connected.
@@ -225,11 +225,11 @@ class ExtractStream:
     running ERDOS applications.
 
     The driver can initialize a new :py:class:`ExtractStream` by passing the
-    instance of :py:class:`OperatorStream` returned by the `connect` family of
-    functions. Similar to a :py:class:`ReadStream`, an
-    :py:class:`ExtractStream` provides :py:meth:`ExtractStream.read` and
-    :py:meth:`ExtractStream.try_read` for reading data published on the
-    corresponding :py:class:`OperatorStream`.
+    instance of :py:class:`OperatorStream` returned by the :code:`connect`
+    family of functions. Similar to a :py:class:`ReadStream`, an
+    :py:class:`ExtractStream` provides :py:meth:`.read` and
+    :py:meth:`.try_read` for reading data published on the corresponding
+    :py:class:`OperatorStream`.
 
     Args:
         stream: The stream from which to read messages.

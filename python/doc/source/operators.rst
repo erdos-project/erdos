@@ -3,8 +3,7 @@ Operators
 
 ERDOS operators process received data, and use streams to broadcast :py:class:`erdos.Message`
 and :py:class:`erdos.WatermarkMessage` objects to downstream operators.
-We provide a standard library of operators for common dataflow patterns
-under :py:mod:`erdos.operators`.
+We provide a standard library of operators for common dataflow patterns.
 While the standard operators are general and versatile, some applications may
 implement custom operators to better optimize performance and take
 fine-grained control over exection.
@@ -47,25 +46,45 @@ Operator API
     :members: id, config, add_trace_event, get_runtime
 
 .. autoclass:: erdos.operator.Source
+    :show-inheritance:
     :members: __new__, run, destroy
 
 .. autoclass:: erdos.operator.Sink
+    :show-inheritance:
     :members: __new__, run, on_data, on_watermark, destroy
 
 .. autoclass:: erdos.operator.OneInOneOut
+    :show-inheritance:
     :members: __new__, run, on_data, on_watermark, destroy
 
 .. autoclass:: erdos.operator.TwoInOneOut
+    :show-inheritance:
     :members: __new__, run, on_left_data, on_right_data, on_watermark, destroy
 
 .. autoclass:: erdos.operator.OneInTwoOut
+    :show-inheritance:
     :members: __new__, run, on_data, on_watermark, destroy
 
 Operator Config
 ---------------
 
 .. autoclass:: erdos.operator.OperatorConfig
-    :members: name, flow_watermarks, log_file_name, csv_log_file_name, profile_file_name 
+    :members: name, flow_watermarks, log_file_name, csv_log_file_name, profile_file_name
+
+Context API
+-----------
+
+.. autoclass:: erdos.context.SinkContext
+    :members:
+
+.. autoclass:: erdos.context.OneInOneOutContext
+    :members:
+
+.. autoclass:: erdos.context.TwoInOneOutContext
+    :members:
+
+.. autoclass:: erdos.context.OneInTwoOutContext
+    :members:
 
 Examples
 --------
