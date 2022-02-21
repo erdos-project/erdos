@@ -19,29 +19,31 @@ The following example demonstrates a toy robotics application which uses
 semantic segmentation and the bounding boxes of detected objects to control a
 robot.
 The example consists of the driver part of the program, which is responsible
-for connecting operators via streams.
+for connecting operators via streams. For information on building operators, see 
+:doc:`operators <operators>`.
 
 .. code-block:: python
 
   # Create a camera operator which generates a stream of RGB images.
-  camera_frames = erdos.connect(CameraOp)
-
+  camera_frames = erdos.connect_source(CameraOp, erdos.OperatorConfig())
   # Connect an object detection operator which uses the provided model to
   # detect objects and compute bounding boxes.
-  bounding_boxes = erdos.connect(ObjectDetectorOp, erdos.OperatorConfig(),
-                                 [camera_frames],
-                                 model="models/ssd_mobilenet_v1_coco")
+  bounding_boxes = erdos.connect_one_in_one_out(
+      ObjectDetectorOp,
+      erdos.OperatorConfig(),
+      camera_frames,
+      model="models/ssd_mobilenet_v1_coco")
   # Connect semantic segmentation operator to the camera which computes the
   # semantic segmentation for each image.
-  segmentation = erdos.connect(SegmentationOp, [camera_frames],
-                               erdos.OperatorConfig(),
-                               model="models/drn_d_22_cityscapes")
-
+  segmentation = erdos.connect_one_in_one_out(SegmentationOp,
+                                              erdos.OperatorConfig(),
+                                              camera_frames,
+                                              model="models/drn_d_22_cityscapes")
   # Connect an action operator to propose actions from provided features.
-  actions = erdos.connect(ActionOp, erdos.OperatorConfig(),
-                          [bounding_boxes, segmentation])
+  actions = erdos.connect_two_in_one_out(ActionOp, erdos.OperatorConfig(),
+                                         bounding_boxes, segmentation)
   # Create a robot operator which interfaces with the robot to apply actions.
-  erdos.connect(RobotOp, erdos.OperatorConfig(), [actions])
+  erdos.connect_sink(RobotOp, erdos.OperatorConfig(), actions)
 
   # Execute the application.
   erdos.run()
@@ -49,7 +51,6 @@ for connecting operators via streams.
 Further examples are available on
 `GitHub <https://github.com/erdos-project/erdos/tree/master/python/examples>`_
 
-For information on building operators, see :doc:`§ Operators <operators>`.
 
 Driver
 ------
@@ -59,9 +60,9 @@ build an ERDOS application which may then be executed.
 The driver is typically the main section of the program.
 
 The driver may also interact with a running ERDOS application.
-Using the :py:class:`~erdos.IngestStream`, the driver can send
+Using the :py:class:`.IngestStream`, the driver can send
 data to operators on a stream.
-The :py:class:`~erdos.ExtractStream` allows the driver to read
+The :py:class:`.ExtractStream` allows the driver to read
 data sent from an operator.
 
 
@@ -70,13 +71,9 @@ Determinism
 
 ERDOS provides mechanisms to enable the building of deterministic
 applications.
-For instance, processing sets of messages separated by watermarks using
-watermark callbacks and the Rust time-versioned state data structure
-turns ERDOS pipelines into
+For instance, processing sets of messages separated by watermarks using 
+watermark callbacks can turn ERDOS pipelines into
 `Kahn process networks <https://en.wikipedia.org/wiki/Kahn_process_networks>`_.
-
-For more information, see :py:class:`~erdos.WatermarkMessage` and
-:py:meth:`erdos.add_watermark_callback`.
 
 
 Performance

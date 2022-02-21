@@ -9,27 +9,31 @@ sends messages on a stream.
 ERDOS broadcasts messages sent on a stream to all connected operators.
 In addition, streams are typed when using the Rust API.
 
-Streams expose 2 classes of interfaces that access the underlying stream:
+Streams expose 3 classes of interfaces:
 
 #. Read-interfaces expose methods to receive and process data. They allow
    pulling data by calling ``read()`` and ``try_read()``.
-   Often, they also support a push data model accessed by registering
-   callbacks (e.g. ``add_callback`` and ``add_watermark_callback``).
    Structures that implement read interfaces include:
 
-  * :py:class:`~erdos.ReadStream`: used by operators to read data and register callbacks.
-
-  * :py:class:`~erdos.ExtractStream`: used by the driver to read data.
+  * :py:class:`.ReadStream`: used by operators to read data and register callbacks.
+  * :py:class:`.ExtractStream`: used by the driver to read data.
 
 #. Write-interfaces expose the send method to send data on a stream.
    Structures that implement write interfaces include:
 
-  * :py:class:`~erdos.WriteStream`: used by operators to send data.
+  * :py:class:`.WriteStream`: used by operators to send data.
+  * :py:class:`.IngestStream`: used by the driver to send data.
 
-  * :py:class:`~erdos.IngestStream`: used by the driver to send data.
+#. Abstract interfaces used to connect operators and construct a dataflow graph.
+   Structures that implement the abstract `:py:class:.Stream` interface include:
+
+   * :py:class:`.OperatorStream`: representing a stream on which an operator sends messages.
+   * :py:class:`.IngestStream`: used to send messages to operators from the driver.
+   * :py:class:`.LoopStream`: used to create loops in the dataflow graph.
+
 
 Some applications may want to introduce loops in their dataflow graphs which
-is possible using the :py:class:`~erdos.LoopStream`.
+is possible using the :py:class:`.LoopStream`.
 
 
 Sending Messages
@@ -44,15 +48,27 @@ Operators use Write Streams to send data.
 Receiving Messages
 ------------------
 
-Operators receive data by registering callbacks or manually reading messages
-from Read Streams.
-
-Callbacks are functions which take an ERDOS message and any necessary write
-streams as arguments. Generally, callbacks process received messages and
-publish the results on write streams.
+Operators receive data by reading messages from Read Streams. Operators also 
+receive data by implementing callbacks that are automatically invoked upon 
+the receipt of a message.
 
 .. autoclass:: erdos.ReadStream
-    :members: read, try_read, add_callback, add_watermark_callback
+    :members: read, try_read
+
+
+Abstract Streams
+----------------
+
+These streams represent edges in the dataflow graph, which ERDOS materializes
+using its communication protocols, and the `:py:class:.ReadStream`
+and `:py:class:.WriteStream` interfaces.
+
+.. autoclass:: erdos.Stream
+    :members:
+
+.. autoclass:: erdos.OperatorStream
+    :show-inheritance:
+    :members:
 
 
 Ingesting and Extracting Data
@@ -62,9 +78,10 @@ Some applications have trouble placing all of the data processing logic inside
 operators. For these applications, ERDOS provides special stream interfaces to
 *ingest* and *extract* data.
 
-A comprehensive example is available `here <https://github.com/erdos-project/erdos/blob/master/python/examples/ingest_extract.py>`_.
+A comprehensive example is available `here <https://github.com/erdos-project/erdos/blob/master/python/examples/ingest_extract.py>`__.
 
 .. autoclass:: erdos.IngestStream
+    :show-inheritance:
     :members: send
 
 .. autoclass:: erdos.ExtractStream
@@ -77,7 +94,8 @@ Certain applications require feedback in the dataflow. To support this use
 case, ERDOS provides the LoopStream interface to support loops in the
 dataflow.
 
-A comprehensive example is available `here <https://github.com/erdos-project/erdos/blob/master/python/examples/loop.py>`_.
+A comprehensive example is available `here <https://github.com/erdos-project/erdos/blob/master/python/examples/loop.py>`__.
 
 .. autoclass:: erdos.LoopStream
-    :members: set
+    :show-inheritance:
+    :members: connect_loop
