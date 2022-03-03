@@ -31,17 +31,13 @@ where
     config.id = OperatorId::new_deterministic();
     let write_stream = OperatorStream::new();
 
-    let write_stream_ids = vec![write_stream.id()];
-
-    let write_stream_ids_copy = write_stream_ids.clone();
     let config_copy = config.clone();
+    let write_stream_id = write_stream.id();
     let op_runner =
         move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
             let mut channel_manager = channel_manager.lock().unwrap();
 
-            let write_stream = channel_manager
-                .get_write_stream(write_stream_ids_copy[0])
-                .unwrap();
+            let write_stream = channel_manager.get_write_stream(write_stream_id).unwrap();
 
             let executor = SourceExecutor::new(
                 config_copy.clone(),
@@ -80,19 +76,14 @@ pub fn connect_parallel_sink<O, S, T, U>(
 {
     config.id = OperatorId::new_deterministic();
 
-    let read_stream_ids = vec![read_stream.id()];
-
     let config_copy = config.clone();
-    let read_stream_ids_copy = read_stream_ids.clone();
-
+    let read_stream_id = read_stream.id();
     let op_runner =
         move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let read_stream = channel_manager
-                .take_read_stream(
-                    default_graph::resolve_stream_id(&read_stream_ids_copy[0]).unwrap(),
-                )
+                .take_read_stream(default_graph::resolve_stream_id(&read_stream_id).unwrap())
                 .unwrap();
 
             Box::new(OneInExecutor::new(
@@ -130,19 +121,14 @@ pub fn connect_sink<O, S, T>(
 {
     config.id = OperatorId::new_deterministic();
 
-    let read_stream_ids = vec![read_stream.id()];
-
     let config_copy = config.clone();
-    let read_stream_ids_copy = read_stream_ids.clone();
-
+    let read_stream_id = read_stream.id();
     let op_runner =
         move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let read_stream = channel_manager
-                .take_read_stream(
-                    default_graph::resolve_stream_id(&read_stream_ids_copy[0]).unwrap(),
-                )
+                .take_read_stream(default_graph::resolve_stream_id(&read_stream_id).unwrap())
                 .unwrap();
 
             Box::new(OneInExecutor::new(
@@ -182,27 +168,19 @@ where
     V: 'static + Send + Sync,
 {
     config.id = OperatorId::new_deterministic();
-
-    let read_stream_ids = vec![read_stream.id()];
-
     let write_stream = OperatorStream::new();
-    let write_stream_ids = vec![write_stream.id()];
 
-    let read_stream_ids_copy = read_stream_ids.clone();
-    let write_stream_ids_copy = write_stream_ids.clone();
     let config_copy = config.clone();
+    let read_stream_id = read_stream.id();
+    let write_stream_id = write_stream.id();
     let op_runner =
         move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let read_stream = channel_manager
-                .take_read_stream(
-                    default_graph::resolve_stream_id(&read_stream_ids_copy[0]).unwrap(),
-                )
+                .take_read_stream(default_graph::resolve_stream_id(&read_stream_id).unwrap())
                 .unwrap();
-            let write_stream = channel_manager
-                .get_write_stream(write_stream_ids_copy[0])
-                .unwrap();
+            let write_stream = channel_manager.get_write_stream(write_stream_id).unwrap();
 
             Box::new(OneInExecutor::new(
                 config_copy.clone(),
@@ -242,28 +220,19 @@ where
     U: Data + for<'a> Deserialize<'a>,
 {
     config.id = OperatorId::new_deterministic();
-
-    let read_stream_ids = vec![read_stream.id()];
-
     let write_stream = OperatorStream::new();
-    let write_stream_ids = vec![write_stream.id()];
 
     let config_copy = config.clone();
-    let read_stream_ids_copy = read_stream_ids.clone();
-    let write_stream_ids_copy = write_stream_ids.clone();
-
+    let read_stream_id = read_stream.id();
+    let write_stream_id = write_stream.id();
     let op_runner =
         move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let read_stream = channel_manager
-                .take_read_stream(
-                    default_graph::resolve_stream_id(&read_stream_ids_copy[0]).unwrap(),
-                )
+                .take_read_stream(default_graph::resolve_stream_id(&read_stream_id).unwrap())
                 .unwrap();
-            let write_stream = channel_manager
-                .get_write_stream(write_stream_ids_copy[0])
-                .unwrap();
+            let write_stream = channel_manager.get_write_stream(write_stream_id).unwrap();
 
             Box::new(OneInExecutor::new(
                 config_copy.clone(),
@@ -307,33 +276,23 @@ where
     W: 'static + Send + Sync,
 {
     config.id = OperatorId::new_deterministic();
-
-    let read_stream_ids = vec![left_read_stream.id(), right_read_stream.id()];
-
     let write_stream = OperatorStream::new();
-    let write_stream_ids = vec![write_stream.id()];
 
     let config_copy = config.clone();
-    let read_stream_ids_copy = read_stream_ids.clone();
-    let write_stream_ids_copy = write_stream_ids.clone();
-
+    let left_read_stream_id = left_read_stream.id();
+    let right_read_stream_id = right_read_stream.id();
+    let write_stream_id = write_stream.id();
     let op_runner =
         move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let left_read_stream = channel_manager
-                .take_read_stream(
-                    default_graph::resolve_stream_id(&read_stream_ids_copy[0]).unwrap(),
-                )
+                .take_read_stream(default_graph::resolve_stream_id(&left_read_stream_id).unwrap())
                 .unwrap();
             let right_read_stream = channel_manager
-                .take_read_stream(
-                    default_graph::resolve_stream_id(&read_stream_ids_copy[1]).unwrap(),
-                )
+                .take_read_stream(default_graph::resolve_stream_id(&right_read_stream_id).unwrap())
                 .unwrap();
-            let write_stream = channel_manager
-                .get_write_stream(write_stream_ids_copy[0])
-                .unwrap();
+            let write_stream = channel_manager.get_write_stream(write_stream_id).unwrap();
 
             Box::new(TwoInExecutor::new(
                 config_copy.clone(),
@@ -376,32 +335,23 @@ where
     V: Data + for<'a> Deserialize<'a>,
 {
     config.id = OperatorId::new_deterministic();
-
-    let read_stream_ids = vec![left_read_stream.id(), right_read_stream.id()];
-
     let write_stream = OperatorStream::new();
-    let write_stream_ids = vec![write_stream.id()];
 
-    let read_stream_ids_copy = read_stream_ids.clone();
-    let write_stream_ids_copy = write_stream_ids.clone();
     let config_copy = config.clone();
+    let left_read_stream_id = left_read_stream.id();
+    let right_read_stream_id = right_read_stream.id();
+    let write_stream_id = write_stream.id();
     let op_runner =
         move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let left_read_stream = channel_manager
-                .take_read_stream(
-                    default_graph::resolve_stream_id(&read_stream_ids_copy[0]).unwrap(),
-                )
+                .take_read_stream(default_graph::resolve_stream_id(&left_read_stream_id).unwrap())
                 .unwrap();
             let right_read_stream = channel_manager
-                .take_read_stream(
-                    default_graph::resolve_stream_id(&read_stream_ids_copy[1]).unwrap(),
-                )
+                .take_read_stream(default_graph::resolve_stream_id(&right_read_stream_id).unwrap())
                 .unwrap();
-            let write_stream = channel_manager
-                .get_write_stream(write_stream_ids_copy[0])
-                .unwrap();
+            let write_stream = channel_manager.get_write_stream(write_stream_id).unwrap();
 
             Box::new(TwoInExecutor::new(
                 config_copy.clone(),
@@ -445,30 +395,25 @@ where
     W: 'static + Send + Sync,
 {
     config.id = OperatorId::new_deterministic();
-
-    let read_stream_ids = vec![read_stream.id()];
-
     let left_write_stream = OperatorStream::new();
     let right_write_stream = OperatorStream::new();
-    let write_stream_ids = vec![left_write_stream.id(), right_write_stream.id()];
 
-    let read_stream_ids_copy = read_stream_ids.clone();
-    let write_stream_ids_copy = write_stream_ids.clone();
     let config_copy = config.clone();
+    let read_stream_id = read_stream.id();
+    let left_write_stream_id = left_write_stream.id();
+    let right_write_stream_id = right_write_stream.id();
     let op_runner =
         move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let read_stream = channel_manager
-                .take_read_stream(
-                    default_graph::resolve_stream_id(&read_stream_ids_copy[0]).unwrap(),
-                )
+                .take_read_stream(default_graph::resolve_stream_id(&read_stream_id).unwrap())
                 .unwrap();
             let left_write_stream = channel_manager
-                .get_write_stream(write_stream_ids_copy[0])
+                .get_write_stream(left_write_stream_id)
                 .unwrap();
             let right_write_stream = channel_manager
-                .get_write_stream(write_stream_ids_copy[0])
+                .get_write_stream(right_write_stream_id)
                 .unwrap();
 
             Box::new(OneInExecutor::new(
@@ -511,30 +456,25 @@ where
     V: Data + for<'a> Deserialize<'a>,
 {
     config.id = OperatorId::new_deterministic();
-
-    let read_stream_ids = vec![read_stream.id()];
-
     let left_write_stream = OperatorStream::new();
     let right_write_stream = OperatorStream::new();
-    let write_stream_ids = vec![left_write_stream.id(), right_write_stream.id()];
 
-    let read_stream_ids_copy = read_stream_ids.clone();
-    let write_stream_ids_copy = write_stream_ids.clone();
     let config_copy = config.clone();
+    let read_stream_id = read_stream.id();
+    let left_write_stream_id = left_write_stream.id();
+    let right_write_stream_id = right_write_stream.id();
     let op_runner =
         move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let read_stream = channel_manager
-                .take_read_stream(
-                    default_graph::resolve_stream_id(&read_stream_ids_copy[0]).unwrap(),
-                )
+                .take_read_stream(default_graph::resolve_stream_id(&read_stream_id).unwrap())
                 .unwrap();
             let left_write_stream = channel_manager
-                .get_write_stream(write_stream_ids_copy[0])
+                .get_write_stream(left_write_stream_id)
                 .unwrap();
             let right_write_stream = channel_manager
-                .get_write_stream(write_stream_ids_copy[0])
+                .get_write_stream(right_write_stream_id)
                 .unwrap();
 
             Box::new(OneInExecutor::new(
