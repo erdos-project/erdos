@@ -7,12 +7,13 @@ Dataflow graph:
 +-----<----+
 """
 
-import erdos
 import time
 
 from erdos.context import OneInOneOutContext
 from erdos.operator import OneInOneOut
 from erdos.streams import ReadStream, WriteStream
+
+import erdos
 
 
 class LoopOp(OneInOneOut):

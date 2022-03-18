@@ -1,13 +1,13 @@
-from abc import ABC
 import logging
 import pickle
 import uuid
+from abc import ABC
 from typing import Union
 
+from erdos.internal import (PyExtractStream, PyIngestStream, PyLoopStream,
+                            PyOperatorStream, PyReadStream, PyStream,
+                            PyWriteStream)
 from erdos.message import Message, WatermarkMessage
-from erdos.internal import (PyReadStream, PyWriteStream, PyLoopStream,
-                            PyStream, PyOperatorStream, PyIngestStream,
-                            PyExtractStream)
 from erdos.timestamp import Timestamp
 
 logger = logging.getLogger(__name__)

@@ -1,8 +1,8 @@
 import pickle
 from typing import Any
 
-from erdos.timestamp import Timestamp
 from erdos.internal import PyMessage
+from erdos.timestamp import Timestamp
 
 
 class Message:

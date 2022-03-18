@@ -2,11 +2,10 @@ import json
 from collections import defaultdict, deque
 from typing import Any
 
-from erdos.streams import ReadStream, WriteStream
-from erdos.context import (SinkContext, OneInOneOutContext, OneInTwoOutContext,
-                           TwoInOneOutContext)
-
 import numpy as np
+from erdos.context import (OneInOneOutContext, OneInTwoOutContext, SinkContext,
+                           TwoInOneOutContext)
+from erdos.streams import ReadStream, WriteStream
 
 MAX_NUM_RUNTIME_SAMPLES = 1000
 

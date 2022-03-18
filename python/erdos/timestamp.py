@@ -1,4 +1,5 @@
-from typing import Sequence, List
+from typing import List, Sequence
+
 from erdos.internal import PyTimestamp
 
 

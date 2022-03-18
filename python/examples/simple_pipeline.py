@@ -4,13 +4,14 @@ one uses the blocking read() call,
 and one uses the non-blocking try_read() call.
 """
 
-import erdos
 import time
 from typing import Any
 
 from erdos.context import SinkContext
-from erdos.operator import Source, Sink
+from erdos.operator import Sink, Source
 from erdos.streams import ReadStream, WriteStream
+
+import erdos
 
 
 class SendOp(Source):

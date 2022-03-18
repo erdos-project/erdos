@@ -2,19 +2,18 @@ import logging
 import multiprocessing as mp
 import signal
 import sys
-
 from functools import wraps
-from typing import Tuple, Type, Optional
+from typing import Optional, Tuple, Type
 
-import erdos.internal as _internal
-from erdos.streams import (ReadStream, WriteStream, LoopStream, IngestStream,
-                           ExtractStream, OperatorStream, Stream)
-from erdos.profile import Profile
-from erdos.message import Message, WatermarkMessage
-from erdos.timestamp import Timestamp
-import erdos.utils
-import erdos.operator
 import erdos.context
+import erdos.internal as _internal
+import erdos.operator
+import erdos.utils
+from erdos.message import Message, WatermarkMessage
+from erdos.profile import Profile
+from erdos.streams import (ExtractStream, IngestStream, LoopStream,
+                           OperatorStream, ReadStream, Stream, WriteStream)
+from erdos.timestamp import Timestamp
 
 _num_py_operators = 0
 
