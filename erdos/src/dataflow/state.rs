@@ -3,19 +3,24 @@
 use crate::dataflow::Timestamp;
 use std::collections::HashMap;
 
-/// Trait that must be implemented by a state structure that is used in a Parallel operator.
-/// This structure must implement a `commit` method that commits the final state for a given
-/// timestamp `t`.
+/// The `State` trait must be implemented by the state exposed to the operators by ERDOS.
 pub trait State: 'static + Send + Sync {
     type Item: Default;
 
+    /// The `commit` method commits the final state for a given timestamp.
     fn commit(&mut self, timestamp: &Timestamp);
 
+    /// Retrieves the last committed timestamp by this state.
+    /// This method can be used in conjunction with `at` to retrieve the latest committed state.
     fn last_committed_timestamp(&self) -> Timestamp;
 
+    /// Retrieve the state at a given timestamp.
+    /// If the state for that timestamp hasn't been initialized yet, invoke the default method on
+    /// the `Item` type, and return the newly created state for that timestamp.
     fn at(&mut self, timestamp: &Timestamp) -> Option<&mut Self::Item>;
 }
 
+/// State implementation for () to be used by operators that are stateless.
 impl State for () {
     type Item = ();
 
@@ -30,6 +35,9 @@ impl State for () {
     }
 }
 
+/// The `TimeVersionedState` provides a default implementation of the `State` for a type S.
+/// The structure automatically commits the final state for a timestamp into a HashMap and
+/// initializes new states for a timestamp `t` by invoking their default method.
 pub struct TimeVersionedState<S>
 where
     S: 'static + Default + Send + Sync,
