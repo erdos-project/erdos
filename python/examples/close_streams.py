@@ -7,6 +7,7 @@ from erdos.operator import OneInOneOut
 
 
 class NoopOp(OneInOneOut):
+
     def __init__(self):
         print("Initializing NoopOp")
 

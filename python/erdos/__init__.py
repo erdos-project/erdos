@@ -331,6 +331,7 @@ class NodeHandle:
     Note:
         This structure should not be initialized by the users.
     """
+
     def __init__(self, py_node_handle, processes):
         self.py_node_handle = py_node_handle
         self.processes = processes
@@ -439,7 +440,9 @@ def profile(event_name, operator, event_data=None):
 
 
 def profile_method(**decorator_kwargs):
+
     def decorator(func):
+
         @wraps(func)
         def wrapper(*args, **kwargs):
             if isinstance(args[0], erdos.operator.BaseOperator):

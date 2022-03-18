@@ -3,6 +3,7 @@ import time
 
 class Profile:
     """Used to log the duration of a snippet of code using a with statement."""
+
     def __init__(self, event_name, operator, event_data=None):
         self.event_name = event_name
         self.operator = operator

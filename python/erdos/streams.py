@@ -35,6 +35,7 @@ class Stream(ABC):
     Note:
         This class should never be initialized manually.
     """
+
     def __init__(self, internal_stream: PyStream):
         self._internal_stream = internal_stream
 
@@ -67,6 +68,7 @@ class ReadStream:
         No callbacks are invoked if an operator takes control of the execution
         in :code:`run`.
     """
+
     def __init__(self, _py_read_stream: PyReadStream):
         logger.debug(
             "Initializing ReadStream with the name: {}, and ID: {}.".format(
@@ -112,6 +114,7 @@ class WriteStream:
         This class is created automatically when ERDOS initializes an operator,
         and should never be initialized manually.
     """
+
     def __init__(self, _py_write_stream: PyWriteStream):
         logger.debug(
             "Initializing WriteStream with the name: {}, and ID: {}.".format(
@@ -162,6 +165,7 @@ class OperatorStream(Stream):
         This class is created automatically by the `connect` functions, and
         should never be initialized manually.
     """
+
     def __init__(self, operator_stream: PyOperatorStream):
         super().__init__(operator_stream)
 
@@ -173,6 +177,7 @@ class LoopStream(Stream):
         Must call `connect_loop` with a valid :py:class:`OperatorStream` to
         complete the loop.
     """
+
     def __init__(self):
         super().__init__(PyLoopStream())
 
@@ -192,6 +197,7 @@ class IngestStream(Stream):
     :py:func:`IngestStream.send` to enable the driver to send data to the
     operator to which it was connected.
     """
+
     def __init__(self, name: Union[str, None] = None):
         super().__init__(PyIngestStream(name))
 
@@ -234,6 +240,7 @@ class ExtractStream:
     Args:
         stream: The stream from which to read messages.
     """
+
     def __init__(self, stream: OperatorStream):
         if not isinstance(stream, OperatorStream):
             raise ValueError(

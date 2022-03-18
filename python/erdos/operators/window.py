@@ -10,6 +10,7 @@ import erdos
 class TumblingWindow(erdos.Operator):
     """Windows incoming messages into non-overlapping lists of `window_size`.
     """
+
     def __init__(self, read_stream, write_stream, window_size):
         read_stream.add_callback(self.callback, [write_stream])
         self.window_size = window_size
@@ -33,6 +34,7 @@ class SlidingWindow(erdos.Operator):
 
     Windows are separated by messages that are sent 'offset' timestamps apart.
     """
+
     def __init__(self, read_stream, write_stream, window_size, offset):
         read_stream.add_callback(self.callback, [write_stream])
         self.window_size = window_size
@@ -62,6 +64,7 @@ class WatermarkWindow(erdos.Operator):
     Messages are collected since time of first message or since time of last
     watermark.
     """
+
     def __init__(self, read_stream, write_stream):
         read_stream.add_callback(self.callback, [write_stream])
         erdos.add_watermark_callback([read_stream], [write_stream],

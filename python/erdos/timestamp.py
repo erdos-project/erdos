@@ -6,6 +6,7 @@ class Timestamp:
     """An ERDOS timestamp representing the time for which a
     :py:class:`Message` or :py:class:`WatermarkMessage` is sent.
     """
+
     def __init__(self,
                  timestamp=None,
                  coordinates: Sequence[int] = None,

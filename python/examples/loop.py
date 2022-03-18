@@ -16,6 +16,7 @@ from erdos.streams import ReadStream, WriteStream
 
 
 class LoopOp(OneInOneOut):
+
     def __init__(self):
         print("initializing loop op")
 

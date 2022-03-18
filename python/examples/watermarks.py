@@ -12,6 +12,7 @@ from erdos.streams import ReadStream, WriteStream
 
 
 class SendOp(Source):
+
     def __init__(self):
         print("initializing send op")
 
@@ -32,6 +33,7 @@ class SendOp(Source):
 
 
 class TopOp(Source):
+
     def __init__(self):
         print("initializing top op")
 
@@ -42,6 +44,7 @@ class TopOp(Source):
 
 
 class BatchOp(OneInOneOut):
+
     def __init__(self):
         print("initializing batch op")
         self.batch = []
@@ -58,6 +61,7 @@ class BatchOp(OneInOneOut):
 
 
 class CallbackWatermarkListener(Sink):
+
     def __init__(self):
         print("initializing callback listener op")
 
@@ -71,6 +75,7 @@ class CallbackWatermarkListener(Sink):
 
 
 class PullWatermarkListener(Sink):
+
     def __init__(self):
         print("initializing pull listener op")
 

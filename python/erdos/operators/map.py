@@ -7,6 +7,7 @@ from erdos.operator import OneInOneOut
 class Map(OneInOneOut):
     """Applies the provided function to a message and sends the resulting
     message."""
+
     def __init__(self, function: Any):
         self.function = function
 
