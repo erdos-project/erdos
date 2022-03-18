@@ -109,14 +109,14 @@ impl OneInOneOut<TimeVersionedState<usize>, usize, usize> for SumOperator {
         }
 
         // Send the message.
-        let current_state = *ctx.get_current_state().unwrap();
+        let current_state_copy = *ctx.get_current_state().unwrap();
         ctx.get_write_stream()
-            .send(Message::new_message(timestamp, current_state))
+            .send(Message::new_message(timestamp, current_state_copy))
             .unwrap();
         tracing::info!(
             "SumOperator @ {:?}: Sent {}",
             timestamp_clone,
-            current_state
+            current_state_copy
         );
     }
 
@@ -199,15 +199,15 @@ impl TwoInOneOut<TimeVersionedState<usize>, usize, usize, usize> for JoinSumOper
     }
 
     fn on_watermark(&mut self, ctx: &mut TwoInOneOutContext<TimeVersionedState<usize>, usize>) {
-        let state = *ctx.get_current_state().unwrap();
+        let state_copy = *ctx.get_current_state().unwrap();
         let time = ctx.get_timestamp().clone();
         tracing::info!(
             "JoinSumOperator @ {:?}: received watermark, sending sum of {}",
             time,
-            state,
+            state_copy,
         );
         ctx.get_write_stream()
-            .send(Message::new_message(time, state))
+            .send(Message::new_message(time, state_copy))
             .unwrap();
     }
 }
