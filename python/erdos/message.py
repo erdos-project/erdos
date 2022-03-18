@@ -13,6 +13,7 @@ class Message:
         timestamp: The timestamp of the message.
         data: The data of the message.
     """
+
     def __init__(self, timestamp: Timestamp, data: Any):
         """ Constructs a :py:class:`Message` with the given `data` and
         `timestamp`.
@@ -47,6 +48,7 @@ class WatermarkMessage(Message):
     Attributes:
         timestamp: The timestamp for which this is a watermark.
     """
+
     def __init__(self, timestamp: Timestamp):
         super(WatermarkMessage, self).__init__(timestamp, None)
 

@@ -10,6 +10,7 @@ from erdos.operators import window, map
 
 class SendOp(erdos.Operator):
     """Sends `frequency` messages per second."""
+
     def __init__(self, write_stream, frequency):
         self.frequency = frequency
         self.write_stream = write_stream
@@ -33,6 +34,7 @@ class SendOp(erdos.Operator):
 
 def main():
     """Creates and runs the dataflow graph."""
+
     def add(msg):
         """Mapping Function passed into MapOp,
            returns a new Message that sums the data of each message in

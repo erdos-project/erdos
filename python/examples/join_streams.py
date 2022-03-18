@@ -12,6 +12,7 @@ from erdos.streams import WriteStream
 
 class SendOp(Source):
     """Sends `frequency` messages per second."""
+
     def __init__(self, frequency):
         print("Initializing send op with frequency {}".format(frequency))
         self.frequency = frequency
@@ -35,6 +36,7 @@ class SendOp(Source):
 
 
 class JoinOp(TwoInOneOut):
+
     def __init__(self):
         print("Initializing join op")
         self.left_msgs = {}

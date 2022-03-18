@@ -14,6 +14,7 @@ from erdos.streams import ReadStream, WriteStream
 
 
 class SendOp(Source):
+
     def __init__(self):
         print("initializing source op")
 
@@ -29,6 +30,7 @@ class SendOp(Source):
 
 
 class CallbackOp(Sink):
+
     def __init__(self):
         print("initializing callback op")
 
@@ -37,6 +39,7 @@ class CallbackOp(Sink):
 
 
 class PullOp(Sink):
+
     def __init__(self):
         print("initializing pull op using read")
 
@@ -47,6 +50,7 @@ class PullOp(Sink):
 
 
 class TryPullOp(Sink):
+
     def __init__(self):
         print("initializing pull op using try_read")
 
