@@ -16,7 +16,7 @@ pub trait State: 'static + Send + Sync {
 
     /// Retrieve the state at a given timestamp.
     /// If the state for that timestamp hasn't been initialized yet, invoke the default method on
-    /// the `Item` type, and return the newly created state for that timestamp.
+    /// the [`Self::Item`] type, and return the newly created state for that timestamp.
     fn at(&mut self, timestamp: &Timestamp) -> Option<&mut Self::Item>;
 }
 
