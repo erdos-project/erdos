@@ -3,7 +3,7 @@
 use crate::dataflow::Timestamp;
 use std::collections::HashMap;
 
-/// The `State` trait must be implemented by the state exposed to the operators by ERDOS.
+/// The [`State`] trait must be implemented by the state exposed to the operators by ERDOS.
 pub trait State: 'static + Send + Sync {
     type Item: Default;
 
