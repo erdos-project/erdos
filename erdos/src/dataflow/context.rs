@@ -6,7 +6,7 @@ use crate::dataflow::{
     deadlines::{DeadlineId, DeadlineT},
     operator::OperatorConfig,
     stream::StreamId,
-    AppendableStateT, Data, StateT, Timestamp, WriteStream,
+    AppendableState, Data, State, Timestamp, WriteStream,
 };
 
 /*************************************************************************************************
@@ -72,7 +72,7 @@ impl<S> SetupContext<S> {
 /// A context structure made available to the callbacks of a `ParallelSink` operator. The context
 /// provides access to the current timestamp for which the callback is invoked along with the state
 /// of the operator.
-pub struct ParallelSinkContext<'a, S: AppendableStateT<T>, T> {
+pub struct ParallelSinkContext<'a, S: AppendableState<T>, T> {
     timestamp: Timestamp,
     config: OperatorConfig,
     state: &'a S,
@@ -81,7 +81,7 @@ pub struct ParallelSinkContext<'a, S: AppendableStateT<T>, T> {
 
 impl<'a, S, T> ParallelSinkContext<'a, S, T>
 where
-    S: 'static + AppendableStateT<T>,
+    S: 'static + AppendableState<T>,
 {
     pub fn new(timestamp: Timestamp, config: OperatorConfig, state: &'a S) -> Self {
         Self {
@@ -116,7 +116,7 @@ where
 /// A context structure made available to the callbacks of a `Sink` operator. The context provides
 /// access to the current timestamp for which the callback is invoked along with the state
 /// of the operator.
-pub struct SinkContext<'a, S: StateT> {
+pub struct SinkContext<'a, S: State> {
     timestamp: Timestamp,
     config: OperatorConfig,
     state: &'a mut S,
@@ -124,7 +124,7 @@ pub struct SinkContext<'a, S: StateT> {
 
 impl<'a, S> SinkContext<'a, S>
 where
-    S: StateT,
+    S: State,
 {
     pub fn new(timestamp: Timestamp, config: OperatorConfig, state: &'a mut S) -> Self {
         Self {
@@ -144,9 +144,27 @@ where
         &self.config
     }
 
-    /// Get the state attached to the operator.
-    pub fn get_state(&mut self) -> &mut S {
-        &mut self.state
+    /// Get the current state attached to the operator.
+    pub fn get_current_state(&mut self) -> Option<&mut S::Item> {
+        let timestamp = self.get_timestamp().clone();
+        self.state.at(&timestamp)
+    }
+
+    /// Get the past state attached to the operator.
+    pub fn get_past_state(&mut self, time: &Timestamp) -> Option<&S::Item> {
+        if *time <= self.state.last_committed_timestamp() {
+            match self.state.at(time) {
+                Some(state_val) => Some(state_val),
+                None => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Get the timestamp of the last committed state.
+    pub fn get_last_committed_timestamp(&self) -> Timestamp {
+        self.state.last_committed_timestamp()
     }
 }
 
@@ -160,7 +178,7 @@ where
 /// the state of the operator and the write stream to send the outputs on.
 pub struct ParallelOneInOneOutContext<'a, S, T, U>
 where
-    S: AppendableStateT<U>,
+    S: AppendableState<U>,
     T: Data + for<'b> Deserialize<'b>,
 {
     timestamp: Timestamp,
@@ -172,7 +190,7 @@ where
 
 impl<'a, S, T, U> ParallelOneInOneOutContext<'a, S, T, U>
 where
-    S: AppendableStateT<U>,
+    S: AppendableState<U>,
     T: Data + for<'b> Deserialize<'b>,
 {
     pub fn new(
@@ -221,7 +239,7 @@ where
 /// state of the operator and the write stream to send the outputs on.
 pub struct OneInOneOutContext<'a, S, T>
 where
-    S: StateT,
+    S: State,
     T: Data + for<'b> Deserialize<'b>,
 {
     timestamp: Timestamp,
@@ -232,7 +250,7 @@ where
 
 impl<'a, S, T> OneInOneOutContext<'a, S, T>
 where
-    S: StateT,
+    S: State,
     T: Data + for<'b> Deserialize<'b>,
 {
     pub fn new(
@@ -259,9 +277,27 @@ where
         &self.config
     }
 
-    /// Get the state attached to the operator.
-    pub fn get_state(&mut self) -> &mut S {
-        &mut self.state
+    /// Get the current state attached to the operator.
+    pub fn get_current_state(&mut self) -> Option<&mut S::Item> {
+        let timestamp = self.get_timestamp().clone();
+        self.state.at(&timestamp)
+    }
+
+    /// Get the past state attached to the operator.
+    pub fn get_past_state(&mut self, time: &Timestamp) -> Option<&S::Item> {
+        if *time <= self.state.last_committed_timestamp() {
+            match self.state.at(time) {
+                Some(state_val) => Some(state_val),
+                None => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Get the timestamp of the last committed state.
+    pub fn get_last_committed_timestamp(&self) -> Timestamp {
+        self.state.last_committed_timestamp()
     }
 
     /// Get the write stream to send the output on.
@@ -280,7 +316,7 @@ where
 /// the state of the operator and the write stream to send the outputs on.
 pub struct ParallelTwoInOneOutContext<'a, S, T, U>
 where
-    S: AppendableStateT<U>,
+    S: AppendableState<U>,
     T: Data + for<'b> Deserialize<'b>,
 {
     timestamp: Timestamp,
@@ -292,7 +328,7 @@ where
 
 impl<'a, S, T, U> ParallelTwoInOneOutContext<'a, S, T, U>
 where
-    S: AppendableStateT<U>,
+    S: AppendableState<U>,
     T: Data + for<'b> Deserialize<'b>,
 {
     pub fn new(
@@ -341,7 +377,7 @@ where
 /// state of the operator and the write stream to send the outputs on.
 pub struct TwoInOneOutContext<'a, S, T>
 where
-    S: StateT,
+    S: State,
     T: Data + for<'b> Deserialize<'b>,
 {
     timestamp: Timestamp,
@@ -352,7 +388,7 @@ where
 
 impl<'a, S, T> TwoInOneOutContext<'a, S, T>
 where
-    S: StateT,
+    S: State,
     T: Data + for<'b> Deserialize<'b>,
 {
     pub fn new(
@@ -379,9 +415,27 @@ where
         &self.config
     }
 
-    /// Get the state attached to the operator.
-    pub fn get_state(&mut self) -> &mut S {
-        &mut self.state
+    /// Get the current state attached to the operator.
+    pub fn get_current_state(&mut self) -> Option<&mut S::Item> {
+        let timestamp = self.get_timestamp().clone();
+        self.state.at(&timestamp)
+    }
+
+    /// Get the past state attached to the operator.
+    pub fn get_past_state(&mut self, time: &Timestamp) -> Option<&S::Item> {
+        if *time <= self.state.last_committed_timestamp() {
+            match self.state.at(time) {
+                Some(state_val) => Some(state_val),
+                None => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Get the timestamp of the last committed state.
+    pub fn get_last_committed_timestamp(&self) -> Timestamp {
+        self.state.last_committed_timestamp()
     }
 
     /// Get the write stream to send the output on.
@@ -400,7 +454,7 @@ where
 /// the state of the operator and the write streams to send the outputs on.
 pub struct ParallelOneInTwoOutContext<'a, S, T, U, V>
 where
-    S: AppendableStateT<V>,
+    S: AppendableState<V>,
     T: Data + for<'b> Deserialize<'b>,
     U: Data + for<'b> Deserialize<'b>,
 {
@@ -414,7 +468,7 @@ where
 
 impl<'a, S, T, U, V> ParallelOneInTwoOutContext<'a, S, T, U, V>
 where
-    S: AppendableStateT<V>,
+    S: AppendableState<V>,
     T: Data + for<'b> Deserialize<'b>,
     U: Data + for<'b> Deserialize<'b>,
 {
@@ -471,7 +525,7 @@ where
 /// state of the operator and the write streams to send the outputs on.
 pub struct OneInTwoOutContext<'a, S, T, U>
 where
-    S: StateT,
+    S: State,
     T: Data + for<'b> Deserialize<'b>,
     U: Data + for<'b> Deserialize<'b>,
 {
@@ -484,7 +538,7 @@ where
 
 impl<'a, S, T, U> OneInTwoOutContext<'a, S, T, U>
 where
-    S: StateT,
+    S: State,
     T: Data + for<'b> Deserialize<'b>,
     U: Data + for<'b> Deserialize<'b>,
 {
@@ -514,9 +568,27 @@ where
         &self.config
     }
 
-    /// Get the state attached to the operator.
-    pub fn get_state(&mut self) -> &mut S {
-        &mut self.state
+    /// Get the current state attached to the operator.
+    pub fn get_current_state(&mut self) -> Option<&mut S::Item> {
+        let timestamp = self.get_timestamp().clone();
+        self.state.at(&timestamp)
+    }
+
+    /// Get the past state attached to the operator.
+    pub fn get_past_state(&mut self, time: &Timestamp) -> Option<&S::Item> {
+        if *time <= self.state.last_committed_timestamp() {
+            match self.state.at(time) {
+                Some(state_val) => Some(state_val),
+                None => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Get the timestamp of the last committed state.
+    pub fn get_last_committed_timestamp(&self) -> Timestamp {
+        self.state.last_committed_timestamp()
     }
 
     /// Get the left write stream to send the output on.

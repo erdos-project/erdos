@@ -1,13 +1,13 @@
 extern crate erdos;
 
-use std::{collections::HashMap, thread, time::Duration};
+use std::{thread, time::Duration};
 
 use erdos::dataflow::context::*;
 use erdos::dataflow::deadlines::*;
 use erdos::dataflow::operator::*;
 use erdos::dataflow::operators::*;
-use erdos::dataflow::stream::IngestStream;
-use erdos::dataflow::stream::WriteStreamT;
+use erdos::dataflow::state::TimeVersionedState;
+use erdos::dataflow::stream::*;
 use erdos::dataflow::*;
 use erdos::node::Node;
 use erdos::Configuration;
@@ -20,7 +20,7 @@ impl SourceOperator {
     }
 }
 
-impl Source<(), usize> for SourceOperator {
+impl Source<usize> for SourceOperator {
     fn run(&mut self, config: &OperatorConfig, write_stream: &mut WriteStream<usize>) {
         tracing::info!("Running {}", config.get_name());
         for t in 0..10 {
@@ -49,39 +49,17 @@ impl SquareOperator {
     }
 }
 
-struct SquareOperatorState {
-    current_timestamp: Timestamp,
-}
-
-impl SquareOperatorState {
-    fn new() -> Self {
-        Self {
-            current_timestamp: Timestamp::Bottom,
-        }
-    }
-}
-
-impl StateT for SquareOperatorState {
-    fn commit(&mut self, timestamp: &Timestamp) {
-        self.current_timestamp = timestamp.clone();
-    }
-
-    fn get_last_committed_timestamp(&self) -> Timestamp {
-        self.current_timestamp.clone()
-    }
-}
-
-impl OneInOneOut<SquareOperatorState, usize, usize> for SquareOperator {
-    fn setup(&mut self, ctx: &mut SetupContext<SquareOperatorState>) {
+impl OneInOneOut<(), usize, usize> for SquareOperator {
+    fn setup(&mut self, ctx: &mut SetupContext<()>) {
         ctx.add_deadline(TimestampDeadline::new(
-            move |_s: &SquareOperatorState, _t: &Timestamp| -> Duration { Duration::new(2, 0) },
-            |_s: &SquareOperatorState, _t: &Timestamp| {
+            move |_s: &(), _t: &Timestamp| -> Duration { Duration::new(2, 0) },
+            |_s: &(), _t: &Timestamp| {
                 tracing::info!("SquareOperator @ {:?}: Missed deadline.", _t);
             },
         ));
     }
 
-    fn on_data(&mut self, ctx: &mut OneInOneOutContext<SquareOperatorState, usize>, data: &usize) {
+    fn on_data(&mut self, ctx: &mut OneInOneOutContext<(), usize>, data: &usize) {
         thread::sleep(Duration::new(2, 0));
         tracing::info!(
             "SquareOperator @ {:?}: received {}",
@@ -99,7 +77,7 @@ impl OneInOneOut<SquareOperatorState, usize, usize> for SquareOperator {
         );
     }
 
-    fn on_watermark(&mut self, _ctx: &mut OneInOneOutContext<SquareOperatorState, usize>) {}
+    fn on_watermark(&mut self, _ctx: &mut OneInOneOutContext<(), usize>) {}
 }
 
 struct SumOperator {}
@@ -111,53 +89,38 @@ impl SumOperator {
     }
 }
 
-struct SumOperatorState {
-    counter: usize,
-    current_timestamp: Timestamp,
-}
-
-#[allow(dead_code)]
-impl SumOperatorState {
-    fn new() -> Self {
-        Self {
-            counter: 0,
-            current_timestamp: Timestamp::Bottom,
-        }
-    }
-
-    fn increment_counter(&mut self, value: usize) {
-        self.counter += value;
-    }
-
-    fn get_counter(&self) -> usize {
-        self.counter
-    }
-}
-
-impl StateT for SumOperatorState {
-    fn commit(&mut self, timestamp: &Timestamp) {
-        self.current_timestamp = timestamp.clone();
-    }
-
-    fn get_last_committed_timestamp(&self) -> Timestamp {
-        self.current_timestamp.clone()
-    }
-}
-
-impl OneInOneOut<SumOperatorState, usize, usize> for SumOperator {
-    fn on_data(&mut self, ctx: &mut OneInOneOutContext<SumOperatorState, usize>, data: &usize) {
+impl OneInOneOut<TimeVersionedState<usize>, usize, usize> for SumOperator {
+    fn on_data(
+        &mut self,
+        ctx: &mut OneInOneOutContext<TimeVersionedState<usize>, usize>,
+        data: &usize,
+    ) {
         tracing::info!("SumOperator @ {:?}: Received {}", ctx.get_timestamp(), data);
 
         let timestamp = ctx.get_timestamp().clone();
-        ctx.get_state().increment_counter(*data);
-        let state = ctx.get_state().get_counter();
+        let timestamp_clone = ctx.get_timestamp().clone();
+
+        // Find the last committed state, add the received data to it, and save for this timestamp.
+        {
+            let past_state = ctx
+                .get_past_state(&ctx.get_last_committed_timestamp())
+                .unwrap();
+            *ctx.get_current_state().unwrap() += past_state + data;
+        }
+
+        // Send the message.
+        let current_state_copy = *ctx.get_current_state().unwrap();
         ctx.get_write_stream()
-            .send(Message::new_message(timestamp, state))
+            .send(Message::new_message(timestamp, current_state_copy))
             .unwrap();
-        tracing::info!("SumOperator @ {:?}: Sent {}", ctx.get_timestamp(), state);
+        tracing::info!(
+            "SumOperator @ {:?}: Sent {}",
+            timestamp_clone,
+            current_state_copy
+        );
     }
 
-    fn on_watermark(&mut self, _ctx: &mut OneInOneOutContext<SumOperatorState, usize>) {}
+    fn on_watermark(&mut self, _ctx: &mut OneInOneOutContext<TimeVersionedState<usize>, usize>) {}
 }
 
 struct SinkOperator {}
@@ -168,52 +131,25 @@ impl SinkOperator {
     }
 }
 
-struct SinkOperatorState {
-    message_counter: HashMap<Timestamp, usize>,
-    current_timestamp: Timestamp,
-}
-
-impl SinkOperatorState {
-    fn new() -> Self {
-        Self {
-            message_counter: HashMap::new(),
-            current_timestamp: Timestamp::Bottom,
-        }
-    }
-
-    fn increment_message_count(&mut self, timestamp: &Timestamp) {
-        let count = self.message_counter.entry(timestamp.clone()).or_insert(0);
-        *count += 1;
-    }
-
-    fn get_message_count(&self, timestamp: &Timestamp) -> usize {
-        *self.message_counter.get(timestamp).unwrap_or_else(|| &0)
-    }
-}
-
-impl StateT for SinkOperatorState {
-    fn commit(&mut self, timestamp: &Timestamp) {
-        self.current_timestamp = timestamp.clone();
-    }
-
-    fn get_last_committed_timestamp(&self) -> Timestamp {
-        self.current_timestamp.clone()
-    }
-}
-
-impl Sink<SinkOperatorState, usize> for SinkOperator {
-    fn on_data(&mut self, ctx: &mut SinkContext<SinkOperatorState>, data: &usize) {
-        let timestamp = ctx.get_timestamp().clone();
-        tracing::info!("SinkOperator @ {:?}: Received {}", timestamp, data);
-        ctx.get_state().increment_message_count(&timestamp);
-    }
-
-    fn on_watermark(&mut self, ctx: &mut SinkContext<SinkOperatorState>) {
+impl Sink<TimeVersionedState<usize>, usize> for SinkOperator {
+    fn on_data(&mut self, ctx: &mut SinkContext<TimeVersionedState<usize>>, data: &usize) {
         let timestamp = ctx.get_timestamp().clone();
         tracing::info!(
-            "SinkOperator @ {:?}: Received {} data messages.",
+            "{} @ {:?}: Received {}",
+            ctx.get_operator_config().get_name(),
             timestamp,
-            ctx.get_state().get_message_count(&timestamp),
+            data
+        );
+        *ctx.get_current_state().unwrap() += 1;
+    }
+
+    fn on_watermark(&mut self, ctx: &mut SinkContext<TimeVersionedState<usize>>) {
+        let timestamp = ctx.get_timestamp().clone();
+        tracing::info!(
+            "{} @ {:?}: Received {} data messages.",
+            ctx.get_operator_config().get_name(),
+            timestamp,
+            ctx.get_current_state().unwrap(),
         );
     }
 }
@@ -227,82 +163,51 @@ impl JoinSumOperator {
     }
 }
 
-struct JoinSumOperatorState {
-    sum: usize,
-    current_timestamp: Timestamp,
-}
-
-#[allow(dead_code)]
-impl JoinSumOperatorState {
-    fn new() -> Self {
-        Self {
-            sum: 0,
-            current_timestamp: Timestamp::Bottom,
-        }
-    }
-
-    fn add(&mut self, value: usize) {
-        self.sum += value;
-    }
-
-    fn get_sum(&self) -> usize {
-        self.sum
-    }
-}
-
-impl StateT for JoinSumOperatorState {
-    fn commit(&mut self, timestamp: &Timestamp) {
-        self.current_timestamp = timestamp.clone();
-    }
-
-    fn get_last_committed_timestamp(&self) -> Timestamp {
-        self.current_timestamp.clone()
-    }
-}
-
-impl TwoInOneOut<JoinSumOperatorState, usize, usize, usize> for JoinSumOperator {
+impl TwoInOneOut<TimeVersionedState<usize>, usize, usize, usize> for JoinSumOperator {
     fn on_left_data(
         &mut self,
-        ctx: &mut TwoInOneOutContext<JoinSumOperatorState, usize>,
+        ctx: &mut TwoInOneOutContext<TimeVersionedState<usize>, usize>,
         data: &usize,
     ) {
-        ctx.get_state().add(*data);
-        let state = ctx.get_state().get_sum();
+        let current_timestamp = ctx.get_timestamp().clone();
+        let current_state = ctx.get_current_state().unwrap();
+        *current_state += *data;
 
         tracing::info!(
             "JoinSumOperator @ {:?}: Received {} on left stream, sum is {}",
-            ctx.get_timestamp(),
+            current_timestamp,
             data,
-            state
+            *current_state
         );
     }
 
     fn on_right_data(
         &mut self,
-        ctx: &mut TwoInOneOutContext<JoinSumOperatorState, usize>,
+        ctx: &mut TwoInOneOutContext<TimeVersionedState<usize>, usize>,
         data: &usize,
     ) {
-        ctx.get_state().add(*data);
-        let state = ctx.get_state().get_sum();
+        let current_timestamp = ctx.get_timestamp().clone();
+        let current_state = ctx.get_current_state().unwrap();
+        *current_state += *data;
 
         tracing::info!(
             "JoinSumOperator @ {:?}: Received {} on right stream, sum is {}",
-            ctx.get_timestamp(),
+            current_timestamp,
             data,
-            state
+            *current_state
         );
     }
 
-    fn on_watermark(&mut self, ctx: &mut TwoInOneOutContext<JoinSumOperatorState, usize>) {
-        let state = ctx.get_state().get_sum();
+    fn on_watermark(&mut self, ctx: &mut TwoInOneOutContext<TimeVersionedState<usize>, usize>) {
+        let state_copy = *ctx.get_current_state().unwrap();
         let time = ctx.get_timestamp().clone();
         tracing::info!(
             "JoinSumOperator @ {:?}: received watermark, sending sum of {}",
             time,
-            state,
+            state_copy,
         );
         ctx.get_write_stream()
-            .send(Message::new_message(time, state))
+            .send(Message::new_message(time, state_copy))
             .unwrap();
     }
 }
@@ -316,35 +221,8 @@ impl EvenOddOperator {
     }
 }
 
-struct EvenOddOperatorState {
-    current_timestamp: Timestamp,
-}
-
-#[allow(dead_code)]
-impl EvenOddOperatorState {
-    fn new() -> Self {
-        Self {
-            current_timestamp: Timestamp::Bottom,
-        }
-    }
-}
-
-impl StateT for EvenOddOperatorState {
-    fn commit(&mut self, timestamp: &Timestamp) {
-        self.current_timestamp = timestamp.clone();
-    }
-
-    fn get_last_committed_timestamp(&self) -> Timestamp {
-        self.current_timestamp.clone()
-    }
-}
-
-impl OneInTwoOut<EvenOddOperatorState, usize, usize, usize> for EvenOddOperator {
-    fn on_data(
-        &mut self,
-        ctx: &mut OneInTwoOutContext<EvenOddOperatorState, usize, usize>,
-        data: &usize,
-    ) {
+impl OneInTwoOut<(), usize, usize, usize> for EvenOddOperator {
+    fn on_data(&mut self, ctx: &mut OneInTwoOutContext<(), usize, usize>, data: &usize) {
         let time = ctx.get_timestamp().clone();
         if data % 2 == 0 {
             tracing::info!(
@@ -367,7 +245,7 @@ impl OneInTwoOut<EvenOddOperatorState, usize, usize, usize> for EvenOddOperator 
         }
     }
 
-    fn on_watermark(&mut self, _ctx: &mut OneInTwoOutContext<EvenOddOperatorState, usize, usize>) {}
+    fn on_watermark(&mut self, _ctx: &mut OneInTwoOutContext<(), usize, usize>) {}
 }
 
 fn main() {
@@ -377,15 +255,11 @@ fn main() {
     let mut node = Node::new(Configuration::from_args(&args));
 
     let source_config = OperatorConfig::new().name("SourceOperator");
-    let source_stream = erdos::connect_source(SourceOperator::new, || {}, source_config);
+    let source_stream = erdos::connect_source(SourceOperator::new, source_config);
 
     let square_config = OperatorConfig::new().name("SquareOperator");
-    let square_stream = erdos::connect_one_in_one_out(
-        SquareOperator::new,
-        SquareOperatorState::new,
-        square_config,
-        &source_stream,
-    );
+    let square_stream =
+        erdos::connect_one_in_one_out(SquareOperator::new, || {}, square_config, &source_stream);
 
     let map_config = OperatorConfig::new().name("FlatMapOperator");
     let map_stream = erdos::connect_one_in_one_out(
@@ -416,7 +290,7 @@ fn main() {
     //let sum_config = OperatorConfig::new().name("SumOperator");
     //let sum_stream = erdos::connect_one_in_one_out(
     //    SumOperator::new,
-    //    SumOperatorState::new,
+    //    TimeVersionedState::new,
     //    sum_config,
     //    &square_stream,
     //);
@@ -424,7 +298,7 @@ fn main() {
     let left_sink_config = OperatorConfig::new().name("LeftSinkOperator");
     erdos::connect_sink(
         SinkOperator::new,
-        SinkOperatorState::new,
+        TimeVersionedState::new,
         left_sink_config,
         &split_stream_less_50,
     );
@@ -432,25 +306,25 @@ fn main() {
     let right_sink_config = OperatorConfig::new().name("RightSinkOperator");
     erdos::connect_sink(
         SinkOperator::new,
-        SinkOperatorState::new,
+        TimeVersionedState::new,
         right_sink_config,
         &split_stream_greater_50,
     );
 
     // Example use of an ingest stream.
-    let ingest_stream = IngestStream::new();
-    let sink_config = OperatorConfig::new().name("IngestSinkOperator");
-    erdos::connect_sink(
-        SinkOperator::new,
-        SinkOperatorState::new,
-        sink_config,
-        &ingest_stream,
-    );
+    // let ingest_stream = IngestStream::new();
+    // let sink_config = OperatorConfig::new().name("IngestSinkOperator");
+    // erdos::connect_sink(
+    //     SinkOperator::new,
+    //     TimeVersionedState::new,
+    //     sink_config,
+    //     &ingest_stream,
+    // );
 
     // let join_sum_config = OperatorConfig::new().name("JoinSumOperator");
     // let join_stream = erdos::connect_two_in_one_out(
     //    JoinSumOperator::new,
-    //    JoinSumOperatorState::new,
+    //    TimeVersionedState::new,
     //    join_sum_config,
     //    &source_stream,
     //    &sum_stream,

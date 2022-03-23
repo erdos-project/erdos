@@ -11,7 +11,7 @@ use crate::{
         deadlines::{ConditionContext, DeadlineEvent, DeadlineId},
         operator::{OperatorConfig, ParallelTwoInOneOut, TwoInOneOut},
         stream::{StreamId, WriteStreamT},
-        AppendableStateT, Data, Message, ReadStream, StateT, Timestamp, WriteStream,
+        AppendableState, Data, Message, ReadStream, State, Timestamp, WriteStream,
     },
     node::{
         operator_event::{OperatorEvent, OperatorType},
@@ -23,7 +23,7 @@ use crate::{
 /// Message Processor that defines the generation and execution of events for a ParallelTwoInOneOut
 /// operator, where
 /// O: An operator that implements the ParallelTwoInOneOut trait,
-/// S: A state structure that implements the AppendableStateT trait,
+/// S: A state structure that implements the AppendableState trait,
 /// T: Type of messages received on the left read stream,
 /// U: Type of messages received on the right read stream,
 /// V: Type of messages sent on the write stream,
@@ -31,7 +31,7 @@ use crate::{
 pub struct ParallelTwoInOneOutMessageProcessor<O, S, T, U, V, W>
 where
     O: 'static + ParallelTwoInOneOut<S, T, U, V, W>,
-    S: AppendableStateT<W>,
+    S: AppendableState<W>,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
@@ -50,7 +50,7 @@ where
 impl<O, S, T, U, V, W> ParallelTwoInOneOutMessageProcessor<O, S, T, U, V, W>
 where
     O: 'static + ParallelTwoInOneOut<S, T, U, V, W>,
-    S: AppendableStateT<W>,
+    S: AppendableState<W>,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
@@ -79,7 +79,7 @@ impl<O, S, T, U, V, W> TwoInMessageProcessorT<S, T, U>
     for ParallelTwoInOneOutMessageProcessor<O, S, T, U, V, W>
 where
     O: 'static + ParallelTwoInOneOut<S, T, U, V, W>,
-    S: AppendableStateT<W>,
+    S: AppendableState<W>,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
@@ -292,14 +292,14 @@ where
 /// Message Processor that defines the generation and execution of events for a TwoInOneOut
 /// operator, where
 /// O: An operator that implements the TwoInOneOut trait,
-/// S: A state structure that implements the StateT trait,
+/// S: A state structure that implements the State trait,
 /// T: Type of messages received on the left read stream,
 /// U: Type of messages received on the right read stream,
 /// V: Type of messages sent on the write stream,
 pub struct TwoInOneOutMessageProcessor<O, S, T, U, V>
 where
     O: 'static + TwoInOneOut<S, T, U, V>,
-    S: StateT,
+    S: State,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
@@ -316,7 +316,7 @@ where
 impl<O, S, T, U, V> TwoInOneOutMessageProcessor<O, S, T, U, V>
 where
     O: 'static + TwoInOneOut<S, T, U, V>,
-    S: StateT,
+    S: State,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,
@@ -342,7 +342,7 @@ where
 impl<O, S, T, U, V> TwoInMessageProcessorT<S, T, U> for TwoInOneOutMessageProcessor<O, S, T, U, V>
 where
     O: 'static + TwoInOneOut<S, T, U, V>,
-    S: StateT,
+    S: State,
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
     V: Data + for<'a> Deserialize<'a>,

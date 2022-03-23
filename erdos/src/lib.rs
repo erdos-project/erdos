@@ -25,7 +25,6 @@
 //! // Stream of RGB images from a camera.
 //! let camera_frames = erdos::connect_source(
 //!     CameraOperator::new,
-//!     || {},
 //!     OperatorConfig::new().name("Camera")
 //! );
 //! // Stream of labeled bounding boxes for each RGB image.

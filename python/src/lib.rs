@@ -78,7 +78,6 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
                     config_copy.clone(),
                 )
             },
-            || {},
             config,
         );
 

@@ -55,7 +55,6 @@ use std::sync::{Arc, Mutex};
 ///     move || -> FromRosOperator<rosrust_msg::sensor_msgs::Image, Vec<u8>> {
 ///         FromRosOperator::new("image_topic", ros_image_to_bytes)
 ///     },
-///     || {},
 ///     ros_source_config,
 /// );
 /// ```
@@ -84,7 +83,7 @@ where
     }
 }
 
-impl<T: rosrust::Message, U> Source<(), U> for FromRosOperator<T, U>
+impl<T: rosrust::Message, U> Source<U> for FromRosOperator<T, U>
 where
     U: Data + for<'a> Deserialize<'a>,
 {
