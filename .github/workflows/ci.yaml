@@ -81,6 +81,8 @@ jobs:
           configuration: "--check-only --diff --profile black"
       - name: Check Black formatting
         uses: psf/black@stable
+        with:
+          options: "--check --diff --color"
       - name: Check Flake8 compatibility
         run: |
           flake8 --inline-quotes="double" ./python/doc/
