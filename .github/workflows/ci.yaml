@@ -77,6 +77,8 @@ jobs:
           python -m pip install maturin toml flake8==3.9.2 flake8-quotes
       - name: Check Python imports
         uses: isort/isort-action@master
+        with:
+          configuration: "--check-only --diff --profile black"
       - name: Check Black formatting
         uses: psf/black@stable
       - name: Check Flake8 compatibility
