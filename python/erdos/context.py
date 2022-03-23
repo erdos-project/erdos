@@ -51,7 +51,7 @@ class OneInOneOutContext:
 
     def __str__(self):
         return "OneInOneOutContext(Timestamp={}, Config={}, WriteStream={})".\
-                format(self.timestamp, self.config, self.write_stream.name())
+                format(self.timestamp, self.config, self.write_stream.name)
 
 
 class OneInTwoOutContext:
@@ -87,8 +87,8 @@ class OneInTwoOutContext:
                 Left WriteStream={}, Right WriteStream={})".format(
             self.timestamp,
             self.config,
-            self.left_write_stream.name(),
-            self.right_write_stream.name(),
+            self.left_write_stream.name,
+            self.right_write_stream.name,
         )
 
 
@@ -121,5 +121,5 @@ class TwoInOneOutContext:
                 .format(
                     self.timestamp,
                     self.config,
-                    self.write_stream.name(),
+                    self.write_stream.name,
                 )
