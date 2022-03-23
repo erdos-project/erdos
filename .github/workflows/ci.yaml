@@ -76,13 +76,11 @@ jobs:
         uses: isort/isort-action@master
       - name: Install Python dependencies
         run: |
-          python -m pip install maturin toml flake8==3.9.2 yapf==0.32.0 flake8-quotes
+          python -m pip install maturin toml flake8==3.9.2 flake8-quotes
       - name: Check Python formatting
         run: |
           flake8 --inline-quotes="double" ./python/doc/
           flake8 --inline-quotes="double" ./python/
-          yapf --diff --recursive ./python/doc/
-          yapf --diff --recursive ./python/
       - name: Install supported Rust nightly
         uses: actions-rs/toolchain@v1
         with:
