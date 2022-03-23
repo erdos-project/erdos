@@ -2,12 +2,10 @@
 """
 
 import erdos
-
 from erdos.operator import OneInOneOut
 
 
 class NoopOp(OneInOneOut):
-
     def __init__(self):
         print("Initializing NoopOp")
 
@@ -17,8 +15,9 @@ class NoopOp(OneInOneOut):
 
 def main():
     ingest_stream = erdos.streams.IngestStream()
-    s = erdos.connect_one_in_one_out(NoopOp, erdos.operator.OperatorConfig(),
-                                     ingest_stream)
+    s = erdos.connect_one_in_one_out(
+        NoopOp, erdos.operator.OperatorConfig(), ingest_stream
+    )
     extract_stream = erdos.streams.ExtractStream(s)
 
     handle = erdos.run_async()

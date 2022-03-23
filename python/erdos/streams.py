@@ -1,13 +1,19 @@
-from abc import ABC
 import logging
 import pickle
 import uuid
+from abc import ABC
 from typing import Union
 
+from erdos.internal import (
+    PyExtractStream,
+    PyIngestStream,
+    PyLoopStream,
+    PyOperatorStream,
+    PyReadStream,
+    PyStream,
+    PyWriteStream,
+)
 from erdos.message import Message, WatermarkMessage
-from erdos.internal import (PyReadStream, PyWriteStream, PyLoopStream,
-                            PyStream, PyOperatorStream, PyIngestStream,
-                            PyExtractStream)
 from erdos.timestamp import Timestamp
 
 logger = logging.getLogger(__name__)
@@ -22,8 +28,7 @@ def _parse_message(internal_msg):
     if internal_msg.is_timestamped_data():
         return pickle.loads(internal_msg.data)
     if internal_msg.is_watermark():
-        return WatermarkMessage(
-            Timestamp(_py_timestamp=internal_msg.timestamp))
+        return WatermarkMessage(Timestamp(_py_timestamp=internal_msg.timestamp))
     raise Exception("Unable to parse message")
 
 
@@ -41,12 +46,12 @@ class Stream(ABC):
 
     @property
     def id(self) -> str:
-        """ The id of the stream. """
+        """The id of the stream."""
         return uuid.UUID(self._internal_stream.id())
 
     @property
     def name(self) -> str:
-        """ The name of the stream. The stream ID if none was given. """
+        """The name of the stream. The stream ID if none was given."""
         return self._internal_stream.name()
 
     @name.setter
@@ -55,7 +60,7 @@ class Stream(ABC):
 
 
 class ReadStream:
-    """ A :py:class:`ReadStream` allows an operator to read and do work on
+    """A :py:class:`ReadStream` allows an operator to read and do work on
     data sent by other operators on a corresponding :py:class:`WriteStream`.
 
     An operator that takes control of its execution using the :code:`run`
@@ -72,18 +77,20 @@ class ReadStream:
     def __init__(self, _py_read_stream: PyReadStream):
         logger.debug(
             "Initializing ReadStream with the name: {}, and ID: {}.".format(
-                _py_read_stream.name(), _py_read_stream.id))
+                _py_read_stream.name(), _py_read_stream.id
+            )
+        )
         self._py_read_stream = _py_read_stream
 
     @property
     def name(self) -> str:
-        """ The name of the stream. A string version of the stream's ID if no
-        name was given. """
+        """The name of the stream. A string version of the stream's ID if no
+        name was given."""
         return self._py_read_stream.name()
 
     @property
     def id(self) -> str:
-        """ The id of the ReadStream. """
+        """The id of the ReadStream."""
         return uuid.UUID(self._py_read_stream.id())
 
     def is_closed(self) -> bool:
@@ -106,7 +113,7 @@ class ReadStream:
 
 
 class WriteStream:
-    """ A :py:class:`WriteStream` allows an operator to send messages and
+    """A :py:class:`WriteStream` allows an operator to send messages and
     watermarks to other operators that connect to the corresponding
     :py:class:`ReadStream`.
 
@@ -118,19 +125,22 @@ class WriteStream:
     def __init__(self, _py_write_stream: PyWriteStream):
         logger.debug(
             "Initializing WriteStream with the name: {}, and ID: {}.".format(
-                _py_write_stream.name(), _py_write_stream.id))
-        self._py_write_stream = PyWriteStream(
-        ) if _py_write_stream is None else _py_write_stream
+                _py_write_stream.name(), _py_write_stream.id
+            )
+        )
+        self._py_write_stream = (
+            PyWriteStream() if _py_write_stream is None else _py_write_stream
+        )
 
     @property
     def name(self) -> str:
-        """ The name of the stream. A string version of the stream's ID if no
-        name was given. """
+        """The name of the stream. A string version of the stream's ID if no
+        name was given."""
         return self._py_write_stream.name()
 
     @property
     def id(self) -> str:
-        """ The id of the WriteStream. """
+        """The id of the WriteStream."""
         return uuid.UUID(self._py_write_stream.id())
 
     def is_closed(self) -> bool:
@@ -147,15 +157,15 @@ class WriteStream:
             raise TypeError("msg must inherent from erdos.Message!")
 
         internal_msg = msg._to_py_message()
-        logger.debug("Sending message {} on the stream {}".format(
-            msg, self.name))
+        logger.debug("Sending message {} on the stream {}".format(msg, self.name))
 
         # Raise exception with the name.
         try:
             return self._py_write_stream.send(internal_msg)
         except Exception as e:
-            raise Exception("Exception on stream {} ({})".format(
-                self.name, self.id)) from e
+            raise Exception(
+                "Exception on stream {} ({})".format(self.name, self.id)
+            ) from e
 
 
 class OperatorStream(Stream):
@@ -219,8 +229,9 @@ class IngestStream(Stream):
         if not isinstance(msg, Message):
             raise TypeError("msg must inherent from erdos.Message!")
 
-        logger.debug("Sending message {} on the Ingest stream {}".format(
-            msg, self.name))
+        logger.debug(
+            "Sending message {} on the Ingest stream {}".format(msg, self.name)
+        )
 
         internal_msg = msg._to_py_message()
         self._internal_stream.send(internal_msg)
@@ -245,7 +256,8 @@ class ExtractStream:
         if not isinstance(stream, OperatorStream):
             raise ValueError(
                 "ExtractStream needs to be initialized with a Stream. "
-                "Received a {}".format(type(stream)))
+                "Received a {}".format(type(stream))
+            )
         self._py_extract_stream = PyExtractStream(stream._internal_stream)
 
     @property
@@ -255,7 +267,7 @@ class ExtractStream:
 
     @property
     def id(self) -> str:
-        """ The id of the ExtractStream. """
+        """The id of the ExtractStream."""
         return uuid.UUID(self._py_extract_stream.id())
 
     def is_closed(self) -> bool:

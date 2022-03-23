@@ -8,8 +8,7 @@ import erdos
 
 
 class TumblingWindow(erdos.Operator):
-    """Windows incoming messages into non-overlapping lists of `window_size`.
-    """
+    """Windows incoming messages into non-overlapping lists of `window_size`."""
 
     def __init__(self, read_stream, write_stream, window_size):
         read_stream.add_callback(self.callback, [write_stream])
@@ -46,10 +45,10 @@ class SlidingWindow(erdos.Operator):
         self.msgs.append(msg)
 
         if len(self.msgs) >= self.window_size:
-            msg = erdos.Message(msg.timestamp, self.msgs[0:self.window_size])
+            msg = erdos.Message(msg.timestamp, self.msgs[0 : self.window_size])
             write_stream.send(msg)
 
-            self.msgs = self.msgs[self.offset:]
+            self.msgs = self.msgs[self.offset :]
 
         self.count += 1
 
@@ -67,8 +66,9 @@ class WatermarkWindow(erdos.Operator):
 
     def __init__(self, read_stream, write_stream):
         read_stream.add_callback(self.callback, [write_stream])
-        erdos.add_watermark_callback([read_stream], [write_stream],
-                                     self.watermark_callback)
+        erdos.add_watermark_callback(
+            [read_stream], [write_stream], self.watermark_callback
+        )
         self.msgs = []
 
     def callback(self, msg, write_stream):

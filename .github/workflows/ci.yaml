@@ -74,13 +74,19 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install Python dependencies
         run: |
-          python -m pip install maturin toml flake8==3.9.2 yapf==0.32.0 flake8-quotes
-      - name: Check Python formatting
+          python -m pip install maturin toml flake8==3.9.2 flake8-quotes
+      - name: Check Python imports
+        uses: isort/isort-action@master
+        with:
+          configuration: "--check-only --diff --profile black"
+      - name: Check Black formatting
+        uses: psf/black@stable
+        with:
+          options: "--check --diff --color"
+      - name: Check Flake8 compatibility
         run: |
           flake8 --inline-quotes="double" ./python/doc/
           flake8 --inline-quotes="double" ./python/
-          yapf --diff --recursive ./python/doc/
-          yapf --diff --recursive ./python/
       - name: Install supported Rust nightly
         uses: actions-rs/toolchain@v1
         with:

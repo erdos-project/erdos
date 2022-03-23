@@ -2,17 +2,16 @@
 Sends a watermark every 3 messages which releases the batch.
 """
 
-import erdos
 import time
 from typing import Any
 
+import erdos
 from erdos.context import OneInOneOutContext, SinkContext
-from erdos.operator import Source, Sink, OneInOneOut
+from erdos.operator import OneInOneOut, Sink, Source
 from erdos.streams import ReadStream, WriteStream
 
 
 class SendOp(Source):
-
     def __init__(self):
         print("initializing send op")
 
@@ -33,7 +32,6 @@ class SendOp(Source):
 
 
 class TopOp(Source):
-
     def __init__(self):
         print("initializing top op")
 
@@ -44,7 +42,6 @@ class TopOp(Source):
 
 
 class BatchOp(OneInOneOut):
-
     def __init__(self):
         print("initializing batch op")
         self.batch = []
@@ -61,21 +58,21 @@ class BatchOp(OneInOneOut):
 
 
 class CallbackWatermarkListener(Sink):
-
     def __init__(self):
         print("initializing callback listener op")
 
     def on_data(self, context: SinkContext, data: Any):
-        print("CallbackWatermarkListener: received message {data}".format(
-            data=data))
+        print("CallbackWatermarkListener: received message {data}".format(data=data))
 
     def on_watermark(self, context: SinkContext):
-        print("CallbackWatermarkListener: received watermark at {}".format(
-            context.timestamp))
+        print(
+            "CallbackWatermarkListener: received watermark at {}".format(
+                context.timestamp
+            )
+        )
 
 
 class PullWatermarkListener(Sink):
-
     def __init__(self):
         print("initializing pull listener op")
 
@@ -83,27 +80,33 @@ class PullWatermarkListener(Sink):
         while True:
             data = read_stream.read()
             if isinstance(data, erdos.WatermarkMessage):
-                print(("PullWatermarkListener:"
-                       "received watermark {timestamp}").format(
-                           timestamp=data.timestamp))
+                print(
+                    ("PullWatermarkListener:" "received watermark {timestamp}").format(
+                        timestamp=data.timestamp
+                    )
+                )
             else:
-                print("PullWatermarkListener: received message {data}".format(
-                    data=data))
+                print(
+                    "PullWatermarkListener: received message {data}".format(data=data)
+                )
 
 
 def main():
     """Creates and runs the dataflow graph."""
-    count_stream = erdos.connect_source(SendOp,
-                                        erdos.operator.OperatorConfig())
+    count_stream = erdos.connect_source(SendOp, erdos.operator.OperatorConfig())
     top_stream = erdos.connect_source(TopOp, erdos.operator.OperatorConfig())
     batch_stream = erdos.connect_one_in_one_out(
-        BatchOp, erdos.operator.OperatorConfig(), count_stream)
-    erdos.connect_sink(CallbackWatermarkListener,
-                       erdos.operator.OperatorConfig(), batch_stream)
-    erdos.connect_sink(CallbackWatermarkListener,
-                       erdos.operator.OperatorConfig(), top_stream)
-    erdos.connect_sink(PullWatermarkListener, erdos.operator.OperatorConfig(),
-                       batch_stream)
+        BatchOp, erdos.operator.OperatorConfig(), count_stream
+    )
+    erdos.connect_sink(
+        CallbackWatermarkListener, erdos.operator.OperatorConfig(), batch_stream
+    )
+    erdos.connect_sink(
+        CallbackWatermarkListener, erdos.operator.OperatorConfig(), top_stream
+    )
+    erdos.connect_sink(
+        PullWatermarkListener, erdos.operator.OperatorConfig(), batch_stream
+    )
 
     erdos.run()
 
