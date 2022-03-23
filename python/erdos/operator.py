@@ -3,6 +3,7 @@ from collections import defaultdict, deque
 from typing import Any
 
 import numpy as np
+
 from erdos.context import (
     OneInOneOutContext,
     OneInTwoOutContext,

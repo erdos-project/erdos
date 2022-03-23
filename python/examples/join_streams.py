@@ -4,11 +4,10 @@
 import time
 from typing import Any
 
+import erdos
 from erdos.context import TwoInOneOutContext
 from erdos.operator import Source, TwoInOneOut
 from erdos.streams import WriteStream
-
-import erdos
 
 
 class SendOp(Source):

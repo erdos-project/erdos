@@ -1,9 +1,8 @@
 """Creates a dummy operator and gracefully shuts it down.
 """
 
-from erdos.operator import OneInOneOut
-
 import erdos
+from erdos.operator import OneInOneOut
 
 
 class NoopOp(OneInOneOut):

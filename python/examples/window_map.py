@@ -4,9 +4,8 @@ Separate operator applies a map function on sent windows.
 
 import time
 
-from erdos.operators import map, window
-
 import erdos
+from erdos.operators import map, window
 
 
 class SendOp(erdos.Operator):

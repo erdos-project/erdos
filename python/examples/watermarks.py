@@ -5,11 +5,10 @@ Sends a watermark every 3 messages which releases the batch.
 import time
 from typing import Any
 
+import erdos
 from erdos.context import OneInOneOutContext, SinkContext
 from erdos.operator import OneInOneOut, Sink, Source
 from erdos.streams import ReadStream, WriteStream
-
-import erdos
 
 
 class SendOp(Source):

@@ -5,9 +5,8 @@
 """
 import time
 
-from erdos.operators.map import Map
-
 import erdos
+from erdos.operators.map import Map
 
 
 def square_msg(context, msg):

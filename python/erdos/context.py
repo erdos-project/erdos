@@ -1,8 +1,7 @@
+import erdos
 from erdos.internal import PyTimestamp
 from erdos.streams import WriteStream
 from erdos.timestamp import Timestamp
-
-import erdos
 
 
 class SinkContext:
