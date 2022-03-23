@@ -11,7 +11,7 @@ pub trait State: 'static + Send + Sync {
     fn commit(&mut self, timestamp: &Timestamp);
 
     /// Retrieves the last committed timestamp by this state.
-    /// This method can be used in conjunction with `at` to retrieve the latest committed state.
+    /// This method can be used in conjunction with [`Self::at`] to retrieve the latest committed state.
     fn last_committed_timestamp(&self) -> Timestamp;
 
     /// Retrieve the state at a given timestamp.
