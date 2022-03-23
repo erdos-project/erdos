@@ -19,14 +19,14 @@ sys.path.insert(0, os.path.abspath("../../"))
 
 # -- Project information -----------------------------------------------------
 
-project = u"ERDOS"
-copyright = u"2018, The ERDOS Team"
-author = u"The ERDOS Team"
+project = "ERDOS"
+copyright = "2018, The ERDOS Team"
+author = "The ERDOS Team"
 
 # The short X.Y version
-version = u"0.3"
+version = "0.3"
 # The full version, including alpha/beta/rc tags
-release = u"0.3.1"
+release = "0.3.1"
 
 # -- General configuration ---------------------------------------------------
 
@@ -75,8 +75,11 @@ sys.modules["erdos.internal"] = mock_erdos_internal
 # Ensure that all references resolve.
 nitpicky = True
 # Ignore bugs for references to the typing library.
-nitpick_ignore = [("py:data", "typing.Any"), ("py:data", "typing.Optional"),
-                  ("py:data", "typing.Tuple")]
+nitpick_ignore = [
+    ("py:data", "typing.Any"),
+    ("py:data", "typing.Optional"),
+    ("py:data", "typing.Tuple"),
+]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
@@ -147,15 +150,12 @@ latex_elements = {
     # The paper size ("letterpaper" or "a4paper").
     #
     # "papersize": "letterpaper",
-
     # The font size ("10pt", "11pt" or "12pt").
     #
     # "pointsize": "10pt",
-
     # Additional stuff for the LaTeX preamble.
     #
     # "preamble": "",
-
     # Latex figure (float) alignment
     #
     # "figure_align": "htbp",
@@ -165,15 +165,14 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, "ERDOS.tex", u"ERDOS Documentation", u"The ERDOS Team",
-     "manual"),
+    (master_doc, "ERDOS.tex", "ERDOS Documentation", "The ERDOS Team", "manual"),
 ]
 
 # -- Options for manual page output ------------------------------------------
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [(master_doc, "erdos", u"ERDOS Documentation", [author], 1)]
+man_pages = [(master_doc, "erdos", "ERDOS Documentation", [author], 1)]
 
 # -- Options for Texinfo output ----------------------------------------------
 
@@ -181,9 +180,15 @@ man_pages = [(master_doc, "erdos", u"ERDOS Documentation", [author], 1)]
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, "ERDOS", u"ERDOS Documentation", author, "ERDOS",
-     "A platform for developing self-driving cars and robotics applications.",
-     "Miscellaneous"),
+    (
+        master_doc,
+        "ERDOS",
+        "ERDOS Documentation",
+        author,
+        "ERDOS",
+        "A platform for developing self-driving cars and robotics applications.",
+        "Miscellaneous",
+    ),
 ]
 
 # -- Options for Epub output -------------------------------------------------

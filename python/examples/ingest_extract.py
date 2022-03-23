@@ -19,10 +19,8 @@ def square_msg(context, msg):
 def main():
     ingest_stream = erdos.streams.IngestStream()
     square_stream = erdos.connect_one_in_one_out(
-        Map,
-        erdos.operator.OperatorConfig(),
-        ingest_stream,
-        function=square_msg)
+        Map, erdos.operator.OperatorConfig(), ingest_stream, function=square_msg
+    )
     extract_stream = erdos.streams.ExtractStream(square_stream)
 
     erdos.run_async()

@@ -3,8 +3,12 @@ from collections import defaultdict, deque
 from typing import Any
 
 import numpy as np
-from erdos.context import (OneInOneOutContext, OneInTwoOutContext, SinkContext,
-                           TwoInOneOutContext)
+from erdos.context import (
+    OneInOneOutContext,
+    OneInTwoOutContext,
+    SinkContext,
+    TwoInOneOutContext,
+)
 from erdos.streams import ReadStream, WriteStream
 
 MAX_NUM_RUNTIME_SAMPLES = 1000
@@ -53,6 +57,7 @@ class BaseOperator:
 
     def save_trace_events(self, file_name):
         import json
+
         with open(file_name, "w") as write_file:
             json.dump(self._trace_events, write_file)
 
@@ -381,7 +386,7 @@ class OneInTwoOut(BaseOperator):
 
 
 class OperatorConfig:
-    """ An :py:class:`OperatorConfig` allows developers to configure an
+    """An :py:class:`OperatorConfig` allows developers to configure an
     operator.
 
     An operator` can query the configuration passed to it by the driver by
@@ -396,12 +401,14 @@ class OperatorConfig:
                 self.logger = erdos.utils.setup_logging(self.config.name, _log)
     """
 
-    def __init__(self,
-                 name: str = None,
-                 flow_watermarks: bool = True,
-                 log_file_name: str = None,
-                 csv_log_file_name: str = None,
-                 profile_file_name: str = None):
+    def __init__(
+        self,
+        name: str = None,
+        flow_watermarks: bool = True,
+        log_file_name: str = None,
+        csv_log_file_name: str = None,
+        profile_file_name: str = None,
+    ):
         self._name = name
         self._flow_watermarks = flow_watermarks
         self._log_file_name = log_file_name
@@ -435,7 +442,8 @@ class OperatorConfig:
 
     def __str__(self):
         return "OperatorConfig(name={}, flow_watermarks={})".format(
-            self.name, self.flow_watermarks)
+            self.name, self.flow_watermarks
+        )
 
     def __repr__(self):
         return str(self)

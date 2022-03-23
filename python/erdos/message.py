@@ -15,7 +15,7 @@ class Message:
     """
 
     def __init__(self, timestamp: Timestamp, data: Any):
-        """ Constructs a :py:class:`Message` with the given `data` and
+        """Constructs a :py:class:`Message` with the given `data` and
         `timestamp`.
 
         Args:
@@ -65,7 +65,7 @@ class WatermarkMessage(Message):
 
     @property
     def is_top(self) -> bool:
-        """ Check if the watermark conveyed by this message corresponds to the
+        """Check if the watermark conveyed by this message corresponds to the
         top timestamp.
 
         Returns:

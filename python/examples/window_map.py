@@ -25,8 +25,7 @@ class SendOp(erdos.Operator):
         while True:
             timestamp = erdos.Timestamp(coordinates=[count])
             msg = erdos.Message(timestamp, count)
-            print("{name}: sending {msg}".format(name=self.config.name,
-                                                 msg=msg))
+            print("{name}: sending {msg}".format(name=self.config.name, msg=msg))
             self.write_stream.send(msg)
 
             count += 1
@@ -38,22 +37,22 @@ def main():
 
     def add(msg):
         """Mapping Function passed into MapOp,
-           returns a new Message that sums the data of each message in
-           msg.data."""
+        returns a new Message that sums the data of each message in
+        msg.data."""
         total = 0
         for i in msg.data:
             total += i.data
         return erdos.Message(msg.timestamp, total)
 
-    (source_stream, ) = erdos.connect(SendOp,
-                                      erdos.OperatorConfig(name="SendOp"), [],
-                                      frequency=3)
-    (window_stream, ) = erdos.connect(window.TumblingWindow,
-                                      erdos.OperatorConfig(), [source_stream],
-                                      window_size=3)
-    (map_stream, ) = erdos.connect(map.Map,
-                                   erdos.OperatorConfig(), [window_stream],
-                                   function=add)
+    (source_stream,) = erdos.connect(
+        SendOp, erdos.OperatorConfig(name="SendOp"), [], frequency=3
+    )
+    (window_stream,) = erdos.connect(
+        window.TumblingWindow, erdos.OperatorConfig(), [source_stream], window_size=3
+    )
+    (map_stream,) = erdos.connect(
+        map.Map, erdos.OperatorConfig(), [window_stream], function=add
+    )
     extract_stream = erdos.ExtractStream(map_stream)
 
     erdos.run_async()

@@ -15,7 +15,6 @@ import erdos
 
 
 class SendOp(Source):
-
     def __init__(self):
         print("initializing source op")
 
@@ -31,7 +30,6 @@ class SendOp(Source):
 
 
 class CallbackOp(Sink):
-
     def __init__(self):
         print("initializing callback op")
 
@@ -40,7 +38,6 @@ class CallbackOp(Sink):
 
 
 class PullOp(Sink):
-
     def __init__(self):
         print("initializing pull op using read")
 
@@ -51,7 +48,6 @@ class PullOp(Sink):
 
 
 class TryPullOp(Sink):
-
     def __init__(self):
         print("initializing pull op using try_read")
 
@@ -64,13 +60,10 @@ class TryPullOp(Sink):
 
 def main():
     """Creates and runs the dataflow graph."""
-    count_stream = erdos.connect_source(SendOp,
-                                        erdos.operator.OperatorConfig())
-    erdos.connect_sink(CallbackOp, erdos.operator.OperatorConfig(),
-                       count_stream)
+    count_stream = erdos.connect_source(SendOp, erdos.operator.OperatorConfig())
+    erdos.connect_sink(CallbackOp, erdos.operator.OperatorConfig(), count_stream)
     erdos.connect_sink(PullOp, erdos.operator.OperatorConfig(), count_stream)
-    erdos.connect_sink(TryPullOp, erdos.operator.OperatorConfig(),
-                       count_stream)
+    erdos.connect_sink(TryPullOp, erdos.operator.OperatorConfig(), count_stream)
 
     erdos.run()
 

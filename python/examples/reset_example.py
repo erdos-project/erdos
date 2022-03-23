@@ -21,10 +21,9 @@ def square(msg):
 def main():
     # Create the first dataflow.
     ingest_stream = erdos.IngestStream()
-    (map_stream, ) = erdos.connect(map.Map,
-                                   erdos.OperatorConfig(name="Double"),
-                                   [ingest_stream],
-                                   function=double)
+    (map_stream,) = erdos.connect(
+        map.Map, erdos.OperatorConfig(name="Double"), [ingest_stream], function=double
+    )
     extract_stream = erdos.ExtractStream(map_stream)
     node_handle = erdos.run_async()
 
@@ -42,10 +41,9 @@ def main():
 
     # Create a new dataflow.
     ingest_stream = erdos.IngestStream()
-    (map_stream, ) = erdos.connect(map.Map,
-                                   erdos.OperatorConfig(name="Square"),
-                                   [ingest_stream],
-                                   function=square)
+    (map_stream,) = erdos.connect(
+        map.Map, erdos.OperatorConfig(name="Square"), [ingest_stream], function=square
+    )
     extract_stream = erdos.ExtractStream(map_stream)
     node_handle = erdos.run_async()
 
