@@ -8,6 +8,7 @@ pub mod ros;
 // mod join_operator;
 mod concat;
 mod filter;
+mod join;
 mod map;
 mod split;
 
