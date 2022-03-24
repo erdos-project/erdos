@@ -84,7 +84,6 @@ jobs:
           flake8 --inline-quotes="double" ./python/doc/
           flake8 --inline-quotes="double" ./python/
 
-
   build-python:
     name: "Python ${{ matrix.python-version }} Build"
     runs-on: ubuntu-latest
@@ -98,9 +97,6 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install Python dependencies
-        run: |
-          python -m pip install maturin
       - name: Install supported Rust nightly
         uses: actions-rs/toolchain@v1
         with:
@@ -110,4 +106,6 @@ jobs:
           components: rustfmt, rust-src
       - uses: Swatinem/rust-cache@v1
       - name: Build
-        run: cd python && maturin build
+        run: |
+          python -m pip install maturin
+          cd python && maturin build
