@@ -1,5 +1,3 @@
-use std::{cmp::Reverse, collections::HashMap};
-
 use serde::Deserialize;
 
 use crate::dataflow::{
@@ -8,52 +6,73 @@ use crate::dataflow::{
     operator::{OperatorConfig, TwoInOneOut},
     state::TimeVersionedState,
     stream::{OperatorStream, Stream, WriteStreamT},
-    Data, Timestamp,
+    Data,
 };
 
-/// Joins messages with equivalent timestamps from two different streams.
-/// TODO: more documentation
-pub struct TimestampJoin<T: Data, U: Data> {
-    /// Lists of received data, grouped by timestamp.
-    items: HashMap<Timestamp, (Vec<T>, Vec<U>)>,
-}
+/// Joins messages with matching timestamps from two different streams.
+///
+/// The following table provides an example of how the [`TimestampJoin`] processes two streams:
+/// | Timestamp | Data sent on left stream | Data sent on right stream |
+/// |-----------|--------------------------|---------------------------|
+/// | asdf      |                q         |                           |
+/// | 1         | 2                        | 3                         |
+pub struct TimestampJoin {}
 
-impl<T: Data, U: Data> TimestampJoin<T, U> {
+impl TimestampJoin {
     pub fn new() -> Self {
-        Self {
-            items: HashMap::new(),
-        }
+        Self {}
     }
 }
 
-impl<T, U> TwoInOneOut<(), T, U, (T, U)> for TimestampJoin<T, U>
+impl<T, U> TwoInOneOut<TimeVersionedState<(Vec<T>, Vec<U>)>, T, U, (T, U)> for TimestampJoin
 where
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
-    fn on_left_data(&mut self, ctx: &mut TwoInOneOutContext<(), (T, U)>, data: &T) {
-        let (left_items, right_items) = self.items.entry(ctx.get_timestamp().clone()).or_default();
+    fn on_left_data(
+        &mut self,
+        ctx: &mut TwoInOneOutContext<TimeVersionedState<(Vec<T>, Vec<U>)>, (T, U)>,
+        data: &T,
+    ) {
+        let timestamp = ctx.get_timestamp().clone();
+        let (left_items, right_items) = ctx.get_current_state().unwrap();
         left_items.push(data.clone());
 
-        for right_item in right_items.iter().cloned() {
-            let msg = Message::new_message(ctx.get_timestamp().clone(), (data.clone(), right_item));
+        let messages: Vec<_> = right_items
+            .iter()
+            .cloned()
+            .map(|right_item| Message::new_message(timestamp.clone(), (data.clone(), right_item)))
+            .collect();
+        for msg in messages {
             ctx.get_write_stream().send(msg).unwrap();
         }
     }
 
-    fn on_right_data(&mut self, ctx: &mut TwoInOneOutContext<(), (T, U)>, data: &U) {
-        let (left_items, right_items) = self.items.entry(ctx.get_timestamp().clone()).or_default();
+    fn on_right_data(
+        &mut self,
+        ctx: &mut TwoInOneOutContext<TimeVersionedState<(Vec<T>, Vec<U>)>, (T, U)>,
+        data: &U,
+    ) {
+        let timestamp = ctx.get_timestamp().clone();
+        let (left_items, right_items) = ctx.get_current_state().unwrap();
         right_items.push(data.clone());
 
-        for left_item in left_items.iter().cloned() {
-            let msg = Message::new_message(ctx.get_timestamp().clone(), (left_item, data.clone()));
+        let messages: Vec<_> = left_items
+            .iter()
+            .cloned()
+            .map(|left_item| Message::new_message(timestamp.clone(), (left_item, data.clone())))
+            .collect();
+        for msg in messages {
             ctx.get_write_stream().send(msg).unwrap();
         }
     }
 
-    fn on_watermark(&mut self, ctx: &mut TwoInOneOutContext<(), (T, U)>) {
-        // Garbage-collect stale items.
-        self.items.retain(|k, _| k > ctx.get_timestamp());
+    fn on_watermark(
+        &mut self,
+        ctx: &mut TwoInOneOutContext<TimeVersionedState<(Vec<T>, Vec<U>)>, (T, U)>,
+    ) {
+        let timestamp = ctx.get_timestamp().clone();
+        ctx.get_state_mut().evict_until(&timestamp);
     }
 }
 
@@ -76,7 +95,7 @@ where
         let name = format!("TimestampJoinOp_{}_{}", self.name(), other.name());
         crate::connect_two_in_one_out(
             TimestampJoin::new,
-            || {},
+            TimeVersionedState::new,
             OperatorConfig::new().name(&name),
             self,
             other,

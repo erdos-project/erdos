@@ -56,6 +56,12 @@ where
             last_committed_timestamp: Timestamp::Bottom,
         }
     }
+
+    /// Evicts all committed state until and including the provided timestamp.
+    pub(crate) fn evict_until(&mut self, timestamp: &Timestamp) {
+        let timestamp = std::cmp::min(timestamp, &self.last_committed_timestamp);
+        self.state.retain(|k, _| k > timestamp);
+    }
 }
 
 impl<S> State for TimeVersionedState<S>

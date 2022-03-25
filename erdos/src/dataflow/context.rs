@@ -146,8 +146,7 @@ where
 
     /// Get the current state attached to the operator.
     pub fn get_current_state(&mut self) -> Option<&mut S::Item> {
-        let timestamp = self.get_timestamp().clone();
-        self.state.at(&timestamp)
+        self.state.at(&self.timestamp)
     }
 
     /// Get the past state attached to the operator.
@@ -279,8 +278,7 @@ where
 
     /// Get the current state attached to the operator.
     pub fn get_current_state(&mut self) -> Option<&mut S::Item> {
-        let timestamp = self.get_timestamp().clone();
-        self.state.at(&timestamp)
+        self.state.at(&self.timestamp)
     }
 
     /// Get the past state attached to the operator.
@@ -417,8 +415,7 @@ where
 
     /// Get the current state attached to the operator.
     pub fn get_current_state(&mut self) -> Option<&mut S::Item> {
-        let timestamp = self.get_timestamp().clone();
-        self.state.at(&timestamp)
+        self.state.at(&self.timestamp)
     }
 
     /// Get the past state attached to the operator.
@@ -431,6 +428,11 @@ where
         } else {
             None
         }
+    }
+
+    /// Gets a mutable version of the state.
+    pub(crate) fn get_state_mut(&mut self) -> &mut S {
+        self.state
     }
 
     /// Get the timestamp of the last committed state.
@@ -570,8 +572,7 @@ where
 
     /// Get the current state attached to the operator.
     pub fn get_current_state(&mut self) -> Option<&mut S::Item> {
-        let timestamp = self.get_timestamp().clone();
-        self.state.at(&timestamp)
+        self.state.at(&self.timestamp)
     }
 
     /// Get the past state attached to the operator.
