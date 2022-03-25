@@ -5,12 +5,18 @@ use std::sync::Arc;
 /// Takes an input ERDOS stream and publishes to a ROS topic using the provided message conversion
 /// function.
 ///
-/// Conversion function should convert a Rust data type and return a ROS type which implements
-/// the [`rosrust::Message`] trait.
+/// The conversion function transforms a [`Message`] into a ROS message which implements the
+/// [`rosrust::Message`] trait.
+///
+/// See [`rosrust_msg`](https://lib.rs/crates/rosrust_msg),
+/// the [ROS `std_msgs` package](http://wiki.ros.org/std_msgs),
+/// and the [ROS `common_msgs` package](http://wiki.ros.org/common_msgs)
+/// for a variety of supported and commonly-used ROS messages.
 ///
 /// # Example
 /// The following example shows how to use a [`ToRosOperator`] with a conversion function which
-/// takes a Rust [`i32`] and converts it to a ROS message with [`rosrust_msg::std_msgs::Int32`]
+/// takes a Rust [`i32`] and converts it to a ROS message with
+/// [`rosrust_msg::std_msgs::Int32`](http://docs.ros.org/en/api/std_msgs/html/msg/Int32.html)
 /// data.
 ///
 /// Assume that `source_stream` is an ERDOS stream sending the correct messages.

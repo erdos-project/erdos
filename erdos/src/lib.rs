@@ -58,7 +58,7 @@
 //!
 //! ### Implementing Operators
 //! For an example, see the implementation of the
-//! [`MapOperator`](crate::dataflow::operators::MapOperator).
+//! [`FlatMapOperator`](crate::dataflow::operators::FlatMapOperator).
 //!
 //! Operators are structures which implement an
 //! [operator trait](crate::dataflow::operator) reflecting their

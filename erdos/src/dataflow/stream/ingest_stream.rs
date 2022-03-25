@@ -23,7 +23,7 @@ use super::{errors::SendError, Stream, StreamId, WriteStream, WriteStreamT};
 ///
 /// # Example
 /// The below example shows how to use an [`IngestStream`] to send data to a
-/// [`MapOperator`](crate::dataflow::operators::MapOperator),
+/// [`FlatMapOperator`](crate::dataflow::operators::FlatMapOperator),
 /// and retrieve the processed values through an
 /// [`ExtractStream`](crate::dataflow::stream::ExtractStream).
 /// ```no_run
