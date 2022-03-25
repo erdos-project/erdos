@@ -108,7 +108,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.7", "3.8", "3.9", "3.10"]
-    needs: format-python, format-rust
+    needs: [format-python, format-rust]
     steps:
       - uses: actions/checkout@v2
       - name: Setup python
