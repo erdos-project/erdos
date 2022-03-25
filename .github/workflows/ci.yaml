@@ -11,9 +11,30 @@ env:
   rust_toolchain: nightly-2022-02-09
 
 jobs:
+  format-rust:
+    name: "Rust Formatting"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Install supported Rust nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ env.rust_toolchain }}
+          profile: minimal
+          override: true
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v1
+      - name: Check Rust formatting
+        run: cargo fmt -- --check
+      - name: Check Clippy linting
+        run: cargo clippy --all --tests --all-features -- -A clippy::needless_option_as_deref
+
+        
   build-rust:
     name: "Rust Build"
     runs-on: ubuntu-latest
+    needs: format-rust
     steps:
       - uses: actions/checkout@v2
       - name: Install supported Rust nightly
@@ -22,10 +43,8 @@ jobs:
           toolchain: ${{ env.rust_toolchain }}
           profile: minimal
           override: true
-          components: rustfmt, rust-src
+          components: rust-src
       - uses: Swatinem/rust-cache@v1
-      - name: Check Rust formatting
-        run: cargo fmt -- --check
       - name: Build
         run: cargo build --examples --verbose
       - name: Run tests
@@ -35,6 +54,7 @@ jobs:
     name: "ROS Integration"
     runs-on: ubuntu-latest
     container: ros:noetic
+    needs: format-rust
     steps:
       - uses: actions/checkout@v2
       - name: Install curl
@@ -45,10 +65,8 @@ jobs:
           toolchain: ${{ env.rust_toolchain }}
           profile: minimal
           override: true
-          components: rustfmt, rust-src
+          components: rust-src
       - uses: Swatinem/rust-cache@v1
-      - name: Check Rust formatting
-        run: cargo fmt -- --check
       - name: Build
         shell: bash
         run: |
@@ -90,7 +108,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.7", "3.8", "3.9", "3.10"]
-    needs: format-python
+    needs: format-python, format-rust
     steps:
       - uses: actions/checkout@v2
       - name: Setup python
@@ -103,7 +121,7 @@ jobs:
           toolchain: ${{ env.rust_toolchain }}
           profile: minimal
           override: true
-          components: rustfmt, rust-src
+          components: rust-src
       - uses: Swatinem/rust-cache@v1
       - name: Build
         run: |
