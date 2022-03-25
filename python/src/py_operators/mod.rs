@@ -53,10 +53,7 @@ fn construct_operator(
         {
             e.print(py)
         }
-        if let Some(e) = locals
-            .set_item("op_name", config.get_name())
-            .err()
-        {
+        if let Some(e) = locals.set_item("op_name", config.get_name()).err() {
             e.print(py)
         }
 

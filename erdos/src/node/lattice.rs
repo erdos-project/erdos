@@ -73,7 +73,10 @@ impl Eq for RunnableEvent {}
 impl PartialEq for RunnableEvent {
     // Two events are equal iff they are the same i.e. same index into the lattice.
     fn eq(&self, other: &RunnableEvent) -> bool {
-        matches!(self.node_index.index().cmp(&other.node_index.index()), Ordering::Equal)
+        matches!(
+            self.node_index.index().cmp(&other.node_index.index()),
+            Ordering::Equal
+        )
     }
 }
 

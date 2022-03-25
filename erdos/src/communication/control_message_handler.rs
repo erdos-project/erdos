@@ -39,7 +39,11 @@ impl ControlMessageHandler {
         node_id: NodeId,
         tx: UnboundedSender<ControlMessage>,
     ) {
-        if self.channels_to_control_senders.insert(node_id, tx).is_some() {
+        if self
+            .channels_to_control_senders
+            .insert(node_id, tx)
+            .is_some()
+        {
             tracing::error!(
                 "ControlMessageHandler: overwrote channel to control sender for node {}",
                 node_id
@@ -73,7 +77,11 @@ impl ControlMessageHandler {
         node_id: NodeId,
         tx: UnboundedSender<ControlMessage>,
     ) {
-        if self.channels_to_control_receivers.insert(node_id, tx).is_some() {
+        if self
+            .channels_to_control_receivers
+            .insert(node_id, tx)
+            .is_some()
+        {
             tracing::error!(
                 "ControlMessageHandler: overwrote channel to control receiver for node {}",
                 node_id
@@ -141,7 +149,11 @@ impl ControlMessageHandler {
         node_id: NodeId,
         tx: UnboundedSender<ControlMessage>,
     ) {
-        if self.channels_to_data_receivers.insert(node_id, tx).is_some() {
+        if self
+            .channels_to_data_receivers
+            .insert(node_id, tx)
+            .is_some()
+        {
             tracing::error!(
                 "ControlMessageHandler: overwrote channel to data receiver for node {}",
                 node_id
