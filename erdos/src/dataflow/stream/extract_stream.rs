@@ -28,7 +28,7 @@ use super::{
 ///
 /// # Example
 /// The below example shows how to use an [`IngestStream`](crate::dataflow::stream::IngestStream)
-/// to send data to a [`MapOperator`](crate::dataflow::operators::MapOperator),
+/// to send data to a [`FlatMapOperator`](crate::dataflow::operators::FlatMapOperator),
 /// and retrieve the processed values through an [`ExtractStream`].
 /// ```no_run
 /// # use erdos::dataflow::{

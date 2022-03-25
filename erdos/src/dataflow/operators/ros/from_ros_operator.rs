@@ -10,14 +10,19 @@ use std::sync::{Arc, Mutex};
 /// Subscribes to a ROS topic and outputs incoming messages to an ERDOS stream using the
 /// provided message conversion function.
 ///
-/// Conversion function should convert a ROS type which implements the [`rosrust::Message`]
-/// trait and return a ERDOS [`Message`] containing data of a Rust data type. See [`rosrust_msg`]
-/// for a variety of supported standard ROS messages.
+/// The conversion function transforms a ROS message implementing the [`rosrust::Message`] trait
+/// into an ERDOS [`Message`].
+///
+/// See [`rosrust_msg`](https://lib.rs/crates/rosrust_msg),
+/// the [ROS `std_msgs` package](http://wiki.ros.org/std_msgs),
+/// and the [ROS `common_msgs` package](http://wiki.ros.org/common_msgs)
+/// for a variety of supported and commonly-used ROS messages.
 ///
 /// # Example
 /// The following example shows how to use a [`FromRosOperator`] with a conversion function
-/// which takes a [`rosrust_msg::sensor_msgs::Image`] and returns an ERDOS message containing
-/// [`Vec<u8>`] a vector of bytes.
+/// which takes a
+/// [`rosrust_msg::sensor_msgs::Image`](http://docs.ros.org/en/api/sensor_msgs/html/msg/Image.html)
+/// and returns an ERDOS message containing [`Vec<u8>`] a vector of bytes.
 ///
 /// ```
 /// # use erdos::{
