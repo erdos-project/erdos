@@ -57,7 +57,9 @@ where
         }
     }
 
-    /// Evicts all committed state until and including the provided timestamp.
+    /// [Experimental] Evicts all committed state until and including the provided timestamp.
+    ///
+    /// Used to bound state size in [`TimestampJoin`](crate::dataflow::operators::TimestampJoin).
     pub(crate) fn evict_until(&mut self, timestamp: &Timestamp) {
         let timestamp = std::cmp::min(timestamp, &self.last_committed_timestamp);
         self.state.retain(|k, _| k > timestamp);

@@ -430,7 +430,10 @@ where
         }
     }
 
-    /// Gets a mutable version of the state.
+    /// [Experimental] Returns a mutable version of the state.
+    ///
+    /// Used to garbage-collect time-versioned state in
+    /// [`TimestampJoin`](crate::dataflow::operators::TimestampJoin)
     pub(crate) fn get_state_mut(&mut self) -> &mut S {
         self.state
     }

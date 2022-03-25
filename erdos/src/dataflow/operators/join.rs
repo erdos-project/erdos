@@ -11,11 +11,39 @@ use crate::dataflow::{
 
 /// Joins messages with matching timestamps from two different streams.
 ///
-/// The following table provides an example of how the [`TimestampJoin`] processes two streams:
-/// | Timestamp | Data sent on left stream | Data sent on right stream |
-/// |-----------|--------------------------|---------------------------|
-/// | asdf      |                q         |                           |
-/// | 1         | 2                        | 3                         |
+/// The following table provides an example of how the [`TimestampJoin`] processes data from two
+/// streams:
+///
+/// | Timestamp | Left input | Right input | [`TimestampJoin`] output                   |
+/// |-----------|------------|-------------|--------------------------------------------|
+/// | 1         | a <br> b   | 1 <br> 2    | (a, 1) <br> (a, 2) <br> (b, 1) <br> (b, 2) |
+/// | 2         | c          |             |                                            |
+/// | 3         |            | 3           |                                            |
+/// | 4         | d          | 4           | (d, 4)                                     |
+///
+/// # Example
+/// The following example shows how to use a [`TimestampJoin`] to join two streams.
+///
+/// ```
+/// # use erdos::dataflow::{
+/// #     stream::IngestStream,
+/// #     operator::OperatorConfig,
+/// #     operators::TimestampJoin,
+/// #     state::TimeVersionedState
+/// # };
+/// #
+/// # let left_stream: IngestStream<String> = IngestStream::new();
+/// # let right_stream: IngestStream<usize> = IngestStream::new();
+/// #
+/// // Joins two streams of types String and usize
+/// let joined_stream = erdos::connect_two_in_one_out(
+///     TimestampJoin::new,
+///     TimeVersionedState::new,
+///     OperatorConfig::new().name("TimestampJoin"),
+///     &left_stream,
+///     &right_stream,
+/// );
+/// ```
 pub struct TimestampJoin {}
 
 impl TimestampJoin {
@@ -76,7 +104,9 @@ where
     }
 }
 
-/// TODO: document
+/// Extension trait for joining pairs of streams.
+///
+/// Names the operators using the names of the incoming streams.
 pub trait Join<T, U>
 where
     T: Data + for<'a> Deserialize<'a>,
@@ -91,6 +121,18 @@ where
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
+    /// Joins messages with matching timestamps from two different streams using a [`TimestampJoin`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use erdos::dataflow::{stream::IngestStream, operators::Join};
+    /// #
+    /// # let left_stream: IngestStream<String> = IngestStream::new();
+    /// # let right_stream: IngestStream<usize> = IngestStream::new();
+    /// #
+    /// let joined_stream = left_stream.timestamp_join(&right_stream);
+    /// ```
     fn timestamp_join(&self, other: &dyn Stream<U>) -> OperatorStream<(T, U)> {
         let name = format!("TimestampJoinOp_{}_{}", self.name(), other.name());
         crate::connect_two_in_one_out(
