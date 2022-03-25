@@ -219,7 +219,6 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
                     self.name(),
                     self.id()
                 );
-                ()
             }
         };
 

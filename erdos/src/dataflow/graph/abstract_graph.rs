@@ -93,7 +93,7 @@ impl AbstractGraph {
         let abstract_operator = AbstractOperator {
             id: operator_id,
             runner: Box::new(runner),
-            config: config,
+            config,
             read_streams,
             write_streams,
         };
@@ -168,7 +168,7 @@ impl AbstractGraph {
     /// Otherwise, returns `stream_id`.
     pub(crate) fn resolve_stream_id(&self, stream_id: &StreamId) -> Option<StreamId> {
         match self.loop_streams.get(stream_id) {
-            Some(connected_stream_id) => connected_stream_id.clone(),
+            Some(connected_stream_id) => *connected_stream_id,
             None => Some(*stream_id),
         }
     }

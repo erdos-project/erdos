@@ -11,6 +11,7 @@
 //! scheduling operators, and hope to provide a versatile solution.
 
 // Private submodules
+#[allow(clippy::module_inception)]
 mod node;
 
 // Crate-wide visible submodules

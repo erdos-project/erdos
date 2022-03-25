@@ -76,20 +76,24 @@ impl JobGraph {
         self.streams
             .iter()
             .map(|s| {
-                let source = *self.stream_sources.get(&s.id()).expect(&format!(
-                    "Internal error: stream {} (ID: {}) must have a source",
-                    s.name(),
-                    s.id()
-                ));
+                let source = *self.stream_sources.get(&s.id()).unwrap_or_else(|| {
+                    panic!(
+                        "Internal error: stream {} (ID: {}) must have a source",
+                        s.name(),
+                        s.id()
+                    )
+                });
                 let destinations = self
                     .stream_destinations
                     .get(&s.id())
                     .cloned()
-                    .expect(&format!(
-                        "Internal error: stream {} (ID: {}) must have a destination",
-                        s.name(),
-                        s.id()
-                    ));
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "Internal error: stream {} (ID: {}) must have a destination",
+                            s.name(),
+                            s.id()
+                        )
+                    });
                 (s.box_clone(), source, destinations)
             })
             .collect()

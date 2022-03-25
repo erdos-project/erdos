@@ -16,7 +16,8 @@ pub(crate) struct PyMessage {
 #[pymethods]
 impl PyMessage {
     #[new]
-    fn new<'a>(timestamp: Option<PyTimestamp>, data: Option<&'a PyBytes>) -> PyResult<Self> {
+    #[allow(clippy::needless_option_as_deref)]
+    fn new(timestamp: Option<PyTimestamp>, data: Option<&PyBytes>) -> PyResult<Self> {
         if timestamp.is_none() && data.is_some() {
             return Err(exceptions::PyValueError::new_err(
                 "Passing a non-None value to data when timestamp=None is not allowed",
@@ -44,17 +45,11 @@ impl PyMessage {
     }
 
     fn is_timestamped_data(&self) -> bool {
-        match &self.msg {
-            Message::TimestampedData(_) => true,
-            _ => false,
-        }
+        matches!(&self.msg, Message::TimestampedData(_))
     }
 
     fn is_watermark(&self) -> bool {
-        match &self.msg {
-            Message::Watermark(_) => true,
-            _ => false,
-        }
+        matches!(&self.msg, Message::Watermark(_))
     }
 
     fn is_top_watermark(&self) -> bool {

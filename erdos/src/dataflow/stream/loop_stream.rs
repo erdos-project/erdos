@@ -48,6 +48,15 @@ where
     }
 }
 
+impl<D> Default for LoopStream<D>
+where
+    for<'a> D: Data + Deserialize<'a>,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<D> Stream<D> for LoopStream<D>
 where
     for<'a> D: Data + Deserialize<'a>,

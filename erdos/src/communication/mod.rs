@@ -96,7 +96,7 @@ pub async fn create_tcp_streams(
     node_addrs: Vec<SocketAddr>,
     node_id: NodeId,
 ) -> Vec<(NodeId, TcpStream)> {
-    let node_addr = node_addrs[node_id].clone();
+    let node_addr = node_addrs[node_id];
     // Connect to the nodes that have a lower id than the node.
     let connect_streams_fut = connect_to_nodes(node_addrs[..node_id].to_vec(), node_id);
     // Wait for connections from the nodes that have a higher id than the node.
@@ -208,7 +208,7 @@ async fn await_node_connections(
         await_futures.push(read_node_id(stream));
     }
     // Await until we've received `expected_conns` node ids.
-    Ok(future::try_join_all(await_futures).await?)
+    future::try_join_all(await_futures).await
 }
 
 /// Reads a node id from a TCP stream.

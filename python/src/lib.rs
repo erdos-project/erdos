@@ -238,6 +238,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
 
     #[pyfn(m)]
     #[pyo3(name = "connect_two_in_one_out")]
+    #[allow(clippy::too_many_arguments)]
     fn connect_two_in_one_out_py(
         py: Python,
         py_type: PyObject,

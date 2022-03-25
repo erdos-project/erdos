@@ -58,25 +58,28 @@ impl Sink<(), Vec<u8>> for PySink {
 
             // Create the Python version of the ReadStream.
             let read_stream_id = read_stream.id();
-            let read_stream_name = String::from(read_stream.name().clone());
+            let read_stream_name = read_stream.name();
             let read_stream_arc = Arc::new(read_stream);
             let py_read_stream = PyReadStream::from(&read_stream_arc);
 
             // Create the locals to run the constructor for the ReadStream.
             let py_read_stream_obj = Python::with_gil(|py| -> PyObject {
                 let locals = PyDict::new(py);
-                locals
+                if let Some(e) = locals
                     .set_item("py_read_stream", &Py::new(py, py_read_stream).unwrap())
                     .err()
-                    .map(|e| e.print(py));
-                locals
+                {
+                    e.print(py)
+                }
+                if let Some(e) = locals
                     .set_item("read_stream_id", format!("{}", read_stream_id))
                     .err()
-                    .map(|e| e.print(py));
-                locals
-                    .set_item("name", format!("{}", read_stream_name))
-                    .err()
-                    .map(|e| e.print(py));
+                {
+                    e.print(py)
+                }
+                if let Some(e) = locals.set_item("name", read_stream_name.to_string()).err() {
+                    e.print(py)
+                }
                 let read_stream_result = py.run(
                     r#"
 import uuid, erdos
@@ -85,14 +88,14 @@ import uuid, erdos
 read_stream = erdos.ReadStream(_py_read_stream=py_read_stream)
             "#,
                     None,
-                    Some(&locals),
+                    Some(locals),
                 );
                 if let Err(e) = read_stream_result {
                     e.print(py);
                 }
 
                 // Retrieve the constructed stream.
-                py.eval("read_stream", None, Some(&locals))
+                py.eval("read_stream", None, Some(locals))
                     .unwrap()
                     .to_object(py)
             });

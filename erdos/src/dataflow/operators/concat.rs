@@ -38,6 +38,12 @@ impl ConcatOperator {
     }
 }
 
+impl Default for ConcatOperator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<D: Data> TwoInOneOut<(), D, D, D> for ConcatOperator
 where
     for<'a> D: Data + Deserialize<'a>,

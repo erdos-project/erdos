@@ -86,7 +86,7 @@ where
             write_stream_option: Arc::new(Mutex::new(None)),
         };
         default_graph::add_ingest_stream(&ingest_stream);
-        default_graph::set_stream_name(&id, &format!("ingest_stream_{}", id.to_string()));
+        default_graph::set_stream_name(&id, &format!("ingest_stream_{}", id));
 
         ingest_stream
     }
@@ -123,7 +123,7 @@ where
                 default_graph::get_stream_name(&self.id()),
                 self.id(),
             );
-            return Err(SendError::Closed);
+            Err(SendError::Closed)
         }
     }
 
@@ -146,6 +146,15 @@ where
             }
             Err(msg) => panic!("Unable to set up IngestStream {}: {}", id, msg),
         }
+    }
+}
+
+impl<D> Default for IngestStream<D>
+where
+    for<'a> D: Data + Deserialize<'a>,
+{
+    fn default() -> Self {
+        Self::new()
     }
 }
 

@@ -111,11 +111,11 @@ where
 {
     fn on_data(&mut self, ctx: &mut SinkContext<()>, data: &T) {
         let timestamp = ctx.get_timestamp().clone();
-        self.convert_and_publish(ctx, &Message::new_message(timestamp.clone(), data.clone()));
+        self.convert_and_publish(ctx, &Message::new_message(timestamp, data.clone()));
     }
 
     fn on_watermark(&mut self, ctx: &mut SinkContext<()>) {
         let timestamp = ctx.get_timestamp().clone();
-        self.convert_and_publish(ctx, &Message::new_watermark(timestamp.clone()));
+        self.convert_and_publish(ctx, &Message::new_watermark(timestamp));
     }
 }

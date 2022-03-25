@@ -58,6 +58,15 @@ where
     }
 }
 
+impl<S> Default for TimeVersionedState<S>
+where
+    S: 'static + Default + Send + Sync,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<S> State for TimeVersionedState<S>
 where
     S: 'static + Default + Send + Sync,

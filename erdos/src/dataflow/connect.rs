@@ -44,7 +44,7 @@ where
         };
 
     default_graph::add_operator::<_, (), (), T, ()>(
-        config.clone(),
+        config,
         op_runner,
         None,
         None,
@@ -137,7 +137,7 @@ pub fn connect_sink<O, S, T>(
         };
 
     default_graph::add_operator::<_, T, (), (), ()>(
-        config.clone(),
+        config,
         op_runner,
         Some(read_stream),
         None,
@@ -189,7 +189,7 @@ where
         };
 
     default_graph::add_operator::<_, T, (), U, ()>(
-        config.clone(),
+        config,
         op_runner,
         Some(read_stream),
         None,
@@ -241,7 +241,7 @@ where
         };
 
     default_graph::add_operator::<_, T, (), U, ()>(
-        config.clone(),
+        config,
         op_runner,
         Some(read_stream),
         None,
@@ -302,7 +302,7 @@ where
         };
 
     default_graph::add_operator::<_, T, U, V, ()>(
-        config.clone(),
+        config,
         op_runner,
         Some(left_read_stream),
         Some(right_read_stream),
@@ -361,7 +361,7 @@ where
         };
 
     default_graph::add_operator::<_, T, U, V, ()>(
-        config.clone(),
+        config,
         op_runner,
         Some(left_read_stream),
         Some(right_read_stream),
@@ -424,7 +424,7 @@ where
         };
 
     default_graph::add_operator::<_, T, (), U, V>(
-        config.clone(),
+        config,
         op_runner,
         Some(read_stream),
         None,
@@ -485,7 +485,7 @@ where
         };
 
     default_graph::add_operator::<_, T, (), U, V>(
-        config.clone(),
+        config,
         op_runner,
         Some(read_stream),
         None,
