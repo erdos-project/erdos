@@ -30,7 +30,6 @@ jobs:
         run: cargo fmt -- --check
       - name: Check Clippy linting
         run: cargo clippy --all --tests --all-features -- -A clippy::needless_option_as_deref
-
         
   build-rust:
     name: "Rust Build"
