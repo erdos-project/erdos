@@ -16,6 +16,6 @@ mod split;
 // pub use crate::dataflow::operators::join_operator::JoinOperator;
 pub use concat::{Concat, ConcatOperator};
 pub use filter::{Filter, FilterOperator};
-pub use join::{Join, TimestampJoin};
+pub use join::{Join, TimestampJoinOperator};
 pub use map::{FlatMapOperator, Map};
 pub use split::{Split, SplitOperator};

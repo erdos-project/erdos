@@ -11,10 +11,10 @@ use crate::dataflow::{
 
 /// Joins messages with matching timestamps from two different streams.
 ///
-/// The following table provides an example of how the [`TimestampJoin`] processes data from two
+/// The following table provides an example of how the [`TimestampJoinOperator`] processes data from two
 /// streams:
 ///
-/// | Timestamp | Left input | Right input | [`TimestampJoin`] output                   |
+/// | Timestamp | Left input | Right input | [`TimestampJoinOperator`] output                   |
 /// |-----------|------------|-------------|--------------------------------------------|
 /// | 1         | a <br> b   | 1 <br> 2    | (a, 1) <br> (a, 2) <br> (b, 1) <br> (b, 2) |
 /// | 2         | c          |             |                                            |
@@ -22,13 +22,13 @@ use crate::dataflow::{
 /// | 4         | d          | 4           | (d, 4)                                     |
 ///
 /// # Example
-/// The following example shows how to use a [`TimestampJoin`] to join two streams.
+/// The following example shows how to use a [`TimestampJoinOperator`] to join two streams.
 ///
 /// ```
 /// # use erdos::dataflow::{
 /// #     stream::IngestStream,
 /// #     operator::OperatorConfig,
-/// #     operators::TimestampJoin,
+/// #     operators::TimestampJoinOperator,
 /// #     state::TimeVersionedState
 /// # };
 /// #
@@ -37,23 +37,23 @@ use crate::dataflow::{
 /// #
 /// // Joins two streams of types String and usize
 /// let joined_stream = erdos::connect_two_in_one_out(
-///     TimestampJoin::new,
+///     TimestampJoinOperator::new,
 ///     TimeVersionedState::new,
-///     OperatorConfig::new().name("TimestampJoin"),
+///     OperatorConfig::new().name("TimestampJoinOperator"),
 ///     &left_stream,
 ///     &right_stream,
 /// );
 /// ```
 #[derive(Default)]
-pub struct TimestampJoin {}
+pub struct TimestampJoinOperator {}
 
-impl TimestampJoin {
+impl TimestampJoinOperator {
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl<T, U> TwoInOneOut<TimeVersionedState<(Vec<T>, Vec<U>)>, T, U, (T, U)> for TimestampJoin
+impl<T, U> TwoInOneOut<TimeVersionedState<(Vec<T>, Vec<U>)>, T, U, (T, U)> for TimestampJoinOperator
 where
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
@@ -120,7 +120,7 @@ where
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
-    /// Joins messages with matching timestamps from two different streams using a [`TimestampJoin`].
+    /// Joins messages with matching timestamps from two different streams using a [`TimestampJoinOperator`].
     ///
     /// # Example
     ///
@@ -135,7 +135,7 @@ where
     fn timestamp_join(&self, other: &dyn Stream<U>) -> OperatorStream<(T, U)> {
         let name = format!("TimestampJoinOp_{}_{}", self.name(), other.name());
         crate::connect_two_in_one_out(
-            TimestampJoin::new,
+            TimestampJoinOperator::new,
             TimeVersionedState::new,
             OperatorConfig::new().name(&name),
             self,
