@@ -16,7 +16,6 @@ pub(crate) struct PyMessage {
 #[pymethods]
 impl PyMessage {
     #[new]
-    #[allow(clippy::needless_option_as_deref)]
     fn new(timestamp: Option<PyTimestamp>, data: Option<&PyBytes>) -> PyResult<Self> {
         if timestamp.is_none() && data.is_some() {
             return Err(exceptions::PyValueError::new_err(
