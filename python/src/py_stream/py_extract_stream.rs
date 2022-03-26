@@ -24,7 +24,7 @@ impl PyExtractStream {
         self.extract_stream.is_closed()
     }
 
-    fn read<'p>(&mut self, py: Python<'p>) -> PyResult<PyMessage> {
+    fn read(&mut self, py: Python) -> PyResult<PyMessage> {
         let result = py.allow_threads(|| self.extract_stream.read());
         match result {
             Ok(msg) => Ok(PyMessage::from(msg)),
@@ -36,7 +36,7 @@ impl PyExtractStream {
         }
     }
 
-    fn try_read<'p>(&mut self) -> PyResult<Option<PyMessage>> {
+    fn try_read(&mut self) -> PyResult<Option<PyMessage>> {
         match self.extract_stream.try_read() {
             Ok(msg) => Ok(Some(PyMessage::from(msg))),
             Err(TryReadError::Empty) => Ok(None),

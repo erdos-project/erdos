@@ -375,3 +375,9 @@ impl OperatorConfig {
         self.name.clone().unwrap_or_else(|| format!("{}", self.id))
     }
 }
+
+impl Default for OperatorConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}

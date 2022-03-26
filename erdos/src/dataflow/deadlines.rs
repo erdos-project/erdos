@@ -13,8 +13,8 @@ pub type DeadlineId = crate::Uuid;
 /// evaluation of the start and end conditions (s.a. the message counts and the state of the
 /// watermarks on each stream for the given timestamp) and the current timestamp for which the
 /// condition is being executed.
-pub trait CondFn: Fn(&Vec<StreamId>, &ConditionContext, &Timestamp) -> bool + Send + Sync {}
-impl<F: Fn(&Vec<StreamId>, &ConditionContext, &Timestamp) -> bool + Send + Sync> CondFn for F {}
+pub trait CondFn: Fn(&[StreamId], &ConditionContext, &Timestamp) -> bool + Send + Sync {}
+impl<F: Fn(&[StreamId], &ConditionContext, &Timestamp) -> bool + Send + Sync> CondFn for F {}
 
 /// A trait that defines the deadline function. This function receives access to the State of the
 /// operator along with the current timestamp, and must calculate the time after which the deadline
@@ -34,7 +34,7 @@ pub trait DeadlineT<S>: Send + Sync {
 
     fn invoke_start_condition(
         &self,
-        read_stream_ids: &Vec<StreamId>,
+        read_stream_ids: &[StreamId],
         condition_context: &ConditionContext,
         timestamp: &Timestamp,
     ) -> bool;
@@ -113,7 +113,7 @@ where
 
     /// The default start condition of TimestampDeadlines.
     fn default_start_condition(
-        stream_ids: &Vec<StreamId>,
+        stream_ids: &[StreamId],
         condition_context: &ConditionContext,
         current_timestamp: &Timestamp,
     ) -> bool {
@@ -135,7 +135,7 @@ where
 
     /// The default end condition of TimestampDeadlines.
     fn default_end_condition(
-        stream_ids: &Vec<StreamId>,
+        stream_ids: &[StreamId],
         condition_context: &ConditionContext,
         current_timestamp: &Timestamp,
     ) -> bool {
@@ -149,9 +149,7 @@ where
         // If the watermark for the given timestamp has been sent on all the streams, end the
         // deadline.
         for stream_id in stream_ids {
-            if condition_context.get_watermark_status(*stream_id, current_timestamp.clone())
-                == false
-            {
+            if !condition_context.get_watermark_status(*stream_id, current_timestamp.clone()) {
                 return false;
             }
         }
@@ -173,7 +171,7 @@ where
 
     fn invoke_start_condition(
         &self,
-        read_stream_ids: &Vec<StreamId>,
+        read_stream_ids: &[StreamId],
         condition_context: &ConditionContext,
         timestamp: &Timestamp,
     ) -> bool {
@@ -233,7 +231,7 @@ impl DeadlineEvent {
 /// A ConditionContext contains the count of the number of messages received on a stream along with
 /// the status of the watermark for each timestamp. This data is made available to the start and
 /// end condition functions to decide when to trigger the beginning and completion of deadlines.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ConditionContext {
     message_count: HashMap<(StreamId, Timestamp), usize>,
     watermark_status: HashMap<(StreamId, Timestamp), bool>,

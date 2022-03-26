@@ -128,7 +128,6 @@ use abomonation_derive::Abomonation;
 use clap::{self, App, Arg};
 use rand::{Rng, SeedableRng, StdRng};
 use serde::{Deserialize, Serialize};
-use uuid;
 
 // Private submodules
 mod configuration;
@@ -149,7 +148,7 @@ pub use dataflow::{connect::*, OperatorConfig};
 pub type OperatorId = Uuid;
 
 // Random number generator which should be the same accross threads and processes.
-thread_local!(static RNG: RefCell<StdRng>= RefCell::new(StdRng::from_seed(&[1913, 03, 26])));
+thread_local!(static RNG: RefCell<StdRng>= RefCell::new(StdRng::from_seed(&[1913, 3, 26])));
 
 /// Produces a deterministic, unique ID.
 pub fn generate_id() -> Uuid {
@@ -183,7 +182,7 @@ impl Uuid {
 impl fmt::Debug for Uuid {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> fmt::Result {
         let &Uuid(bytes) = self;
-        let id = uuid::Uuid::from_bytes(bytes.clone());
+        let id = uuid::Uuid::from_bytes(bytes);
         fmt::Display::fmt(&id, f)
     }
 }
@@ -191,7 +190,7 @@ impl fmt::Debug for Uuid {
 impl fmt::Display for Uuid {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> fmt::Result {
         let &Uuid(bytes) = self;
-        let id = uuid::Uuid::from_bytes(bytes.clone());
+        let id = uuid::Uuid::from_bytes(bytes);
         fmt::Display::fmt(&id, f)
     }
 }
@@ -200,7 +199,7 @@ impl fmt::Display for Uuid {
 pub fn reset() {
     // All global variables should be reset here.
     RNG.with(|rng| {
-        *rng.borrow_mut() = StdRng::from_seed(&[1913, 03, 26]);
+        *rng.borrow_mut() = StdRng::from_seed(&[1913, 3, 26]);
     });
     dataflow::graph::default_graph::set(dataflow::graph::AbstractGraph::new());
 }

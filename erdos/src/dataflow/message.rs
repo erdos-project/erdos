@@ -51,7 +51,7 @@ impl<D: Data> Message<D> {
     pub fn timestamp(&self) -> &Timestamp {
         match self {
             Self::TimestampedData(d) => &d.timestamp,
-            Self::Watermark(t) => &t,
+            Self::Watermark(t) => t,
         }
     }
 }

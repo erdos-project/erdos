@@ -80,7 +80,7 @@ where
     default fn decode(
         buf: &'a mut BytesMut,
     ) -> Result<DeserializedMessage<'a, D>, CommunicationError> {
-        let msg: D = bincode::deserialize(buf).map_err(|e| CommunicationError::from(e))?;
+        let msg: D = bincode::deserialize(buf).map_err(CommunicationError::from)?;
         Ok(DeserializedMessage::Owned(msg))
     }
 }

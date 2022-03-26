@@ -104,10 +104,12 @@ where
         if !self.write_stream.is_closed() {
             self.write_stream
                 .send(Message::new_watermark(Timestamp::Top))
-                .expect(&format!(
-                    "[ParallelOneInOneOut] Error sending Top watermark for operator {}",
-                    self.config.get_name()
-                ));
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "[ParallelOneInOneOut] Error sending Top watermark for operator {}",
+                        self.config.get_name()
+                    )
+                });
         }
     }
 
@@ -230,7 +232,7 @@ where
         if deadline_event.write_stream_ids.contains(&write_stream_id) {
             // Invoke the end condition function on the statistics from the WriteStream.
             return (deadline_event.end_condition)(
-                &vec![write_stream_id],
+                &[write_stream_id],
                 &self.write_stream.get_condition_context(),
                 &deadline_event.timestamp,
             );
@@ -322,10 +324,12 @@ where
         if !self.write_stream.is_closed() {
             self.write_stream
                 .send(Message::new_watermark(Timestamp::Top))
-                .expect(&format!(
-                    "[OneInOneOut] Error sending Top watermark for operator {}",
-                    self.config.get_name()
-                ));
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "[OneInOneOut] Error sending Top watermark for operator {}",
+                        self.config.get_name()
+                    )
+                });
         }
     }
 
@@ -459,7 +463,7 @@ where
         if deadline_event.write_stream_ids.contains(&write_stream_id) {
             // Invoke the end condition function on the statistics from the WriteStream.
             return (deadline_event.end_condition)(
-                &vec![write_stream_id],
+                &[write_stream_id],
                 &self.write_stream.get_condition_context(),
                 &deadline_event.timestamp,
             );

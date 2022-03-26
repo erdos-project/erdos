@@ -104,7 +104,7 @@ where
 
     /// Get the state attached to the operator.
     pub fn get_state(&self) -> &S {
-        &self.state
+        self.state
     }
 }
 
@@ -220,7 +220,7 @@ where
 
     /// Get the state attached to the operator.
     pub fn get_state(&self) -> &S {
-        &self.state
+        self.state
     }
 
     /// Get the write stream to send the output on.
@@ -358,7 +358,7 @@ where
 
     /// Get the state attached to the operator.
     pub fn get_state(&self) -> &S {
-        &self.state
+        self.state
     }
 
     /// Get the write stream to send the output on.
@@ -501,7 +501,7 @@ where
 
     /// Get the state attached to the operator.
     pub fn get_state(&self) -> &S {
-        &self.state
+        self.state
     }
 
     /// Get the left write stream to send the output on.

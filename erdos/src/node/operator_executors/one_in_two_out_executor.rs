@@ -114,20 +114,24 @@ where
         if !self.left_write_stream.is_closed() {
             self.left_write_stream
                 .send(Message::new_watermark(Timestamp::Top))
-                .expect(&format!(
-                    "[ParallelOneInTwoOut] Error sending Top watermark on left stream \
-                    for operator {}",
-                    self.config.get_name()
-                ));
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "[ParallelOneInTwoOut] Error sending Top watermark on left stream \
+                        for operator {}",
+                        self.config.get_name()
+                    )
+                });
         }
         if !self.right_write_stream.is_closed() {
             self.right_write_stream
                 .send(Message::new_watermark(Timestamp::Top))
-                .expect(&format!(
-                    "[ParallelOneInTwoOut] Error sending Top watermark on right stream\
-                    for operator {}",
-                    self.config.get_name()
-                ));
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "[ParallelOneInTwoOut] Error sending Top watermark on right stream\
+                        for operator {}",
+                        self.config.get_name()
+                    )
+                });
         }
     }
 
@@ -273,7 +277,7 @@ where
         {
             // Invoke the end condition function on the statistics from the WriteStream.
             return (deadline_event.end_condition)(
-                &vec![left_write_stream_id, right_write_stream_id],
+                &[left_write_stream_id, right_write_stream_id],
                 &(self
                     .left_write_stream
                     .get_condition_context()
@@ -379,20 +383,24 @@ where
         if !self.left_write_stream.is_closed() {
             self.left_write_stream
                 .send(Message::new_watermark(Timestamp::Top))
-                .expect(&format!(
-                    "[ParallelOneInTwoOut] Error sending Top watermark on left stream \
-                    for operator {}",
-                    self.config.get_name()
-                ));
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "[ParallelOneInTwoOut] Error sending Top watermark on left stream \
+                        for operator {}",
+                        self.config.get_name()
+                    )
+                });
         }
         if !self.right_write_stream.is_closed() {
             self.right_write_stream
                 .send(Message::new_watermark(Timestamp::Top))
-                .expect(&format!(
-                    "[ParallelOneInTwoOut] Error sending Top watermark on right stream\
-                    for operator {}",
-                    self.config.get_name()
-                ));
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "[ParallelOneInTwoOut] Error sending Top watermark on right stream\
+                        for operator {}",
+                        self.config.get_name()
+                    )
+                });
         }
     }
 
@@ -549,7 +557,7 @@ where
         {
             // Invoke the end condition function on the statistics from the WriteStream.
             return (deadline_event.end_condition)(
-                &vec![left_write_stream_id, right_write_stream_id],
+                &[left_write_stream_id, right_write_stream_id],
                 &(self
                     .left_write_stream
                     .get_condition_context()

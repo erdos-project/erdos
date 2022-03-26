@@ -30,7 +30,7 @@ impl ControlMessageCodec {
         if buf.len() >= msg_size {
             let msg_bytes = buf.split_to(msg_size);
             let msg = bincode::deserialize(&msg_bytes)
-                .map_err(|e| CodecError::from(e))
+                .map_err(CodecError::from)
                 .unwrap();
             self.msg_size = None;
             Some(msg)
@@ -45,7 +45,7 @@ impl Decoder for ControlMessageCodec {
     type Error = CodecError;
 
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<ControlMessage>, CodecError> {
-        if let Some(_) = self.msg_size {
+        if self.msg_size.is_some() {
             // We already have a message size.
             Ok(self.try_read_message(buf))
         } else {
@@ -66,13 +66,13 @@ impl Encoder<ControlMessage> for ControlMessageCodec {
 
     fn encode(&mut self, msg: ControlMessage, buf: &mut BytesMut) -> Result<(), CodecError> {
         // Get the serialized size of the message header.
-        let msg_size = bincode::serialized_size(&msg).map_err(|e| CodecError::from(e))? as u32;
+        let msg_size = bincode::serialized_size(&msg).map_err(CodecError::from)? as u32;
         // Write the size of the serialized message.
         let mut size_buffer: Vec<u8> = Vec::new();
         size_buffer.write_u32::<NetworkEndian>(msg_size)?;
         buf.extend(size_buffer);
         // Serialize and write the message.
-        let serialized_msg = bincode::serialize(&msg).map_err(|e| CodecError::from(e))?;
+        let serialized_msg = bincode::serialize(&msg).map_err(CodecError::from)?;
         buf.extend(serialized_msg);
         Ok(())
     }

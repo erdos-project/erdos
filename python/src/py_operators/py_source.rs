@@ -40,24 +40,30 @@ impl Source<Vec<u8>> for PySource {
         // Create the Python version of the WriteStream.
         let write_stream_clone = write_stream.clone();
         let write_stream_id = write_stream.id();
-        let write_stream_name = String::from(write_stream.name().clone());
+        let write_stream_name = write_stream.name();
         let py_write_stream = PyWriteStream::from(write_stream_clone);
 
         // Invoke the `run` method.
         Python::with_gil(|py| {
             let locals = PyDict::new(py);
-            locals
+            if let Some(e) = locals
                 .set_item("py_write_stream", &Py::new(py, py_write_stream).unwrap())
                 .err()
-                .map(|e| e.print(py));
-            locals
+            {
+                e.print(py)
+            }
+            if let Some(e) = locals
                 .set_item("write_stream_id", format!("{}", write_stream_id))
                 .err()
-                .map(|e| e.print(py));
-            locals
-                .set_item("write_stream_name", format!("{}", write_stream_name))
+            {
+                e.print(py)
+            }
+            if let Some(e) = locals
+                .set_item("write_stream_name", write_stream_name.to_string())
                 .err()
-                .map(|e| e.print(py));
+            {
+                e.print(py)
+            }
             let stream_construction_result = py.run(
                 r#"
 import uuid, erdos
@@ -66,7 +72,7 @@ import uuid, erdos
 write_stream = erdos.WriteStream(_py_write_stream=py_write_stream)
             "#,
                 None,
-                Some(&locals),
+                Some(locals),
             );
             if let Err(e) = stream_construction_result {
                 e.print(py);
@@ -74,7 +80,7 @@ write_stream = erdos.WriteStream(_py_write_stream=py_write_stream)
 
             // Retrieve the constructed stream.
             let py_write_stream_obj = py
-                .eval("write_stream", None, Some(&locals))
+                .eval("write_stream", None, Some(locals))
                 .unwrap()
                 .to_object(py);
 

@@ -81,6 +81,6 @@ impl From<Timestamp> for PyTimestamp {
 
 impl From<PyTimestamp> for Timestamp {
     fn from(timestamp: PyTimestamp) -> Self {
-        timestamp.timestamp.clone()
+        timestamp.timestamp
     }
 }

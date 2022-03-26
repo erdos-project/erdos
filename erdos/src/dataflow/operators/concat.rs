@@ -30,6 +30,7 @@ use crate::{
 ///     &right_stream,
 /// );
 /// ```
+#[derive(Default)]
 pub struct ConcatOperator {}
 
 impl ConcatOperator {

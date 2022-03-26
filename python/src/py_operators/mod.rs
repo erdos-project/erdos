@@ -24,32 +24,40 @@ fn construct_operator(
     py_operator_config: Arc<PyObject>,
     config: OperatorConfig,
 ) -> Arc<PyObject> {
+    // TODO (Sukrit): The function should return a Result object instead of echoing errors to
+    // standard output.
     Python::with_gil(|py| -> Arc<PyObject> {
         let locals = PyDict::new(py);
-        locals
+        if let Some(e) = locals
             .set_item("Operator", py_operator_type.clone_ref(py))
             .err()
-            .map(|e| e.print(py));
-        locals
-            .set_item("op_id", format!("{}", config.id))
-            .err()
-            .map(|e| e.print(py));
-        locals
+        {
+            e.print(py)
+        }
+        if let Some(e) = locals.set_item("op_id", format!("{}", config.id)).err() {
+            e.print(py)
+        }
+        if let Some(e) = locals
             .set_item("args", py_operator_args.clone_ref(py))
             .err()
-            .map(|e| e.print(py));
-        locals
+        {
+            e.print(py)
+        }
+        if let Some(e) = locals
             .set_item("kwargs", py_operator_kwargs.clone_ref(py))
             .err()
-            .map(|e| e.print(py));
-        locals
+        {
+            e.print(py)
+        }
+        if let Some(e) = locals
             .set_item("config", py_operator_config.clone_ref(py))
             .err()
-            .map(|e| e.print(py));
-        locals
-            .set_item("op_name", format!("{}", config.get_name()))
-            .err()
-            .map(|e| e.print(py));
+        {
+            e.print(py)
+        }
+        if let Some(e) = locals.set_item("op_name", config.get_name()).err() {
+            e.print(py)
+        }
 
         // Initialize the operator.
         let init_result = py.run(
@@ -67,7 +75,7 @@ operator._trace_event_logger = erdos.utils.setup_trace_logging(
 operator.__init__(*args, **kwargs)
             "#,
             None,
-            Some(&locals),
+            Some(locals),
         );
         if let Err(e) = init_result {
             e.print(py);
@@ -75,7 +83,7 @@ operator.__init__(*args, **kwargs)
 
         // Retrieve the constructed operator.
         Arc::new(
-            py.eval("operator", None, Some(&locals))
+            py.eval("operator", None, Some(locals))
                 .unwrap()
                 .to_object(py),
         )

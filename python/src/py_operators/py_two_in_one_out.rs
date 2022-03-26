@@ -66,7 +66,7 @@ impl TwoInOneOut<(), Vec<u8>, Vec<u8>, Vec<u8>> for PyTwoInOneOut {
             let left_read_stream_ptr: *mut ReadStream<Vec<u8>> = left_read_stream;
             let left_read_stream: ReadStream<Vec<u8>> = left_read_stream_ptr.read();
             let left_read_stream_id = left_read_stream.id();
-            let left_read_stream_name = String::from(left_read_stream.name().clone());
+            let left_read_stream_name = left_read_stream.name();
             let left_read_stream_arc = Arc::new(left_read_stream);
             let py_left_read_stream = PyReadStream::from(&left_read_stream_arc);
 
@@ -75,68 +75,80 @@ impl TwoInOneOut<(), Vec<u8>, Vec<u8>, Vec<u8>> for PyTwoInOneOut {
             let right_read_stream_ptr: *mut ReadStream<Vec<u8>> = right_read_stream;
             let right_read_stream: ReadStream<Vec<u8>> = right_read_stream_ptr.read();
             let right_read_stream_id = right_read_stream.id();
-            let right_read_stream_name = String::from(right_read_stream.name().clone());
+            let right_read_stream_name = right_read_stream.name();
             let right_read_stream_arc = Arc::new(right_read_stream);
             let py_right_read_stream = PyReadStream::from(&right_read_stream_arc);
 
             // Create the Python version of the WriteStream.
             let write_stream_clone = write_stream.clone();
             let write_stream_id = write_stream.id();
-            let write_stream_name = String::from(write_stream.name().clone());
+            let write_stream_name = write_stream.name();
             let py_write_stream = PyWriteStream::from(write_stream_clone);
 
             // Create the locals to run the constructor for the ReadStream and WriteStream.
             let (py_left_read_stream_obj, py_right_read_stream_obj, py_write_stream_obj) =
                 Python::with_gil(|py| -> (PyObject, PyObject, PyObject) {
                     let locals = PyDict::new(py);
-                    locals
+                    if let Some(e) = locals
                         .set_item(
                             "py_left_read_stream",
                             &Py::new(py, py_left_read_stream).unwrap(),
                         )
                         .err()
-                        .map(|e| e.print(py));
-                    locals
+                    {
+                        e.print(py)
+                    }
+                    if let Some(e) = locals
                         .set_item("left_read_stream_id", format!("{}", left_read_stream_id))
                         .err()
-                        .map(|e| e.print(py));
-                    locals
-                        .set_item(
-                            "left_read_stream_name",
-                            format!("{}", left_read_stream_name),
-                        )
+                    {
+                        e.print(py)
+                    }
+                    if let Some(e) = locals
+                        .set_item("left_read_stream_name", left_read_stream_name.to_string())
                         .err()
-                        .map(|e| e.print(py));
-                    locals
+                    {
+                        e.print(py)
+                    }
+                    if let Some(e) = locals
                         .set_item(
                             "py_right_read_stream",
                             &Py::new(py, py_right_read_stream).unwrap(),
                         )
                         .err()
-                        .map(|e| e.print(py));
-                    locals
+                    {
+                        e.print(py)
+                    }
+                    if let Some(e) = locals
                         .set_item("right_read_stream_id", format!("{}", right_read_stream_id))
                         .err()
-                        .map(|e| e.print(py));
-                    locals
-                        .set_item(
-                            "right_read_stream_name",
-                            format!("{}", right_read_stream_name),
-                        )
+                    {
+                        e.print(py)
+                    }
+                    if let Some(e) = locals
+                        .set_item("right_read_stream_name", right_read_stream_name.to_string())
                         .err()
-                        .map(|e| e.print(py));
-                    locals
+                    {
+                        e.print(py)
+                    }
+                    if let Some(e) = locals
                         .set_item("py_write_stream", &Py::new(py, py_write_stream).unwrap())
                         .err()
-                        .map(|e| e.print(py));
-                    locals
+                    {
+                        e.print(py)
+                    }
+                    if let Some(e) = locals
                         .set_item("write_stream_id", format!("{}", write_stream_id))
                         .err()
-                        .map(|e| e.print(py));
-                    locals
-                        .set_item("write_stream_name", format!("{}", write_stream_name))
+                    {
+                        e.print(py)
+                    }
+                    if let Some(e) = locals
+                        .set_item("write_stream_name", write_stream_name.to_string())
                         .err()
-                        .map(|e| e.print(py));
+                    {
+                        e.print(py)
+                    }
                     let stream_construction_result = py.run(
                         r#"
 import uuid, erdos
@@ -151,7 +163,7 @@ right_read_stream = erdos.ReadStream(_py_read_stream=py_right_read_stream)
 write_stream = erdos.WriteStream(_py_write_stream=py_write_stream)
             "#,
                         None,
-                        Some(&locals),
+                        Some(locals),
                     );
                     if let Err(e) = stream_construction_result {
                         e.print(py);
@@ -159,15 +171,15 @@ write_stream = erdos.WriteStream(_py_write_stream=py_write_stream)
 
                     // Retrieve the constructed stream.
                     let py_left_read_stream_obj = py
-                        .eval("left_read_stream", None, Some(&locals))
+                        .eval("left_read_stream", None, Some(locals))
                         .unwrap()
                         .to_object(py);
                     let py_right_read_stream_obj = py
-                        .eval("right_read_stream", None, Some(&locals))
+                        .eval("right_read_stream", None, Some(locals))
                         .unwrap()
                         .to_object(py);
                     let py_write_stream_obj = py
-                        .eval("write_stream", None, Some(&locals))
+                        .eval("write_stream", None, Some(locals))
                         .unwrap()
                         .to_object(py);
 

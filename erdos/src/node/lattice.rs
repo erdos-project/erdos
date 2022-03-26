@@ -73,10 +73,7 @@ impl Eq for RunnableEvent {}
 impl PartialEq for RunnableEvent {
     // Two events are equal iff they are the same i.e. same index into the lattice.
     fn eq(&self, other: &RunnableEvent) -> bool {
-        match self.node_index.index().cmp(&other.node_index.index()) {
-            Ordering::Equal => true,
-            _ => false,
-        }
+        self.node_index == other.node_index
     }
 }
 
@@ -333,7 +330,7 @@ impl ExecutionLattice {
             // elements out of the earlier run_queue, clears the run_queue and initializes it
             // afresh with the set difference of the old run_queue and the nodes to remove.
             // Since the invocation of this code is hopefully rare, we can optimize it later.
-            if demoted_leaves.len() > 0 {
+            if !demoted_leaves.is_empty() {
                 leaves.retain(|event| !demoted_leaves.contains(&event.node_index));
                 // Reconstruct the run queue.
                 let old_run_queue: Vec<RunnableEvent> = run_queue.drain().collect();
@@ -439,8 +436,7 @@ impl ExecutionLattice {
                     || {
                         leaves
                             .iter()
-                            .filter(|r| r.node_index == nx)
-                            .next()
+                            .find(|r| r.node_index == nx)
                             .map_or_else(|| "Executing".to_string(), |r| format!("Executing {}", r))
                     },
                     |x| x.to_string(),

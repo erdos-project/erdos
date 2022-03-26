@@ -153,6 +153,7 @@ impl ChannelManager {
     /// for operators with streams containing dataflow channels to other nodes, and transport
     /// channels from TCP receivers to operators that are connected to streams originating on
     /// other nodes.
+    #[allow(clippy::needless_collect)]
     pub async fn new(
         job_graph: &JobGraph,
         node_id: NodeId,
@@ -220,7 +221,7 @@ impl ChannelManager {
                 let contains_destination = destinations.iter().any(|destination| {
                     let destination_node_id = match destination {
                         Job::Operator(operator_id) => {
-                            operators.get(&operator_id).unwrap().config.node_id
+                            operators.get(operator_id).unwrap().config.node_id
                         }
                         // TODO: change this when ERDOS programs are submitted to a cluster.
                         Job::Driver => 0,

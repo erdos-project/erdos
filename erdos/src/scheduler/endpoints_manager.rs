@@ -35,13 +35,14 @@ impl ChannelsToReceivers {
     /// It sends a `PusherT` to message on all receiving threads.
     pub fn send(&mut self, stream_id: StreamId, pusher: Box<dyn PusherT>) {
         for sender in self.senders.iter_mut() {
-            let msg = (stream_id.clone(), pusher.clone());
+            let msg = (stream_id, pusher.clone());
             sender.send(msg).unwrap();
         }
     }
 }
 
 /// Wrapper used to store mappings between node ids and `mpsc::UnboundedSender` to sender threads.
+#[derive(Default)]
 pub struct ChannelsToSenders {
     /// The ith sender corresponds to a TCP connection to the ith node.
     senders: HashMap<NodeId, UnboundedSender<InterProcessMessage>>,
@@ -68,6 +69,6 @@ impl ChannelsToSenders {
         &self,
         node_id: NodeId,
     ) -> Option<tokio::sync::mpsc::UnboundedSender<InterProcessMessage>> {
-        self.senders.get(&node_id).map(|c| c.clone())
+        self.senders.get(&node_id).cloned()
     }
 }

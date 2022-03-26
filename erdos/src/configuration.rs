@@ -60,12 +60,12 @@ impl Configuration {
 
         let data_addrs = args.value_of("data-addresses").unwrap();
         let mut data_addresses: Vec<SocketAddr> = Vec::new();
-        for addr in data_addrs.split(",") {
+        for addr in data_addrs.split(',') {
             data_addresses.push(addr.parse().expect("Unable to parse socket address"));
         }
         let control_addrs = args.value_of("control-addresses").unwrap();
         let mut control_addresses: Vec<SocketAddr> = Vec::new();
-        for addr in control_addrs.split(",") {
+        for addr in control_addrs.split(',') {
             control_addresses.push(addr.parse().expect("Unable to parse socket address"));
         }
         assert_eq!(
@@ -83,7 +83,7 @@ impl Configuration {
             "Node index is larger than number of available nodes"
         );
         let graph_filename_arg = args.value_of("graph-filename").unwrap();
-        let graph_filename = if graph_filename_arg == "" {
+        let graph_filename = if graph_filename_arg.is_empty() {
             None
         } else {
             Some(graph_filename_arg.to_string())
