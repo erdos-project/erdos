@@ -4,7 +4,7 @@ use erdos::{
     dataflow::{
         context::SinkContext,
         operator::{Sink, Source},
-        operators::{Filter, Map, Split},
+        operators::{Filter, Join, Map, Split},
         state::TimeVersionedState,
         stream::{WriteStream, WriteStreamT},
         Message, OperatorConfig, Timestamp,
@@ -79,27 +79,36 @@ fn main() {
     let mut node = Node::new(Configuration::from_args(&args));
 
     let source_config = OperatorConfig::new().name("SourceOperator");
+    // Streams data 0, 1, 2, ..., 9 with timestamps 0, 1, 2, ..., 9.
     let source_stream = erdos::connect_source(SourceOperator::new, source_config);
 
-    let (split_stream_less_50, split_stream_greater_50) = source_stream
-        .map(|x: &usize| -> usize { 2 * x })
-        .filter(|x: &usize| -> bool { x > &10 })
-        .split(|x: &usize| -> bool { x < &50 });
+    // Given x, generates a sequence of messages 0, ..., x for the current timestamp.
+    let sequence = source_stream.flat_map(|x| (1..=*x));
+    // Finds the factors of x using the generated sequence.
+    let factors = source_stream
+        .timestamp_join(&sequence)
+        .filter(|&(x, d)| x % d == 0)
+        .map(|&(_, d)| d);
 
-    let left_sink_config = OperatorConfig::new().name("LeftSinkOperator");
+    // Split into streams of even factors and odd factors.
+    let (evens, odds) = factors.split(|x| x % 2 == 0);
+
+    // Print received even messages.
+    let evens_sink_config = OperatorConfig::new().name("EvensSinkOperator");
     erdos::connect_sink(
         SinkOperator::new,
         TimeVersionedState::new,
-        left_sink_config,
-        &split_stream_less_50,
+        evens_sink_config,
+        &evens,
     );
 
-    let right_sink_config = OperatorConfig::new().name("RightSinkOperator");
+    // Print received odd messages.
+    let odds_sink_config = OperatorConfig::new().name("OddsSinkOperator");
     erdos::connect_sink(
         SinkOperator::new,
         TimeVersionedState::new,
-        right_sink_config,
-        &split_stream_greater_50,
+        odds_sink_config,
+        &odds,
     );
 
     node.run();
