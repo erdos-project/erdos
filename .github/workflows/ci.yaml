@@ -17,7 +17,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-      - name: Install supported Rust nightly
+      - name: Install Rust ${{ env.rust_toolchain }} 
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ env.rust_toolchain }}
@@ -38,13 +38,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-      - name: Install supported Rust nightly
+      - name: Install Rust ${{ env.rust_toolchain }} 
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ env.rust_toolchain }}
           profile: minimal
           override: true
-          components: rust-src
       - name: Cache Rust package builds
         uses: Swatinem/rust-cache@v1
       - name: Build
@@ -62,13 +61,12 @@ jobs:
         uses: actions/checkout@v2
       - name: Install curl
         run: apt-get update; apt-get install curl
-      - name: Install supported Rust nightly
+      - name: Install Rust ${{ env.rust_toolchain }} 
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ env.rust_toolchain }}
           profile: minimal
           override: true
-          components: rust-src
       - name: Cache Rust package builds
         uses: Swatinem/rust-cache@v1
       - name: Build
@@ -120,7 +118,7 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install supported Rust nightly
+      - name: Install Rust ${{ env.rust_toolchain }} 
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ env.rust_toolchain }}
