@@ -59,6 +59,7 @@ where
 /// interacts with external systems.
 pub fn connect_parallel_sink<O, S, T, U>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
+    // Add state as an explicit argument to support future features such as state sharing.
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
     read_stream: &dyn Stream<T>,
@@ -105,6 +106,7 @@ pub fn connect_parallel_sink<O, S, T, U>(
 /// with external systems.
 pub fn connect_sink<O, S, T>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
+    // Add state as an explicit argument to support future features such as state sharing.
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
     read_stream: &dyn Stream<T>,
@@ -150,6 +152,7 @@ pub fn connect_sink<O, S, T>(
 /// write stream.
 pub fn connect_parallel_one_in_one_out<O, S, T, U, V>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
+    // Add state as an explicit argument to support future features such as state sharing.
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
     read_stream: &dyn Stream<T>,
@@ -203,6 +206,7 @@ where
 /// Adds a [`OneInOneOut`] operator that has one input read stream and one output write stream.
 pub fn connect_one_in_one_out<O, S, T, U>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
+    // Add state as an explicit argument to support future features such as state sharing.
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
     read_stream: &dyn Stream<T>,
@@ -256,6 +260,7 @@ where
 /// write stream.
 pub fn connect_parallel_two_in_one_out<O, S, T, U, V, W>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
+    // Add state as an explicit argument to support future features such as state sharing.
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
     left_read_stream: &dyn Stream<T>,
@@ -316,6 +321,7 @@ where
 /// Adds a [`TwoInOneOut`] operator that has two input read streams and one output write stream.
 pub fn connect_two_in_one_out<O, S, T, U, V>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
+    // Add state as an explicit argument to support future features such as state sharing.
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
     left_read_stream: &dyn Stream<T>,
@@ -376,6 +382,7 @@ where
 /// write streams.
 pub fn connect_parallel_one_in_two_out<O, S, T, U, V, W>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
+    // Add state as an explicit argument to support future features such as state sharing.
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
     read_stream: &dyn Stream<T>,
@@ -438,6 +445,7 @@ where
 /// Adds a [`OneInTwoOut`] operator that has one input read stream and two output write streams.
 pub fn connect_one_in_two_out<O, S, T, U, V>(
     operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
+    // Add state as an explicit argument to support future features such as state sharing.
     state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
     mut config: OperatorConfig,
     read_stream: &dyn Stream<T>,
