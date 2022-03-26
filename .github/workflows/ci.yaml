@@ -124,7 +124,6 @@ jobs:
           toolchain: ${{ env.rust_toolchain }}
           profile: minimal
           override: true
-          components: rust-src
       - name: Cache Rust package builds
         uses: Swatinem/rust-cache@v1
       - name: Build
