@@ -11,10 +11,10 @@ use crate::dataflow::{
 
 /// Joins messages with matching timestamps from two different streams.
 ///
-/// The following table provides an example of how the [`TimestampJoinOperator`] processes data from two
-/// streams:
+/// The following table provides an example of how the [`TimestampJoinOperator`] processes data
+/// from two streams:
 ///
-/// | Timestamp | Left input | Right input | [`TimestampJoinOperator`] output                   |
+/// | Timestamp | Left input | Right input | [`TimestampJoinOperator`] output           |
 /// |-----------|------------|-------------|--------------------------------------------|
 /// | 1         | a <br> b   | 1 <br> 2    | (a, 1) <br> (a, 2) <br> (b, 1) <br> (b, 2) |
 /// | 2         | c          |             |                                            |
@@ -120,7 +120,8 @@ where
     T: Data + for<'a> Deserialize<'a>,
     U: Data + for<'a> Deserialize<'a>,
 {
-    /// Joins messages with matching timestamps from two different streams using a [`TimestampJoinOperator`].
+    /// Joins messages with matching timestamps from two different streams using a
+    /// [`TimestampJoinOperator`].
     ///
     /// # Example
     ///
