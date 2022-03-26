@@ -1,5 +1,5 @@
 use erdos::dataflow::Timestamp;
-use pyo3::{basic::CompareOp, exceptions, prelude::*, PyObjectProtocol};
+use pyo3::{basic::CompareOp, exceptions, prelude::*};
 
 /// A Python version of ERDOS' Timestamp.
 ///
@@ -45,10 +45,7 @@ impl PyTimestamp {
             _ => None,
         }
     }
-}
 
-#[pyproto]
-impl PyObjectProtocol for PyTimestamp {
     fn __str__(&self) -> PyResult<String> {
         match &self.timestamp {
             Timestamp::Top => Ok(String::from("Timestamp::Top")),
