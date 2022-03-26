@@ -94,7 +94,7 @@ impl Eq for OperatorEvent {}
 
 impl PartialEq for OperatorEvent {
     fn eq(&self, other: &OperatorEvent) -> bool {
-        matches!(self.cmp(other), Ordering::Equal)
+        self.cmp(other).is_eq()
     }
 }
 

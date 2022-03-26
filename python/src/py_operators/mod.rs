@@ -24,6 +24,8 @@ fn construct_operator(
     py_operator_config: Arc<PyObject>,
     config: OperatorConfig,
 ) -> Arc<PyObject> {
+    // TODO (Sukrit): The function should return a Result object instead of echoing errors to
+    // standard output.
     Python::with_gil(|py| -> Arc<PyObject> {
         let locals = PyDict::new(py);
         if let Some(e) = locals
