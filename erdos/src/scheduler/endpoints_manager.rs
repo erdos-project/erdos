@@ -42,15 +42,10 @@ impl ChannelsToReceivers {
 }
 
 /// Wrapper used to store mappings between node ids and `mpsc::UnboundedSender` to sender threads.
+#[derive(Default)]
 pub struct ChannelsToSenders {
     /// The ith sender corresponds to a TCP connection to the ith node.
     senders: HashMap<NodeId, UnboundedSender<InterProcessMessage>>,
-}
-
-impl Default for ChannelsToSenders {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl ChannelsToSenders {

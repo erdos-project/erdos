@@ -30,17 +30,12 @@ use crate::{
 ///     &right_stream,
 /// );
 /// ```
+#[derive(Default)]
 pub struct ConcatOperator {}
 
 impl ConcatOperator {
     pub fn new() -> Self {
         Self {}
-    }
-}
-
-impl Default for ConcatOperator {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

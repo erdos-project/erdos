@@ -231,7 +231,7 @@ impl DeadlineEvent {
 /// A ConditionContext contains the count of the number of messages received on a stream along with
 /// the status of the watermark for each timestamp. This data is made available to the start and
 /// end condition functions to decide when to trigger the beginning and completion of deadlines.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ConditionContext {
     message_count: HashMap<(StreamId, Timestamp), usize>,
     watermark_status: HashMap<(StreamId, Timestamp), bool>,
@@ -295,11 +295,5 @@ impl ConditionContext {
                 .chain(other.watermark_status.clone())
                 .collect(),
         }
-    }
-}
-
-impl Default for ConditionContext {
-    fn default() -> Self {
-        Self::new()
     }
 }
