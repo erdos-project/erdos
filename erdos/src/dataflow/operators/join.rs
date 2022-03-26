@@ -44,6 +44,7 @@ use crate::dataflow::{
 ///     &right_stream,
 /// );
 /// ```
+#[derive(Default)]
 pub struct TimestampJoin {}
 
 impl TimestampJoin {
