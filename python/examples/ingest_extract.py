@@ -9,18 +9,18 @@ import erdos
 from erdos.operators.map import Map
 
 
-def square_msg(msg):
+def square_msg(context, msg):
     """Squares the data from an ERDOS message."""
     print("SquareOp: received {msg}".format(msg=msg))
-    return erdos.Message(msg.timestamp, msg.data * msg.data)
+    return erdos.Message(context.timestamp, msg * msg)
 
 
 def main():
-    ingest_stream = erdos.IngestStream()
-    (square_stream, ) = erdos.connect(Map,
-                                      erdos.OperatorConfig(), [ingest_stream],
-                                      function=square_msg)
-    extract_stream = erdos.ExtractStream(square_stream)
+    ingest_stream = erdos.streams.IngestStream()
+    square_stream = erdos.connect_one_in_one_out(
+        Map, erdos.operator.OperatorConfig(), ingest_stream, function=square_msg
+    )
+    extract_stream = erdos.streams.ExtractStream(square_stream)
 
     erdos.run_async()
 

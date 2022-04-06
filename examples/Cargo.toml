@@ -1,0 +1,34 @@
+[package]
+name = "examples"
+version = "0.4.0"
+authors = ["The ERDOS Team"]
+edition = "2018"
+publish = false
+
+[dependencies]
+erdos = { path = "../erdos" }
+
+rosrust_msg = { version = "0.1", optional = true }
+tracing = "0.1.29"
+
+[features]
+default = []
+ros = ["erdos/ros", "rosrust_msg"]
+
+[[example]]
+name = "erdos_to_ros"
+path = "erdos_to_ros.rs"
+required-features = ["ros"]
+
+[[example]]
+name = "ros_to_erdos"
+path = "ros_to_erdos.rs"
+required-features = ["ros"]
+
+[[example]]
+name = "full_pipeline"
+path = "full_pipeline.rs"
+
+[[example]]
+name = "linq"
+path = "linq.rs"

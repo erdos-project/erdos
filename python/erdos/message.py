@@ -1,18 +1,22 @@
+import pickle
 from typing import Any
 
+from erdos.internal import PyMessage
 from erdos.timestamp import Timestamp
 
 
-class Message(object):
-    """A :py:class:`Message` allows an :py:class:`Operator` to send timestamped
-    data to other operators via a :py:class:`WriteStream`.
+class Message:
+    """A :py:class:`Message` allows an operator to send timestamped data to
+    other operators via a :py:class:`WriteStream` or an
+    :py:class:`IngestStream`.
 
     Attributes:
-        timestamp (Timestamp): The timestamp of the message.
-        data (Any): The data of the message.
+        timestamp: The timestamp of the message.
+        data: The data of the message.
     """
+
     def __init__(self, timestamp: Timestamp, data: Any):
-        """ Construct a :py:class:`Message` with the given `data` and
+        """Constructs a :py:class:`Message` with the given `data` and
         `timestamp`.
 
         Args:
@@ -23,29 +27,63 @@ class Message(object):
             raise TypeError("timestamp must be of type `erdos.Timestamp`")
         self.timestamp = timestamp
         self.data = data
+        self._serialized_data = None
+
+    def _serialize_data(self):
+        """Serializes the message's data using pickle.
+
+        Allows an application to front-load cost of serializing data, which
+        usually occurs when the message is sent, in order to reduce the cost
+        of later sending the message.
+
+        If the data is later changed, :py:meth:`Message._serialize_data` must
+        be called again to reflect changes in the message.
+        """
+        self._serialized_data = pickle.dumps(
+            self.data, protocol=pickle.HIGHEST_PROTOCOL
+        )
+
+    def _to_py_message(self) -> PyMessage:
+        """Converts the current message to a :py:class:`PyMessage`.
+
+        Returns:
+            The :py:class:`PyMessage` instance representing `self`.
+        """
+        if self._serialized_data is None:
+            self._serialize_data()
+        return PyMessage(self.timestamp._to_py_timestamp(), self._serialized_data)
 
     def __str__(self):
         return "{{timestamp: {}, data: {}}}".format(self.timestamp, self.data)
 
 
 class WatermarkMessage(Message):
-    """A :py:class:`WatermarkMessage` allows an :py:class:`Operator` to convey
-    the completion of all outgoing data for a given timestamp on a
+    """A :py:class:`WatermarkMessage` allows an operator to convey the
+    completion of all outgoing data for a given timestamp on a
     :py:class:`WriteStream`.
 
     Attributes:
-        timestamp (Timestamp): The timestamp for which this is a watermark.
+        timestamp: The timestamp for which this is a watermark.
     """
+
     def __init__(self, timestamp: Timestamp):
         super(WatermarkMessage, self).__init__(timestamp, None)
 
     def __str__(self):
         return "{{timestamp: {}, watermark: True}}".format(self.timestamp)
 
+    def _to_py_message(self) -> PyMessage:
+        """Converts the current message to a :py:class:`PyMessage`.
+
+        Returns:
+            The :py:class:`PyMessage` instance representing self.
+        """
+        return PyMessage(self.timestamp._to_py_timestamp(), None)
+
     @property
     def is_top(self) -> bool:
-        """ Check if the watermark conveyed by this message corresponds to the
-        top timestamp.
+        """Indicates whether the watermark conveyed by this message
+        corresponds to the top timestamp.
 
         Returns:
             `true` if the timestamp is top, `false` otherwise.

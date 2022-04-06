@@ -1,8 +1,9 @@
 import time
 
 
-class Profile(object):
+class Profile:
     """Used to log the duration of a snippet of code using a with statement."""
+
     def __init__(self, event_name, operator, event_data=None):
         self.event_name = event_name
         self.operator = operator
@@ -20,7 +21,8 @@ class Profile(object):
         for key, value in self.event_data.items():
             if not isinstance(key, str) or not isinstance(value, str):
                 raise ValueError(
-                    "The event_data must be a dict mapping strings to strings")
+                    "The event_data must be a dict mapping strings to strings"
+                )
         # Start time in us.
         ts = int(self.start_time * 1000 * 1000)
         # Duration in us.
@@ -33,6 +35,6 @@ class Profile(object):
             "ts": ts,
             "dur": dur,
             "ph": "X",
-            "args": self.event_data
+            "args": self.event_data,
         }
         self.operator.add_trace_event(event)

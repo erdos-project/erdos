@@ -1,11 +1,19 @@
-import pickle
 import logging
-from operator import attrgetter
-from typing import Union, Callable
+import pickle
+import uuid
+from abc import ABC
+from typing import Union
 
+from erdos.internal import (
+    PyExtractStream,
+    PyIngestStream,
+    PyLoopStream,
+    PyOperatorStream,
+    PyReadStream,
+    PyStream,
+    PyWriteStream,
+)
 from erdos.message import Message, WatermarkMessage
-from erdos.internal import (PyReadStream, PyWriteStream, PyLoopStream,
-                            PyIngestStream, PyExtractStream, PyMessage)
 from erdos.timestamp import Timestamp
 
 logger = logging.getLogger(__name__)
@@ -20,56 +28,70 @@ def _parse_message(internal_msg):
     if internal_msg.is_timestamped_data():
         return pickle.loads(internal_msg.data)
     if internal_msg.is_watermark():
-        return WatermarkMessage(
-            Timestamp(coordinates=internal_msg.timestamp,
-                      is_top=internal_msg.is_top_watermark()))
+        return WatermarkMessage(Timestamp(_py_timestamp=internal_msg.timestamp))
     raise Exception("Unable to parse message")
 
 
-def _to_py_message(msg):
-    """Converts a Message to an internal PyMessage."""
-    if isinstance(msg, WatermarkMessage):
-        return PyMessage(msg.timestamp.coordinates, msg.is_top, None)
-    else:
-        data = pickle.dumps(msg, protocol=pickle.HIGHEST_PROTOCOL)
-        return PyMessage(msg.timestamp.coordinates, False, data)
-
-
-class ReadStream(object):
-    """ A :py:class:`ReadStream` allows an :py:class:`Operator` to read and
-    do work on data sent by other operators on a corresponding
-    :py:class:`WriteStream`.
-
-    An :py:class:`Operator` can interface with a :py:class:`ReadStream` by
-    registering callbacks on the data or watermark received on the stream by
-    invoking the :py:func:`add_callback` or :py:func:`add_watermark_callback`
-    method respectively.
-
-    An :py:class:`Operator` that takes control of its execution using the
-    :py:func:`Operator.run` method can retrieve the messages on a
-    :py:class:`ReadStream` using the :py:func:`ReadStream.read` or
-    :py:func:`ReadStream.try_read` methods.
+class Stream(ABC):
+    """Base class representing a stream to operators can be connected.
+    from which is subclassed by streams that are used to
+    connect operators in the driver.
 
     Note:
-        No callbacks are invoked if an operator takes control of the execution
-        in :py:func:`Operator.run`.
+        This class should never be initialized manually.
     """
-    def __init__(self,
-                 _py_read_stream: PyReadStream = None,
-                 _name: Union[str, None] = None,
-                 _id: Union[str, None] = None):
-        logger.debug(
-            "Initializing ReadStream with the name: {}, and ID: {}.".format(
-                _name, _id))
-        self._py_read_stream = PyReadStream(
-        ) if _py_read_stream is None else _py_read_stream
-        self._name = _name
-        self._id = _id
+
+    def __init__(self, internal_stream: PyStream):
+        self._internal_stream = internal_stream
 
     @property
-    def name(self) -> Union[str, None]:
-        """ The name of the stream. `None` if no name was given. """
-        return self._name
+    def id(self) -> str:
+        """The id of the stream."""
+        return uuid.UUID(self._internal_stream.id())
+
+    @property
+    def name(self) -> str:
+        """The name of the stream. The stream ID if none was given."""
+        return self._internal_stream.name()
+
+    @name.setter
+    def name(self, name: str):
+        self._internal_stream.set_name(name)
+
+
+class ReadStream:
+    """A :py:class:`ReadStream` allows an operator to read and do work on
+    data sent by other operators on a corresponding :py:class:`WriteStream`.
+
+    An operator that takes control of its execution using the :code:`run`
+    method can retrieve the messages on a :py:class:`ReadStream` using the
+    :py:meth:`ReadStream.read` or :py:meth:`ReadStream.try_read` methods.
+
+    Note:
+        This class is created automatically during :code:`run`, and
+        should never be initialized manually.
+        No callbacks are invoked if an operator takes control of the execution
+        in :code:`run`.
+    """
+
+    def __init__(self, _py_read_stream: PyReadStream):
+        logger.debug(
+            "Initializing ReadStream with the name: {}, and ID: {}.".format(
+                _py_read_stream.name(), _py_read_stream.id
+            )
+        )
+        self._py_read_stream = _py_read_stream
+
+    @property
+    def name(self) -> str:
+        """The name of the stream. A string version of the stream's ID if no
+        name was given."""
+        return self._py_read_stream.name()
+
+    @property
+    def id(self) -> str:
+        """The id of the ReadStream."""
+        return uuid.UUID(self._py_read_stream.id())
 
     def is_closed(self) -> bool:
         """Whether a top watermark message has been received."""
@@ -89,82 +111,37 @@ class ReadStream(object):
             return None
         return _parse_message(internal_msg)
 
-    def add_callback(self, callback: Callable, write_streams=None):
-        """Adds a callback to the stream.
 
-        Args:
-            callback: A callback that takes a message and a sequence of
-                :py:class:`WriteStream` s.
-            write_streams: Write streams passed to the callback.
-        """
-        if write_streams is None:
-            write_streams = []
-
-        cb_name = callback.__name__ if "__name__" in dir(callback) else "None"
-
-        logger.debug("Adding callback {name} to the input stream {_input}, "
-                     "and passing the output streams: {_output}".format(
-                         name=cb_name,
-                         _input=self._name,
-                         _output=list(map(attrgetter("_name"),
-                                          write_streams))))
-
-        def internal_callback(serialized):
-            msg = pickle.loads(serialized)
-            callback(msg, *write_streams)
-
-        self._py_read_stream.add_callback(internal_callback)
-
-    def add_watermark_callback(self, callback: Callable, write_streams=None):
-        """Adds a watermark callback to the stream.
-
-        Args:
-            callback: A callback that takes a message and a sequence of
-                :py:class:`WriteStream` s.
-            write_streams: Write streams passed to the callback.
-        """
-        if write_streams is None:
-            write_streams = []
-
-        cb_name = callback.__name__ if "__name__" in dir(callback) else "None"
-
-        logger.debug(
-            "Adding watermark callback {name} to the input stream "
-            "{_input}, and passing the output streams: {_output}".format(
-                name=cb_name,
-                _input=self._name,
-                _output=list(map(attrgetter("_name"), write_streams))))
-
-        def internal_watermark_callback(coordinates, is_top):
-            timestamp = Timestamp(coordinates=coordinates, is_top=is_top)
-            callback(timestamp, *write_streams)
-
-        self._py_read_stream.add_watermark_callback(
-            internal_watermark_callback)
-
-
-class WriteStream(object):
-    """ A :py:class:`WriteStream` allows an :py:class:`Operator` to send
-    messages and watermarks to other operators that connect to the
-    corresponding :py:class:`ReadStream`.
+class WriteStream:
+    """A :py:class:`WriteStream` allows an operator to send messages and
+    watermarks to other operators that connect to the corresponding
+    :py:class:`ReadStream`.
 
     Note:
-        `_py_write_stream` is set during :py:func:`run`, and should never be
-        set manually.
+        This class is created automatically when ERDOS initializes an operator,
+        and should never be initialized manually.
     """
-    def __init__(self,
-                 _py_write_stream: PyWriteStream = None,
-                 _name: Union[str, None] = None,
-                 _id: Union[str, None] = None):
-        self._py_write_stream = PyWriteStream(
-        ) if _py_write_stream is None else _py_write_stream
-        self._name = _name
-        self._id = _id
+
+    def __init__(self, _py_write_stream: PyWriteStream):
+        logger.debug(
+            "Initializing WriteStream with the name: {}, and ID: {}.".format(
+                _py_write_stream.name(), _py_write_stream.id
+            )
+        )
+        self._py_write_stream = (
+            PyWriteStream() if _py_write_stream is None else _py_write_stream
+        )
 
     @property
-    def name(self) -> Union[str, None]:
-        """ The name of the stream. `None` if no name was given. """
-        return self._name
+    def name(self) -> str:
+        """The name of the stream. A string version of the stream's ID if no
+        name was given."""
+        return self._py_write_stream.name()
+
+    @property
+    def id(self) -> str:
+        """The id of the WriteStream."""
+        return uuid.UUID(self._py_write_stream.id())
 
     def is_closed(self) -> bool:
         """Whether a top watermark message has been sent."""
@@ -179,56 +156,60 @@ class WriteStream(object):
         if not isinstance(msg, Message):
             raise TypeError("msg must inherent from erdos.Message!")
 
-        internal_msg = _to_py_message(msg)
-        logger.debug("Sending message {} on the stream {}".format(
-            msg, self._name))
+        internal_msg = msg._to_py_message()
+        logger.debug("Sending message {} on the stream {}".format(msg, self.name))
 
         # Raise exception with the name.
         try:
             return self._py_write_stream.send(internal_msg)
         except Exception as e:
-            raise Exception("Exception on stream {} ({})".format(
-                self._name, self._id)) from e
+            raise Exception(
+                "Exception on stream {} ({})".format(self.name, self.id)
+            ) from e
 
 
-class LoopStream(object):
+class OperatorStream(Stream):
+    """Returned when connecting an operator to the dataflow graph.
+
+    Note:
+        This class is created automatically by the `connect` functions, and
+        should never be initialized manually.
+    """
+
+    def __init__(self, operator_stream: PyOperatorStream):
+        super().__init__(operator_stream)
+
+
+class LoopStream(Stream):
     """Stream placeholder used to construct loops in the dataflow graph.
 
-    Must call `set` on a ReadStream to complete the loop.
+    Note:
+        Must call `connect_loop` with a valid :py:class:`OperatorStream` to
+        complete the loop.
     """
-    def __init__(self, _name: Union[str, None] = None):
-        self._py_loop_stream = PyLoopStream()
-        self._name = _name
 
-    @property
-    def name(self) -> Union[str, None]:
-        """ The name of the stream. `None` if no name was given. """
-        return self._name
+    def __init__(self):
+        super().__init__(PyLoopStream())
 
-    def set(self, read_stream: ReadStream):
-        logger.debug("Setting the read stream {} to the loop stream {}".format(
-            read_stream.name, self._name))
-        self._py_loop_stream.set(read_stream._py_read_stream)
+    def connect_loop(self, stream: OperatorStream):
+        if not isinstance(stream, OperatorStream):
+            raise TypeError("Loop must be connected to an `OperatorStream`")
+        self._internal_stream.connect_loop(stream._internal_stream)
 
 
-class IngestStream(object):
+class IngestStream(Stream):
     """An :py:class:`IngestStream` enables drivers to inject data into a
     running ERDOS application.
 
     The driver can initialize a new :py:class:`IngestStream` and connect it to
-    an :py:class:`Operator` through :py:func:`connect`. Similar to a
+    an operator through the :code:`connect` family of functions. Similar to a
     :py:class:`WriteStream`, an :py:class:`IngestStream` provides a
     :py:func:`IngestStream.send` to enable the driver to send data to the
     operator to which it was connected.
     """
-    def __init__(self, _name: Union[str, None] = None):
-        self._py_ingest_stream = PyIngestStream(0, _name)
-        self._name = _name
 
-    @property
-    def name(self) -> Union[str, None]:
-        """ The name of the stream. `None` if no name was given. """
-        return self._name
+    def __init__(self, name: Union[str, None] = None):
+        super().__init__(PyIngestStream(name))
 
     def is_closed(self) -> bool:
         """Whether the stream is closed.
@@ -236,55 +217,58 @@ class IngestStream(object):
         Returns True if the a top watermark message was sent or the
         IngestStream was unable to successfully set up.
         """
-        return self._py_ingest_stream.is_closed()
+        return self._internal_stream.is_closed()
 
     def send(self, msg: Message):
         """Sends a message on the stream.
 
         Args:
             msg: the message to send. This may be a
-            :py:class:`WatermarkMessage` or a :py:class:`Message`.
+                :py:class:`WatermarkMessage` or a :py:class:`Message`.
         """
         if not isinstance(msg, Message):
             raise TypeError("msg must inherent from erdos.Message!")
 
-        logger.debug("Sending message {} on the Ingest stream {}".format(
-            msg, self._name))
-
-        internal_msg = _to_py_message(msg)
-        self._py_ingest_stream.send(internal_msg)
-
-
-class ExtractStream(object):
-    """An :py:class:`ExtractStream` enables drivers to read data from a running
-    ERDOS applications.
-
-    The driver can initialize a new :py:class:`ExtractStream` by passing the
-    instance of :py:class:`ReadStream` returned by :py:func:`connect`. Similar
-    to a :py:class:`ReadStream`, an :py:class:`ExtractStream` provides
-    :py:func:`ExtractStream.read` and :py:func:`ExtractStream.try_read` for
-    reading data published on the corresponding `read_stream`.
-
-    Args:
-        read_stream (:py:class:`ReadStream`): The stream from which to
-            read messages.
-    """
-    def __init__(self,
-                 read_stream: ReadStream,
-                 _name: Union[str, None] = None):
-        if not isinstance(read_stream, ReadStream):
-            raise ValueError(
-                "ExtractStream needs to be initialized with a ReadStream. "
-                "Received a {}".format(type(read_stream)))
-        self._py_extract_stream = PyExtractStream(
-            read_stream._py_read_stream,
-            _name,
+        logger.debug(
+            "Sending message {} on the Ingest stream {}".format(msg, self.name)
         )
 
+        internal_msg = msg._to_py_message()
+        self._internal_stream.send(internal_msg)
+
+
+class ExtractStream:
+    """An :py:class:`ExtractStream` enables drivers to read data from a
+    running ERDOS applications.
+
+    The driver can initialize a new :py:class:`ExtractStream` by passing the
+    instance of :py:class:`OperatorStream` returned by the :code:`connect`
+    family of functions. Similar to a :py:class:`ReadStream`, an
+    :py:class:`ExtractStream` provides :py:meth:`.read` and
+    :py:meth:`.try_read` for reading data published on the corresponding
+    :py:class:`OperatorStream`.
+
+    Args:
+        stream: The stream from which to read messages.
+    """
+
+    def __init__(self, stream: OperatorStream):
+        if not isinstance(stream, OperatorStream):
+            raise ValueError(
+                "ExtractStream needs to be initialized with a Stream. "
+                "Received a {}".format(type(stream))
+            )
+        self._py_extract_stream = PyExtractStream(stream._internal_stream)
+
     @property
-    def name(self) -> Union[str, None]:
-        """ The name of the stream. `None` if no name was given. """
-        return self._name
+    def name(self) -> str:
+        """The name of the stream. The stream ID if no name was given."""
+        return self._py_extract_stream.name()
+
+    @property
+    def id(self) -> str:
+        """The id of the ExtractStream."""
+        return uuid.UUID(self._py_extract_stream.id())
 
     def is_closed(self) -> bool:
         """Whether the stream is closed.
@@ -301,7 +285,7 @@ class ExtractStream(object):
     def try_read(self) -> Union[Message, None]:
         """Tries to read a mesage from the stream.
 
-        Returns None if no messages are available at the moment.
+        Returns :code:`None` if no messages are available at the moment.
         """
         internal_msg = self._py_extract_stream.try_read()
         if internal_msg is None:

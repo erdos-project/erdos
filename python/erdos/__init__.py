@@ -1,21 +1,26 @@
-import inspect
 import logging
 import multiprocessing as mp
 import signal
 import sys
-
 from functools import wraps
-from operator import attrgetter
-from typing import Type, List, Optional, Callable
+from typing import Optional, Tuple, Type
 
+import erdos.context
 import erdos.internal as _internal
-from erdos.streams import (ReadStream, WriteStream, LoopStream, IngestStream,
-                           ExtractStream)
-from erdos.operator import Operator, OperatorConfig
-from erdos.profile import Profile
-from erdos.message import Message, WatermarkMessage
-from erdos.timestamp import Timestamp
+import erdos.operator
 import erdos.utils
+from erdos.message import Message, WatermarkMessage
+from erdos.profile import Profile
+from erdos.streams import (
+    ExtractStream,
+    IngestStream,
+    LoopStream,
+    OperatorStream,
+    ReadStream,
+    Stream,
+    WriteStream,
+)
+from erdos.timestamp import Timestamp
 
 _num_py_operators = 0
 
@@ -34,80 +39,305 @@ logger.setLevel(logging.WARNING)
 logger.propagate = False
 
 
-def connect(
-    op_type: Type[Operator],
-    config: OperatorConfig,
-    read_streams: List[ReadStream],
+def connect_source(
+    op_type: Type[erdos.operator.Source],
+    config: erdos.operator.OperatorConfig,
     *args,
     **kwargs,
-) -> List[ReadStream]:
-    """Registers the operator and its connected streams on the dataflow graph.
-
-    This function performs initialization of the operator by registering its
-    read and write stream dependencies with the internal graph representation.
-    It is not sufficient to call :py:func:`Operator.connect` in the driver.
-
-    The `read_streams` are passed to the `connect` function of `op_type` to
-    retrieve the write streams of the operator. The operator is then
-    initialized with the given `read_streams` and the returned `write_streams`
-    after calling :py:func:`run`:
-        >>> write_streams = op_type.connect(*read_streams)
-        >>> op_type(*read_streams, *write_streams, *args, **kwargs)
+) -> OperatorStream:
+    """Registers a :py:class:`.Source` operator to the dataflow
+    graph, and returns the :py:class:`OperatorStream` that the operator will
+    write the data on.
 
     Args:
-        op_type: The :py:class:`.Operator` that needs to be added to the graph
-            with the corresponding `read_streams`.
+        op_type: The :py:class:`.Source` operator that needs to
+            be added to the graph.
         config: Configuration details required by the operator.
-        read_streams: The streams on which the operator processes data.
         *args: Arguments passed to the operator during initialization.
         **kwargs: Keyword arguments passed to the operator during
             initialization.
-    Returns:
-        A list of :py:class:`.ReadStream` s corresponding to the
-        :py:class:`.WriteStream` s returned by the `connect` function of the
-        :py:class:`.Operator`.
-    """
-    if not issubclass(op_type, Operator):
-        raise TypeError("{} must subclass erdos.Operator".format(op_type))
 
-    # Check if the number of read streams passed are correct.
-    required_stream_len = len(inspect.signature(op_type.connect).parameters)
-    if not required_stream_len == len(read_streams):
-        raise ValueError("{} requires {} streams, but {} were passed.".format(
-            op_type.__name__, required_stream_len, len(read_streams)))
+    Returns:
+        An :py:class:`OperatorStream` corresponding to the
+        :py:class:`WriteStream` made available to :py:meth:`.Source.run`.
+    """
+    if not issubclass(op_type, erdos.operator.Source):
+        raise TypeError("{} must subclass erdos.operator.Source".format(op_type))
+
+    if op_type.run.__code__.co_code == erdos.operator.Source.run.__code__.co_code:
+        logger.warn(
+            "The operator {} does not " "implement the `run` method.".format(op_type)
+        )
 
     # 1-index operators because node 0 is preserved for the current process,
     # and each node can only run 1 python operator.
     global _num_py_operators
     _num_py_operators += 1
     node_id = _num_py_operators
-    logger.debug("Connecting operator #{num} ({name}) to the graph.".format(
-        num=node_id, name=config.name))
+    logger.debug(
+        "Connecting operator #{num} ({name}) to the graph.".format(
+            num=node_id, name=config.name
+        )
+    )
 
-    py_read_streams = []
-    op_read_streams = list(
-        inspect.signature(op_type.connect).parameters.keys())
-    for index, stream in enumerate(read_streams):
-        logger.debug("Passing the stream {} to operator {}.".format(
-            op_read_streams[index], config.name))
-        if isinstance(stream, LoopStream):
-            py_read_streams.append(stream._py_loop_stream.to_py_read_stream())
-        elif isinstance(stream, IngestStream):
-            py_read_streams.append(
-                stream._py_ingest_stream.to_py_read_stream())
-        elif isinstance(stream, ReadStream):
-            py_read_streams.append(stream._py_read_stream)
-        else:
-            raise TypeError(
-                "Unable to convert {stream} of type {stream_type} to "
-                "ReadStream".format(stream=stream, stream_type=type(stream)))
+    internal_stream = _internal.connect_source(op_type, config, args, kwargs, node_id)
+    return OperatorStream(internal_stream)
 
-    internal_streams = _internal.connect(op_type, config, py_read_streams,
-                                         args, kwargs, node_id)
-    logger.debug("Converting {} write stream(s) returned by "
-                 "operator {} to read stream(s).".format(
-                     len(internal_streams), config.name))
-    return [ReadStream(_py_read_stream=s) for s in internal_streams]
+
+def connect_sink(
+    op_type: Type[erdos.operator.Sink],
+    config: erdos.operator.OperatorConfig,
+    read_stream: Stream,
+    *args,
+    **kwargs,
+):
+    """Registers a :py:class:`.Sink` operator to the dataflow
+    graph.
+
+    Args:
+        op_type: The :py:class:`.Sink` operator that needs to
+            be added to the graph.
+        config: Configuration details required by the operator.
+        read_stream: The :py:class:`Stream` instance from where the operator
+            reads its data.
+        *args: Arguments passed to the operator during initialization.
+        **kwargs: Keyword arguments passed to the operator during
+            initialization.
+    """
+    if not issubclass(op_type, erdos.operator.Sink):
+        raise TypeError("{} must subclass erdos.operator.Sink".format(op_type))
+
+    if not isinstance(read_stream, Stream):
+        raise TypeError("{} must subclass `Stream`.".format(read_stream))
+
+    if (
+        op_type.run.__code__.co_code == erdos.operator.Sink.run.__code__.co_code
+        and op_type.on_data.__code__.co_code
+        == erdos.operator.Sink.on_data.__code__.co_code
+        and op_type.on_watermark.__code__.co_code
+        == erdos.operator.Sink.on_watermark.__code__.co_code
+    ):
+        logger.warn(
+            "The operator {} does not implement any of the "
+            "`run`, `on_data` or `on_watermark` methods.".format(op_type)
+        )
+
+    # 1-index operators because node 0 is preserved for the current process,
+    # and each node can only run 1 python operator.
+    global _num_py_operators
+    _num_py_operators += 1
+    node_id = _num_py_operators
+    logger.debug(
+        "Connecting operator #{num} ({name}) to the graph.".format(
+            num=node_id, name=config.name
+        )
+    )
+
+    _internal.connect_sink(
+        op_type, config, read_stream._internal_stream, args, kwargs, node_id
+    )
+
+
+def connect_one_in_one_out(
+    op_type: Type[erdos.operator.OneInOneOut],
+    config: erdos.operator.OperatorConfig,
+    read_stream: Stream,
+    *args,
+    **kwargs,
+) -> OperatorStream:
+    """Registers a :py:class:`.OneInOneOut` operator to the dataflow graph that
+    receives input from the given :code:`read_stream`, and returns the
+    :py:class:`OperatorStream` that the operator will write the data on.
+
+    Args:
+        op_type: The :py:class:`.OneInOneOut` operator that needs to be added
+            to the graph.
+        config: Configuration details required by the operator.
+        read_stream: The :py:class:`Stream` instance from where the operator
+            reads its data.
+        *args: Arguments passed to the operator during initialization.
+        **kwargs: Keyword arguments passed to the operator during
+            initialization.
+
+    Returns:
+        An :py:class:`OperatorStream` corresponding to the
+        :py:class:`WriteStream` made available to :py:meth:`.OneInOneOut.run`,
+        or to the operator's callbacks via the
+        :py:class:`.OneInOneOutContext`.
+    """
+    if not issubclass(op_type, erdos.operator.OneInOneOut):
+        raise TypeError("{} must subclass erdos.operator.OneInOneOut".format(op_type))
+
+    if not isinstance(read_stream, Stream):
+        raise TypeError("{} must subclass `Stream`.".format(read_stream))
+
+    if (
+        op_type.run.__code__.co_code == erdos.operator.OneInOneOut.run.__code__.co_code
+        and op_type.on_data.__code__.co_code
+        == erdos.operator.OneInOneOut.on_data.__code__.co_code
+        and op_type.on_watermark.__code__.co_code
+        == erdos.operator.OneInOneOut.on_watermark.__code__.co_code
+    ):
+        logger.warn(
+            "The operator {} does not implement any of the "
+            "`run`, `on_data` or `on_watermark` methods.".format(op_type)
+        )
+
+    # 1-index operators because node 0 is preserved for the current process,
+    # and each node can only run 1 python operator.
+    global _num_py_operators
+    _num_py_operators += 1
+    node_id = _num_py_operators
+    logger.debug(
+        "Connecting operator #{num} ({name}) to the graph.".format(
+            num=node_id, name=config.name
+        )
+    )
+
+    internal_stream = _internal.connect_one_in_one_out(
+        op_type, config, read_stream._internal_stream, args, kwargs, node_id
+    )
+    return OperatorStream(internal_stream)
+
+
+def connect_two_in_one_out(
+    op_type: Type[erdos.operator.TwoInOneOut],
+    config: erdos.operator.OperatorConfig,
+    left_read_stream: Stream,
+    right_read_stream: Stream,
+    *args,
+    **kwargs,
+) -> OperatorStream:
+    """Registers a :py:class:`.TwoInOneOut` operator to the
+    dataflow graph that receives input from the given :code:`left_read_stream`
+    and :code:`right_read_stream`, and returns the :py:class:`OperatorStream`
+    that the operator sends messages on.
+
+    Args:
+        op_type: The :py:class:`.TwoInOneOut` operator to add
+            to the graph.
+        config: Configuration details required by the operator.
+        left_read_stream: The first :py:class:`Stream` instance from where the
+            operator reads its data.
+        right_read_stream: The second :py:class:`Stream` instance from where
+            the operator reads its data.
+        *args: Arguments passed to the operator during initialization.
+        **kwargs: Keyword arguments passed to the operator during
+            initialization.
+
+    Returns:
+        An :py:class:`OperatorStream` corresponding to the
+        :py:class:`WriteStream` made available to :py:meth:`.TwoInOneOut.run`,
+        or to the operator's callbacks via the
+        :py:class:`.TwoInOneOutContext`.
+    """
+    if not issubclass(op_type, erdos.operator.TwoInOneOut):
+        raise TypeError("{} must subclass erdos.operator.TwoInOneOut".format(op_type))
+
+    if not isinstance(left_read_stream, Stream):
+        raise TypeError("{} must subclass `Stream`.".format(left_read_stream))
+
+    if not isinstance(right_read_stream, Stream):
+        raise TypeError("{} must subclass `Stream`.".format(right_read_stream))
+
+    if (
+        op_type.run.__code__.co_code == erdos.operator.TwoInOneOut.run.__code__.co_code
+        and op_type.on_left_data.__code__.co_code
+        == erdos.operator.TwoInOneOut.on_left_data.__code__.co_code
+        and op_type.on_right_data.__code__.co_code
+        == erdos.operator.TwoInOneOut.on_right_data.__code__.co_code
+        and op_type.on_watermark.__code__.co_code
+        == erdos.operator.TwoInOneOut.on_watermark.__code__.co_code
+    ):
+        logger.warn(
+            "The operator {} does not implement any of the `run`, "
+            "`on_left_data`, `on_right_data` or `on_watermark` "
+            "methods.".format(op_type)
+        )
+
+    # 1-index operators because node 0 is preserved for the current process,
+    # and each node can only run 1 python operator.
+    global _num_py_operators
+    _num_py_operators += 1
+    node_id = _num_py_operators
+    logger.debug(
+        "Connecting operator #{num} ({name}) to the graph.".format(
+            num=node_id, name=config.name
+        )
+    )
+
+    internal_stream = _internal.connect_two_in_one_out(
+        op_type,
+        config,
+        left_read_stream._internal_stream,
+        right_read_stream._internal_stream,
+        args,
+        kwargs,
+        node_id,
+    )
+    return OperatorStream(internal_stream)
+
+
+def connect_one_in_two_out(
+    op_type: Type[erdos.operator.OneInTwoOut],
+    config: erdos.operator.OperatorConfig,
+    read_stream: Stream,
+    *args,
+    **kwargs,
+) -> Tuple[OperatorStream, OperatorStream]:
+    """Registers a :py:class:`.OneInTwoOut` operator to the dataflow graph that
+    receives input from the given :code:`read_stream`, and returns the pair of
+    :py:class:`OperatorStream` instances that the operator will write data on.
+
+    Args:
+        op_type: The :py:class:`.OneInTwoOut` operator that needs to be added
+            to the graph.
+        config: Configuration details required by the operator.
+        read_stream: The :py:class:`Stream` instance from where the
+            operator reads its data.
+        *args: Arguments passed to the operator during initialization.
+        **kwargs: Keyword arguments passed to the operator during
+            initialization.
+
+    Returns:
+        A pair of :py:class:`OperatorStream` instances corresponding to the
+        :py:class:`WriteStream` instances made available to
+        :py:meth:`.OneInOneOut.run`, or to the operator's callbacks via the
+        :py:class:`.OneInTwoOutContext`.
+    """
+    if not issubclass(op_type, erdos.operator.OneInTwoOut):
+        raise TypeError("{} must subclass erdos.operator.OneInTwoOut".format(op_type))
+
+    if not isinstance(read_stream, Stream):
+        raise TypeError("{} must subclass `Stream`.".format(read_stream))
+
+    if (
+        op_type.run.__code__.co_code == erdos.operator.OneInTwoOut.run.__code__.co_code
+        and op_type.on_data.__code__.co_code
+        == erdos.operator.OneInTwoOut.on_data.__code__.co_code
+        and op_type.on_watermark.__code__.co_code
+        == erdos.operator.OneInTwoOut.on_watermark.__code__.co_code
+    ):
+        logger.warn(
+            "The operator {} does not implement any of the "
+            "`run`, `on_data` or `on_watermark` methods.".format(op_type)
+        )
+
+    # 1-index operators because node 0 is preserved for the current process,
+    # and each node can only run 1 python operator.
+    global _num_py_operators
+    _num_py_operators += 1
+    node_id = _num_py_operators
+    logger.debug(
+        "Connecting operator #{num} ({name}) to the graph.".format(
+            num=node_id, name=config.name
+        )
+    )
+
+    left_stream, right_stream = _internal.connect_one_in_two_out(
+        op_type, config, read_stream._internal_stream, args, kwargs, node_id
+    )
+    return OperatorStream(left_stream), OperatorStream(right_stream)
 
 
 def reset():
@@ -125,9 +355,9 @@ def reset():
 
 # TODO (Sukrit) : Should this be called a GraphHandle?
 # What is the significance of the "Node" here?
-class NodeHandle(object):
-    """ A handle to the dataflow graph returned by the :py:func:`run_async`
-    method.
+class NodeHandle:
+    """A handle to the dataflow graph returned by the :py:func:`run_async`
+    function.
 
     The handle exposes functions to :py:func:`shutdown` the dataflow, or
     :py:func:`wait` for its completion.
@@ -135,12 +365,13 @@ class NodeHandle(object):
     Note:
         This structure should not be initialized by the users.
     """
+
     def __init__(self, py_node_handle, processes):
         self.py_node_handle = py_node_handle
         self.processes = processes
 
     def shutdown(self):
-        """ Shuts down the dataflow."""
+        """Shuts down the dataflow."""
         logger.info("Shutting down other processes")
         for p in self.processes:
             p.terminate()
@@ -149,14 +380,13 @@ class NodeHandle(object):
         self.py_node_handle.shutdown_node()
 
     def wait(self):
-        """ Waits for the completion of all the operators in the dataflow """
+        """Waits for the completion of all the operators in the dataflow"""
         for p in self.processes:
             p.join()
         logger.debug("Finished waiting for the dataflow graph processes.")
 
 
-def run(graph_filename: Optional[str] = None,
-        start_port: Optional[int] = 9000):
+def run(graph_filename: Optional[str] = None, start_port: Optional[int] = 9000):
     """Instantiates and runs the dataflow graph.
 
     ERDOS will spawn 1 process for each python operator, and connect them via
@@ -174,8 +404,13 @@ def run(graph_filename: Optional[str] = None,
     driver_handle.wait()
 
 
-def run_async(graph_filename: Optional[str] = None,
-              start_port: Optional[int] = 9000) -> NodeHandle:
+def _run_node(node_id, data_addresses, control_addresses):
+    _internal.run(node_id, data_addresses, control_addresses)
+
+
+def run_async(
+    graph_filename: Optional[str] = None, start_port: Optional[int] = 9000
+) -> NodeHandle:
     """Instantiates and runs the dataflow graph asynchronously.
 
     ERDOS will spawn 1 process for each python operator, and connect them via
@@ -200,14 +435,16 @@ def run_async(graph_filename: Optional[str] = None,
         "127.0.0.1:{port}".format(port=start_port + len(data_addresses) + i)
         for i in range(_num_py_operators + 1)
     ]
-    logger.debug(
-        "Running the dataflow graph on addresses: {}".format(data_addresses))
+    logger.debug("Running the dataflow graph on addresses: {}".format(data_addresses))
 
-    def runner(node_id, data_addresses, control_addresses):
-        _internal.run(node_id, data_addresses, control_addresses)
-
+    # Fix for macOS where mulitprocessing defaults
+    # to spawn() instead of fork() in Python 3.8+
+    # https://docs.python.org/3/library/multiprocessing.html#contexts-and-start-methods
+    # Warning: may lead to crashes
+    # https://bugs.python.org/issue33725
+    ctx = mp.get_context("fork")
     processes = [
-        mp.Process(target=runner, args=(i, data_addresses, control_addresses))
+        ctx.Process(target=_run_node, args=(i, data_addresses, control_addresses))
         for i in range(1, _num_py_operators + 1)
     ]
 
@@ -224,38 +461,11 @@ def run_async(graph_filename: Optional[str] = None,
 
     # The driver must always be on node 0 otherwise ingest and extract streams
     # will break
-    py_node_handle = _internal.run_async(0, data_addresses, control_addresses,
-                                         graph_filename)
+    py_node_handle = _internal.run_async(
+        0, data_addresses, control_addresses, graph_filename
+    )
 
     return NodeHandle(py_node_handle, processes)
-
-
-def add_watermark_callback(read_streams: List[erdos.ReadStream],
-                           write_streams: List[erdos.WriteStream],
-                           callback: Callable):
-    """Adds a watermark callback across several read streams.
-
-    Args:
-        read_streams: Streams on which the callback is invoked.
-        write_streams: Streams on which the callback can send messages.
-        callback: The callback to be invoked upon receipt of a
-            :py:class:`.WatermarkMessage` on all the `read_streams`.
-    """
-    logger.debug("Adding watermark callback {name} to the input streams: "
-                 "{_input}, and passing the output streams: {_output}".format(
-                     name=callback.__name__,
-                     _input=list(map(attrgetter("_name"), read_streams)),
-                     _output=list(map(attrgetter("_name"), write_streams))))
-
-    def internal_watermark_callback(py_msg):
-        timestamp = Timestamp(coordinates=py_msg.timestamp,
-                              is_top=py_msg.is_top_watermark())
-        callback(timestamp, *write_streams)
-
-    py_read_streams = [s._py_read_stream for s in read_streams]
-    py_write_streams = [s._py_write_stream for s in write_streams]
-    _internal.add_watermark_callback(py_read_streams, py_write_streams,
-                                     internal_watermark_callback, 0)
 
 
 def profile(event_name, operator, event_data=None):
@@ -266,7 +476,7 @@ def profile_method(**decorator_kwargs):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            if isinstance(args[0], Operator):
+            if isinstance(args[0], erdos.operator.BaseOperator):
                 # The func is an operator method.
                 op_name = args[0].config.name
                 cb_name = func.__name__
@@ -285,12 +495,11 @@ def profile_method(**decorator_kwargs):
                         # The func is a callback.
                         timestamp = args[1].timestamp
             else:
-                raise TypeError(
-                    "@erdos.profile can only be used on operator methods")
+                raise TypeError("@erdos.profile can only be used on operator methods")
 
-            with erdos.profile(event_name,
-                               args[0],
-                               event_data={"timestamp": str(timestamp)}):
+            with erdos.profile(
+                event_name, args[0], event_data={"timestamp": str(timestamp)}
+            ):
                 return func(*args, **kwargs)
 
         return wrapper
@@ -304,17 +513,18 @@ __all__ = [
     "LoopStream",
     "IngestStream",
     "ExtractStream",
-    "Operator",
-    "OperatorConfig",
     "Profile",
     "Message",
     "WatermarkMessage",
     "Timestamp",
-    "connect",
+    "connect_source",
+    "connect_sink",
+    "connect_one_in_one_out",
+    "connect_two_in_one_out",
+    "connect_one_in_two_out",
     "reset",
     "run",
     "run_async",
-    "add_watermark_callback",
     "profile_method",
     "NodeHandle",
 ]
