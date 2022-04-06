@@ -1,0 +1,16 @@
+version: 2
+
+sphinx:
+  builder: html
+  configuration: python/doc/source/conf.py
+
+build:
+  os: "ubuntu-20.04"
+  tools:
+    python: "3.9"
+
+python:
+  install:
+    - requirements: python/docs/requirements-doc.txt
+    - method: pip
+      path: python
