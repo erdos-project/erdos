@@ -111,6 +111,28 @@
 //! For instance, processing sets of messages separated by watermarks using
 //! watermark callbacks can turn ERDOS pipelines into
 //! [Kahn process networks](https://en.wikipedia.org/wiki/Kahn_process_networks).
+//!
+//! ## More Information
+//! To read more about the ideas behind ERDOS, refer to our paper
+//! [*D3: A Dynamic Deadline-Driven Approach for Building Autonomous Vehicles*](https://dl.acm.org/doi/10.1145/3492321.3519576).
+//! If you find ERDOS useful to your work, please cite our paper as follows:
+//! ```bibtex
+//! @inproceedings{10.1145/3492321.3519576,
+//!     author = {Gog, Ionel and Kalra, Sukrit and Schafhalter, Peter and Gonzalez, Joseph E. and Stoica, Ion},
+//!     title = {D3: A Dynamic Deadline-Driven Approach for Building Autonomous Vehicles},
+//!     year = {2022},
+//!     isbn = {9781450391627},
+//!     publisher = {Association for Computing Machinery},
+//!     address = {New York, NY, USA},
+//!     url = {https://doi.org/10.1145/3492321.3519576},
+//!     doi = {10.1145/3492321.3519576},
+//!     booktitle = {Proceedings of the Seventeenth European Conference on Computer Systems},
+//!     pages = {453–471},
+//!     numpages = {19},
+//!     location = {Rennes, France},
+//!     series = {EuroSys '22}
+//! }
+//! ```
 
 // Required for specialization.
 #![allow(incomplete_features)]

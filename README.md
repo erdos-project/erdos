@@ -12,24 +12,18 @@ ERDOS is a platform for developing self-driving cars and robotics applications.
 
 # Getting started
 
-The easiest way to get ERDOS running is to use our Docker image:
-
-```console
-docker pull erdosproject/erdos
-```
-
 # Local installation
 
 ## System requirements
 
-ERDOS is known to work on Ubuntu 16.04, 18.04, and 20.04.
+ERDOS is known to work on Ubuntu 18.04 and 20.04.
 
 ## Rust installation
 
 To develop an ERDOS application in Rust, simply include ERDOS in `Cargo.toml`.
 The latest ERDOS release is published on
 [Crates.io](https://crates.io/crates/erdos)
-and documentation is available on [Crates.io](https://crates.io/crates/erdos).
+and documentation is available on [Docs.rs](https://docs.rs/erdos).
 
 If you'd like to contribute to ERDOS, first
 [install Rust](https://www.rust-lang.org/tools/install).
@@ -43,7 +37,7 @@ cargo build
 
 To develop an ERDOS application in Python, simply run
 `pip install erdos`. Documentation is available on
-[Read the Docs](https://erdos.readthedocs.io/en/stable/).
+[Read the Docs](https://erdos.readthedocs.io/).
 
 If you'd like to contribute to ERDOS, first
 [install Rust](https://www.rust-lang.org/tools/install).
@@ -58,7 +52,7 @@ maturin develop
 The Python-Rust bridge interface is developed in the `python` crate, which
 also contains user-facing python files under the `python/erdos` directory.
 
-If you'd like to build ERDOS for release (has better performance, but longer
+If you'd like to build ERDOS for release (better performance, but longer
 build times), run `maturin develop --release`.
 
 ## Running an example
@@ -73,7 +67,7 @@ ERDOS provides Python and Rust interfaces for developing applications.
 
 The Python interface provides easy integration with popular libraries
 such as tensorflow, but comes at the cost of performance
-(e.g. slower serialization and the [lack of multithreading](https://wiki.python.org/moin/GlobalInterpreterLock)).
+(e.g. slower serialization and the [lack of parallelism within a process](https://wiki.python.org/moin/GlobalInterpreterLock)).
 
 The Rust interface provides more safety guarantees
 (e.g. compile-time type checking) and faster performance
@@ -108,6 +102,31 @@ are a bound on the age of messages received and operators will ignore
 any messages older than the most recent watermark received. By processing
 on watermarks, applications can avoid non-determinism from processing
 messages out of order.
+
+To read more about the ideas behind ERDOS, refer to our paper,
+[*D3: A Dynamic Deadline-Driven Approach for Building Autonomous Vehicles*](https://dl.acm.org/doi/10.1145/3492321.3519576).
+If you find ERDOS useful to your work, please cite our paper as follows:
+```bibtex
+@inproceedings{10.1145/3492321.3519576,
+    author = {Gog, Ionel and Kalra, Sukrit and Schafhalter, Peter and Gonzalez, Joseph E. and Stoica, Ion},
+    title = {D3: A Dynamic Deadline-Driven Approach for Building Autonomous Vehicles},
+    year = {2022},
+    isbn = {9781450391627},
+    publisher = {Association for Computing Machinery},
+    address = {New York, NY, USA},
+    url = {https://doi.org/10.1145/3492321.3519576},
+    doi = {10.1145/3492321.3519576},
+    booktitle = {Proceedings of the Seventeenth European Conference on Computer Systems},
+    pages = {453–471},
+    numpages = {19},
+    location = {Rennes, France},
+    series = {EuroSys '22}
+}
+```
+
+# Pylot
+
+We are actively developing an AV platform atop ERDOS! For more information, see the [Pylot repository](https://github.com/erdos-project/pylot/).
 
 # Getting involved
 
