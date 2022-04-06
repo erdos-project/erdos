@@ -44,13 +44,13 @@ where
     for<'a> D: Data + Deserialize<'a>,
 {
     fn on_left_data(&mut self, ctx: &mut TwoInOneOutContext<(), D>, data: &D) {
-        let msg = Message::new_message(ctx.get_timestamp().clone(), data.clone());
-        ctx.get_write_stream().send(msg).unwrap();
+        let msg = Message::new_message(ctx.timestamp().clone(), data.clone());
+        ctx.write_stream().send(msg).unwrap();
     }
 
     fn on_right_data(&mut self, ctx: &mut TwoInOneOutContext<(), D>, data: &D) {
-        let msg = Message::new_message(ctx.get_timestamp().clone(), data.clone());
-        ctx.get_write_stream().send(msg).unwrap();
+        let msg = Message::new_message(ctx.timestamp().clone(), data.clone());
+        ctx.write_stream().send(msg).unwrap();
     }
 
     fn on_watermark(&mut self, _ctx: &mut TwoInOneOutContext<(), D>) {}

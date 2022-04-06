@@ -35,7 +35,7 @@ where
         move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
             let mut channel_manager = channel_manager.lock().unwrap();
 
-            let write_stream = channel_manager.get_write_stream(write_stream_id).unwrap();
+            let write_stream = channel_manager.write_stream(write_stream_id).unwrap();
 
             let executor =
                 SourceExecutor::new(config_copy.clone(), operator_fn.clone(), write_stream);
@@ -177,7 +177,7 @@ where
             let read_stream = channel_manager
                 .take_read_stream(default_graph::resolve_stream_id(&read_stream_id).unwrap())
                 .unwrap();
-            let write_stream = channel_manager.get_write_stream(write_stream_id).unwrap();
+            let write_stream = channel_manager.write_stream(write_stream_id).unwrap();
 
             Box::new(OneInExecutor::new(
                 config_copy.clone(),
@@ -230,7 +230,7 @@ where
             let read_stream = channel_manager
                 .take_read_stream(default_graph::resolve_stream_id(&read_stream_id).unwrap())
                 .unwrap();
-            let write_stream = channel_manager.get_write_stream(write_stream_id).unwrap();
+            let write_stream = channel_manager.write_stream(write_stream_id).unwrap();
 
             Box::new(OneInExecutor::new(
                 config_copy.clone(),
@@ -291,7 +291,7 @@ where
             let right_read_stream = channel_manager
                 .take_read_stream(default_graph::resolve_stream_id(&right_read_stream_id).unwrap())
                 .unwrap();
-            let write_stream = channel_manager.get_write_stream(write_stream_id).unwrap();
+            let write_stream = channel_manager.write_stream(write_stream_id).unwrap();
 
             Box::new(TwoInExecutor::new(
                 config_copy.clone(),
@@ -351,7 +351,7 @@ where
             let right_read_stream = channel_manager
                 .take_read_stream(default_graph::resolve_stream_id(&right_read_stream_id).unwrap())
                 .unwrap();
-            let write_stream = channel_manager.get_write_stream(write_stream_id).unwrap();
+            let write_stream = channel_manager.write_stream(write_stream_id).unwrap();
 
             Box::new(TwoInExecutor::new(
                 config_copy.clone(),
@@ -410,12 +410,8 @@ where
             let read_stream = channel_manager
                 .take_read_stream(default_graph::resolve_stream_id(&read_stream_id).unwrap())
                 .unwrap();
-            let left_write_stream = channel_manager
-                .get_write_stream(left_write_stream_id)
-                .unwrap();
-            let right_write_stream = channel_manager
-                .get_write_stream(right_write_stream_id)
-                .unwrap();
+            let left_write_stream = channel_manager.write_stream(left_write_stream_id).unwrap();
+            let right_write_stream = channel_manager.write_stream(right_write_stream_id).unwrap();
 
             Box::new(OneInExecutor::new(
                 config_copy.clone(),
@@ -472,12 +468,8 @@ where
             let read_stream = channel_manager
                 .take_read_stream(default_graph::resolve_stream_id(&read_stream_id).unwrap())
                 .unwrap();
-            let left_write_stream = channel_manager
-                .get_write_stream(left_write_stream_id)
-                .unwrap();
-            let right_write_stream = channel_manager
-                .get_write_stream(right_write_stream_id)
-                .unwrap();
+            let left_write_stream = channel_manager.write_stream(left_write_stream_id).unwrap();
+            let right_write_stream = channel_manager.write_stream(right_write_stream_id).unwrap();
 
             Box::new(OneInExecutor::new(
                 config_copy.clone(),

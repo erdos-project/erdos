@@ -168,14 +168,14 @@ impl ChannelManager {
         let mut receiver_pushers: HashMap<StreamId, Box<dyn PusherT>> = HashMap::new();
 
         let local_operator_ids: Vec<OperatorId> = job_graph
-            .get_operators()
+            .operators()
             .into_iter()
             .filter(|o| o.config.node_id == node_id)
             .map(|o| o.id)
             .collect();
 
         let operators: HashMap<_, _> = job_graph
-            .get_operators()
+            .operators()
             .into_iter()
             .map(|o| (o.config.id, o))
             .collect();
@@ -319,7 +319,7 @@ impl ChannelManager {
             .map(|endpoint| ReadStream::new(stream_id, &stream_id.to_string(), Some(endpoint)))
     }
 
-    pub fn get_write_stream<D>(&mut self, stream_id: StreamId) -> Result<WriteStream<D>, String>
+    pub fn write_stream<D>(&mut self, stream_id: StreamId) -> Result<WriteStream<D>, String>
     where
         D: Data + for<'a> Deserialize<'a>,
     {

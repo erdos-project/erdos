@@ -225,7 +225,7 @@ write_stream = erdos.WriteStream(_py_write_stream=py_write_stream)
     }
 
     fn on_left_data(&mut self, ctx: &mut TwoInOneOutContext<(), Vec<u8>>, data: &Vec<u8>) {
-        let py_time = PyTimestamp::from(ctx.get_timestamp().clone());
+        let py_time = PyTimestamp::from(ctx.timestamp().clone());
         let py_operator_config = Arc::clone(&self.py_operator_config);
         let py_write_stream = match &self.py_write_stream {
             Some(d) => Arc::clone(d),
@@ -267,7 +267,7 @@ write_stream = erdos.WriteStream(_py_write_stream=py_write_stream)
     }
 
     fn on_right_data(&mut self, ctx: &mut TwoInOneOutContext<(), Vec<u8>>, data: &Vec<u8>) {
-        let py_time = PyTimestamp::from(ctx.get_timestamp().clone());
+        let py_time = PyTimestamp::from(ctx.timestamp().clone());
         let py_operator_config = Arc::clone(&self.py_operator_config);
         let py_write_stream = match &self.py_write_stream {
             Some(d) => Arc::clone(d),
@@ -309,7 +309,7 @@ write_stream = erdos.WriteStream(_py_write_stream=py_write_stream)
     }
 
     fn on_watermark(&mut self, ctx: &mut TwoInOneOutContext<(), Vec<u8>>) {
-        let py_time = PyTimestamp::from(ctx.get_timestamp().clone());
+        let py_time = PyTimestamp::from(ctx.timestamp().clone());
         let py_operator_config = Arc::clone(&self.py_operator_config);
         let py_write_stream = match &self.py_write_stream {
             Some(d) => Arc::clone(d),
@@ -340,9 +340,9 @@ write_stream = erdos.WriteStream(_py_write_stream=py_write_stream)
         });
 
         // Send a watermark if flow_watermarks is set in the OperatorConfig.
-        if ctx.get_operator_config().flow_watermarks {
-            let timestamp = ctx.get_timestamp().clone();
-            ctx.get_write_stream()
+        if ctx.operator_config().flow_watermarks {
+            let timestamp = ctx.timestamp().clone();
+            ctx.write_stream()
                 .send(Message::new_watermark(timestamp))
                 .ok();
         }

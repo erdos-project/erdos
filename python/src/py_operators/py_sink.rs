@@ -124,7 +124,7 @@ read_stream = erdos.ReadStream(_py_read_stream=py_read_stream)
     }
 
     fn on_data(&mut self, ctx: &mut SinkContext<()>, data: &Vec<u8>) {
-        let py_time = PyTimestamp::from(ctx.get_timestamp().clone());
+        let py_time = PyTimestamp::from(ctx.timestamp().clone());
         let py_operator_config = Arc::clone(&self.py_operator_config);
         Python::with_gil(|py| {
             let erdos = PyModule::import(py, "erdos").unwrap();
@@ -156,7 +156,7 @@ read_stream = erdos.ReadStream(_py_read_stream=py_read_stream)
     }
 
     fn on_watermark(&mut self, ctx: &mut SinkContext<()>) {
-        let py_time = PyTimestamp::from(ctx.get_timestamp().clone());
+        let py_time = PyTimestamp::from(ctx.timestamp().clone());
         let py_operator_config = Arc::clone(&self.py_operator_config);
         Python::with_gil(|py| {
             let erdos = PyModule::import(py, "erdos").unwrap();

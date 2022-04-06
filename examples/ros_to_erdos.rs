@@ -23,7 +23,7 @@ impl SinkOperator {
 // This SinkOperator prints out recieved messages in ERDOS pipeline.
 impl Sink<(), String> for SinkOperator {
     fn on_data(&mut self, ctx: &mut SinkContext<()>, data: &String) {
-        let timestamp = ctx.get_timestamp().clone();
+        let timestamp = ctx.timestamp().clone();
         tracing::debug!("SinkOperator @ {:?}: Received {}", timestamp, data,);
     }
 

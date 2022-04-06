@@ -63,16 +63,16 @@ where
         ctx: &mut TwoInOneOutContext<TimeVersionedState<(Vec<T>, Vec<U>)>, (T, U)>,
         data: &T,
     ) {
-        let (left_items, right_items) = ctx.get_current_state().unwrap();
+        let (left_items, right_items) = ctx.current_state().unwrap();
         left_items.push(data.clone());
 
         // Can't iterate through right_msgs and send messages because this results in a compiler
         // error due to 2 mutable references to ctx.
         let num_right_items = right_items.len();
         for i in 0..num_right_items {
-            let right_item = ctx.get_current_state().unwrap().1[i].clone();
-            let msg = Message::new_message(ctx.get_timestamp().clone(), (data.clone(), right_item));
-            ctx.get_write_stream().send(msg).unwrap();
+            let right_item = ctx.current_state().unwrap().1[i].clone();
+            let msg = Message::new_message(ctx.timestamp().clone(), (data.clone(), right_item));
+            ctx.write_stream().send(msg).unwrap();
         }
     }
 
@@ -81,16 +81,16 @@ where
         ctx: &mut TwoInOneOutContext<TimeVersionedState<(Vec<T>, Vec<U>)>, (T, U)>,
         data: &U,
     ) {
-        let (left_items, right_items) = ctx.get_current_state().unwrap();
+        let (left_items, right_items) = ctx.current_state().unwrap();
         right_items.push(data.clone());
 
         // Can't iterate through left_items and send messages because this results in a compiler
         // error due to 2 mutable references to ctx.
         let num_left_items = left_items.len();
         for i in 0..num_left_items {
-            let left_item = ctx.get_current_state().unwrap().0[i].clone();
-            let msg = Message::new_message(ctx.get_timestamp().clone(), (left_item, data.clone()));
-            ctx.get_write_stream().send(msg).unwrap();
+            let left_item = ctx.current_state().unwrap().0[i].clone();
+            let msg = Message::new_message(ctx.timestamp().clone(), (left_item, data.clone()));
+            ctx.write_stream().send(msg).unwrap();
         }
     }
 
@@ -98,8 +98,8 @@ where
         &mut self,
         ctx: &mut TwoInOneOutContext<TimeVersionedState<(Vec<T>, Vec<U>)>, (T, U)>,
     ) {
-        let timestamp = ctx.get_timestamp().clone();
-        ctx.get_state_mut().evict_until(&timestamp);
+        let timestamp = ctx.timestamp().clone();
+        ctx.state_mut().evict_until(&timestamp);
     }
 }
 

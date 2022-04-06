@@ -61,18 +61,14 @@ impl OneInOneOut<(), usize, usize> for SquareOperator {
 
     fn on_data(&mut self, ctx: &mut OneInOneOutContext<(), usize>, data: &usize) {
         thread::sleep(Duration::new(2, 0));
-        tracing::info!(
-            "SquareOperator @ {:?}: received {}",
-            ctx.get_timestamp(),
-            data
-        );
-        let timestamp = ctx.get_timestamp().clone();
-        ctx.get_write_stream()
+        tracing::info!("SquareOperator @ {:?}: received {}", ctx.timestamp(), data);
+        let timestamp = ctx.timestamp().clone();
+        ctx.write_stream()
             .send(Message::new_message(timestamp, data * data))
             .unwrap();
         tracing::info!(
             "SquareOperator @ {:?}: sent {}",
-            ctx.get_timestamp(),
+            ctx.timestamp(),
             data * data
         );
     }
@@ -95,22 +91,20 @@ impl OneInOneOut<TimeVersionedState<usize>, usize, usize> for SumOperator {
         ctx: &mut OneInOneOutContext<TimeVersionedState<usize>, usize>,
         data: &usize,
     ) {
-        tracing::info!("SumOperator @ {:?}: Received {}", ctx.get_timestamp(), data);
+        tracing::info!("SumOperator @ {:?}: Received {}", ctx.timestamp(), data);
 
-        let timestamp = ctx.get_timestamp().clone();
-        let timestamp_clone = ctx.get_timestamp().clone();
+        let timestamp = ctx.timestamp().clone();
+        let timestamp_clone = ctx.timestamp().clone();
 
         // Find the last committed state, add the received data to it, and save for this timestamp.
         {
-            let past_state = ctx
-                .get_past_state(&ctx.get_last_committed_timestamp())
-                .unwrap();
-            *ctx.get_current_state().unwrap() += past_state + data;
+            let past_state = ctx.past_state(&ctx.last_committed_timestamp()).unwrap();
+            *ctx.current_state().unwrap() += past_state + data;
         }
 
         // Send the message.
-        let current_state_copy = *ctx.get_current_state().unwrap();
-        ctx.get_write_stream()
+        let current_state_copy = *ctx.current_state().unwrap();
+        ctx.write_stream()
             .send(Message::new_message(timestamp, current_state_copy))
             .unwrap();
         tracing::info!(
@@ -133,23 +127,23 @@ impl SinkOperator {
 
 impl Sink<TimeVersionedState<usize>, usize> for SinkOperator {
     fn on_data(&mut self, ctx: &mut SinkContext<TimeVersionedState<usize>>, data: &usize) {
-        let timestamp = ctx.get_timestamp().clone();
+        let timestamp = ctx.timestamp().clone();
         tracing::info!(
             "{} @ {:?}: Received {}",
-            ctx.get_operator_config().get_name(),
+            ctx.operator_config().get_name(),
             timestamp,
             data
         );
-        *ctx.get_current_state().unwrap() += 1;
+        *ctx.current_state().unwrap() += 1;
     }
 
     fn on_watermark(&mut self, ctx: &mut SinkContext<TimeVersionedState<usize>>) {
-        let timestamp = ctx.get_timestamp().clone();
+        let timestamp = ctx.timestamp().clone();
         tracing::info!(
             "{} @ {:?}: Received {} data messages.",
-            ctx.get_operator_config().get_name(),
+            ctx.operator_config().get_name(),
             timestamp,
-            ctx.get_current_state().unwrap(),
+            ctx.current_state().unwrap(),
         );
     }
 }
@@ -169,8 +163,8 @@ impl TwoInOneOut<TimeVersionedState<usize>, usize, usize, usize> for JoinSumOper
         ctx: &mut TwoInOneOutContext<TimeVersionedState<usize>, usize>,
         data: &usize,
     ) {
-        let current_timestamp = ctx.get_timestamp().clone();
-        let current_state = ctx.get_current_state().unwrap();
+        let current_timestamp = ctx.timestamp().clone();
+        let current_state = ctx.current_state().unwrap();
         *current_state += *data;
 
         tracing::info!(
@@ -186,8 +180,8 @@ impl TwoInOneOut<TimeVersionedState<usize>, usize, usize, usize> for JoinSumOper
         ctx: &mut TwoInOneOutContext<TimeVersionedState<usize>, usize>,
         data: &usize,
     ) {
-        let current_timestamp = ctx.get_timestamp().clone();
-        let current_state = ctx.get_current_state().unwrap();
+        let current_timestamp = ctx.timestamp().clone();
+        let current_state = ctx.current_state().unwrap();
         *current_state += *data;
 
         tracing::info!(
@@ -199,14 +193,14 @@ impl TwoInOneOut<TimeVersionedState<usize>, usize, usize, usize> for JoinSumOper
     }
 
     fn on_watermark(&mut self, ctx: &mut TwoInOneOutContext<TimeVersionedState<usize>, usize>) {
-        let state_copy = *ctx.get_current_state().unwrap();
-        let time = ctx.get_timestamp().clone();
+        let state_copy = *ctx.current_state().unwrap();
+        let time = ctx.timestamp().clone();
         tracing::info!(
             "JoinSumOperator @ {:?}: received watermark, sending sum of {}",
             time,
             state_copy,
         );
-        ctx.get_write_stream()
+        ctx.write_stream()
             .send(Message::new_message(time, state_copy))
             .unwrap();
     }
@@ -223,23 +217,23 @@ impl EvenOddOperator {
 
 impl OneInTwoOut<(), usize, usize, usize> for EvenOddOperator {
     fn on_data(&mut self, ctx: &mut OneInTwoOutContext<(), usize, usize>, data: &usize) {
-        let time = ctx.get_timestamp().clone();
+        let time = ctx.timestamp().clone();
         if data % 2 == 0 {
             tracing::info!(
                 "EvenOddOperator @ {:?}: sending even number {} on left stream",
-                ctx.get_timestamp(),
+                ctx.timestamp(),
                 data,
             );
-            ctx.get_left_write_stream()
+            ctx.left_write_stream()
                 .send(Message::new_message(time, *data))
                 .unwrap();
         } else {
             tracing::info!(
                 "EvenOddOperator @ {:?}: sending odd number {} on right stream",
-                ctx.get_timestamp(),
+                ctx.timestamp(),
                 data,
             );
-            ctx.get_right_write_stream()
+            ctx.right_write_stream()
                 .send(Message::new_message(time, *data))
                 .unwrap();
         }

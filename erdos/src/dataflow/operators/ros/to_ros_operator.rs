@@ -101,8 +101,8 @@ where
         for ros_msg in ros_msg_vec.into_iter() {
             tracing::trace!(
                 "{} @ {:?}: Sending {:?}",
-                ctx.get_operator_config().get_name(),
-                ctx.get_timestamp().clone(),
+                ctx.operator_config().get_name(),
+                ctx.timestamp().clone(),
                 ros_msg,
             );
             // Publishes converted message on topic.
@@ -116,12 +116,12 @@ where
     T: Data + for<'a> Deserialize<'a>,
 {
     fn on_data(&mut self, ctx: &mut SinkContext<()>, data: &T) {
-        let timestamp = ctx.get_timestamp().clone();
+        let timestamp = ctx.timestamp().clone();
         self.convert_and_publish(ctx, &Message::new_message(timestamp, data.clone()));
     }
 
     fn on_watermark(&mut self, ctx: &mut SinkContext<()>) {
-        let timestamp = ctx.get_timestamp().clone();
+        let timestamp = ctx.timestamp().clone();
         self.convert_and_publish(ctx, &Message::new_watermark(timestamp));
     }
 }
