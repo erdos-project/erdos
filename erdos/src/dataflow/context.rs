@@ -36,12 +36,12 @@ impl<S> SetupContext<S> {
 
     /// Register a deadline with the system.
     pub fn add_deadline(&mut self, deadline: impl DeadlineT<S> + 'static) {
-        let deadline_id = deadline.get_id();
+        let deadline_id = deadline.id();
         self.deadlines.insert(deadline_id, Arc::new(deadline));
     }
 
     /// Get the deadlines registered in this context.
-    pub(crate) fn get_deadlines(&mut self) -> impl Iterator<Item = &mut Arc<dyn DeadlineT<S>>> {
+    pub(crate) fn deadlines(&mut self) -> impl Iterator<Item = &mut Arc<dyn DeadlineT<S>>> {
         self.deadlines.values_mut()
     }
 
@@ -51,7 +51,7 @@ impl<S> SetupContext<S> {
     }
 
     /// Get the identifiers of the write streams of this operator.
-    pub(crate) fn get_write_stream_ids(&self) -> &Vec<StreamId> {
+    pub(crate) fn write_stream_ids(&self) -> &Vec<StreamId> {
         &self.write_stream_ids
     }
 
@@ -93,17 +93,17 @@ where
     }
 
     /// Get the timestamp for which the callback was invoked.
-    pub fn get_timestamp(&self) -> &Timestamp {
+    pub fn timestamp(&self) -> &Timestamp {
         &self.timestamp
     }
 
     /// Get the configuration of the operator.
-    pub fn get_operator_config(&self) -> &OperatorConfig {
+    pub fn operator_config(&self) -> &OperatorConfig {
         &self.config
     }
 
     /// Get the state attached to the operator.
-    pub fn get_state(&self) -> &S {
+    pub fn state(&self) -> &S {
         self.state
     }
 }
@@ -135,22 +135,22 @@ where
     }
 
     /// Get the timestamp for which the callback was invoked.
-    pub fn get_timestamp(&self) -> &Timestamp {
+    pub fn timestamp(&self) -> &Timestamp {
         &self.timestamp
     }
 
     /// Get the configuration of the operator.
-    pub fn get_operator_config(&self) -> &OperatorConfig {
+    pub fn operator_config(&self) -> &OperatorConfig {
         &self.config
     }
 
     /// Get the current state attached to the operator.
-    pub fn get_current_state(&mut self) -> Option<&mut S::Item> {
+    pub fn current_state(&mut self) -> Option<&mut S::Item> {
         self.state.at(&self.timestamp)
     }
 
     /// Get the past state attached to the operator.
-    pub fn get_past_state(&mut self, time: &Timestamp) -> Option<&S::Item> {
+    pub fn past_state(&mut self, time: &Timestamp) -> Option<&S::Item> {
         if *time <= self.state.last_committed_timestamp() {
             match self.state.at(time) {
                 Some(state_val) => Some(state_val),
@@ -162,7 +162,7 @@ where
     }
 
     /// Get the timestamp of the last committed state.
-    pub fn get_last_committed_timestamp(&self) -> Timestamp {
+    pub fn last_committed_timestamp(&self) -> Timestamp {
         self.state.last_committed_timestamp()
     }
 }
@@ -208,22 +208,22 @@ where
     }
 
     /// Get the timestamp for which the callback was invoked.
-    pub fn get_timestamp(&self) -> &Timestamp {
+    pub fn timestamp(&self) -> &Timestamp {
         &self.timestamp
     }
 
     /// Get the configuration of the operator.
-    pub fn get_operator_config(&self) -> &OperatorConfig {
+    pub fn operator_config(&self) -> &OperatorConfig {
         &self.config
     }
 
     /// Get the state attached to the operator.
-    pub fn get_state(&self) -> &S {
+    pub fn state(&self) -> &S {
         self.state
     }
 
     /// Get the write stream to send the output on.
-    pub fn get_write_stream(&mut self) -> &mut WriteStream<T> {
+    pub fn write_stream(&mut self) -> &mut WriteStream<T> {
         &mut self.write_stream
     }
 }
@@ -267,22 +267,22 @@ where
     }
 
     /// Get the timestamp for which the callback was invoked.
-    pub fn get_timestamp(&self) -> &Timestamp {
+    pub fn timestamp(&self) -> &Timestamp {
         &self.timestamp
     }
 
     /// Get the configuration of the operator.
-    pub fn get_operator_config(&self) -> &OperatorConfig {
+    pub fn operator_config(&self) -> &OperatorConfig {
         &self.config
     }
 
     /// Get the current state attached to the operator.
-    pub fn get_current_state(&mut self) -> Option<&mut S::Item> {
+    pub fn current_state(&mut self) -> Option<&mut S::Item> {
         self.state.at(&self.timestamp)
     }
 
     /// Get the past state attached to the operator.
-    pub fn get_past_state(&mut self, time: &Timestamp) -> Option<&S::Item> {
+    pub fn past_state(&mut self, time: &Timestamp) -> Option<&S::Item> {
         if *time <= self.state.last_committed_timestamp() {
             match self.state.at(time) {
                 Some(state_val) => Some(state_val),
@@ -294,12 +294,12 @@ where
     }
 
     /// Get the timestamp of the last committed state.
-    pub fn get_last_committed_timestamp(&self) -> Timestamp {
+    pub fn last_committed_timestamp(&self) -> Timestamp {
         self.state.last_committed_timestamp()
     }
 
     /// Get the write stream to send the output on.
-    pub fn get_write_stream(&mut self) -> &mut WriteStream<T> {
+    pub fn write_stream(&mut self) -> &mut WriteStream<T> {
         &mut self.write_stream
     }
 }
@@ -345,22 +345,22 @@ where
     }
 
     /// Get the timestamp for which the callback was invoked.
-    pub fn get_timestamp(&self) -> &Timestamp {
+    pub fn timestamp(&self) -> &Timestamp {
         &self.timestamp
     }
 
     /// Get the configuration of the operator.
-    pub fn get_operator_config(&self) -> &OperatorConfig {
+    pub fn operator_config(&self) -> &OperatorConfig {
         &self.config
     }
 
     /// Get the state attached to the operator.
-    pub fn get_state(&self) -> &S {
+    pub fn state(&self) -> &S {
         self.state
     }
 
     /// Get the write stream to send the output on.
-    pub fn get_write_stream(&mut self) -> &mut WriteStream<T> {
+    pub fn write_stream(&mut self) -> &mut WriteStream<T> {
         &mut self.write_stream
     }
 }
@@ -404,22 +404,22 @@ where
     }
 
     /// Get the timestamp for which the callback was invoked.
-    pub fn get_timestamp(&self) -> &Timestamp {
+    pub fn timestamp(&self) -> &Timestamp {
         &self.timestamp
     }
 
     /// Get the configuration of the operator.
-    pub fn get_operator_config(&self) -> &OperatorConfig {
+    pub fn operator_config(&self) -> &OperatorConfig {
         &self.config
     }
 
     /// Get the current state attached to the operator.
-    pub fn get_current_state(&mut self) -> Option<&mut S::Item> {
+    pub fn current_state(&mut self) -> Option<&mut S::Item> {
         self.state.at(&self.timestamp)
     }
 
     /// Get the past state attached to the operator.
-    pub fn get_past_state(&mut self, time: &Timestamp) -> Option<&S::Item> {
+    pub fn past_state(&mut self, time: &Timestamp) -> Option<&S::Item> {
         if *time <= self.state.last_committed_timestamp() {
             match self.state.at(time) {
                 Some(state_val) => Some(state_val),
@@ -434,17 +434,17 @@ where
     ///
     /// Used to garbage-collect time-versioned state in
     /// [`TimestampJoinOperator`](crate::dataflow::operators::TimestampJoinOperator).
-    pub(crate) fn get_state_mut(&mut self) -> &mut S {
+    pub(crate) fn state_mut(&mut self) -> &mut S {
         self.state
     }
 
     /// Get the timestamp of the last committed state.
-    pub fn get_last_committed_timestamp(&self) -> Timestamp {
+    pub fn last_committed_timestamp(&self) -> Timestamp {
         self.state.last_committed_timestamp()
     }
 
     /// Get the write stream to send the output on.
-    pub fn get_write_stream(&mut self) -> &mut WriteStream<T> {
+    pub fn write_stream(&mut self) -> &mut WriteStream<T> {
         &mut self.write_stream
     }
 }
@@ -495,27 +495,27 @@ where
     }
 
     /// Get the timestamp for which the callback was invoked.
-    pub fn get_timestamp(&self) -> &Timestamp {
+    pub fn timestamp(&self) -> &Timestamp {
         &self.timestamp
     }
 
     /// Get the configuration of the operator.
-    pub fn get_operator_config(&self) -> &OperatorConfig {
+    pub fn operator_config(&self) -> &OperatorConfig {
         &self.config
     }
 
     /// Get the state attached to the operator.
-    pub fn get_state(&self) -> &S {
+    pub fn state(&self) -> &S {
         self.state
     }
 
     /// Get the left write stream to send the output on.
-    pub fn get_left_write_stream(&mut self) -> &mut WriteStream<T> {
+    pub fn left_write_stream(&mut self) -> &mut WriteStream<T> {
         &mut self.left_write_stream
     }
 
     /// Get the right write stream to send the output on.
-    pub fn get_right_write_stream(&mut self) -> &mut WriteStream<U> {
+    pub fn right_write_stream(&mut self) -> &mut WriteStream<U> {
         &mut self.right_write_stream
     }
 }
@@ -564,22 +564,22 @@ where
     }
 
     /// Get the timestamp for which the callback was invoked.
-    pub fn get_timestamp(&self) -> &Timestamp {
+    pub fn timestamp(&self) -> &Timestamp {
         &self.timestamp
     }
 
     /// Get the configuration of the operator.
-    pub fn get_operator_config(&self) -> &OperatorConfig {
+    pub fn operator_config(&self) -> &OperatorConfig {
         &self.config
     }
 
     /// Get the current state attached to the operator.
-    pub fn get_current_state(&mut self) -> Option<&mut S::Item> {
+    pub fn current_state(&mut self) -> Option<&mut S::Item> {
         self.state.at(&self.timestamp)
     }
 
     /// Get the past state attached to the operator.
-    pub fn get_past_state(&mut self, time: &Timestamp) -> Option<&S::Item> {
+    pub fn past_state(&mut self, time: &Timestamp) -> Option<&S::Item> {
         if *time <= self.state.last_committed_timestamp() {
             match self.state.at(time) {
                 Some(state_val) => Some(state_val),
@@ -591,17 +591,17 @@ where
     }
 
     /// Get the timestamp of the last committed state.
-    pub fn get_last_committed_timestamp(&self) -> Timestamp {
+    pub fn last_committed_timestamp(&self) -> Timestamp {
         self.state.last_committed_timestamp()
     }
 
     /// Get the left write stream to send the output on.
-    pub fn get_left_write_stream(&mut self) -> &mut WriteStream<T> {
+    pub fn left_write_stream(&mut self) -> &mut WriteStream<T> {
         &mut self.left_write_stream
     }
 
     /// Get the right write stream to send the output on.
-    pub fn get_right_write_stream(&mut self) -> &mut WriteStream<U> {
+    pub fn right_write_stream(&mut self) -> &mut WriteStream<U> {
         &mut self.right_write_stream
     }
 }

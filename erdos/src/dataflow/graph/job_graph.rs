@@ -67,7 +67,7 @@ impl JobGraph {
     }
 
     /// Returns a copy of the operators in the graph.
-    pub fn get_operators(&self) -> Vec<AbstractOperator> {
+    pub fn operators(&self) -> Vec<AbstractOperator> {
         self.operators.clone()
     }
 

@@ -206,7 +206,7 @@ where
     ) -> Vec<DeadlineEvent> {
         let mut deadline_events = Vec::new();
         let state = Arc::clone(&self.state);
-        for deadline in setup_context.get_deadlines() {
+        for deadline in setup_context.deadlines() {
             if deadline
                 .get_constrained_read_stream_ids()
                 .is_superset(&read_stream_ids.iter().cloned().collect())
@@ -220,7 +220,7 @@ where
                     timestamp.clone(),
                     deadline_duration,
                     deadline.get_end_condition_fn(),
-                    deadline.get_id(),
+                    deadline.id(),
                 ));
             }
         }
@@ -436,7 +436,7 @@ where
     ) -> Vec<DeadlineEvent> {
         let mut deadline_events = Vec::new();
         let state = Arc::clone(&self.state);
-        for deadline in setup_context.get_deadlines() {
+        for deadline in setup_context.deadlines() {
             if deadline
                 .get_constrained_read_stream_ids()
                 .is_superset(&read_stream_ids.iter().cloned().collect())
@@ -451,7 +451,7 @@ where
                     timestamp.clone(),
                     deadline_duration,
                     deadline.get_end_condition_fn(),
-                    deadline.get_id(),
+                    deadline.id(),
                 ));
             }
         }

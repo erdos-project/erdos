@@ -330,10 +330,10 @@ impl Node {
         .await;
         // Execute operators scheduled on the current node.
         let channel_manager = Arc::new(std::sync::Mutex::new(channel_manager));
-        let num_operators = job_graph.get_operators().len();
+        let num_operators = job_graph.operators().len();
         tracing::debug!("There are {} operators total", num_operators);
         let local_operators: Vec<_> = job_graph
-            .get_operators()
+            .operators()
             .into_iter()
             .filter(|op| op.config.node_id == self.id)
             .collect();

@@ -64,15 +64,15 @@ where
         for item in (self.flat_map_fn)(data).into_iter() {
             tracing::trace!(
                 "{} @ {:?}: received {:?} and sending {:?}",
-                ctx.get_operator_config().get_name(),
-                ctx.get_timestamp(),
+                ctx.operator_config().get_name(),
+                ctx.timestamp(),
                 data,
                 item,
             );
 
-            let timestamp = ctx.get_timestamp().clone();
+            let timestamp = ctx.timestamp().clone();
             let msg = Message::new_message(timestamp, item);
-            ctx.get_write_stream().send(msg).unwrap();
+            ctx.write_stream().send(msg).unwrap();
         }
     }
 

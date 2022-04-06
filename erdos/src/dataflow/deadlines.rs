@@ -43,7 +43,7 @@ pub trait DeadlineT<S>: Send + Sync {
 
     fn get_end_condition_fn(&self) -> Arc<dyn CondFn>;
 
-    fn get_id(&self) -> DeadlineId;
+    fn id(&self) -> DeadlineId;
 
     fn invoke_handler(&self, state: &S, timestamp: &Timestamp);
 }
@@ -186,7 +186,7 @@ where
         Arc::clone(&self.end_condition_fn)
     }
 
-    fn get_id(&self) -> DeadlineId {
+    fn id(&self) -> DeadlineId {
         self.id
     }
 

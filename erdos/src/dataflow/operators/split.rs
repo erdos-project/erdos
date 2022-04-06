@@ -57,14 +57,14 @@ where
     D1: Data + for<'a> Deserialize<'a>,
 {
     fn on_data(&mut self, ctx: &mut OneInTwoOutContext<(), D1, D1>, data: &D1) {
-        let timestamp = ctx.get_timestamp().clone();
+        let timestamp = ctx.timestamp().clone();
         let mut stream_side: &str = "left";
 
         let write_stream = if (self.split_function)(data) {
-            ctx.get_left_write_stream()
+            ctx.left_write_stream()
         } else {
             stream_side = "right";
-            ctx.get_right_write_stream()
+            ctx.right_write_stream()
         };
 
         write_stream
@@ -72,8 +72,8 @@ where
             .unwrap();
         tracing::debug!(
             "{} @ {:?}: received {:?} and sent to {} stream",
-            ctx.get_operator_config().get_name(),
-            ctx.get_timestamp(),
+            ctx.operator_config().get_name(),
+            ctx.timestamp(),
             data,
             stream_side
         );

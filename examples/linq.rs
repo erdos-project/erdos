@@ -51,25 +51,25 @@ impl SinkOperator {
 
 impl Sink<TimeVersionedState<usize>, usize> for SinkOperator {
     fn on_data(&mut self, ctx: &mut SinkContext<TimeVersionedState<usize>>, data: &usize) {
-        let timestamp = ctx.get_timestamp().clone();
+        let timestamp = ctx.timestamp().clone();
         tracing::info!(
             "{} @ {:?}: Received {}",
-            ctx.get_operator_config().get_name(),
+            ctx.operator_config().get_name(),
             timestamp,
             data,
         );
 
         // Increment the message count.
-        *ctx.get_current_state().unwrap() += 1;
+        *ctx.current_state().unwrap() += 1;
     }
 
     fn on_watermark(&mut self, ctx: &mut SinkContext<TimeVersionedState<usize>>) {
-        let timestamp = ctx.get_timestamp().clone();
+        let timestamp = ctx.timestamp().clone();
         tracing::info!(
             "{} @ {:?}: Received {} data messages.",
-            ctx.get_operator_config().get_name(),
+            ctx.operator_config().get_name(),
             timestamp,
-            ctx.get_current_state().unwrap(),
+            ctx.current_state().unwrap(),
         );
     }
 }
