@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fs::File, io::prelude::*};
 
-use crate::dataflow::stream::StreamId;
+use crate::{dataflow::stream::StreamId, OperatorId};
 
 use super::{
     StreamSetupHook, {AbstractOperator, AbstractStreamT, Job},
@@ -110,6 +110,48 @@ impl JobGraph {
 
     /// Exports the job graph to a Graphviz file (*.gv, *.dot).
     pub fn to_graph_viz(&self, filename: &str) -> std::io::Result<()> {
-        todo!("Implement to_graph_viz to export file {}", filename)
+        let mut file = File::create(filename)?;
+        writeln!(file, "digraph erdos_dataflow {{")?;
+
+        let driver_id = OperatorId::new_deterministic();
+        if !self.driver_setup_hooks.is_empty() {
+            writeln!(file, "   // Driver")?;
+            writeln!(file, "   \"{}\" [label=\"Driver\"];", driver_id)?;
+        }
+
+        writeln!(file, "   // Operators")?;
+        for operator in self.operators.iter() {
+            writeln!(
+                file,
+                "   \"{}\" [label=\"{}\n(Node {})\"];",
+                operator.id,
+                operator.config.get_name(),
+                operator.config.node_id,
+            )?;
+        }
+
+        writeln!(file, "   // Streams")?;
+        for (stream_id, source) in self.stream_sources.iter() {
+            let source_id = match source {
+                Job::Driver => driver_id,
+                Job::Operator(id) => *id,
+            };
+            if let Some(dests) = self.stream_destinations.get(stream_id) {
+                for dest in dests.iter() {
+                    let dest_id = match dest {
+                        Job::Driver => driver_id,
+                        Job::Operator(id) => *id,
+                    };
+                    writeln!(
+                        file,
+                        "   \"{}\" -> \"{}\" [label=\"{}\"];",
+                        source_id, dest_id, stream_id
+                    )?;
+                }
+            }
+        }
+
+        writeln!(file, "}}")?;
+        file.flush()
     }
 }
