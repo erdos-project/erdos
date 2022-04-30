@@ -36,7 +36,8 @@ def main():
     source_stream = erdos.connect_source(SendOp, OperatorConfig())
     map_stream = source_stream.map(lambda a: a * 2)
     flat_map_stream = map_stream.flat_map(lambda a: list(range(a)))
-    erdos.connect_sink(SinkOp, OperatorConfig(), flat_map_stream)
+    filtered_flat_map_stream = flat_map_stream.filter(lambda a: a % 2 == 0)
+    erdos.connect_sink(SinkOp, OperatorConfig(), filtered_flat_map_stream)
     erdos.run()
 
 

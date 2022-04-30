@@ -2,7 +2,7 @@ import logging
 import pickle
 import uuid
 from abc import ABC
-from typing import Any, Callable, Union
+from typing import Any, Callable, Sequence, Union
 
 from erdos.internal import (
     PyExtractStream,
@@ -90,15 +90,32 @@ class Stream(ABC):
             function.
         """
 
-        def flat_map_fn(serialized_data: bytes) -> bytes:
+        def flat_map_fn(serialized_data: bytes) -> Sequence[bytes]:
             mapped_values = function(pickle.loads(serialized_data))
-            print(f"Got the values: {mapped_values}")
             result = []
             for element in mapped_values:
                 result.append(pickle.dumps(element))
             return result
 
         return OperatorStream(self._internal_stream._flat_map(flat_map_fn))
+
+    def filter(self, function: Callable[[Any], bool]) -> "OperatorStream":
+        """Applies the given function to each received value on the stream, and outputs
+        the value if the function evaluates to true.
+
+        Args:
+            function (Callable[[Any], bool]): The function to be applied to each
+                message received on the input stream.
+
+        Returns:
+            An :py:class:`OperatorStream` that carries the filtered results from the
+            applied function.
+        """
+
+        def filter_fn(serialized_data: bytes) -> bool:
+            return function(pickle.loads(serialized_data))
+
+        return OperatorStream(self._internal_stream._filter(filter_fn))
 
 
 class ReadStream:
