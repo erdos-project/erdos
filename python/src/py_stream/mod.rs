@@ -53,6 +53,20 @@ impl PyStream {
         };
         PyOperatorStream::new(py, self.map(map_fn))
     }
+
+    fn _flat_map(&self, py: Python<'_>, function: PyObject) -> PyResult<Py<PyOperatorStream>> {
+        let flat_map_fn = move |data: &Vec<u8>| -> Vec<Vec<u8>> {
+            Python::with_gil(|py| {
+                let serialized_data = PyBytes::new(py, &data[..]);
+                function
+                    .call1(py, (serialized_data,))
+                    .unwrap()
+                    .extract(py)
+                    .unwrap()
+            })
+        };
+        PyOperatorStream::new(py, self.flat_map(flat_map_fn))
+    }
 }
 
 impl Stream<Vec<u8>> for PyStream {

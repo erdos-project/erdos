@@ -77,6 +77,29 @@ class Stream(ABC):
 
         return OperatorStream(self._internal_stream._map(map_fn))
 
+    def flat_map(self, function: Callable[[Any], Sequence[Any]]) -> "OperatorStream":
+        """Applies the given function to each received value on the stream, and outputs
+        the sequence of received outputs as individual messages.
+
+        Args:
+            function (Callable[[Any], Sequence[Any]]): The function to be applied to
+                each message received on the input stream.
+
+        Returns:
+            An :py:class:`OperatorStream` that carries the results of the applied
+            function.
+        """
+
+        def flat_map_fn(serialized_data: bytes) -> bytes:
+            mapped_values = function(pickle.loads(serialized_data))
+            print(f"Got the values: {mapped_values}")
+            result = []
+            for element in mapped_values:
+                result.append(pickle.dumps(element))
+            return result
+
+        return OperatorStream(self._internal_stream._flat_map(flat_map_fn))
+
 
 class ReadStream:
     """A :py:class:`ReadStream` allows an operator to read and do work on

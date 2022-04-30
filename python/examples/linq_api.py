@@ -35,7 +35,8 @@ class SinkOp(Sink):
 def main():
     source_stream = erdos.connect_source(SendOp, OperatorConfig())
     map_stream = source_stream.map(lambda a: a * 2)
-    erdos.connect_sink(SinkOp, OperatorConfig(), map_stream)
+    flat_map_stream = map_stream.flat_map(lambda a: list(range(a)))
+    erdos.connect_sink(SinkOp, OperatorConfig(), flat_map_stream)
     erdos.run()
 
 
