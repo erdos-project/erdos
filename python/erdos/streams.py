@@ -160,6 +160,20 @@ class Stream(ABC):
             self._internal_stream._timestamp_join(other._internal_stream, join_fn)
         )
 
+    def concat(self, other: "Stream") -> "OperatorStream":
+        """Merges the data messages from the two streams into a single stream and
+        forwards a watermark when a minimum watermark on both the streams is achieved.
+
+        Args:
+            other (:py:class:`Stream`): The other stream that needs to be merged with
+                self.
+
+        Returns
+            A :py:class:`OperatorStream` that carries the merged results from the two
+            streams.
+        """
+        return OperatorStream(self._internal_stream._concat(other._internal_stream))
+
 
 class ReadStream:
     """A :py:class:`ReadStream` allows an operator to read and do work on

@@ -1,5 +1,5 @@
 use erdos::dataflow::{
-    operators::{Filter, Join, Map, Split},
+    operators::{Concat, Filter, Join, Map, Split},
     stream::{Stream, StreamId},
 };
 use pyo3::{prelude::*, types::PyBytes};
@@ -122,6 +122,10 @@ impl PyStream {
             })
         };
         PyOperatorStream::new(py, self.timestamp_join(other).map(map_fn))
+    }
+
+    fn _concat(&self, py: Python<'_>, other: &PyStream) -> PyResult<Py<PyOperatorStream>> {
+        PyOperatorStream::new(py, self.concat(other))
     }
 }
 
