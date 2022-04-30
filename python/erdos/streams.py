@@ -148,7 +148,7 @@ class Stream(ABC):
                 self.
 
         Returns:
-            A :py:class:`OperatorStream` that carries the joined results from the two
+            An :py:class:`OperatorStream` that carries the joined results from the two
             streams.
         """
 
@@ -170,7 +170,7 @@ class Stream(ABC):
                 stream(s) that needs to be merged with self.
 
         Returns
-            A :py:class:`OperatorStream` that carries the merged results from the
+            An :py:class:`OperatorStream` that carries the merged results from the
             streams.
         """
         if isinstance(other, Stream):
