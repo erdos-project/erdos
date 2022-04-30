@@ -198,7 +198,6 @@ class Stream(ABC):
                     else:
                         merged_streams.append(left_stream)
                 streams_to_be_merged = merged_streams
-            print(streams_to_be_merged[0].id)
             return streams_to_be_merged[0]
 
 
