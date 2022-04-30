@@ -2,6 +2,7 @@ import logging
 import pickle
 import uuid
 from abc import ABC
+from itertools import zip_longest
 from typing import Any, Callable, Sequence, Tuple, Union
 
 from erdos.internal import (
@@ -160,19 +161,45 @@ class Stream(ABC):
             self._internal_stream._timestamp_join(other._internal_stream, join_fn)
         )
 
-    def concat(self, other: "Stream") -> "OperatorStream":
-        """Merges the data messages from the two streams into a single stream and
-        forwards a watermark when a minimum watermark on both the streams is achieved.
+    def concat(self, other: Union["Stream", Sequence["Stream"]]) -> "OperatorStream":
+        """Merges the data messages from the given streams into a single stream and
+        forwards a watermark when a minimum watermark on the streams is achieved.
 
         Args:
-            other (:py:class:`Stream`): The other stream that needs to be merged with
-                self.
+            other (Union[:py:class:`Stream`, Sequence[:py:class:`Stream`]]): The other
+                stream(s) that needs to be merged with self.
 
         Returns
-            A :py:class:`OperatorStream` that carries the merged results from the two
+            A :py:class:`OperatorStream` that carries the merged results from the
             streams.
         """
-        return OperatorStream(self._internal_stream._concat(other._internal_stream))
+        if isinstance(other, Stream):
+            return OperatorStream(self._internal_stream._concat(other._internal_stream))
+        else:
+            if len(other) == 0:
+                raise ValueError("Received empty list of streams to merge.")
+
+            # Iteratively keep merging the streams in pairs of two.
+            streams_to_be_merged = list(other) + [self]
+            while len(streams_to_be_merged) != 1:
+                merged_streams = []
+                paired_streams = zip_longest(
+                    streams_to_be_merged[::2], streams_to_be_merged[1::2]
+                )
+                for left_stream, right_stream in paired_streams:
+                    if right_stream is not None:
+                        merged_streams.append(
+                            OperatorStream(
+                                left_stream._internal_stream._concat(
+                                    right_stream._internal_stream
+                                )
+                            )
+                        )
+                    else:
+                        merged_streams.append(left_stream)
+                streams_to_be_merged = merged_streams
+            print(streams_to_be_merged[0].id)
+            return streams_to_be_merged[0]
 
 
 class ReadStream:
