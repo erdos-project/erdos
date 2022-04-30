@@ -139,6 +139,27 @@ class Stream(ABC):
         left_stream, right_stream = self._internal_stream._split(split_fn)
         return (OperatorStream(left_stream), OperatorStream(right_stream))
 
+    def timestamp_join(self, other: "Stream") -> "OperatorStream":
+        """Joins the data with matching timestamps from the two different streams.
+
+        Args:
+            other (:py:class:`Stream`): The other stream that needs to be joined with
+                self.
+
+        Returns:
+            A :py:class:`OperatorStream` that carries the joined results from the two
+            streams.
+        """
+
+        def join_fn(serialized_data_left: bytes, serialized_data_right: bytes) -> bytes:
+            left_data = pickle.loads(serialized_data_left)
+            right_data = pickle.loads(serialized_data_right)
+            return pickle.dumps((left_data, right_data))
+
+        return OperatorStream(
+            self._internal_stream._timestamp_join(other._internal_stream, join_fn)
+        )
+
 
 class ReadStream:
     """A :py:class:`ReadStream` allows an operator to read and do work on

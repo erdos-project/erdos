@@ -40,8 +40,8 @@ def main():
     map_stream = source_stream.map(lambda a: a * 2)
     flat_map_stream = map_stream.flat_map(lambda a: list(range(a)))
     left_stream, right_stream = flat_map_stream.split(lambda a: a % 2 == 0)
-    erdos.connect_sink(SinkOp, OperatorConfig(name="LeftOutput"), left_stream)
-    erdos.connect_sink(SinkOp, OperatorConfig(name="RightOutput"), right_stream)
+    joined_stream = left_stream.timestamp_join(right_stream)
+    erdos.connect_sink(SinkOp, OperatorConfig(name="JoinedOutput"), joined_stream)
     erdos.run()
 
 

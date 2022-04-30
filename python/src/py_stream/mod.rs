@@ -1,5 +1,5 @@
 use erdos::dataflow::{
-    operators::{Filter, Map, Split},
+    operators::{Filter, Join, Map, Split},
     stream::{Stream, StreamId},
 };
 use pyo3::{prelude::*, types::PyBytes};
@@ -102,6 +102,26 @@ impl PyStream {
             PyOperatorStream::new(py, left_stream).unwrap(),
             PyOperatorStream::new(py, right_stream).unwrap(),
         ))
+    }
+
+    fn _timestamp_join(
+        &self,
+        py: Python<'_>,
+        other: &PyStream,
+        join_function: PyObject,
+    ) -> PyResult<Py<PyOperatorStream>> {
+        let map_fn = move |data: &(Vec<u8>, Vec<u8>)| -> Vec<u8> {
+            Python::with_gil(|py| {
+                let serialized_data_left = PyBytes::new(py, &data.0[..]);
+                let serialized_data_right = PyBytes::new(py, &data.1[..]);
+                join_function
+                    .call1(py, (serialized_data_left, serialized_data_right))
+                    .unwrap()
+                    .extract(py)
+                    .unwrap()
+            })
+        };
+        PyOperatorStream::new(py, self.timestamp_join(other).map(map_fn))
     }
 }
 
