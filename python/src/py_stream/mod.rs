@@ -1,5 +1,5 @@
 use erdos::dataflow::{
-    operators::{Filter, Map},
+    operators::{Filter, Map, Split},
     stream::{Stream, StreamId},
 };
 use pyo3::{prelude::*, types::PyBytes};
@@ -80,6 +80,28 @@ impl PyStream {
             })
         };
         PyOperatorStream::new(py, self.filter(filter_fn))
+    }
+
+    fn _split(
+        &self,
+        py: Python<'_>,
+        function: PyObject,
+    ) -> PyResult<(Py<PyOperatorStream>, Py<PyOperatorStream>)> {
+        let split_fn = move |data: &Vec<u8>| -> bool {
+            Python::with_gil(|py| {
+                let serialized_data = PyBytes::new(py, &data[..]);
+                function
+                    .call1(py, (serialized_data,))
+                    .unwrap()
+                    .extract(py)
+                    .unwrap()
+            })
+        };
+        let (left_stream, right_stream) = self.split(split_fn);
+        Ok((
+            PyOperatorStream::new(py, left_stream).unwrap(),
+            PyOperatorStream::new(py, right_stream).unwrap(),
+        ))
     }
 }
 

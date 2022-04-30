@@ -2,7 +2,7 @@ import time
 from typing import Any
 
 import erdos
-from erdos.context import OneInOneOutContext
+from erdos.context import SinkContext
 from erdos.operator import OperatorConfig, Sink, Source
 from erdos.streams import WriteStream
 
@@ -28,16 +28,20 @@ class SinkOp(Sink):
     """A :py:class:`SinkOp` is a :py:class:`Sink` operator that prints the received
     output to the standard output."""
 
-    def on_data(self, context: OneInOneOutContext, data: Any):
-        print(f"SinkOp: Received data: {data} for timestamp: {context.timestamp}")
+    def on_data(self, context: SinkContext, data: Any):
+        print(
+            f"SinkOp ({context.config.name}): Received data: {data} for "
+            f"timestamp: {context.timestamp}"
+        )
 
 
 def main():
     source_stream = erdos.connect_source(SendOp, OperatorConfig())
     map_stream = source_stream.map(lambda a: a * 2)
     flat_map_stream = map_stream.flat_map(lambda a: list(range(a)))
-    filtered_flat_map_stream = flat_map_stream.filter(lambda a: a % 2 == 0)
-    erdos.connect_sink(SinkOp, OperatorConfig(), filtered_flat_map_stream)
+    left_stream, right_stream = flat_map_stream.split(lambda a: a % 2 == 0)
+    erdos.connect_sink(SinkOp, OperatorConfig(name="LeftOutput"), left_stream)
+    erdos.connect_sink(SinkOp, OperatorConfig(name="RightOutput"), right_stream)
     erdos.run()
 
 

@@ -2,7 +2,7 @@ import logging
 import pickle
 import uuid
 from abc import ABC
-from typing import Any, Callable, Sequence, Union
+from typing import Any, Callable, Sequence, Tuple, Union
 
 from erdos.internal import (
     PyExtractStream,
@@ -116,6 +116,28 @@ class Stream(ABC):
             return function(pickle.loads(serialized_data))
 
         return OperatorStream(self._internal_stream._filter(filter_fn))
+
+    def split(
+        self, function: Callable[[Any], bool]
+    ) -> Tuple["OperatorStream", "OperatorStream"]:
+        """Applies the given function to each received value on the stream, and outputs
+        the value to either the left or the right stream depending on the returned
+        boolean value from the function.
+
+        Args:
+            function (Callable[[Any], bool]): The function to be applied to each
+                message received on the input stream.
+
+        Returns:
+            A Tuple[:py:class:`OperatorStream`, :py:class:`OperatorStream`] that carry
+            the results output to the left and right streams respectively.
+        """
+
+        def split_fn(serialized_data: bytes) -> bool:
+            return function(pickle.loads(serialized_data))
+
+        left_stream, right_stream = self._internal_stream._split(split_fn)
+        return (OperatorStream(left_stream), OperatorStream(right_stream))
 
 
 class ReadStream:
