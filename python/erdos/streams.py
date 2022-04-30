@@ -2,7 +2,7 @@ import logging
 import pickle
 import uuid
 from abc import ABC
-from typing import Union
+from typing import Any, Callable, Union
 
 from erdos.internal import (
     PyExtractStream,
@@ -57,6 +57,25 @@ class Stream(ABC):
     @name.setter
     def name(self, name: str):
         self._internal_stream.set_name(name)
+
+    def map(self, function: Callable[[Any], Any]) -> "OperatorStream":
+        """Applies the given function to each received value on the stream, and outputs
+        the results on the returned stream.
+
+        Args:
+            function (Callable[[Any], Any]): The function to be applied on each message
+                received on the input stream.
+
+        Returns:
+            An :py:class:`OperatorStream` that carries the results of the applied
+            function.
+        """
+
+        def map_fn(serialized_data: bytes) -> bytes:
+            result = function(pickle.loads(serialized_data))
+            return pickle.dumps(result)
+
+        return OperatorStream(self._internal_stream._map(map_fn))
 
 
 class ReadStream:

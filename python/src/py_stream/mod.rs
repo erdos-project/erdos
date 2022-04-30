@@ -1,5 +1,8 @@
-use erdos::dataflow::stream::{Stream, StreamId};
-use pyo3::prelude::*;
+use erdos::dataflow::{
+    operators::Map,
+    stream::{Stream, StreamId},
+};
+use pyo3::{prelude::*, types::PyBytes};
 
 // Private submodules
 mod py_extract_stream;
@@ -35,6 +38,20 @@ impl PyStream {
 
     fn id(&self) -> String {
         format!("{}", self.id)
+    }
+
+    fn _map(&self, py: Python<'_>, function: PyObject) -> PyResult<Py<PyOperatorStream>> {
+        let map_fn = move |data: &Vec<u8>| -> Vec<u8> {
+            Python::with_gil(|py| {
+                let serialized_data = PyBytes::new(py, &data[..]);
+                function
+                    .call1(py, (serialized_data,))
+                    .unwrap()
+                    .extract(py)
+                    .unwrap()
+            })
+        };
+        PyOperatorStream::new(py, self.map(map_fn))
     }
 }
 
