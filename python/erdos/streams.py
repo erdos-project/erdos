@@ -91,6 +91,9 @@ class Stream(ABC):
             function.
         """
 
+        # TODO (Sukrit): This method generates all the elements together and then sends
+        # the messages out to downstream operators. Instead, the method should `yield`
+        # individual elements so that they can be eagerly sent out.
         def flat_map_fn(serialized_data: bytes) -> Sequence[bytes]:
             mapped_values = function(pickle.loads(serialized_data))
             result = []
