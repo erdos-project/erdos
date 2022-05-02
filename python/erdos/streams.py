@@ -2,7 +2,8 @@ import logging
 import pickle
 import uuid
 from abc import ABC
-from typing import Union
+from itertools import zip_longest
+from typing import Any, Callable, Sequence, Tuple, Union
 
 from erdos.internal import (
     PyExtractStream,
@@ -57,6 +58,147 @@ class Stream(ABC):
     @name.setter
     def name(self, name: str):
         self._internal_stream.set_name(name)
+
+    def map(self, function: Callable[[Any], Any]) -> "OperatorStream":
+        """Applies the given function to each received value on the stream, and outputs
+        the results on the returned stream.
+
+        Args:
+            function (Callable[[Any], Any]): The function to be applied on each message
+                received on the input stream.
+
+        Returns:
+            An :py:class:`OperatorStream` that carries the results of the applied
+            function.
+        """
+
+        def map_fn(serialized_data: bytes) -> bytes:
+            result = function(pickle.loads(serialized_data))
+            return pickle.dumps(result)
+
+        return OperatorStream(self._internal_stream._map(map_fn))
+
+    def flat_map(self, function: Callable[[Any], Sequence[Any]]) -> "OperatorStream":
+        """Applies the given function to each received value on the stream, and outputs
+        the sequence of received outputs as individual messages.
+
+        Args:
+            function (Callable[[Any], Sequence[Any]]): The function to be applied to
+                each message received on the input stream.
+
+        Returns:
+            An :py:class:`OperatorStream` that carries the results of the applied
+            function.
+        """
+
+        # TODO (Sukrit): This method generates all the elements together and then sends
+        # the messages out to downstream operators. Instead, the method should `yield`
+        # individual elements so that they can be eagerly sent out.
+        def flat_map_fn(serialized_data: bytes) -> Sequence[bytes]:
+            mapped_values = function(pickle.loads(serialized_data))
+            result = []
+            for element in mapped_values:
+                result.append(pickle.dumps(element))
+            return result
+
+        return OperatorStream(self._internal_stream._flat_map(flat_map_fn))
+
+    def filter(self, function: Callable[[Any], bool]) -> "OperatorStream":
+        """Applies the given function to each received value on the stream, and outputs
+        the value if the function evaluates to true.
+
+        Args:
+            function (Callable[[Any], bool]): The function to be applied to each
+                message received on the input stream.
+
+        Returns:
+            An :py:class:`OperatorStream` that carries the filtered results from the
+            applied function.
+        """
+
+        def filter_fn(serialized_data: bytes) -> bool:
+            return function(pickle.loads(serialized_data))
+
+        return OperatorStream(self._internal_stream._filter(filter_fn))
+
+    def split(
+        self, function: Callable[[Any], bool]
+    ) -> Tuple["OperatorStream", "OperatorStream"]:
+        """Applies the given function to each received value on the stream, and outputs
+        the value to either the left or the right stream depending on if the returned
+        boolean value is `True` or `False` respectively.
+
+        Args:
+            function (Callable[[Any], bool]): The function to be applied to each
+                message received on the input stream.
+
+        Returns:
+            A Tuple[:py:class:`OperatorStream`, :py:class:`OperatorStream`] that carry
+            the results output to the left and right streams respectively.
+        """
+
+        def split_fn(serialized_data: bytes) -> bool:
+            return function(pickle.loads(serialized_data))
+
+        left_stream, right_stream = self._internal_stream._split(split_fn)
+        return (OperatorStream(left_stream), OperatorStream(right_stream))
+
+    def timestamp_join(self, other: "Stream") -> "OperatorStream":
+        """Joins the data with matching timestamps from the two different streams.
+
+        Args:
+            other (:py:class:`Stream`): The other stream that needs to be joined with
+                self.
+
+        Returns:
+            An :py:class:`OperatorStream` that carries the joined results from the two
+            streams.
+        """
+
+        def join_fn(serialized_data_left: bytes, serialized_data_right: bytes) -> bytes:
+            left_data = pickle.loads(serialized_data_left)
+            right_data = pickle.loads(serialized_data_right)
+            return pickle.dumps((left_data, right_data))
+
+        return OperatorStream(
+            self._internal_stream._timestamp_join(other._internal_stream, join_fn)
+        )
+
+    def concat(self, *other: "Stream") -> "OperatorStream":
+        """Merges the data messages from the given streams into a single stream and
+        forwards a watermark when a minimum watermark on the streams is achieved.
+
+        Args:
+            other (:py:class:`Stream`): The other stream(s) that needs to be merged
+                with self.
+
+        Returns:
+            An :py:class:`OperatorStream` that carries the merged results from the
+            streams.
+        """
+        if len(other) == 0:
+            raise ValueError("Received empty list of streams to merge.")
+
+        # Iteratively keep merging the streams in pairs of two.
+        streams_to_be_merged = list(other) + [self]
+        while len(streams_to_be_merged) != 1:
+            merged_streams = []
+            paired_streams = zip_longest(
+                streams_to_be_merged[::2], streams_to_be_merged[1::2]
+            )
+            for left_stream, right_stream in paired_streams:
+                if right_stream is not None:
+                    merged_streams.append(
+                        OperatorStream(
+                            left_stream._internal_stream._concat(
+                                right_stream._internal_stream
+                            )
+                        )
+                    )
+                else:
+                    merged_streams.append(left_stream)
+            streams_to_be_merged = merged_streams
+        return streams_to_be_merged[0]
 
 
 class ReadStream:
