@@ -122,8 +122,8 @@ class Stream(ABC):
         self, function: Callable[[Any], bool]
     ) -> Tuple["OperatorStream", "OperatorStream"]:
         """Applies the given function to each received value on the stream, and outputs
-        the value to either the left or the right stream depending on the returned
-        boolean value from the function.
+        the value to either the left or the right stream depending on if the returned
+        boolean value is `True` or `False` respectively.
 
         Args:
             function (Callable[[Any], bool]): The function to be applied to each
