@@ -6,7 +6,6 @@
 import time
 
 import erdos
-from erdos.operators.map import Map
 
 
 def square_msg(context, msg):
@@ -17,9 +16,8 @@ def square_msg(context, msg):
 
 def main():
     ingest_stream = erdos.streams.IngestStream()
-    square_stream = erdos.connect_one_in_one_out(
-        Map, erdos.operator.OperatorConfig(), ingest_stream, function=square_msg
-    )
+    square_stream = ingest_stream.map(lambda x: x * x)
+
     extract_stream = erdos.streams.ExtractStream(square_stream)
 
     erdos.run_async()
