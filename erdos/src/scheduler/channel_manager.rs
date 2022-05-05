@@ -218,17 +218,20 @@ impl ChannelManager {
                 }
             } else {
                 // The stream originates on another node.
-                let contains_destination = destinations.iter().any(|destination| {
-                    let destination_node_id = match destination {
-                        Job::Operator(operator_id) => {
-                            operators.get(operator_id).unwrap().config.node_id
-                        }
-                        // TODO: change this when ERDOS programs are submitted to a cluster.
-                        Job::Driver => 0,
-                    };
-                    node_id == destination_node_id
-                });
-                if contains_destination {
+                let num_local_destinations = destinations
+                    .iter()
+                    .filter(|destination| {
+                        let destination_node_id = match destination {
+                            Job::Operator(operator_id) => {
+                                operators.get(operator_id).unwrap().config.node_id
+                            }
+                            // TODO: change this when ERDOS programs are submitted to a cluster.
+                            Job::Driver => 0,
+                        };
+                        node_id == destination_node_id
+                    })
+                    .count();
+                for _ in 0..num_local_destinations {
                     let stream_endpoint_t = channel_manager
                         .stream_entries
                         .entry(stream.id())
