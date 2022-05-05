@@ -3,7 +3,7 @@ import pickle
 import uuid
 from abc import ABC
 from itertools import zip_longest
-from typing import Any, Callable, Sequence, Tuple, Union
+from typing import Any, Callable, Sequence, Tuple, Type, Union
 
 from erdos.internal import (
     PyExtractStream,
@@ -142,6 +142,36 @@ class Stream(ABC):
 
         left_stream, right_stream = self._internal_stream._split(split_fn)
         return (OperatorStream(left_stream), OperatorStream(right_stream))
+
+    def split_by_type(self, *data_type: Type) -> Tuple["OperatorStream"]:
+        """Returns a stream for each provided type on which each message's data is an
+        instance of that provided type.
+
+        Message with data not corresponding to a provided type are filtered out.
+        Useful for building operators that send messages with more than 2 data types.
+
+        Args:
+            data_type: the type of the data to be forwarded to the corresponding
+                stream.
+
+        Returns:
+            A stream for each provided type where each message's data is an instance of
+            that type.
+        """
+        # TODO(peter): optimize the implementation by moving logic to Rust.
+        if len(data_type) == 0:
+            raise ValueError("Did not receive a list of types.")
+
+        last_stream = self
+        streams = ()
+        for t in data_type[:-1]:
+            s, last_stream = last_stream.split(lambda x: isinstance(x, t))
+            streams += (s,)
+
+        last_type = data_type[-1]
+        last_stream = last_stream.filter(lambda x: isinstance(x, last_type))
+
+        return streams + (last_stream,)
 
     def timestamp_join(self, other: "Stream") -> "OperatorStream":
         """Joins the data with matching timestamps from the two different streams.
@@ -306,7 +336,7 @@ class WriteStream:
             return self._py_write_stream.send(internal_msg)
         except Exception as e:
             raise Exception(
-                "Exception on stream {} ({})".format(self.name, self.id)
+                "Exception on stream {} ({}): {}".format(self.name, self.id, e)
             ) from e
 
 
