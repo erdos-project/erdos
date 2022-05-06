@@ -195,6 +195,8 @@ impl ChannelManager {
                     .entry(stream.id())
                     .or_insert_with(|| stream.to_stream_endpoints_t());
 
+                // Stores the number of jobs on each connected node.
+                let mut destination_nodes: HashMap<NodeId, usize> = HashMap::new();
                 for destination in destinations {
                     let destination_node_id = match destination {
                         Job::Operator(operator_id) => {
@@ -204,8 +206,15 @@ impl ChannelManager {
                         Job::Driver => 0,
                     };
 
+                    let entry = destination_nodes.entry(destination_node_id).or_default();
+                    *entry += 1;
+                }
+
+                for (destination_node_id, count) in destination_nodes.into_iter() {
                     if destination_node_id == node_id {
-                        stream_endpoint_t.add_inter_thread_channel();
+                        for _ in 0..count {
+                            stream_endpoint_t.add_inter_thread_channel();
+                        }
                     } else {
                         stream_endpoint_t
                             .add_inter_node_send_endpoint(
