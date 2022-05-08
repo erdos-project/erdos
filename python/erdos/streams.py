@@ -9,6 +9,7 @@ from erdos.internal import (
     PyExtractStream,
     PyIngestStream,
     PyLoopStream,
+    PyMessage,
     PyOperatorStream,
     PyReadStream,
     PyStream,
@@ -20,11 +21,11 @@ from erdos.timestamp import Timestamp
 logger = logging.getLogger(__name__)
 
 
-def _parse_message(internal_msg):
+def _parse_message(internal_msg: PyMessage):
     """Creates a Message from an internal stream's response.
 
     Args:
-        internal_msg (PyMessage): The internal message to parse.
+        internal_msg: The internal message to parse.
     """
     if internal_msg.is_timestamped_data():
         return pickle.loads(internal_msg.data)
@@ -60,16 +61,14 @@ class Stream(ABC):
         self._internal_stream.set_name(name)
 
     def map(self, function: Callable[[Any], Any]) -> "OperatorStream":
-        """Applies the given function to each received value on the stream, and outputs
-        the results on the returned stream.
+        """Applies the given function to each value sent on the stream, and outputs the
+        results on the returned stream.
 
         Args:
-            function (Callable[[Any], Any]): The function to be applied on each message
-                received on the input stream.
+            function: The function applied to each value sent on this stream.
 
         Returns:
-            An :py:class:`OperatorStream` that carries the results of the applied
-            function.
+            A stream that carries the results of the applied function.
         """
 
         def map_fn(serialized_data: bytes) -> bytes:
@@ -79,16 +78,14 @@ class Stream(ABC):
         return OperatorStream(self._internal_stream._map(map_fn))
 
     def flat_map(self, function: Callable[[Any], Sequence[Any]]) -> "OperatorStream":
-        """Applies the given function to each received value on the stream, and outputs
-        the sequence of received outputs as individual messages.
+        """Applies the given function to each value sent on the stream, and outputs the
+        sequence of received outputs as individual messages.
 
         Args:
-            function (Callable[[Any], Sequence[Any]]): The function to be applied to
-                each message received on the input stream.
+            function: The function applied to each value sent on this stream.
 
         Returns:
-            An :py:class:`OperatorStream` that carries the results of the applied
-            function.
+            A stream that carries the results of the applied function.
         """
 
         # TODO (Sukrit): This method generates all the elements together and then sends
@@ -104,16 +101,15 @@ class Stream(ABC):
         return OperatorStream(self._internal_stream._flat_map(flat_map_fn))
 
     def filter(self, function: Callable[[Any], bool]) -> "OperatorStream":
-        """Applies the given function to each received value on the stream, and outputs
-        the value if the function evaluates to true.
+        """Applies the given function to each value sent on the stream, and sends the
+        value on the returned stream if the function evaluates to `True`.
 
         Args:
-            function (Callable[[Any], bool]): The function to be applied to each
-                message received on the input stream.
+            function: The function applied to each value sent on this stream. The value
+                is retained if the function returns `True`.
 
         Returns:
-            An :py:class:`OperatorStream` that carries the filtered results from the
-            applied function.
+            An stream that carries the filtered results from the applied function.
         """
 
         def filter_fn(serialized_data: bytes) -> bool:
@@ -124,17 +120,16 @@ class Stream(ABC):
     def split(
         self, function: Callable[[Any], bool]
     ) -> Tuple["OperatorStream", "OperatorStream"]:
-        """Applies the given function to each received value on the stream, and outputs
-        the value to either the left or the right stream depending on if the returned
+        """Applies the given function to each value sent on the stream, and outputs the
+        value to either the left or the right stream depending on if the returned
         boolean value is `True` or `False` respectively.
 
         Args:
-            function (Callable[[Any], bool]): The function to be applied to each
-                message received on the input stream.
+            function: The function applied to each message sent on this stream.
 
         Returns:
-            A Tuple[:py:class:`OperatorStream`, :py:class:`OperatorStream`] that carry
-            the results output to the left and right streams respectively.
+            The left and the right stream respectively, containing the values output
+            according to the split function.
         """
 
         def split_fn(serialized_data: bytes) -> bool:
@@ -147,11 +142,10 @@ class Stream(ABC):
         """Joins the data with matching timestamps from the two different streams.
 
         Args:
-            other (:py:class:`Stream`): The other stream that needs to be joined with
-                self.
+            other: The stream to join with.
 
         Returns:
-            An :py:class:`OperatorStream` that carries the joined results from the two
+            A stream that carries the joined results from the two
             streams.
         """
 
@@ -169,12 +163,10 @@ class Stream(ABC):
         forwards a watermark when a minimum watermark on the streams is achieved.
 
         Args:
-            other (:py:class:`Stream`): The other stream(s) that needs to be merged
-                with self.
+            other: The other stream(s) to merge with.
 
         Returns:
-            An :py:class:`OperatorStream` that carries the merged results from the
-            streams.
+            A stream that carries messages from all merged streams.
         """
         if len(other) == 0:
             raise ValueError("Received empty list of streams to merge.")
