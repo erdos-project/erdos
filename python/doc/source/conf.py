@@ -79,6 +79,7 @@ nitpick_ignore = [
     ("py:data", "typing.Any"),
     ("py:data", "typing.Optional"),
     ("py:data", "typing.Tuple"),
+    ("py:data", "typing.Callable"),
 ]
 
 # Add any paths that contain templates here, relative to this directory.
