@@ -37,10 +37,11 @@ class SinkOp(Sink):
 
 def main():
     source_stream = erdos.connect_source(SendOp, OperatorConfig())
-    map_stream = source_stream.map(lambda x: x * 2)
-    flat_map_stream = map_stream.flat_map(lambda a: list(range(a)))
-    left_stream, right_stream = flat_map_stream.split(lambda a: a % 2 == 0)
-    merged_stream = left_stream.concat(right_stream)
+    map_stream = source_stream.map(lambda x: x**2)
+    evens_stream, odds_stream = map_stream.split(lambda x: x % 2 == 0)
+    flat_map_stream = map_stream.flat_map(lambda x: (f"Number {x}", float(x / 2)))
+    str_stream, float_stream = flat_map_stream.split_by_type(str, float)
+    merged_stream = evens_stream.concat(odds_stream, str_stream, float_stream)
     erdos.connect_sink(SinkOp, OperatorConfig(name="MergedOutput"), merged_stream)
     erdos.run()
 
