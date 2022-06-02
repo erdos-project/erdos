@@ -16,8 +16,9 @@ use crate::{
     OperatorConfig,
 };
 
-use super::{AbstractGraph, OperatorRunner};
+use super::{AbstractGraph, OperatorRunner, StreamSetupHook};
 
+// TODO: Don't require a mutex over the entire graph, as this can call deadlocks.
 static DEFAULT_GRAPH: Lazy<Mutex<AbstractGraph>> = Lazy::new(|| Mutex::new(AbstractGraph::new()));
 
 /// Adds an operator to the default graph.
@@ -50,27 +51,31 @@ pub(crate) fn add_operator<F, T, U, V, W>(
 /// Adds an [`IngestStream`] to the default graph.
 ///
 /// The stream can be used by the driver to insert data into the dataflow.
-pub(crate) fn add_ingest_stream<D>(ingest_stream: &IngestStream<D>)
-where
+pub(crate) fn add_ingest_stream<D>(
+    ingest_stream: &IngestStream<D>,
+    setup_hook: impl StreamSetupHook,
+) where
     for<'a> D: Data + Deserialize<'a>,
 {
     DEFAULT_GRAPH
         .lock()
         .unwrap()
-        .add_ingest_stream(ingest_stream);
+        .add_ingest_stream(ingest_stream, setup_hook);
 }
 
 /// Adds an [`ExtractStream`] to the default graph.
 ///
 /// The stream can be used by the driver to read data from the dataflow.
-pub(crate) fn add_extract_stream<D>(extract_stream: &ExtractStream<D>)
-where
+pub(crate) fn add_extract_stream<D>(
+    extract_stream: &ExtractStream<D>,
+    setup_hook: impl StreamSetupHook,
+) where
     for<'a> D: Data + Deserialize<'a>,
 {
     DEFAULT_GRAPH
         .lock()
         .unwrap()
-        .add_extract_stream(extract_stream);
+        .add_extract_stream(extract_stream, setup_hook);
 }
 
 /// Adds a [`LoopStream`] to the default graph.

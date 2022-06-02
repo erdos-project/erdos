@@ -103,16 +103,20 @@ impl AbstractGraph {
     /// Adds an [`IngestStream`] to the graph.
     /// [`IngestStream`]s are automatically named based on the number of [`IngestStream`]s
     /// in the graph.
-    pub(crate) fn add_ingest_stream<D>(&mut self, ingest_stream: &IngestStream<D>)
-    where
+    pub(crate) fn add_ingest_stream<D>(
+        &mut self,
+        ingest_stream: &IngestStream<D>,
+        setup_hook: impl StreamSetupHook,
+    ) where
         for<'a> D: Data + Deserialize<'a>,
     {
+        // Note: do not call IngestStream::name or IngestStream::set_name, as this will try to
+        // acquire a lock to this graph, causing a deadlock.
         let name = format!("ingest-stream-{}", self.ingest_streams.len());
         let abstract_stream = AbstractStream::<D>::new(ingest_stream.id(), name);
         self.streams
             .insert(ingest_stream.id(), Box::new(abstract_stream));
 
-        let setup_hook = ingest_stream.get_setup_hook();
         self.ingest_streams
             .insert(ingest_stream.id(), Box::new(setup_hook));
     }
@@ -120,11 +124,15 @@ impl AbstractGraph {
     /// Adds an [`ExtractStream`] to the graph.
     /// [`ExtractStream`]s are automatically named based on the number of [`ExtractStream`]s
     /// in the graph.
-    pub(crate) fn add_extract_stream<D>(&mut self, extract_stream: &ExtractStream<D>)
-    where
+    pub(crate) fn add_extract_stream<D>(
+        &mut self,
+        extract_stream: &ExtractStream<D>,
+        setup_hook: impl StreamSetupHook,
+    ) where
         for<'a> D: Data + Deserialize<'a>,
     {
-        let setup_hook = extract_stream.get_setup_hook();
+        // Note: do not call IngestStream::name or IngestStream::set_name, as this will try to
+        // acquire a lock to this graph, causing a deadlock.
         self.extract_streams
             .insert(extract_stream.id(), Box::new(setup_hook));
     }

@@ -45,12 +45,14 @@ impl<
 
 /// Trait for functions used to set up ingest and extract streams.
 pub(crate) trait StreamSetupHook:
-    'static + Fn(Arc<Mutex<ChannelManager>>) + Sync + Send
+    'static + Fn(&AbstractGraph, &mut ChannelManager) + Sync + Send
 {
     fn box_clone(&self) -> Box<dyn StreamSetupHook>;
 }
 
-impl<T: 'static + Fn(Arc<Mutex<ChannelManager>>) + Sync + Send + Clone> StreamSetupHook for T {
+impl<T: 'static + Fn(&AbstractGraph, &mut ChannelManager) + Sync + Send + Clone> StreamSetupHook
+    for T
+{
     fn box_clone(&self) -> Box<dyn StreamSetupHook> {
         Box::new(self.clone())
     }
@@ -121,7 +123,7 @@ where
     }
 
     fn to_stream_endpoints_t(&self) -> Box<dyn StreamEndpointsT> {
-        Box::new(StreamEndpoints::<D>::new(self.id))
+        Box::new(StreamEndpoints::<D>::new(self.id, self.name()))
     }
 }
 

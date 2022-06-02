@@ -8,7 +8,7 @@ use serde::Deserialize;
 
 use crate::{
     dataflow::{
-        graph::{default_graph, StreamSetupHook},
+        graph::{default_graph, AbstractGraph},
         Data, Message,
     },
     scheduler::channel_manager::ChannelManager,
@@ -85,7 +85,25 @@ where
             id,
             write_stream_option: Arc::new(Mutex::new(None)),
         };
-        default_graph::add_ingest_stream(&ingest_stream);
+
+        // A hook to initialize the ingest stream's connections to downstream operators.
+        let write_stream_option_copy = Arc::clone(&ingest_stream.write_stream_option);
+
+        let setup_hook = move |graph: &AbstractGraph, channel_manager: &mut ChannelManager| {
+            match channel_manager.get_send_endpoints(id) {
+                Ok(send_endpoints) => {
+                    let write_stream =
+                        WriteStream::new(id, &graph.get_stream_name(&id), send_endpoints);
+                    write_stream_option_copy
+                        .lock()
+                        .unwrap()
+                        .replace(write_stream);
+                }
+                Err(msg) => panic!("Unable to set up IngestStream {}: {}", id, msg),
+            }
+        };
+
+        default_graph::add_ingest_stream(&ingest_stream, setup_hook);
         default_graph::set_stream_name(&id, &format!("ingest_stream_{}", id));
 
         ingest_stream
@@ -124,27 +142,6 @@ where
                 self.id(),
             );
             Err(SendError::Closed)
-        }
-    }
-
-    /// Returns a function which sets up self.write_stream_option using the channel_manager.
-    pub(crate) fn get_setup_hook(&self) -> impl StreamSetupHook {
-        let id = self.id();
-        let write_stream_option_copy = Arc::clone(&self.write_stream_option);
-
-        move |channel_manager: Arc<Mutex<ChannelManager>>| match channel_manager
-            .lock()
-            .unwrap()
-            .get_send_endpoints(id)
-        {
-            Ok(send_endpoints) => {
-                let write_stream = WriteStream::from_endpoints(send_endpoints, id);
-                write_stream_option_copy
-                    .lock()
-                    .unwrap()
-                    .replace(write_stream);
-            }
-            Err(msg) => panic!("Unable to set up IngestStream {}: {}", id, msg),
         }
     }
 }
