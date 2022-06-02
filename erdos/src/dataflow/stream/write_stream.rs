@@ -112,7 +112,7 @@ impl<D: Data> WriteStream<D> {
         match msg {
             Message::TimestampedData(td) => {
                 let mut stats = self.stats.lock().unwrap();
-                if td.timestamp < *stats.low_watermark() {
+                if td.timestamp <= *stats.low_watermark() {
                     return Err(SendError::TimestampError);
                 }
                 // Increment the message count.
