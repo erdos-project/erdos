@@ -28,7 +28,9 @@ def _parse_message(internal_msg: PyMessage):
         internal_msg: The internal message to parse.
     """
     if internal_msg.is_timestamped_data():
-        return pickle.loads(internal_msg.data)
+        timestamp = Timestamp(_py_timestamp=internal_msg.timestamp)
+        data = pickle.loads(internal_msg.data)
+        return Message(timestamp, data)
     if internal_msg.is_watermark():
         return WatermarkMessage(Timestamp(_py_timestamp=internal_msg.timestamp))
     raise Exception("Unable to parse message")
