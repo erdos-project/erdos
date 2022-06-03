@@ -712,9 +712,8 @@ impl OperatorExecutorHelper {
                                 &right_watermark,
                             ) > &min_watermark;
                             if advance_watermark {
-                                min_watermark = left_watermark.clone();
-                                vec![message_processor.watermark_cb_event(
-                                    &left_msg.timestamp().clone())]
+                                min_watermark = cmp::min(&left_watermark, &right_watermark).clone();
+                                vec![message_processor.watermark_cb_event(&min_watermark)]
                             } else {
                                 Vec::new()
                             }
@@ -775,9 +774,8 @@ impl OperatorExecutorHelper {
                                 &right_watermark,
                             ) > &min_watermark;
                             if advance_watermark {
-                                min_watermark = right_watermark.clone();
-                                vec![message_processor.watermark_cb_event(
-                                    &right_msg.timestamp().clone())]
+                                min_watermark = cmp::min(&left_watermark, &right_watermark).clone();
+                                vec![message_processor.watermark_cb_event(&min_watermark)]
                             } else {
                                 Vec::new()
                             }
