@@ -8,7 +8,7 @@ use super::{
 
 pub(crate) struct JobGraph {
     operators: Vec<AbstractOperator>,
-    streams: Vec<Box<dyn AbstractStreamT>>,
+    streams: HashMap<StreamId, Box<dyn AbstractStreamT>>,
     stream_sources: HashMap<StreamId, Job>,
     stream_destinations: HashMap<StreamId, Vec<Job>>,
     driver_setup_hooks: Vec<Box<dyn StreamSetupHook>>,
@@ -59,7 +59,8 @@ impl JobGraph {
 
         Self {
             operators,
-            streams,
+            // Convert to a HashMap to easily query streams.
+            streams: streams.into_iter().map(|s| (s.id(), s)).collect(),
             stream_sources,
             stream_destinations,
             driver_setup_hooks,
@@ -74,7 +75,7 @@ impl JobGraph {
     /// Returns the stream, the stream's source, and the stream's destinations.
     pub fn get_streams(&self) -> Vec<(Box<dyn AbstractStreamT>, Job, Vec<Job>)> {
         self.streams
-            .iter()
+            .values()
             .map(|s| {
                 let source = *self.stream_sources.get(&s.id()).unwrap_or_else(|| {
                     panic!(
@@ -142,10 +143,11 @@ impl JobGraph {
                         Job::Driver => driver_id,
                         Job::Operator(id) => *id,
                     };
+                    let stream_name = self.streams.get(stream_id).unwrap().name();
                     writeln!(
                         file,
                         "   \"{}\" -> \"{}\" [label=\"{}\"];",
-                        source_id, dest_id, stream_id
+                        source_id, dest_id, stream_name
                     )?;
                 }
             }

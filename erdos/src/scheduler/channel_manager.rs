@@ -19,6 +19,8 @@ use crate::{
 pub trait StreamEndpointsT: Send {
     fn as_any(&mut self) -> &mut dyn Any;
 
+    fn name(&self) -> String;
+
     /// Creates a new inter-thread channel for the stream.
     ///
     /// It creates a `mpsc::Channel` and adds the sender and receiver to the
@@ -46,6 +48,8 @@ where
 {
     /// The id of the stream.
     stream_id: StreamId,
+    /// The name of the stream.
+    stream_name: String,
     /// The receive endpoints of the stream.
     recv_endpoints: Vec<RecvEndpoint<Arc<Message<D>>>>,
     /// The send endpoints of the stream.
@@ -56,9 +60,10 @@ impl<D> StreamEndpoints<D>
 where
     for<'a> D: Data + Deserialize<'a>,
 {
-    pub fn new(stream_id: StreamId) -> Self {
+    pub fn new(stream_id: StreamId, stream_name: String) -> Self {
         Self {
             stream_id,
+            stream_name,
             recv_endpoints: Vec::new(),
             send_endpoints: Vec::new(),
         }
@@ -95,6 +100,10 @@ where
 {
     fn as_any(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn name(&self) -> String {
+        self.stream_name.clone()
     }
 
     fn add_inter_thread_channel(&mut self) {
@@ -328,14 +337,19 @@ impl ChannelManager {
         D: Data + for<'a> Deserialize<'a>,
     {
         self.take_recv_endpoint(stream_id)
-            .map(|endpoint| ReadStream::new(stream_id, &stream_id.to_string(), Some(endpoint)))
+            .map(|endpoint| ReadStream::new(stream_id, &stream_id.to_string(), endpoint))
     }
 
     pub fn write_stream<D>(&mut self, stream_id: StreamId) -> Result<WriteStream<D>, String>
     where
         D: Data + for<'a> Deserialize<'a>,
     {
+        let name = self
+            .stream_entries
+            .get(&stream_id)
+            .ok_or_else(|| format!("Could not find stream with ID {}", stream_id))?
+            .name();
         self.get_send_endpoints(stream_id)
-            .map(|endpoints| WriteStream::from_endpoints(endpoints, stream_id))
+            .map(|endpoints| WriteStream::new(stream_id, &name, endpoints))
     }
 }

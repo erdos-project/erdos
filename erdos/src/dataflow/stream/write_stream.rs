@@ -55,32 +55,31 @@ pub struct WriteStream<D: Data> {
     /// The name of the stream.
     name: String,
     /// Sends message to other operators.
-    pusher: Option<Pusher<Arc<Message<D>>>>,
+    pusher: Pusher<Arc<Message<D>>>,
     /// Statistics about this instance of the write stream.
     stats: Arc<Mutex<WriteStreamStatistics>>,
 }
 
 impl<D: Data> WriteStream<D> {
     /// Creates the [`WriteStream`] to be used to send messages to the dataflow.
-    pub(crate) fn new(id: StreamId, name: &str) -> Self {
+    pub(crate) fn new(
+        id: StreamId,
+        name: &str,
+        endpoints: Vec<SendEndpoint<Arc<Message<D>>>>,
+    ) -> Self {
         tracing::debug!("Initializing a WriteStream {} with the ID: {}", name, id);
+
+        let mut pusher = Pusher::new();
+        for endpoint in endpoints {
+            pusher.add_endpoint(endpoint);
+        }
+
         Self {
             id,
             name: name.to_string(),
-            pusher: Some(Pusher::new()),
+            pusher,
             stats: Arc::new(Mutex::new(WriteStreamStatistics::new())),
         }
-    }
-
-    pub(crate) fn from_endpoints(
-        endpoints: Vec<SendEndpoint<Arc<Message<D>>>>,
-        id: StreamId,
-    ) -> Self {
-        let mut stream = Self::new(id, &id.to_string());
-        for endpoint in endpoints {
-            stream.add_endpoint(endpoint);
-        }
-        stream
     }
 
     /// Get the ID given to the stream by the constructor
@@ -99,18 +98,10 @@ impl<D: Data> WriteStream<D> {
         self.stats.lock().unwrap().is_stream_closed()
     }
 
-    fn add_endpoint(&mut self, endpoint: SendEndpoint<Arc<Message<D>>>) {
-        self.pusher
-            .as_mut()
-            .expect("Attempted to add endpoint to WriteStream, however no pusher exists")
-            .add_endpoint(endpoint);
-    }
-
     /// Closes the stream for future messages.
     fn close_stream(&mut self) {
         tracing::debug!("Closing write stream {} (ID: {})", self.name(), self.id());
         self.stats.lock().unwrap().close_stream();
-        self.pusher = None;
     }
 
     /// Updates the last watermark received on the stream.
@@ -121,7 +112,7 @@ impl<D: Data> WriteStream<D> {
         match msg {
             Message::TimestampedData(td) => {
                 let mut stats = self.stats.lock().unwrap();
-                if td.timestamp < *stats.low_watermark() {
+                if td.timestamp <= *stats.low_watermark() {
                     return Err(SendError::TimestampError);
                 }
                 // Increment the message count.
@@ -209,18 +200,7 @@ impl<'a, D: Data + Deserialize<'a>> WriteStreamT<D> for WriteStream<D> {
         // Update the watermark and send the message forward.
         self.update_statistics(&msg)?;
         let msg_arc = Arc::new(msg);
-
-        match self.pusher.as_mut() {
-            Some(pusher) => pusher.send(msg_arc).map_err(SendError::from)?,
-            None => {
-                tracing::debug!(
-                    "No Pusher was found for the WriteStream {} (ID: {}). \
-                             Skipping message sending.",
-                    self.name(),
-                    self.id()
-                );
-            }
-        };
+        self.pusher.send(msg_arc).map_err(SendError::from)?;
 
         // If we received a top watermark, close the stream.
         if close_stream {

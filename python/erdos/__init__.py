@@ -508,6 +508,7 @@ def profile_method(**decorator_kwargs):
 
 
 __all__ = [
+    "Stream",
     "ReadStream",
     "WriteStream",
     "LoopStream",

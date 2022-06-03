@@ -14,18 +14,21 @@ use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::format::FmtSpan;
 
-use crate::communication::{
-    self,
-    receivers::{self, ControlReceiver, DataReceiver},
-    senders::{self, ControlSender, DataSender},
-    ControlMessage, ControlMessageCodec, ControlMessageHandler, MessageCodec,
-};
 use crate::dataflow::graph::{default_graph, JobGraph};
 use crate::scheduler::{
     channel_manager::ChannelManager,
     endpoints_manager::{ChannelsToReceivers, ChannelsToSenders},
 };
 use crate::Configuration;
+use crate::{
+    communication::{
+        self,
+        receivers::{self, ControlReceiver, DataReceiver},
+        senders::{self, ControlSender, DataSender},
+        ControlMessage, ControlMessageCodec, ControlMessageHandler, MessageCodec,
+    },
+    dataflow::graph::AbstractGraph,
+};
 
 use super::worker::Worker;
 
@@ -42,6 +45,8 @@ pub struct Node {
     config: Configuration,
     /// Unique node id.
     id: NodeId,
+    /// Queryable, uncompiled version of the JobGraph which stores metadata (e.g. stream names).
+    abstract_graph: Option<AbstractGraph>,
     /// Dataflow graph which the node will execute.
     job_graph: Option<JobGraph>,
     /// Structure to be used to send `Sender` updates to receiver threads.
@@ -92,6 +97,7 @@ impl Node {
         Self {
             config,
             id,
+            abstract_graph: None,
             job_graph: None,
             channels_to_receivers: Arc::new(Mutex::new(ChannelsToReceivers::new())),
             channels_to_senders: Arc::new(Mutex::new(ChannelsToSenders::new())),
@@ -112,6 +118,7 @@ impl Node {
         if self.job_graph.is_none() {
             let mut abstract_graph = default_graph::clone();
             self.job_graph = Some(abstract_graph.compile());
+            self.abstract_graph = Some(abstract_graph);
         }
         // Build a runtime with n threads.
         let runtime = Builder::new_multi_thread()
@@ -133,6 +140,7 @@ impl Node {
         // Copy dataflow graph to the other thread
         let mut abstract_graph = default_graph::clone();
         self.job_graph = Some(abstract_graph.compile());
+        self.abstract_graph = Some(abstract_graph);
         let initialized = self.initialized.clone();
         let thread_handle = thread::spawn(move || {
             self.run();
@@ -371,8 +379,12 @@ impl Node {
 
         // Setup driver on the current node.
         if self.id == 0 {
+            let mut channel_manager_mut = channel_manager.lock().unwrap();
             for setup_hook in job_graph.get_driver_setup_hooks() {
-                (setup_hook)(Arc::clone(&channel_manager));
+                (setup_hook)(
+                    self.abstract_graph.as_ref().unwrap(),
+                    &mut channel_manager_mut,
+                );
             }
         }
         // Broadcast all operators initialized on current node.

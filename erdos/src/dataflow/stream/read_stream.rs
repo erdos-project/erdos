@@ -44,14 +44,14 @@ pub struct ReadStream<D: Data> {
     /// Whether the stream is closed.
     is_closed: bool,
     /// The endpoint on which the stream receives data.
-    recv_endpoint: Option<RecvEndpoint<Arc<Message<D>>>>,
+    recv_endpoint: RecvEndpoint<Arc<Message<D>>>,
 }
 
 impl<D: Data> ReadStream<D> {
     pub(crate) fn new(
         id: StreamId,
         name: &str,
-        recv_endpoint: Option<RecvEndpoint<Arc<Message<D>>>>,
+        recv_endpoint: RecvEndpoint<Arc<Message<D>>>,
     ) -> Self {
         Self {
             id,
@@ -76,19 +76,15 @@ impl<D: Data> ReadStream<D> {
         }
         let result = self
             .recv_endpoint
-            .as_mut()
-            .map_or(Err(TryReadError::Disconnected), |rx| {
-                rx.try_read()
-                    .map(|msg| Message::clone(&msg))
-                    .map_err(TryReadError::from)
-            });
+            .try_read()
+            .map(|msg| Message::clone(&msg))
+            .map_err(TryReadError::from);
         if result
             .as_ref()
             .map(Message::is_top_watermark)
             .unwrap_or(false)
         {
             self.is_closed = true;
-            self.recv_endpoint = None;
         }
         result
     }
@@ -102,23 +98,20 @@ impl<D: Data> ReadStream<D> {
         }
         // Poll for the next message
         // TODO: call async_read and use some kind of runtime.
-        let result = self
-            .recv_endpoint
-            .as_mut()
-            .map_or(Err(ReadError::Disconnected), |rx| loop {
-                match rx.try_read() {
-                    Ok(msg) => {
-                        break Ok(Message::clone(&msg));
-                    }
-                    Err(TryRecvError::Empty) => (),
-                    Err(TryRecvError::Disconnected) => {
-                        break Err(ReadError::Disconnected);
-                    }
-                    Err(TryRecvError::BincodeError(_)) => {
-                        break Err(ReadError::SerializationError);
-                    }
+        let result = loop {
+            match self.recv_endpoint.try_read() {
+                Ok(msg) => {
+                    break Ok(Message::clone(&msg));
                 }
-            });
+                Err(TryRecvError::Empty) => (),
+                Err(TryRecvError::Disconnected) => {
+                    break Err(ReadError::Disconnected);
+                }
+                Err(TryRecvError::BincodeError(_)) => {
+                    break Err(ReadError::SerializationError);
+                }
+            }
+        };
 
         if result
             .as_ref()
@@ -126,7 +119,6 @@ impl<D: Data> ReadStream<D> {
             .unwrap_or(false)
         {
             self.is_closed = true;
-            self.recv_endpoint = None;
         }
         result
     }
@@ -135,14 +127,12 @@ impl<D: Data> ReadStream<D> {
         if self.is_closed {
             return Err(ReadError::Closed);
         }
+
         // Poll for the next message
-        match self.recv_endpoint.as_mut() {
-            Some(endpoint) => match endpoint.read().await {
-                Ok(msg) => Ok(msg),
-                // TODO: better error handling.
-                _ => Err(ReadError::Disconnected),
-            },
-            None => Err(ReadError::Disconnected),
+        match self.recv_endpoint.read().await {
+            Ok(msg) => Ok(msg),
+            // TODO: better error handling.
+            _ => Err(ReadError::Disconnected),
         }
 
         // TODO: Close the stream?
