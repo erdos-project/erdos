@@ -143,7 +143,7 @@ impl JobGraph {
                         Job::Driver => driver_id,
                         Job::Operator(id) => *id,
                     };
-                    let stream_name = self.streams.get(&stream_id).unwrap().name();
+                    let stream_name = self.streams.get(stream_id).unwrap().name();
                     writeln!(
                         file,
                         "   \"{}\" -> \"{}\" [label=\"{}\"];",
