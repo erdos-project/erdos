@@ -501,7 +501,7 @@ where
                     mutable_operator.on_watermark(&mut OneInTwoOutContext::new(
                         time.clone(),
                         config,
-                        &mut state.lock().unwrap(),
+                        &mut mutable_state,
                         left_write_stream,
                         right_write_stream,
                     ));
