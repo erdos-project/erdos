@@ -10,7 +10,7 @@ from typing import Any
 import erdos
 from erdos.context import SinkContext
 from erdos.operator import Sink, Source
-from erdos.streams import ReadStream, WriteStream
+from erdos.streams import ReadStream, WriteStream, Stream
 
 
 class SendOp(Source):
@@ -56,6 +56,8 @@ class TryPullOp(Sink):
             print("TryPullOp: received {data}".format(data=data))
             time.sleep(0.5)
 
+def f() -> Stream[int]:
+    pass
 
 def main():
     """Creates and runs the dataflow graph."""
