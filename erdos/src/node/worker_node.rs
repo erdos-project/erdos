@@ -6,10 +6,10 @@ use futures::{SinkExt, StreamExt};
 use tokio::{net::TcpStream, sync::broadcast::Receiver};
 use tokio_util::codec::Framed;
 
-use crate::communication::{
+use crate::{communication::{
     CommunicationError, ControlPlaneCodec, DriverNotification, LeaderNotification, WorkerId,
     WorkerNotification,
-};
+}, OperatorId};
 
 pub struct WorkerNode {
     worker_id: WorkerId,
@@ -23,7 +23,7 @@ impl WorkerNode {
         driver_notification_receiver: Receiver<DriverNotification>,
     ) -> Self {
         Self {
-            worker_id: WorkerId::new_deterministic(),
+            worker_id: WorkerId::new_v4(),
             leader_address,
             driver_notification_receiver,
         }
@@ -41,6 +41,8 @@ impl WorkerNode {
         leader_tx
             .send(WorkerNotification::Initialized(self.worker_id))
             .await?;
+        
+        // leader_tx.send(WorkerNotification::OperatorReady(OperatorId::new_deterministic())).await?;
         loop {
             // Handle messages received from the Leader.
             tokio::select! {
@@ -48,14 +50,22 @@ impl WorkerNode {
                     match msg_from_leader {
                         Ok(msg_from_leader) => {
                             match msg_from_leader {
+                                LeaderNotification::Operator(operator_id) => {
+                                    println!("Worker {:?} recieved operator {:?}.", self.worker_id, operator_id);
+                                    // TODO: Handle Operator
+                                    let _ = leader_tx.send(WorkerNotification::OperatorReady(operator_id)).await?;
+                                    return Ok(());
+                                }
                                 LeaderNotification::Shutdown => {
-                                    println!("Worker received shutdown message!"); 
-                                    return Ok(()); }
+                                    println!("Worker {:?} received shutdown message!", self.worker_id); 
+                                    return Ok(()); 
+                                }
                             }
                         }
                         Err(error) => { return Err(CommunicationError::from(error)); },
                     }
-            } }
+                } 
+            }
         }
     }
 }
