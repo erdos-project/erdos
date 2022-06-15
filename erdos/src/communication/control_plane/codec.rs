@@ -21,7 +21,7 @@ where
     T: Serialize,
     U: for<'a> Deserialize<'a>,
 {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             msg_size: None,
             phantom: PhantomData,
@@ -51,6 +51,16 @@ where
         } else {
             None
         }
+    }
+}
+
+impl<T, U> Default for ControlPlaneCodec<T, U>
+where
+    T: Serialize,
+    U: for<'a> Deserialize<'a>,
+{
+    fn default() -> Self {
+        Self::new()
     }
 }
 

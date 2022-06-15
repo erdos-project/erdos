@@ -13,8 +13,12 @@ use tokio::{
     task::JoinHandle,
 };
 
+/// The return type to be used when setting up notification channels between
+/// the signal handlers and the main Node loop.
+type NotificationChannel = (Receiver<DriverNotification>, Handle, JoinHandle<()>);
+
 fn setup_notification_channels(
-) -> Result<(Receiver<DriverNotification>, Handle, JoinHandle<()>), Box<dyn std::error::Error>> {
+) -> Result<NotificationChannel, Box<dyn std::error::Error>> {
     // Initialize the Signals handled by the CLI.
     let mut signals = Signals::new(&[SIGINT])?;
     let signals_handle = signals.handle();
@@ -85,8 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             match leader_node.run().await {
                 Ok(()) => {
                     // Uninstall the signal handlers, and wait for the signal task to complete.
-                    let _ = cleanup_notification_channels(signals_handle, signals_task).await?;
-                    println!("The Leader node finished execution.");
+                    cleanup_notification_channels(signals_handle, signals_task).await?;
                 }
                 Err(error) => {
                     let _ = cleanup_notification_channels(signals_handle, signals_task).await;
@@ -96,7 +99,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         } else {
             // Run a WorkerNode.
             let mut worker_node = WorkerNode::new(leader_address, driver_notification_rx_channel);
-            worker_node.run().await?;
+            match worker_node.run().await {
+                Ok(()) => {
+                    // Uninstall the signal handling mechanism.
+                    cleanup_notification_channels(signals_handle, signals_task).await?;
+                }
+                Err(error) => {
+                    let _ = cleanup_notification_channels(signals_handle, signals_task).await;
+                    return Err(error.into());
+                }
+            }
         }
     }
 
