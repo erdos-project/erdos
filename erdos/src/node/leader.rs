@@ -73,7 +73,8 @@ impl LeaderNode {
                         Ok(DriverNotification::Shutdown) => {
                             // Ask all Workers to shutdown.
                             let _ = leader_to_workers_tx.send(InterThreadMessage::ShutdownAllWorkers);
-                            return Ok(()); }
+                            return Ok(()); 
+                        }
                         Err(error) => {return Err(CommunicationError::from(error)); },
                     }
                 }
