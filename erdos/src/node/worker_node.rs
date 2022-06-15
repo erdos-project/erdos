@@ -8,8 +8,7 @@ use tokio_util::codec::Framed;
 
 use crate::{communication::{
     CommunicationError, ControlPlaneCodec, DriverNotification, LeaderNotification, WorkerId,
-    WorkerNotification,
-}, OperatorId};
+    WorkerNotification}};
 
 pub struct WorkerNode {
     worker_id: WorkerId,
@@ -30,19 +29,19 @@ impl WorkerNode {
     }
 
     pub async fn run(&mut self) -> Result<(), CommunicationError> {
-        // Connect to the Leader and send a Ready message with the WorkerId.
-        println!("Initialized Worker with ID: {}", self.worker_id);
+        // Connect to the Leader node.
+        tracing::debug!("Initialized Worker with ID: {}", self.worker_id);
         let leader_connection = TcpStream::connect(self.leader_address).await?;
         let (mut leader_tx, mut leader_rx) = Framed::new(
             leader_connection,
-            ControlPlaneCodec::<WorkerNotification, LeaderNotification>::new(),
+            ControlPlaneCodec::<WorkerNotification, LeaderNotification>::default(),
         )
         .split();
+
+        // Communicate the ID of the Worker to the Leader.
         leader_tx
             .send(WorkerNotification::Initialized(self.worker_id))
             .await?;
-        
-        // leader_tx.send(WorkerNotification::OperatorReady(OperatorId::new_deterministic())).await?;
         loop {
             // Handle messages received from the Leader.
             tokio::select! {
@@ -51,18 +50,27 @@ impl WorkerNode {
                         Ok(msg_from_leader) => {
                             match msg_from_leader {
                                 LeaderNotification::Operator(operator_id) => {
-                                    println!("Worker {:?} recieved operator {:?}.", self.worker_id, operator_id);
+                                    tracing::debug!("The Worker with ID: {:?} recieved operator with ID: {:?}.", self.worker_id, operator_id);
                                     // TODO: Handle Operator
                                     let _ = leader_tx.send(WorkerNotification::OperatorReady(operator_id)).await?;
                                     return Ok(());
                                 }
                                 LeaderNotification::Shutdown => {
-                                    println!("Worker {:?} received shutdown message!", self.worker_id); 
-                                    return Ok(()); 
+                                    tracing::debug!(
+                                        "The Worker with ID: {} is shutting down.", 
+                                        self.worker_id
+                                    );
+                                    return Ok(());
                                 }
                             }
                         }
-                        Err(error) => { return Err(CommunicationError::from(error)); },
+                        Err(error) => {
+                            tracing::error!(
+                                "Worker {} received error on the Leader connection: {:?}", 
+                                self.worker_id,
+                                error
+                            );
+                        },
                     }
                 } 
             }
