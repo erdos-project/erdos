@@ -13,6 +13,8 @@
 // Private submodules
 #[allow(clippy::module_inception)]
 mod node;
+mod leader;
+mod worker_node;
 
 // Crate-wide visible submodules
 pub(crate) mod lattice;
@@ -25,3 +27,5 @@ pub mod operator_executors;
 
 // Public exports
 pub use node::{Node, NodeHandle, NodeId};
+pub use leader::LeaderNode;
+pub use worker_node::WorkerNode;
