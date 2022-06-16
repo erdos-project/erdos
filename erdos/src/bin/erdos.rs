@@ -22,8 +22,8 @@ fn setup_notification_channels() -> Result<NotificationChannel, Box<dyn std::err
     let mut signals = Signals::new(&[SIGINT])?;
     let signals_handle = signals.handle();
 
-    // Initialize an MPSC channel to be used to talk to the nodes.
-    let (driver_notification_tx_channel, driver_notification_rx_channel): (
+    // Initialize a Broadcast channel to be used to talk to the nodes.
+    let (driver_notification_tx, driver_notification_rx): (
         Sender<DriverNotification>,
         Receiver<DriverNotification>,
     ) = broadcast::channel(100);
@@ -31,7 +31,7 @@ fn setup_notification_channels() -> Result<NotificationChannel, Box<dyn std::err
         while let Some(signal) = signals.next().await {
             match signal {
                 SIGINT => {
-                    driver_notification_tx_channel
+                    driver_notification_tx
                         .send(DriverNotification::Shutdown)
                         .unwrap();
                 }
@@ -39,7 +39,7 @@ fn setup_notification_channels() -> Result<NotificationChannel, Box<dyn std::err
             }
         }
     });
-    Ok((driver_notification_rx_channel, signals_handle, signals_task))
+    Ok((driver_notification_rx, signals_handle, signals_task))
 }
 
 async fn cleanup_notification_channels(

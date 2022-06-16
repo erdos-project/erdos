@@ -131,12 +131,14 @@
 #![feature(specialization)]
 #![feature(box_into_pin)]
 
+use node::{Client, Resources, WorkerNode};
 // Re-exports of libraries used in macros.
 #[doc(hidden)]
 pub use ::tokio;
+use tokio::sync::broadcast;
 
 // Libraries used in this file.
-use std::{cell::RefCell, fmt};
+use std::{cell::RefCell, fmt, net::SocketAddr};
 
 use abomonation_derive::Abomonation;
 use clap::{self, App, Arg};
@@ -264,4 +266,8 @@ pub fn new_app(name: &str) -> clap::App {
                 .takes_value(false)
                 .help("Sets the level of verbosity"),
         )
+}
+
+pub fn init(leader_address: SocketAddr) -> Client {
+    Client::new(leader_address)
 }

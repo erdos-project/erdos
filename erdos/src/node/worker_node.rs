@@ -119,4 +119,8 @@ impl WorkerNode {
             }
         }
     }
+
+    pub(crate) fn get_id(&self) -> WorkerId {
+        self.worker_id.clone()
+    }
 }
