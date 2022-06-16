@@ -49,7 +49,7 @@ impl WorkerNode {
                     match msg_from_leader {
                         Ok(msg_from_leader) => {
                             match msg_from_leader {
-                                LeaderNotification::Operator(operator_id) => {
+                                LeaderNotification::ScheduleOperator(operator_id) => {
                                     tracing::debug!(
                                         "The Worker with ID: {:?} received operator with ID: {:?}.",
                                         self.worker_id,

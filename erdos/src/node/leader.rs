@@ -21,7 +21,7 @@ use crate::{communication::{
 #[derive(Debug, Clone)]
 enum InterThreadMessage {
     WorkerInitialized(WorkerId),
-    OperatorScheduled(WorkerId, OperatorId),
+    ScheduleOperator(OperatorId, WorkerId),
     Shutdown(WorkerId),
     ShutdownAllWorkers,
 }
@@ -197,10 +197,12 @@ impl LeaderNode {
                 // Communicate messages received from the Leader to the Worker.
                 Ok(msg_from_leader) = channel_from_leader.recv() => {
                     match msg_from_leader {
-                        InterThreadMessage::OperatorScheduled(worker_id, operator_id) => {
+                        InterThreadMessage::ScheduleOperator(operator_id, worker_id) => {
                             // The Leader assigns an operator to a worker.
                             if id_of_this_worker == worker_id {
-                                let _ = worker_tx.send(LeaderNotification::Operator(operator_id)).await;
+                                let _ = worker_tx.send(
+                                    LeaderNotification::ScheduleOperator(operator_id)
+                                ).await;
                             }
                         }
                         InterThreadMessage::ShutdownAllWorkers => {
