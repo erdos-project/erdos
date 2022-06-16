@@ -8,7 +8,7 @@ use tokio::{
 use crate::{
     communication::{CommunicationError, DriverNotification},
     node::{Resources, WorkerNode},
-    Uuid, dataflow::graph::{JobGraph, AbstractGraph},
+    Uuid, dataflow::graph::{AbstractGraph},
 };
 
 pub type ClientId = Uuid;
@@ -22,7 +22,7 @@ pub struct Client {
 }
 
 impl Client {
-    pub(crate) fn new(leader_address: SocketAddr) -> Self {
+    pub fn new(leader_address: SocketAddr) -> Self {
         // Initialize a Worker node with no resources, and maintain a
         // connection to the
         let worker_resources = Resources::new(0, 0);
@@ -39,9 +39,13 @@ impl Client {
         }
     }
 
-    pub fn submit(&self, computation_graph: &AbstractGraph) -> ClientId {
+    pub fn submit(&self, computation_graph: AbstractGraph) -> ClientId {
         // TODO (Sukrit): We should probably consume this computation_graph to ensure
         // that no changes can be made to it after the `submit` method is called.
+        let notification = DriverNotification::SubmitGraph(computation_graph);
+
+        let _ = self.client_handle.send(notification);
+
         ClientId::nil()
     }
 }

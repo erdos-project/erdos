@@ -114,7 +114,18 @@ impl WorkerNode {
                             }
                             return Ok(());
                         }
-                        DriverNotification::SubmitGraph(abstract_graph) => {}
+                        DriverNotification::SubmitGraph(abstract_graph) => {
+                            println!("The Worker {} received an abstract graph.", self.worker_id);
+                            
+                            if let Err(error) = leader_tx.send(WorkerNotification::SubmitGraph(abstract_graph)).await {
+                                tracing::error!(
+                                    "Worker {} received an error when sending Abstract Graph message \
+                                    to Leader: {:?}",
+                                    self.worker_id,
+                                    error
+                                );
+                            };
+                        }
                     }
                 }
             }

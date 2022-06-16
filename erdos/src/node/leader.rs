@@ -188,6 +188,13 @@ impl LeaderNode {
                                 id_of_this_worker
                             );
                         }
+                        WorkerNotification::SubmitGraph(graph) => {
+                            tracing::trace!(
+                                "Leader received graph from Worker with ID: {}.",
+                                id_of_this_worker
+                            );
+                            // TODO: Forward graph to Leader.
+                        }
                         WorkerNotification::Shutdown => {
                             tracing::info!(
                                 "Worker {} is shutting down.",
