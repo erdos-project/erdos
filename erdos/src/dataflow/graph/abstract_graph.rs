@@ -233,9 +233,10 @@ impl AbstractGraph {
 
         JobGraph::new(operators, streams, ingest_streams, extract_streams)
     }
+}
 
-    // TODO: implement this using the Clone trait.
-    pub(crate) fn clone(&mut self) -> Self {
+impl Clone for AbstractGraph {
+    fn clone(&self) -> Self {
         let streams: HashMap<_, _> = self
             .streams
             .iter()
@@ -243,21 +244,13 @@ impl AbstractGraph {
             .collect();
 
         let mut ingest_streams = HashMap::new();
-        let ingest_stream_ids: Vec<_> = self.ingest_streams.keys().cloned().collect();
-        for stream_id in ingest_stream_ids {
-            // Remove and re-insert setup hook to satisfy static lifetimes.
-            let setup_hook = self.ingest_streams.remove(&stream_id).unwrap();
-            ingest_streams.insert(stream_id, setup_hook.box_clone());
-            self.ingest_streams.insert(stream_id, setup_hook);
+        for (ingest_stream_id, ingest_stream_setup_hook) in &self.ingest_streams {
+            ingest_streams.insert(ingest_stream_id.clone(), ingest_stream_setup_hook.clone());
         }
 
         let mut extract_streams = HashMap::new();
-        let extract_stream_ids: Vec<_> = self.extract_streams.keys().cloned().collect();
-        for stream_id in extract_stream_ids {
-            // Remove and re-insert setup hook to satisfy static lifetimes.
-            let setup_hook = self.extract_streams.remove(&stream_id).unwrap();
-            extract_streams.insert(stream_id, setup_hook.box_clone());
-            self.extract_streams.insert(stream_id, setup_hook);
+        for (extract_stream_id, extract_stream_setup_hook) in &self.extract_streams {
+            extract_streams.insert(extract_stream_id.clone(), extract_stream_setup_hook.clone());
         }
 
         Self {

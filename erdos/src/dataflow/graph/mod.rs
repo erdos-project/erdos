@@ -58,6 +58,12 @@ impl<T: 'static + Fn(&AbstractGraph, &mut ChannelManager) + Sync + Send + Clone>
     }
 }
 
+impl Clone for Box<dyn StreamSetupHook> {
+    fn clone(&self) -> Self {
+        (**self).box_clone()
+    }
+}
+
 /// Specifies the type of job.
 #[derive(Clone, Copy)]
 pub(crate) enum Job {
