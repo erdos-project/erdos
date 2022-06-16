@@ -3,27 +3,44 @@
 use std::net::SocketAddr;
 
 use futures::{SinkExt, StreamExt};
+use serde::{Deserialize, Serialize};
 use tokio::{net::TcpStream, sync::broadcast::Receiver};
 use tokio_util::codec::Framed;
 
-use crate::{communication::{
+use crate::communication::{
     CommunicationError, ControlPlaneCodec, DriverNotification, LeaderNotification, WorkerId,
-    WorkerNotification}};
+    WorkerNotification,
+};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Resources {
+    num_cpus: usize,
+    num_gpus: usize,
+}
+
+impl Resources {
+    pub fn new(num_cpus: usize, num_gpus: usize) -> Self {
+        Self { num_cpus, num_gpus }
+    }
+}
 
 pub struct WorkerNode {
     worker_id: WorkerId,
     leader_address: SocketAddr,
+    resources: Resources,
     driver_notification_rx: Receiver<DriverNotification>,
 }
 
 impl WorkerNode {
     pub fn new(
         leader_address: SocketAddr,
+        resources: Resources,
         driver_notification_rx: Receiver<DriverNotification>,
     ) -> Self {
         Self {
             worker_id: WorkerId::new_v4(),
             leader_address,
+            resources,
             driver_notification_rx,
         }
     }
@@ -40,7 +57,10 @@ impl WorkerNode {
 
         // Communicate the ID of the Worker to the Leader.
         leader_tx
-            .send(WorkerNotification::Initialized(self.worker_id))
+            .send(WorkerNotification::Initialized(
+                self.worker_id,
+                self.resources.clone(),
+            ))
             .await?;
         loop {
             tokio::select! {

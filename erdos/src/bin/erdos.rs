@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use clap::{App, Arg, SubCommand};
 use erdos::{
     communication::DriverNotification,
-    node::{LeaderNode, WorkerNode},
+    node::{LeaderNode, Resources, WorkerNode},
 };
 use futures::stream::StreamExt;
 use signal_hook::consts::SIGINT;
@@ -17,8 +17,7 @@ use tokio::{
 /// the signal handlers and the main Node loop.
 type NotificationChannel = (Receiver<DriverNotification>, Handle, JoinHandle<()>);
 
-fn setup_notification_channels(
-) -> Result<NotificationChannel, Box<dyn std::error::Error>> {
+fn setup_notification_channels() -> Result<NotificationChannel, Box<dyn std::error::Error>> {
     // Initialize the Signals handled by the CLI.
     let mut signals = Signals::new(&[SIGINT])?;
     let signals_handle = signals.handle();
@@ -73,6 +72,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .long("address")
                         .default_value("0.0.0.0:4444")
                         .help("The address that is used by the Leader node."),
+                )
+                .arg(
+                    Arg::with_name("num_gpus")
+                        .long("num_gpus")
+                        .default_value("0")
+                        .help("The number of GPUs on this Worker node."),
+                )
+                .arg(
+                    Arg::with_name("num_cpus")
+                        .long("num_cpus")
+                        .default_value("0")
+                        .help("The number of CPUs on this Worker node."),
                 ),
         )
         .get_matches();
@@ -97,8 +108,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         } else {
+            // Parse the Resources available at this WorkerNode.
+            let num_gpus: usize = matches.value_of("num_gpus").unwrap().parse()?;
+            let num_cpus: usize = matches.value_of("num_cpus").unwrap().parse()?;
+            let worker_resources = Resources::new(num_cpus, num_gpus);
+
             // Run a WorkerNode.
-            let mut worker_node = WorkerNode::new(leader_address, driver_notification_rx_channel);
+            let mut worker_node = WorkerNode::new(
+                leader_address,
+                worker_resources,
+                driver_notification_rx_channel,
+            );
             match worker_node.run().await {
                 Ok(()) => {
                     // Uninstall the signal handling mechanism.

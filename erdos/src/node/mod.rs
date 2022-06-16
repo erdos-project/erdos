@@ -27,5 +27,5 @@ pub mod operator_executors;
 
 // Public exports
 pub use node::{Node, NodeHandle, NodeId};
-pub use leader::LeaderNode;
-pub use worker_node::WorkerNode;
+pub use leader::LeaderNode; 
+pub use worker_node::{WorkerNode, Resources};

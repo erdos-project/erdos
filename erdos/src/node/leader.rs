@@ -11,28 +11,34 @@ use tokio::{
 };
 use tokio_util::codec::Framed;
 
-use crate::{communication::{
-    CommunicationError, ControlPlaneCodec, DriverNotification, LeaderNotification, WorkerId,
-    WorkerNotification,
-}, Uuid, OperatorId};
+use crate::{
+    communication::{
+        CommunicationError, ControlPlaneCodec, DriverNotification, LeaderNotification, WorkerId,
+        WorkerNotification,
+    },
+    node::Resources,
+    OperatorId,
+};
 
 /// The [`InterThreadMessage`] enum defines the messages that the different
 /// spawned tasks may communicate back to the main loop of the [`LeaderNode`].
 #[derive(Debug, Clone)]
 enum InterThreadMessage {
-    WorkerInitialized(WorkerId),
+    WorkerInitialized(WorkerId, Resources),
     ScheduleOperator(OperatorId, WorkerId),
     Shutdown(WorkerId),
     ShutdownAllWorkers,
 }
 
+#[derive(Debug)]
 struct WorkerState {
     id: WorkerId,
+    resources: Resources,
 }
 
 impl WorkerState {
-    fn new(id: WorkerId) -> Self {
-        Self { id }
+    fn new(id: WorkerId, resources: Resources) -> Self {
+        Self { id, resources }
     }
 }
 
@@ -128,10 +134,10 @@ impl LeaderNode {
                 // Handle new messages from the Worker handlers.
                 Some(worker_handler_msg) = workers_to_leader_rx.recv() =>  {
                     match worker_handler_msg {
-                        InterThreadMessage::WorkerInitialized(worker_id) => {
+                        InterThreadMessage::WorkerInitialized(worker_id, worker_resources) => {
                             self.worker_id_to_worker_state.insert(
                                 worker_id,
-                                WorkerState::new(worker_id)
+                                WorkerState::new(worker_id, worker_resources)
                             );
                         }
                         InterThreadMessage::Shutdown(worker_id) => {
@@ -163,7 +169,7 @@ impl LeaderNode {
                 // Communicate messages received from the Worker to the Leader.
                 Some(Ok(msg_from_worker)) = worker_rx.next() => {
                     match msg_from_worker {
-                        WorkerNotification::Initialized(worker_id) => {
+                        WorkerNotification::Initialized(worker_id, worker_resources) => {
                             id_of_this_worker = worker_id;
                             // Communicate the Worker ID to the Leader.
                             tracing::debug!(
@@ -171,7 +177,7 @@ impl LeaderNode {
                                 worker_id
                             );
                             let _ = channel_to_leader.send(
-                                InterThreadMessage::WorkerInitialized(worker_id)
+                                InterThreadMessage::WorkerInitialized(worker_id, worker_resources)
                             );
                         },
                         WorkerNotification::OperatorReady(operator_id) => {
