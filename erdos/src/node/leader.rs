@@ -120,6 +120,7 @@ impl LeaderNode {
                             tracing::info!("Leader is shutting down!");
                             return Ok(());
                         }
+                        Ok(_) => {}
                         Err(error) => {
                             // TODO (Sukrit) :: What should happen when the connection to
                             // the driver is lost?

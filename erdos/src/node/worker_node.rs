@@ -114,6 +114,7 @@ impl WorkerNode {
                             }
                             return Ok(());
                         }
+                        DriverNotification::SubmitGraph(abstract_graph) => {}
                     }
                 }
             }
