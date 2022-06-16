@@ -12,7 +12,6 @@ where
     T: Serialize,
     U: for<'a> Deserialize<'a>,
 {
-    msg_size: Option<usize>,
     phantom: PhantomData<(T, U)>,
 }
 
@@ -23,7 +22,6 @@ where
 {
     fn new() -> Self {
         Self {
-            msg_size: None,
             phantom: PhantomData,
         }
     }
@@ -73,12 +71,8 @@ where
     type Error = CodecError;
 
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<Self::Item>, CodecError> {
-        if let Some(msg_size) = self.msg_size {
-            // We already have a message size, decode the message.
-            self.try_read_message(buf, msg_size)
-        } else if let Some(msg_size) = self.try_read_msg_size(buf) {
-            // Try to read the message size.
-            self.msg_size = Some(msg_size);
+        if let Some(msg_size) = self.try_read_msg_size(buf) {
+            // If we retrieved a message size, try to read the message.
             self.try_read_message(buf, msg_size)
         } else {
             // We need more bytes before we can read the message size.
