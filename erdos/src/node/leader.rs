@@ -129,11 +129,13 @@ impl LeaderNode {
                 Some(worker_handler_msg) = workers_to_leader_rx.recv() =>  {
                     match worker_handler_msg {
                         InterThreadMessage::WorkerInitialized(worker_id) => {
-                            tracing::debug!("Received identifier from Worker: {}", worker_id);
-                            self.worker_id_to_worker_state.insert(worker_id, WorkerState { id: worker_id });
+                            self.worker_id_to_worker_state.insert(
+                                worker_id,
+                                WorkerState::new(worker_id)
+                            );
                         }
                         InterThreadMessage::Shutdown(worker_id) => {
-                            tracing::info!("Received shutdown from Worker: {}", worker_id);
+                            self.worker_id_to_worker_state.remove(&worker_id);
                         }
                         _ => {todo!();}
                     }
@@ -154,72 +156,65 @@ impl LeaderNode {
         .split();
 
         let mut id_of_this_worker: WorkerId = WorkerId::nil();
+
         // Handle messages from the Worker and the Leader.
         loop {
             tokio::select! {
                 // Communicate messages received from the Worker to the Leader.
-                Some(msg_from_worker) = worker_rx.next() => {
+                Some(Ok(msg_from_worker)) = worker_rx.next() => {
                     match msg_from_worker {
-                        Ok(msg_from_worker) => {
-                            match msg_from_worker {
-                                WorkerNotification::Initialized(worker_id) => {
-                                    id_of_this_worker = worker_id;
-                                    // Communicate the Worker ID to the Leader.
-                                    tracing::debug!(
-                                        "Initialized a Worker with the ID: {}",
-                                        worker_id
-                                    );
-                                    let _ = channel_to_leader.send(
-                                        InterThreadMessage::WorkerInitialized(worker_id)
-                                    );
-                                },
-                                WorkerNotification::OperatorReady(operator_id) => {
-                                    tracing::debug!("{:?} operator is ready.", operator_id);
-                                }
-                            }
-                        },
-                        Err(error) => {
-                            tracing::error!(
-                                "Handler for Worker {} received error: {:?}",
-                                id_of_this_worker,
-                                error
+                        WorkerNotification::Initialized(worker_id) => {
+                            id_of_this_worker = worker_id;
+                            // Communicate the Worker ID to the Leader.
+                            tracing::debug!(
+                                "Initialized a Worker with the ID: {}",
+                                worker_id
+                            );
+                            let _ = channel_to_leader.send(
+                                InterThreadMessage::WorkerInitialized(worker_id)
                             );
                         },
-                    }
-               },
-
-                // Communicate messages received from the Leader to the Worker.
-                msg_from_leader = channel_from_leader.recv() => {
-                    match msg_from_leader {
-                        Ok(msg_from_leader) => {
-                            match msg_from_leader {
-                                InterThreadMessage::OperatorScheduled(worker_id, operator_id) => {
-                                    // The Leader assigns an operator to a worker.
-                                    if id_of_this_worker == worker_id {
-                                        let _ = worker_tx.send(LeaderNotification::Operator(operator_id)).await;
-                                    }
-                                }
-                                InterThreadMessage::ShutdownAllWorkers => {
-                                    // The Leader requested all nodes to shutdown.
-                                    let _ = worker_tx.send(LeaderNotification::Shutdown).await;
-                                    tracing::debug!(
-                                        "The handler for Worker {} is shutting down.",
-                                        id_of_this_worker
-                                    );
-                                    return;
-                                }
-                                _ => {},
-                            }
+                        WorkerNotification::OperatorReady(operator_id) => {
+                            tracing::trace!(
+                                "Operator {} is ready on Worker {}.",
+                                operator_id,
+                                id_of_this_worker
+                            );
                         }
-                        Err(error) => {
-                            tracing::error!(
-                                "Handler for Worker {} received error: {:?}",
-                                id_of_this_worker,
-                                error
+                        WorkerNotification::Shutdown => {
+                            tracing::info!(
+                                "Worker {} is shutting down.",
+                                id_of_this_worker
                             );
+                            let _ = channel_to_leader.send(
+                                InterThreadMessage::Shutdown(id_of_this_worker)
+                            );
+                            return;
                         }
                     }
                }
+
+                // Communicate messages received from the Leader to the Worker.
+                Ok(msg_from_leader) = channel_from_leader.recv() => {
+                    match msg_from_leader {
+                        InterThreadMessage::OperatorScheduled(worker_id, operator_id) => {
+                            // The Leader assigns an operator to a worker.
+                            if id_of_this_worker == worker_id {
+                                let _ = worker_tx.send(LeaderNotification::Operator(operator_id)).await;
+                            }
+                        }
+                        InterThreadMessage::ShutdownAllWorkers => {
+                            // The Leader requested all nodes to shutdown.
+                            let _ = worker_tx.send(LeaderNotification::Shutdown).await;
+                            tracing::debug!(
+                                "The handler for Worker {} is shutting down.",
+                                id_of_this_worker
+                            );
+                            return;
+                        }
+                        _ => {},
+                    }
+                }
             }
         }
     }

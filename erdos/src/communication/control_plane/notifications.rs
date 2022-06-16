@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{Uuid, OperatorId};
+use crate::{OperatorId, Uuid};
 
 #[derive(Debug, Clone)]
 pub enum DriverNotification {
@@ -16,6 +16,7 @@ pub type WorkerId = Uuid;
 pub enum WorkerNotification {
     Initialized(WorkerId),
     OperatorReady(OperatorId),
+    Shutdown,
 }
 
 /// A [`LeaderNotification`] specifies the notifications that a

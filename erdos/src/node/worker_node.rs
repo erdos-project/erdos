@@ -13,18 +13,18 @@ use crate::{communication::{
 pub struct WorkerNode {
     worker_id: WorkerId,
     leader_address: SocketAddr,
-    driver_notification_receiver: Receiver<DriverNotification>,
+    driver_notification_rx: Receiver<DriverNotification>,
 }
 
 impl WorkerNode {
     pub fn new(
         leader_address: SocketAddr,
-        driver_notification_receiver: Receiver<DriverNotification>,
+        driver_notification_rx: Receiver<DriverNotification>,
     ) -> Self {
         Self {
             worker_id: WorkerId::new_v4(),
             leader_address,
-            driver_notification_receiver,
+            driver_notification_rx,
         }
     }
 
@@ -43,21 +43,26 @@ impl WorkerNode {
             .send(WorkerNotification::Initialized(self.worker_id))
             .await?;
         loop {
-            // Handle messages received from the Leader.
             tokio::select! {
+                // Handle messages received from the Leader.
                 Some(msg_from_leader) = leader_rx.next() => {
                     match msg_from_leader {
                         Ok(msg_from_leader) => {
                             match msg_from_leader {
                                 LeaderNotification::Operator(operator_id) => {
-                                    tracing::debug!("The Worker with ID: {:?} recieved operator with ID: {:?}.", self.worker_id, operator_id);
+                                    tracing::debug!(
+                                        "The Worker with ID: {:?} received operator with ID: {:?}.",
+                                        self.worker_id,
+                                        operator_id
+                                    );
                                     // TODO: Handle Operator
-                                    let _ = leader_tx.send(WorkerNotification::OperatorReady(operator_id)).await?;
-                                    return Ok(());
+                                    let _ = leader_tx.send(
+                                        WorkerNotification::OperatorReady(operator_id)
+                                    ).await?;
                                 }
                                 LeaderNotification::Shutdown => {
                                     tracing::debug!(
-                                        "The Worker with ID: {} is shutting down.", 
+                                        "The Worker with ID: {} is shutting down.",
                                         self.worker_id
                                     );
                                     return Ok(());
@@ -66,13 +71,31 @@ impl WorkerNode {
                         }
                         Err(error) => {
                             tracing::error!(
-                                "Worker {} received error on the Leader connection: {:?}", 
+                                "Worker {} received error on the Leader connection: {:?}",
                                 self.worker_id,
                                 error
                             );
                         },
                     }
-                } 
+                }
+
+                // Handle messages received from the Driver.
+                Ok(driver_notification) = self.driver_notification_rx.recv() => {
+                    match driver_notification {
+                        DriverNotification::Shutdown => {
+                            tracing::info!("The Worker {} is shutting down.", self.worker_id);
+                            if let Err(error) = leader_tx.send(WorkerNotification::Shutdown).await {
+                                tracing::error!(
+                                    "Worker {} received an error when sending Shutdown message \
+                                    to Leader: {:?}",
+                                    self.worker_id,
+                                    error
+                                );
+                            }
+                            return Ok(());
+                        }
+                    }
+                }
             }
         }
     }
