@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{dataflow::graph::AbstractGraph, node::Resources, OperatorId, Uuid};
+use crate::{node::Resources, OperatorId, Uuid};
 
 #[derive(Debug, Clone)]
 pub enum DriverNotification {
-    SubmitGraph(AbstractGraph),
+    SubmitGraph,
     Shutdown,
 }
 
@@ -17,7 +17,7 @@ pub type WorkerId = Uuid;
 pub enum WorkerNotification {
     Initialized(WorkerId, Resources),
     OperatorReady(OperatorId),
-    SubmitGraph(AbstractGraph),
+    SubmitGraph,
     Shutdown,
 }
 
