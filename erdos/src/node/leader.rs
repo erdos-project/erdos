@@ -188,7 +188,7 @@ impl LeaderNode {
                                 id_of_this_worker
                             );
                         }
-                        WorkerNotification::SubmitGraph(graph) => {
+                        WorkerNotification::SubmitGraph => {
                             tracing::trace!(
                                 "Leader received graph from Worker with ID: {}.",
                                 id_of_this_worker

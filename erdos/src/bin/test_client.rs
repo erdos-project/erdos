@@ -1,5 +1,4 @@
-use erdos::{dataflow::{operator::Sink, state::TimeVersionedState, context::SinkContext, graph::AbstractGraph}, node::Client};
-use futures::stream::StreamExt;
+use erdos::{dataflow::{operator::Sink, state::TimeVersionedState, context::SinkContext}, node::Client};
 
 struct SinkOperator {}
 
@@ -37,7 +36,6 @@ async fn main() {
     let addr = "0.0.0.0:4444".parse().unwrap();
     let client = Client::new(addr);
 
-    client.submit(&AbstractGraph::new());
+    client.submit();
 
-    while true {}
 }
