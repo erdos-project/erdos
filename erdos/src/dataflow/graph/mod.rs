@@ -19,7 +19,7 @@ pub(crate) mod default_graph;
 // Crate-wide exports
 pub(crate) use abstract_graph::AbstractGraph;
 pub(crate) use job_graph::JobGraph;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::{stream::StreamId, Data};
 
@@ -133,6 +133,21 @@ where
     }
 }
 
+/// The [`OperatorType`] enum represents the type of operator that
+/// the [`AbstractOperator`] refers to.
+#[derive(Debug, Clone)]
+pub(crate) enum AbstractOperatorType {
+    Source,
+    ParallelSink,
+    Sink,
+    ParallelOneInOneOut,
+    OneInOneOut,
+    ParallelTwoInOneOut,
+    TwoInOneOut,
+    ParallelOneInTwoOut,
+    OneInTwoOut,
+}
+
 /// The representation of the operator used to set up and configure the dataflow.
 pub(crate) struct AbstractOperator {
     pub id: OperatorId,
@@ -144,6 +159,8 @@ pub(crate) struct AbstractOperator {
     pub read_streams: Vec<StreamId>,
     /// Streams on which the operator writes.
     pub write_streams: Vec<StreamId>,
+    /// The type of the Operator.
+    pub operator_type: AbstractOperatorType,
 }
 
 impl Clone for AbstractOperator {
@@ -154,6 +171,7 @@ impl Clone for AbstractOperator {
             config: self.config.clone(),
             read_streams: self.read_streams.clone(),
             write_streams: self.write_streams.clone(),
+            operator_type: self.operator_type.clone(),
         }
     }
 }

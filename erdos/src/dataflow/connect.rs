@@ -14,7 +14,7 @@ use crate::{
     OperatorId,
 };
 
-use super::stream::OperatorStream;
+use super::{stream::OperatorStream, graph::AbstractOperatorType};
 
 /// Adds a [`Source`] operator, which has no read streams, but introduces data into the dataflow
 /// graph by interacting with external data sources (e.g., other systems, sensor data).
@@ -46,6 +46,7 @@ where
     default_graph::add_operator::<_, (), (), T, ()>(
         config,
         op_runner,
+        AbstractOperatorType::Source,
         None,
         None,
         Some(&write_stream),
@@ -95,6 +96,7 @@ pub fn connect_parallel_sink<O, S, T, U>(
     default_graph::add_operator::<_, T, (), (), ()>(
         config,
         op_runner,
+        AbstractOperatorType::ParallelSink,
         Some(read_stream),
         None,
         None,
@@ -141,6 +143,7 @@ pub fn connect_sink<O, S, T>(
     default_graph::add_operator::<_, T, (), (), ()>(
         config,
         op_runner,
+        AbstractOperatorType::Sink,
         Some(read_stream),
         None,
         None,
@@ -194,6 +197,7 @@ where
     default_graph::add_operator::<_, T, (), U, ()>(
         config,
         op_runner,
+        AbstractOperatorType::ParallelOneInOneOut,
         Some(read_stream),
         None,
         Some(&write_stream),
@@ -247,6 +251,7 @@ where
     default_graph::add_operator::<_, T, (), U, ()>(
         config,
         op_runner,
+        AbstractOperatorType::OneInOneOut,
         Some(read_stream),
         None,
         Some(&write_stream),
@@ -309,6 +314,7 @@ where
     default_graph::add_operator::<_, T, U, V, ()>(
         config,
         op_runner,
+        AbstractOperatorType::ParallelTwoInOneOut,
         Some(left_read_stream),
         Some(right_read_stream),
         Some(&write_stream),
@@ -369,6 +375,7 @@ where
     default_graph::add_operator::<_, T, U, V, ()>(
         config,
         op_runner,
+        AbstractOperatorType::TwoInOneOut,
         Some(left_read_stream),
         Some(right_read_stream),
         Some(&write_stream),
@@ -429,6 +436,7 @@ where
     default_graph::add_operator::<_, T, (), U, V>(
         config,
         op_runner,
+        AbstractOperatorType::ParallelOneInTwoOut,
         Some(read_stream),
         None,
         Some(&left_write_stream),
@@ -487,6 +495,7 @@ where
     default_graph::add_operator::<_, T, (), U, V>(
         config,
         op_runner,
+        AbstractOperatorType::OneInTwoOut,
         Some(read_stream),
         None,
         Some(&left_write_stream),

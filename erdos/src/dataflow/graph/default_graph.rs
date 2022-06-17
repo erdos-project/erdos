@@ -16,7 +16,7 @@ use crate::{
     OperatorConfig,
 };
 
-use super::{AbstractGraph, OperatorRunner, StreamSetupHook};
+use super::{AbstractGraph, OperatorRunner, StreamSetupHook, AbstractOperatorType};
 
 // TODO: Don't require a mutex over the entire graph, as this can call deadlocks.
 static DEFAULT_GRAPH: Lazy<Mutex<AbstractGraph>> = Lazy::new(|| Mutex::new(AbstractGraph::new()));
@@ -27,6 +27,7 @@ static DEFAULT_GRAPH: Lazy<Mutex<AbstractGraph>> = Lazy::new(|| Mutex::new(Abstr
 pub(crate) fn add_operator<F, T, U, V, W>(
     config: OperatorConfig,
     runner: F,
+    operator_type: AbstractOperatorType,
     left_read_stream: Option<&dyn Stream<T>>,
     right_read_stream: Option<&dyn Stream<U>>,
     left_write_stream: Option<&OperatorStream<V>>,
@@ -41,6 +42,7 @@ pub(crate) fn add_operator<F, T, U, V, W>(
     DEFAULT_GRAPH.lock().unwrap().add_operator(
         config,
         runner,
+        operator_type,
         left_read_stream,
         right_read_stream,
         left_write_stream,
