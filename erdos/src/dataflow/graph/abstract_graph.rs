@@ -11,8 +11,8 @@ use crate::{
 };
 
 use super::{
-    job_graph::JobGraph, AbstractOperator, AbstractStream, AbstractStreamT, OperatorRunner,
-    StreamSetupHook, AbstractOperatorType,
+    job_graph::JobGraph, AbstractOperator, AbstractOperatorType, AbstractStream, AbstractStreamT,
+    OperatorRunner, StreamSetupHook,
 };
 
 /// The abstract graph representation of an ERDOS program defined in the driver.
@@ -20,7 +20,9 @@ use super::{
 /// The abstract graph is compiled into a [`JobGraph`], which ERDOS schedules and executes.
 pub struct AbstractGraph {
     /// Collection of operators.
-    operators: HashMap<OperatorId, AbstractOperator>,
+    operators: Vec<AbstractOperator>,
+    /// A mapping from the OperatorId to the OperatorRunner.
+    operator_runners: HashMap<OperatorId, Box<dyn OperatorRunner>>,
     /// Collection of all streams in the graph.
     streams: HashMap<StreamId, Box<dyn AbstractStreamT>>,
     /// Collection of ingest streams and the corresponding functions to execute for setup.
@@ -34,7 +36,8 @@ pub struct AbstractGraph {
 impl AbstractGraph {
     pub fn new() -> Self {
         Self {
-            operators: HashMap::new(),
+            operators: Vec::new(),
+            operator_runners: HashMap::new(),
             streams: HashMap::new(),
             ingest_streams: HashMap::new(),
             extract_streams: HashMap::new(),
@@ -93,13 +96,13 @@ impl AbstractGraph {
         let operator_id = config.id;
         let abstract_operator = AbstractOperator {
             id: operator_id,
-            runner: Box::new(runner),
             config,
             read_streams,
             write_streams,
             operator_type,
         };
-        self.operators.insert(operator_id, abstract_operator);
+        self.operators.push(abstract_operator);
+        self.operator_runners.insert(operator_id, Box::new(runner));
     }
 
     /// Adds an [`IngestStream`] to the graph.
@@ -221,7 +224,11 @@ impl AbstractGraph {
             self.extract_streams.insert(stream_id, setup_hook);
         }
 
-        let mut operators: Vec<_> = self.operators.values().cloned().collect();
+        let mut operators = self.operators.clone();
+        let mut operator_runners = HashMap::new();
+        for (operator_id, operator_runner) in &self.operator_runners {
+            operator_runners.insert(operator_id.clone(), operator_runner.clone());
+        }
 
         // Replace loop stream IDs with connected stream IDs.
         for o in operators.iter_mut() {
@@ -233,7 +240,13 @@ impl AbstractGraph {
             }
         }
 
-        JobGraph::new(operators, streams, ingest_streams, extract_streams)
+        JobGraph::new(
+            operators,
+            operator_runners,
+            streams,
+            ingest_streams,
+            extract_streams,
+        )
     }
 }
 
@@ -244,6 +257,11 @@ impl Clone for AbstractGraph {
             .iter()
             .map(|(&k, v)| (k, v.box_clone()))
             .collect();
+
+        let mut operator_runners = HashMap::new();
+        for (operator_id, operator_runner) in &self.operator_runners {
+            operator_runners.insert(operator_id.clone(), operator_runner.clone());
+        }
 
         let mut ingest_streams = HashMap::new();
         for (ingest_stream_id, ingest_stream_setup_hook) in &self.ingest_streams {
@@ -257,6 +275,7 @@ impl Clone for AbstractGraph {
 
         Self {
             operators: self.operators.clone(),
+            operator_runners,
             streams,
             ingest_streams,
             extract_streams,

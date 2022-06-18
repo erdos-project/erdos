@@ -43,6 +43,12 @@ impl<
     }
 }
 
+impl Clone for Box<dyn OperatorRunner> {
+    fn clone(&self) -> Self {
+        (**self).box_clone()
+    }
+}
+
 /// Trait for functions used to set up ingest and extract streams.
 pub(crate) trait StreamSetupHook:
     'static + Fn(&AbstractGraph, &mut ChannelManager) + Sync + Send
@@ -151,8 +157,6 @@ pub(crate) enum AbstractOperatorType {
 /// The representation of the operator used to set up and configure the dataflow.
 pub(crate) struct AbstractOperator {
     pub id: OperatorId,
-    /// Function that executes the operator.
-    pub runner: Box<dyn OperatorRunner>,
     /// Operator configuration.
     pub config: OperatorConfig,
     /// Streams on which the operator reads.
@@ -167,7 +171,6 @@ impl Clone for AbstractOperator {
     fn clone(&self) -> Self {
         Self {
             id: self.id,
-            runner: self.runner.box_clone(),
             config: self.config.clone(),
             read_streams: self.read_streams.clone(),
             write_streams: self.write_streams.clone(),

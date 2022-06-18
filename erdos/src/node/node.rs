@@ -370,8 +370,19 @@ impl Node {
             tracing::debug!("Node {}: starting operator {}", self.id, name);
             let channel_manager_copy = Arc::clone(&channel_manager);
             // Launch the operator as a separate async task.
-            let operator_executor = (operator_info.runner)(channel_manager_copy);
-            operator_executors.push(operator_executor);
+            match job_graph.get_operator_runner(&operator_info.id) {
+                Some(operator_runner) => {
+                    let operator_executor = (operator_runner)(channel_manager_copy);
+                    operator_executors.push(operator_executor);
+                }
+                None => {
+                    tracing::error!(
+                        "Node {}: Could not find an executor for operator {}",
+                        self.id,
+                        name
+                    );
+                }
+            }
         }
 
         worker.spawn_tasks(operator_executors).await;

@@ -3,11 +3,12 @@ use std::{collections::HashMap, fs::File, io::prelude::*};
 use crate::{dataflow::stream::StreamId, OperatorId};
 
 use super::{
-    StreamSetupHook, {AbstractOperator, AbstractStreamT, Job},
+    StreamSetupHook, {AbstractOperator, AbstractStreamT, Job}, OperatorRunner,
 };
 
 pub(crate) struct JobGraph {
     operators: Vec<AbstractOperator>,
+    operator_runners: HashMap<OperatorId, Box<dyn OperatorRunner>>,
     streams: HashMap<StreamId, Box<dyn AbstractStreamT>>,
     stream_sources: HashMap<StreamId, Job>,
     stream_destinations: HashMap<StreamId, Vec<Job>>,
@@ -17,6 +18,7 @@ pub(crate) struct JobGraph {
 impl JobGraph {
     pub(crate) fn new(
         operators: Vec<AbstractOperator>,
+        operator_runners: HashMap<OperatorId, Box<dyn OperatorRunner>>,
         streams: Vec<Box<dyn AbstractStreamT>>,
         ingest_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
         extract_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
@@ -59,6 +61,7 @@ impl JobGraph {
 
         Self {
             operators,
+            operator_runners,
             // Convert to a HashMap to easily query streams.
             streams: streams.into_iter().map(|s| (s.id(), s)).collect(),
             stream_sources,
@@ -70,6 +73,14 @@ impl JobGraph {
     /// Returns a copy of the operators in the graph.
     pub fn operators(&self) -> Vec<AbstractOperator> {
         self.operators.clone()
+    }
+
+    /// Retrieve the execution function for a particular operator in the graph.
+    pub(crate) fn get_operator_runner(&self, operator_id: &OperatorId) -> Option<Box<dyn OperatorRunner>> {
+        match self.operator_runners.get(operator_id) {
+            Some(operator_runner) => Some(operator_runner.clone()),
+            None => None,
+        }
     }
 
     /// Returns the stream, the stream's source, and the stream's destinations.
