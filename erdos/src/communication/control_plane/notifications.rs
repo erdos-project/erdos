@@ -29,6 +29,6 @@ pub(crate) enum WorkerNotification {
 /// [`WorkerNode`](crate::node::WorkerNode).
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum LeaderNotification {
-    ScheduleOperator(OperatorId),
+    ScheduleOperator(String, OperatorId),
     Shutdown,
 }

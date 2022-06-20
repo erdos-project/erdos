@@ -28,7 +28,7 @@ use crate::{
 enum InterThreadMessage {
     WorkerInitialized(usize, Resources),
     ScheduleJobGraph(String, InternalGraph),
-    ScheduleOperator(OperatorId, usize),
+    ScheduleOperator(String, OperatorId, usize),
     Shutdown(usize),
     ShutdownAllWorkers,
 }
@@ -161,6 +161,7 @@ impl LeaderNode {
                 // Broadcast the ScheduleOperator message for the placed operators.
                 for (operator_id, worker_id) in placements.iter() {
                     let _ = leader_to_workers_tx.send(InterThreadMessage::ScheduleOperator(
+                        job_name.clone(),
                         operator_id.clone(),
                         *worker_id,
                     ));
@@ -237,7 +238,7 @@ impl LeaderNode {
                 // Communicate messages received from the Leader to the Worker.
                 Ok(msg_from_leader) = channel_from_leader.recv() => {
                     match msg_from_leader {
-                        InterThreadMessage::ScheduleOperator(operator_id, worker_id) => {
+                        InterThreadMessage::ScheduleOperator(job_name, operator_id, worker_id) => {
                             // The Leader assigns an operator to a worker.
                             if id_of_this_worker == worker_id {
                                 tracing::debug!(
@@ -246,7 +247,7 @@ impl LeaderNode {
                                     worker_id,
                                 );
                                 let _ = worker_tx.send(
-                                    LeaderNotification::ScheduleOperator(operator_id)
+                                    LeaderNotification::ScheduleOperator(job_name, operator_id)
                                 ).await;
                             }
                         }

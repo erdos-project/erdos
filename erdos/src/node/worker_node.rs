@@ -82,16 +82,39 @@ impl WorkerNode {
                     match msg_from_leader {
                         Ok(msg_from_leader) => {
                             match msg_from_leader {
-                                LeaderNotification::ScheduleOperator(operator_id) => {
-                                    tracing::debug!(
-                                        "The Worker with ID: {:?} received operator with ID: {:?}.",
-                                        self.worker_id,
-                                        operator_id
-                                    );
-                                    // TODO: Handle Operator
-                                    let _ = leader_tx.send(
-                                        WorkerNotification::OperatorReady(operator_id)
-                                    ).await?;
+                                LeaderNotification::ScheduleOperator(job_name, operator_id) => {
+                                    if let Some(job_graph) = self.job_graphs.get(&job_name) {
+                                        if let Some(operator) =
+                                            job_graph.get_operator(&operator_id)
+                                        {
+                                            tracing::debug!(
+                                                "The Worker with ID: {:?} received operator \
+                                                {} with ID: {:?}.",
+                                                self.worker_id,
+                                                operator.config.name.unwrap_or(
+                                                    "UnnamedOperator".to_string()
+                                                ),
+                                                operator_id
+                                            );
+                                            // TODO: Handle Operator
+                                            let _ = leader_tx.send(
+                                                WorkerNotification::OperatorReady(operator_id)
+                                            ).await?;
+                                        } else {
+                                            tracing::error!(
+                                                "The Operator with ID: {} was not found in \
+                                                JobGraph {}",
+                                                operator_id,
+                                                job_name
+                                            );
+                                        }
+                                    } else {
+                                        tracing::error!(
+                                            "The JobGraph {} was not registered on the Worker {}",
+                                            job_name,
+                                            self.worker_id
+                                        );
+                                    }
                                 }
                                 LeaderNotification::Shutdown => {
                                     tracing::debug!(
