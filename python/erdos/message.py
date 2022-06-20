@@ -17,7 +17,7 @@ class Message(Generic[T]):
         data: The data of the message.
     """
 
-    def __init__(self, timestamp: Timestamp, data: Any) -> None:
+    def __init__(self, timestamp: Timestamp, data: T) -> None:
         """Constructs a :py:class:`Message` with the given `data` and
         `timestamp`.
 
@@ -59,7 +59,7 @@ class Message(Generic[T]):
         return "{{timestamp: {}, data: {}}}".format(self.timestamp, self.data)
 
 
-class WatermarkMessage(Message[T]):
+class WatermarkMessage(Message[None]):
     """A :py:class:`WatermarkMessage` allows an operator to convey the
     completion of all outgoing data for a given timestamp on a
     :py:class:`WriteStream`.
@@ -71,7 +71,7 @@ class WatermarkMessage(Message[T]):
     def __init__(self, timestamp: Timestamp) -> None:
         super(WatermarkMessage, self).__init__(timestamp, None)
 
-    def __str__(self) -> T:
+    def __str__(self) :
         return "{{timestamp: {}, watermark: True}}".format(self.timestamp)
 
     def _to_py_message(self) -> PyMessage:

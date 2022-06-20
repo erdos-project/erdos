@@ -56,9 +56,6 @@ class TryPullOp(Sink):
             print("TryPullOp: received {data}".format(data=data))
             time.sleep(0.5)
 
-def f() -> Stream[int]:
-    pass
-
 def main():
     """Creates and runs the dataflow graph."""
     count_stream = erdos.connect_source(SendOp, erdos.operator.OperatorConfig())

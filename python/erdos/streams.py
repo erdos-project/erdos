@@ -38,9 +38,6 @@ def _parse_message(internal_msg: PyMessage):
 
 T = TypeVar('T')
 U = TypeVar('U')
-A = TypeVar('A')
-B = TypeVar('B')
-C = TypeVar('C')
 
 class Stream(ABC, Generic[T]):
     """Base class representing a stream to operators can be connected.
@@ -52,7 +49,7 @@ class Stream(ABC, Generic[T]):
     """
 
     def __init__(self, internal_stream: PyStream) -> None:
-        self._internal_stream: Stream[T] = internal_stream
+        self._internal_stream: PyStream = internal_stream
 
     @property
     def id(self) -> str:
@@ -146,9 +143,7 @@ class Stream(ABC, Generic[T]):
         left_stream, right_stream = self._internal_stream._split(split_fn)
         return (OperatorStream(left_stream), OperatorStream(right_stream))
 
-#"""LOOK UP MAYBE"""
-
-    def split_by_type(self, *data_type: Type) -> Tuple["OperatorStream"]:
+    def split_by_type(self, *data_type: Type) -> Tuple["OperatorStream[T]", "OperatorStream[U]"]:
         """Returns a stream for each provided type on which each message's data is an
         instance of that provided type.
 
@@ -233,7 +228,7 @@ class Stream(ABC, Generic[T]):
         return streams_to_be_merged[0]
 
 
-class ReadStream(Generic[A]):
+class ReadStream(Generic[T]):
 
     """A :py:class:`ReadStream` allows an operator to read and do work on
     data sent by other operators on a corresponding :py:class:`WriteStream`.
@@ -255,7 +250,7 @@ class ReadStream(Generic[A]):
                 _py_read_stream.name(), _py_read_stream.id
             )
         )
-        self._py_read_stream: ReadStream[A] = _py_read_stream
+        self._py_read_stream: PyReadStream = _py_read_stream
 
     @property
     def name(self) -> str:
@@ -272,11 +267,11 @@ class ReadStream(Generic[A]):
         """Whether a top watermark message has been received."""
         return self._py_read_stream.is_closed()
 
-    def read(self) -> Message:
+    def read(self) -> Message[T]:
         """Blocks until a message is read from the stream."""
         return _parse_message(self._py_read_stream.read())
 
-    def try_read(self) -> Union[Message, None]:
+    def try_read(self) -> Union[Message[T], None]:
         """Tries to read a mesage from the stream.
 
         Returns None if no messages are available at the moment.
@@ -287,7 +282,7 @@ class ReadStream(Generic[A]):
         return _parse_message(internal_msg)
 
 
-class WriteStream(Generic[B]):
+class WriteStream(Generic[T]):
     """A :py:class:`WriteStream` allows an operator to send messages and
     watermarks to other operators that connect to the corresponding
     :py:class:`ReadStream`.
@@ -303,7 +298,7 @@ class WriteStream(Generic[B]):
                 _py_write_stream.name(), _py_write_stream.id
             )
         )
-        self._py_write_stream : WriteStream[B] = (
+        self._py_write_stream : PyWriteStream = (
             PyWriteStream() if _py_write_stream is None else _py_write_stream
         )
 
@@ -394,7 +389,7 @@ class IngestStream(Stream[T]):
         """
         return self._internal_stream.is_closed()
 
-    def send(self, msg: Message) -> None:
+    def send(self, msg: Message[T]) -> None:
         """Sends a message on the stream.
 
         Args:
@@ -412,7 +407,7 @@ class IngestStream(Stream[T]):
         self._internal_stream.send(internal_msg)
 
 
-class ExtractStream(Generic[C]): 
+class ExtractStream(Generic[T]): 
     """An :py:class:`ExtractStream` enables drivers to read data from a
     running ERDOS applications.
 
@@ -433,7 +428,7 @@ class ExtractStream(Generic[C]):
                 "ExtractStream needs to be initialized with a Stream. "
                 "Received a {}".format(type(stream))
             )
-        self._py_extract_stream: ExtractStream[C] = PyExtractStream(stream._internal_stream)
+        self._py_extract_stream: PyExtractStream = PyExtractStream(stream._internal_stream)
 
     @property
     def name(self) -> str:
@@ -453,11 +448,11 @@ class ExtractStream(Generic[C]):
         """
         return self._py_extract_stream.is_closed()
 
-    def read(self) -> Message:
+    def read(self) -> Message[T]:
         """Blocks until a message is read from the stream."""
         return _parse_message(self._py_extract_stream.read())
 
-    def try_read(self) -> Union[Message, None]:
+    def try_read(self) -> Union[Message[T], None]:
         """Tries to read a mesage from the stream.
 
         Returns :code:`None` if no messages are available at the moment.
