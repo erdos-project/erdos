@@ -8,7 +8,8 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub(crate) enum DriverNotification {
-    SubmitGraph(JobGraph),
+    RegisterGraph(JobGraph),
+    SubmitGraph(String),
     Shutdown,
 }
 

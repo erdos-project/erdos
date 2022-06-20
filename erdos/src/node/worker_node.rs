@@ -1,6 +1,6 @@
 // TODO(Sukrit): Rename this to worker.rs once the merge is complete.
 
-use std::{net::SocketAddr, collections::HashMap};
+use std::{collections::HashMap, net::SocketAddr};
 
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -12,7 +12,7 @@ use crate::{
         CommunicationError, ControlPlaneCodec, DriverNotification, LeaderNotification,
         WorkerNotification,
     },
-    dataflow::graph::{JobGraph, InternalGraph},
+    dataflow::graph::{InternalGraph, JobGraph},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -127,24 +127,34 @@ impl WorkerNode {
                             }
                             return Ok(());
                         }
-                        DriverNotification::SubmitGraph(job_graph) => {
-                            // Save the JobGraph, and communicate an Abstract version of
-                            // the graph to the Leader.
-                            tracing::debug!("The Worker {} received the JobGraph.", self.worker_id);
-                            let job_name = job_graph.get_name().to_string();
-                            let internal_graph: InternalGraph = job_graph.clone().into();
-                            self.job_graphs.insert(job_name.clone(), job_graph);
-
-                            if let Err(error) = leader_tx.send(
-                                WorkerNotification::SubmitGraph(job_name, internal_graph)
-                            ).await {
+                        DriverNotification::RegisterGraph(job_graph) => {
+                            // Save the JobGraph.
+                            let job_graph_name = job_graph.get_name().clone().to_string();
+                            tracing::debug!("The Worker {} received the JobGraph {}.", self.worker_id, job_graph_name);
+                            self.job_graphs.insert(job_graph_name, job_graph);
+                        }
+                        DriverNotification::SubmitGraph(job_graph_name) => {
+                            // Retrieve the JobGraph and communicate an Abstract version
+                            // of the graph to the Leader.
+                            if let Some(job_graph) = self.job_graphs.get(&job_graph_name) {
+                                let internal_graph = job_graph.clone().into();
+                                if let Err(error) = leader_tx.send(
+                                    WorkerNotification::SubmitGraph(job_graph_name.clone(), internal_graph)
+                                ).await {
+                                    tracing::error!(
+                                        "Worker {} received an error when sending Abstract \
+                                        Graph message to Leader: {:?}",
+                                        self.worker_id,
+                                        error
+                                    );
+                                };
+                            } else {
                                 tracing::error!(
-                                    "Worker {} received an error when sending Abstract Graph message \
-                                    to Leader: {:?}",
+                                    "Worker {} found no JobGraph with name {}",
                                     self.worker_id,
-                                    error
-                                );
-                            };
+                                    job_graph_name,
+                                )
+                            }
                         }
                     }
                 }

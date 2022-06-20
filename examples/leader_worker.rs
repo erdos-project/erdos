@@ -86,6 +86,8 @@ fn main() {
     if worker_index == 0 {
         println!("Submitting the JobGraph.");
         let _ = worker_handle.submit();
+    } else {
+        let _ = worker_handle.register();
     }
 
     loop { }

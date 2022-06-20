@@ -141,20 +141,47 @@ impl WorkerHandle {
         }
     }
 
+    // TODO (Sukrit): This function is kept different from the `submit` method
+    // because all Workers need a copy of the JobGraph code, but only one of
+    // them needs to submit it to the Leader. This should later be removed if
+    // we choose to dynamically link the user applications into the Worker's
+    // memory space.
+    pub fn register(&self) -> Result<(), CommunicationError> {
+        // Compile the JobGraph and register it with the Worker.
+        let job_graph = (default_graph::clone()).compile();
+        tracing::trace!(
+            "WorkerHandle {} received a notification from the Driver to register JobGraph {}.",
+            self.handle_id,
+            job_graph.get_name(),
+        );
+        self.worker_handle
+            .blocking_send(DriverNotification::RegisterGraph(job_graph))
+            .map_err(|err| CommunicationError::from(err))
+    }
+
     // TODO (Sukrit): Take as input a Graph handle that is built by the user.
     // We should expose the `AbstractGraph` structure as a `GraphBuilder` and
     // consume that in the `submit` method to prevent the users from making
     // any further changes to it.
     pub fn submit(&self) -> Result<(), CommunicationError> {
-        tracing::trace!(
-            "WorkerHandle {} received a notification from the Driver to submit JobGraph.",
-            self.handle_id
-        );
-        
-        // Compile the JobGraph and send it to the Worker.
+        // Compile the JobGraph and register it with the Worker.
         let job_graph = (default_graph::clone()).compile();
+        let graph_name = job_graph.get_name().clone().to_string();
+        tracing::trace!(
+            "WorkerHandle {} received a notification from the Driver to register JobGraph {}.",
+            self.handle_id,
+            job_graph.get_name(),
+        );
+        if let Err(err) = self
+            .worker_handle
+            .blocking_send(DriverNotification::RegisterGraph(job_graph))
+        {
+            return Err(CommunicationError::from(err));
+        }
+
+        // Submit the JobGraph to the Leader.
         self.worker_handle
-            .blocking_send(DriverNotification::SubmitGraph(job_graph))
+            .blocking_send(DriverNotification::SubmitGraph(graph_name))
             .map_err(|err| CommunicationError::from(err))
     }
 }
