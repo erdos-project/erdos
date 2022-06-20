@@ -1,23 +1,21 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{node::Resources, OperatorId, Uuid};
+use crate::{dataflow::graph::{InternalGraph, JobGraph}, node::Resources, OperatorId};
 
 #[derive(Debug, Clone)]
 pub enum DriverNotification {
-    SubmitGraph,
+    SubmitGraph(JobGraph),
     Shutdown,
 }
-
-pub type WorkerId = Uuid;
 
 /// A [`WorkerNotification`] specifies the notifications that a
 /// [`WorkerNode`](crate::node::WorkerNode) can send to a
 /// [`LeaderNode`](crate::node::LeaderNode).
 #[derive(Debug, Serialize, Deserialize)]
 pub enum WorkerNotification {
-    Initialized(WorkerId, Resources),
+    Initialized(usize, Resources),
     OperatorReady(OperatorId),
-    SubmitGraph,
+    SubmitGraph(InternalGraph),
     Shutdown,
 }
 

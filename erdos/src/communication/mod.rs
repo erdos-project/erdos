@@ -47,7 +47,7 @@ pub(crate) use endpoints::{RecvEndpoint, SendEndpoint};
 // Public Exports
 pub use control_plane::codec::ControlPlaneCodec;
 pub use control_plane::notifications::{
-    DriverNotification, LeaderNotification, WorkerId, WorkerNotification,
+    DriverNotification, LeaderNotification, WorkerNotification,
 };
 
 /// Message sent between nodes in order to coordinate node and operator initialization.

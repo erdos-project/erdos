@@ -318,7 +318,7 @@ where
     fn on_watermark(&mut self, ctx: &mut OneInTwoOutContext<S, U, V>);
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OperatorConfig {
     /// A human-readable name for the [operator](self) used in logging.
     pub name: Option<String>,

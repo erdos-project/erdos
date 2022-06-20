@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap};
 
 use serde::Deserialize;
 
@@ -20,7 +20,7 @@ use super::{
 /// The abstract graph is compiled into a [`JobGraph`], which ERDOS schedules and executes.
 pub struct AbstractGraph {
     /// Collection of operators.
-    operators: Vec<AbstractOperator>,
+    operators: HashMap<OperatorId, AbstractOperator>,
     /// A mapping from the OperatorId to the OperatorRunner.
     operator_runners: HashMap<OperatorId, Box<dyn OperatorRunner>>,
     /// Collection of all streams in the graph.
@@ -36,7 +36,7 @@ pub struct AbstractGraph {
 impl AbstractGraph {
     pub fn new() -> Self {
         Self {
-            operators: Vec::new(),
+            operators: HashMap::new(),
             operator_runners: HashMap::new(),
             streams: HashMap::new(),
             ingest_streams: HashMap::new(),
@@ -101,7 +101,7 @@ impl AbstractGraph {
             write_streams,
             operator_type,
         };
-        self.operators.push(abstract_operator);
+        self.operators.insert(operator_id, abstract_operator);
         self.operator_runners.insert(operator_id, Box::new(runner));
     }
 
@@ -231,7 +231,7 @@ impl AbstractGraph {
         }
 
         // Replace loop stream IDs with connected stream IDs.
-        for o in operators.iter_mut() {
+        for o in operators.values_mut() {
             for i in 0..o.read_streams.len() {
                 if self.loop_streams.contains_key(&o.read_streams[i]) {
                     let resolved_id = self.resolve_stream_id(&o.read_streams[i]).unwrap();

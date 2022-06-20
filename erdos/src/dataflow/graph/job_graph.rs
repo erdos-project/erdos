@@ -1,4 +1,6 @@
-use std::{collections::HashMap, fs::File, io::prelude::*};
+use std::{collections::HashMap, fs::File, fmt, io::prelude::*, hash::Hash};
+
+use serde::{Deserialize, Serialize};
 
 use crate::{dataflow::stream::StreamId, OperatorId};
 
@@ -6,8 +8,36 @@ use super::{
     StreamSetupHook, {AbstractOperator, AbstractStreamT, Job}, OperatorRunner,
 };
 
+/// The [`InternalGraph`] is an internal representation of the Graph
+/// that is communicated to the Leader by the Client / Workers.
+// TODO (Sukrit): This should be renamed as AbstractGraph once the
+// Graph abstraction is exposed to the developers as GraphBuilder.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct InternalGraph {
+    /// The mapping of all the operators in the Graph from their ID to 
+    /// their [`AbstractOperator`] representation.
+    operators: HashMap<OperatorId, AbstractOperator>,
+    /// A mapping from the ID of the Stream to the ID of the 
+    /// AbstractOperator that generates data for it.
+    stream_sources: HashMap<StreamId, Job>,
+    /// A mapping from the ID of the Stream to the IDs of the
+    /// AbstractOperators that consume the data from it.
+    stream_destinations: HashMap<StreamId, Vec<Job>>,
+}
+
+impl From<JobGraph> for InternalGraph {
+    fn from(job_graph: JobGraph) -> Self {
+        Self {
+            operators: job_graph.operators.clone(),
+            stream_sources: job_graph.stream_sources.clone(),
+            stream_destinations: job_graph.stream_destinations.clone()
+        }
+    }
+}
+
+#[derive(Clone)]
 pub(crate) struct JobGraph {
-    operators: Vec<AbstractOperator>,
+    operators: HashMap<OperatorId, AbstractOperator>,
     operator_runners: HashMap<OperatorId, Box<dyn OperatorRunner>>,
     streams: HashMap<StreamId, Box<dyn AbstractStreamT>>,
     stream_sources: HashMap<StreamId, Job>,
@@ -17,7 +47,7 @@ pub(crate) struct JobGraph {
 
 impl JobGraph {
     pub(crate) fn new(
-        operators: Vec<AbstractOperator>,
+        operators: HashMap<OperatorId, AbstractOperator>,
         operator_runners: HashMap<OperatorId, Box<dyn OperatorRunner>>,
         streams: Vec<Box<dyn AbstractStreamT>>,
         ingest_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
@@ -33,7 +63,7 @@ impl JobGraph {
             stream_destinations.insert(s.id(), Vec::new());
         }
 
-        for operator in operators.iter() {
+        for operator in operators.values() {
             for &read_stream_id in operator.read_streams.iter() {
                 stream_destinations
                     .entry(read_stream_id)
@@ -72,7 +102,7 @@ impl JobGraph {
 
     /// Returns a copy of the operators in the graph.
     pub fn operators(&self) -> Vec<AbstractOperator> {
-        self.operators.clone()
+        self.operators.values().cloned().collect()
     }
 
     /// Retrieve the execution function for a particular operator in the graph.
@@ -132,7 +162,7 @@ impl JobGraph {
         }
 
         writeln!(file, "   // Operators")?;
-        for operator in self.operators.iter() {
+        for operator in self.operators.values() {
             writeln!(
                 file,
                 "   \"{}\" [label=\"{}\n(Node {})\"];",
@@ -166,5 +196,31 @@ impl JobGraph {
 
         writeln!(file, "}}")?;
         file.flush()
+    }
+}
+
+impl fmt::Debug for JobGraph {
+    // Outputs an adjacency list representation of the JobGraph.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let adjacency_list = HashMap::new();
+        for operator in self.operators.values() {
+            let dependents = Vec::new();
+            for write_stream_id in operator.write_streams.iter() {
+                if let Some(write_stream_destinations) = self.stream_destinations.get(write_stream_id) {
+                    for dependent_job in write_stream_destinations {
+                        match dependent_job {
+                            Job::Operator(dependent_job_id) => {
+                                if let Some(dependent_job) = self.operators.get(dependent_job_id) {
+                                    dependents.push(dependent_job.config.get_name())        
+                                }
+                            }
+                            Job::Driver => dependents.push("Driver".to_string()),
+                        }
+                    }
+                }
+            }
+            adjacency_list.insert(operator.config.get_name(), dependents);
+        }
+        write!(f, "{:?}", adjacency_list)
     }
 }

@@ -13,7 +13,7 @@ use tokio_util::codec::Framed;
 
 use crate::{
     communication::{
-        CommunicationError, ControlPlaneCodec, DriverNotification, LeaderNotification, WorkerId,
+        CommunicationError, ControlPlaneCodec, DriverNotification, LeaderNotification,
         WorkerNotification,
     },
     node::Resources,
@@ -24,20 +24,20 @@ use crate::{
 /// spawned tasks may communicate back to the main loop of the [`LeaderNode`].
 #[derive(Debug, Clone)]
 enum InterThreadMessage {
-    WorkerInitialized(WorkerId, Resources),
-    ScheduleOperator(OperatorId, WorkerId),
-    Shutdown(WorkerId),
+    WorkerInitialized(usize, Resources),
+    ScheduleOperator(OperatorId, usize),
+    Shutdown(usize),
     ShutdownAllWorkers,
 }
 
 #[derive(Debug)]
 struct WorkerState {
-    id: WorkerId,
+    id: usize,
     resources: Resources,
 }
 
 impl WorkerState {
-    fn new(id: WorkerId, resources: Resources) -> Self {
+    fn new(id: usize, resources: Resources) -> Self {
         Self { id, resources }
     }
 }
@@ -50,7 +50,7 @@ pub struct LeaderNode {
     /// A Vector containing the handlers corresponding to each Worker.
     worker_handlers: Vec<JoinHandle<()>>,
     /// A mapping between the ID of the Worker and the state maintained for it.
-    worker_id_to_worker_state: HashMap<WorkerId, WorkerState>,
+    worker_id_to_worker_state: HashMap<usize, WorkerState>,
 }
 
 impl LeaderNode {
@@ -162,7 +162,7 @@ impl LeaderNode {
         )
         .split();
 
-        let mut id_of_this_worker: WorkerId = WorkerId::nil();
+        let mut id_of_this_worker = 0;
 
         // Handle messages from the Worker and the Leader.
         loop {

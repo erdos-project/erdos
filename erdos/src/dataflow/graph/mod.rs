@@ -19,6 +19,7 @@ pub(crate) mod default_graph;
 // Crate-wide exports
 pub(crate) use abstract_graph::AbstractGraph;
 pub(crate) use job_graph::JobGraph;
+pub(crate) use job_graph::InternalGraph;
 use serde::{Deserialize, Serialize};
 
 use super::{stream::StreamId, Data};
@@ -71,7 +72,7 @@ impl Clone for Box<dyn StreamSetupHook> {
 }
 
 /// Specifies the type of job.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize, Debug)]
 pub(crate) enum Job {
     /// An operator in the dataflow.
     Operator(OperatorId),
@@ -139,9 +140,15 @@ where
     }
 }
 
+impl Clone for Box<dyn AbstractStreamT> {
+    fn clone(&self) -> Self {
+        (**self).box_clone()
+    }
+}
+
 /// The [`OperatorType`] enum represents the type of operator that
 /// the [`AbstractOperator`] refers to.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) enum AbstractOperatorType {
     Source,
     ParallelSink,
@@ -155,6 +162,7 @@ pub(crate) enum AbstractOperatorType {
 }
 
 /// The representation of the operator used to set up and configure the dataflow.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct AbstractOperator {
     pub id: OperatorId,
     /// Operator configuration.
@@ -165,16 +173,4 @@ pub(crate) struct AbstractOperator {
     pub write_streams: Vec<StreamId>,
     /// The type of the Operator.
     pub operator_type: AbstractOperatorType,
-}
-
-impl Clone for AbstractOperator {
-    fn clone(&self) -> Self {
-        Self {
-            id: self.id,
-            config: self.config.clone(),
-            read_streams: self.read_streams.clone(),
-            write_streams: self.write_streams.clone(),
-            operator_type: self.operator_type.clone(),
-        }
-    }
 }

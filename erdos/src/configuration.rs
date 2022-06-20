@@ -11,10 +11,10 @@ pub struct Configuration {
     pub index: NodeId,
     /// The number of OS threads the node will use.
     pub num_threads: usize,
+    /// Mapping between node indices and control socket addresses.
+    pub leader_address: SocketAddr,
     /// Mapping between node indices and data socket addresses.
     pub data_addresses: Vec<SocketAddr>,
-    /// Mapping between node indices and control socket addresses.
-    pub control_addresses: Vec<SocketAddr>,
     /// DOT file to export dataflow graph.
     pub graph_filename: Option<String>,
     /// The logging level of the logger initialized by ERDOS.
@@ -31,8 +31,8 @@ impl Configuration {
     /// Creates a new node configuration.
     pub fn new(
         node_index: NodeId,
+        leader_address: SocketAddr,
         data_addresses: Vec<SocketAddr>,
-        control_addresses: Vec<SocketAddr>,
         num_threads: usize,
     ) -> Self {
         let log_level = if cfg!(debug_assertions) {
@@ -43,8 +43,8 @@ impl Configuration {
         Self {
             index: node_index,
             num_threads,
+            leader_address,
             data_addresses,
-            control_addresses,
             graph_filename: None,
             logging_level: log_level,
         }
@@ -63,16 +63,11 @@ impl Configuration {
         for addr in data_addrs.split(',') {
             data_addresses.push(addr.parse().expect("Unable to parse socket address"));
         }
-        let control_addrs = args.value_of("control-addresses").unwrap();
-        let mut control_addresses: Vec<SocketAddr> = Vec::new();
-        for addr in control_addrs.split(',') {
-            control_addresses.push(addr.parse().expect("Unable to parse socket address"));
-        }
-        assert_eq!(
-            data_addresses.len(),
-            control_addresses.len(),
-            "Each node must have 1 data address and 1 control address"
-        );
+        let leader_address: SocketAddr = args
+            .value_of("address")
+            .unwrap()
+            .parse()
+            .expect("Unable to parse the address of the Leader node.");
         let node_index = args
             .value_of("index")
             .unwrap()
@@ -99,8 +94,8 @@ impl Configuration {
         Self {
             index: node_index,
             num_threads,
+            leader_address,
             data_addresses,
-            control_addresses,
             graph_filename,
             logging_level: log_level,
         }

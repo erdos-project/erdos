@@ -267,7 +267,3 @@ pub fn new_app(name: &str) -> clap::App {
                 .help("Sets the level of verbosity"),
         )
 }
-
-pub fn init(leader_address: SocketAddr) -> Client {
-    Client::new(leader_address)
-}

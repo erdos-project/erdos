@@ -8,10 +8,7 @@ use erdos::{
 use futures::stream::StreamExt;
 use signal_hook::consts::SIGINT;
 use signal_hook_tokio::{Handle, Signals};
-use tokio::{
-    sync::broadcast::{self, Receiver, Sender},
-    task::JoinHandle,
-};
+use tokio::{sync::mpsc, task::JoinHandle};
 
 /// The return type to be used when setting up notification channels between
 /// the signal handlers and the main Node loop.
@@ -26,7 +23,7 @@ fn setup_notification_channels() -> Result<NotificationChannel, Box<dyn std::err
     let (driver_notification_tx, driver_notification_rx): (
         Sender<DriverNotification>,
         Receiver<DriverNotification>,
-    ) = broadcast::channel(100);
+    ) = mpsc::channel(100);
     let signals_task = tokio::spawn(async move {
         while let Some(signal) = signals.next().await {
             match signal {
@@ -115,6 +112,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // Run a WorkerNode.
             let mut worker_node = WorkerNode::new(
+                0,
                 leader_address,
                 worker_resources,
                 driver_notification_rx_channel,

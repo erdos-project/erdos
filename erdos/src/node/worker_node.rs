@@ -4,13 +4,13 @@ use std::net::SocketAddr;
 
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
-use tokio::{net::TcpStream, sync::broadcast::Receiver};
+use tokio::{net::TcpStream, sync::mpsc::Receiver};
 use tokio_util::codec::Framed;
 
-use crate::communication::{
-    CommunicationError, ControlPlaneCodec, DriverNotification, LeaderNotification, WorkerId,
+use crate::{communication::{
+    CommunicationError, ControlPlaneCodec, DriverNotification, LeaderNotification,
     WorkerNotification,
-};
+}, dataflow::graph::JobGraph};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Resources {
@@ -22,10 +22,14 @@ impl Resources {
     pub fn new(num_cpus: usize, num_gpus: usize) -> Self {
         Self { num_cpus, num_gpus }
     }
+
+    pub fn empty() -> Self {
+        Self { num_cpus: 0, num_gpus: 0}
+    }
 }
 
 pub struct WorkerNode {
-    worker_id: WorkerId,
+    worker_id: usize,
     leader_address: SocketAddr,
     resources: Resources,
     driver_notification_rx: Receiver<DriverNotification>,
@@ -33,12 +37,13 @@ pub struct WorkerNode {
 
 impl WorkerNode {
     pub fn new(
+        worker_id: usize,
         leader_address: SocketAddr,
         resources: Resources,
         driver_notification_rx: Receiver<DriverNotification>,
     ) -> Self {
         Self {
-            worker_id: WorkerId::new_v4(),
+            worker_id,
             leader_address,
             resources,
             driver_notification_rx,
@@ -54,6 +59,11 @@ impl WorkerNode {
             ControlPlaneCodec::<WorkerNotification, LeaderNotification>::default(),
         )
         .split();
+
+        // Initialize the JobGraph to be used for execution.
+        // TODO(Sukrit): This should be implemented a collection of JobGraphs
+        // that are concurrently being run by the Worker.
+        let mut execution_job_graph: JobGraph;
 
         // Communicate the ID of the Worker to the Leader.
         leader_tx
@@ -100,7 +110,7 @@ impl WorkerNode {
                 }
 
                 // Handle messages received from the Driver.
-                Ok(driver_notification) = self.driver_notification_rx.recv() => {
+                Some(driver_notification) = self.driver_notification_rx.recv() => {
                     match driver_notification {
                         DriverNotification::Shutdown => {
                             tracing::info!("The Worker {} is shutting down.", self.worker_id);
@@ -114,8 +124,11 @@ impl WorkerNode {
                             }
                             return Ok(());
                         }
-                        DriverNotification::SubmitGraph => {
-                            println!("The Worker {} received an abstract graph.", self.worker_id);
+                        DriverNotification::SubmitGraph(job_graph) => {
+                            // Save the JobGraph, and communicate an Abstract version of 
+                            // the graph to the Leader.
+                            println!("The Worker {} received the JobGraph.", self.worker_id);
+                            execution_job_graph = job_graph;
                             
                             if let Err(error) = leader_tx.send(WorkerNotification::SubmitGraph).await {
                                 tracing::error!(
@@ -132,7 +145,7 @@ impl WorkerNode {
         }
     }
 
-    pub(crate) fn get_id(&self) -> WorkerId {
+    pub(crate) fn get_id(&self) -> usize {
         self.worker_id.clone()
     }
 }
