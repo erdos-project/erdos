@@ -27,7 +27,7 @@ pub mod operator_executors;
 pub mod handles;
 
 // Crate-wide exports.
-pub(crate) use leader::LeaderNode;
+pub(crate) use leader::{LeaderNode, WorkerState};
 pub(crate) use worker_node::{Resources, WorkerNode};
 
 // Public exports

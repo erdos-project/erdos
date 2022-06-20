@@ -1,7 +1,15 @@
-use std::{time::Duration, thread};
+use std::{thread, time::Duration};
 
-use erdos::{node::handles::WorkerHandle, Configuration, dataflow::{operator::{Source, Sink}, WriteStream, Timestamp, Message, stream::WriteStreamT, context::SinkContext}, OperatorConfig};
-
+use erdos::{
+    dataflow::{
+        context::SinkContext,
+        operator::{Sink, Source},
+        stream::WriteStreamT,
+        Message, Timestamp, WriteStream,
+    },
+    node::handles::WorkerHandle,
+    Configuration, OperatorConfig,
+};
 
 struct SourceOperator {}
 
@@ -62,6 +70,23 @@ impl Sink<(), usize> for SinkOperator {
 
 fn main() {
     let args = erdos::new_app("ERDOS").get_matches();
-    let worker_handle = WorkerHandle::new(Configuration::from_args(&args));
-    loop {}
+    let configuration = Configuration::from_args(&args);
+    let worker_index = configuration.index;
+    let worker_handle = WorkerHandle::new(configuration);
+
+    // Construct the Graph.
+    let source_config = OperatorConfig::new().name("SourceOperator").node(0);
+    let source_stream = erdos::connect_source(SourceOperator::new, source_config);
+
+    let sink_config = OperatorConfig::new().name("SinkOperator").node(1);
+    erdos::connect_sink(SinkOperator::new, || {}, sink_config, &source_stream);
+
+    // Submit the Graph.
+    println!("The index of the Worker is {}", worker_index);
+    if worker_index == 0 {
+        println!("Submitting the JobGraph.");
+        let _ = worker_handle.submit();
+    }
+
+    loop { }
 }

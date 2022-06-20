@@ -145,11 +145,16 @@ impl WorkerHandle {
     // We should expose the `AbstractGraph` structure as a `GraphBuilder` and
     // consume that in the `submit` method to prevent the users from making
     // any further changes to it.
-    pub fn submit(&self) {
-        // Get the graph abstraction and submit it to the Worker.
+    pub fn submit(&self) -> Result<(), CommunicationError> {
+        tracing::trace!(
+            "WorkerHandle {} received a notification from the Driver to submit JobGraph.",
+            self.handle_id
+        );
+        
+        // Compile the JobGraph and send it to the Worker.
         let job_graph = (default_graph::clone()).compile();
-        let _ = self
-            .worker_handle
-            .send(DriverNotification::SubmitGraph(job_graph));
+        self.worker_handle
+            .blocking_send(DriverNotification::SubmitGraph(job_graph))
+            .map_err(|err| CommunicationError::from(err))
     }
 }

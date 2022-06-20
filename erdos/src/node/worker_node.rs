@@ -133,9 +133,10 @@ impl WorkerNode {
                         DriverNotification::SubmitGraph(job_graph) => {
                             // Save the JobGraph, and communicate an Abstract version of
                             // the graph to the Leader.
-                            println!("The Worker {} received the JobGraph.", self.worker_id);
+                            tracing::debug!("The Worker {} received the JobGraph.", self.worker_id);
+                            execution_job_graph = job_graph;
 
-                            if let Err(error) = leader_tx.send(WorkerNotification::SubmitGraph(job_graph.into())).await {
+                            if let Err(error) = leader_tx.send(WorkerNotification::SubmitGraph(execution_job_graph.into())).await {
                                 tracing::error!(
                                     "Worker {} received an error when sending Abstract Graph message \
                                     to Leader: {:?}",
