@@ -3,10 +3,7 @@ use std::{collections::HashMap, net::SocketAddr};
 use futures::{future, SinkExt, StreamExt};
 use tokio::{
     net::{TcpListener, TcpStream},
-    sync::{
-        broadcast::{self, Receiver},
-        mpsc::{self, UnboundedSender},
-    },
+    sync::{mpsc::{self, Receiver, UnboundedSender}, broadcast},
     task::JoinHandle,
 };
 use tokio_util::codec::Framed;
@@ -42,7 +39,7 @@ impl WorkerState {
     }
 }
 
-pub struct LeaderNode {
+pub(crate) struct LeaderNode {
     /// The address that the LeaderNode binds to.
     address: SocketAddr,
     /// A Receiver corresponding to a channel between the Driver and the Leader.
@@ -99,12 +96,12 @@ impl LeaderNode {
                 }
 
                 // Handle new messages from the drivers.
-                driver_notification = self.driver_notification_rx.recv() => {
+                Some(driver_notification) = self.driver_notification_rx.recv() => {
                     match driver_notification {
-                        Ok(DriverNotification::Shutdown) => {
+                        DriverNotification::Shutdown => {
                             // Ask all Workers to shutdown.
                             tracing::trace!(
-                                "Leader received a Shutdown notification from the driver.\
+                                "Leader received a Shutdown notification from the driver. \
                                 Requesting all the Workers to shutdown."
                             );
                             if let Err(error) =
@@ -120,15 +117,7 @@ impl LeaderNode {
                             tracing::info!("Leader is shutting down!");
                             return Ok(());
                         }
-                        Ok(_) => {}
-                        Err(error) => {
-                            // TODO (Sukrit) :: What should happen when the connection to
-                            // the driver is lost?
-                            tracing::error!(
-                                "Leader received an error from the driver: {}",
-                                error
-                            );
-                        },
+                        _ => {}
                     }
                 }
 
@@ -154,7 +143,7 @@ impl LeaderNode {
     async fn handle_worker(
         worker_stream: TcpStream,
         channel_to_leader: UnboundedSender<InterThreadMessage>,
-        mut channel_from_leader: Receiver<InterThreadMessage>,
+        mut channel_from_leader: broadcast::Receiver<InterThreadMessage>,
     ) {
         let (mut worker_tx, mut worker_rx) = Framed::new(
             worker_stream,
@@ -188,7 +177,7 @@ impl LeaderNode {
                                 id_of_this_worker
                             );
                         }
-                        WorkerNotification::SubmitGraph => {
+                        WorkerNotification::SubmitGraph(job_graph) => {
                             tracing::trace!(
                                 "Leader received graph from Worker with ID: {}.",
                                 id_of_this_worker

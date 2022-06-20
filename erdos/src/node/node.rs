@@ -415,7 +415,7 @@ impl Node {
         let num_nodes = self.config.data_addresses.len();
         // Create TCPStreams between all node pairs.
         let control_streams =
-            communication::create_tcp_streams(self.config.control_addresses.clone(), self.id).await;
+            communication::create_tcp_streams(Vec::new(), self.id).await;
         let data_streams =
             communication::create_tcp_streams(self.config.data_addresses.clone(), self.id).await;
         let (control_senders, control_receivers) =

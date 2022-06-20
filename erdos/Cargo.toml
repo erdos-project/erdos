@@ -42,3 +42,7 @@ uuid = { version = "0.7", features = ["v4", "v5", "serde"] }
 [features]
 default = []
 ros = ["rosrust"] # Add ROS operator support with 'cargo build --features=ros
+
+[[bin]]
+name = "erdos"
+path = "src/bin/erdos.rs"

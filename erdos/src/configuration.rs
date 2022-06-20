@@ -73,10 +73,10 @@ impl Configuration {
             .unwrap()
             .parse()
             .expect("Unable to parse node index");
-        assert!(
-            node_index < data_addresses.len(),
-            "Node index is larger than number of available nodes"
-        );
+        // assert!(
+        //     node_index < data_addresses.len(),
+        //     "Node index is larger than number of available nodes"
+        // );
         let graph_filename_arg = args.value_of("graph-filename").unwrap();
         let graph_filename = if graph_filename_arg.is_empty() {
             None

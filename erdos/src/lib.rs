@@ -131,11 +131,14 @@
 #![feature(specialization)]
 #![feature(box_into_pin)]
 
-use node::{Client, Resources, WorkerNode};
+use communication::DriverNotification;
+use futures::StreamExt;
+use node::handles::LeaderHandle;
+use signal_hook_tokio::{Handle, Signals};
 // Re-exports of libraries used in macros.
 #[doc(hidden)]
 pub use ::tokio;
-use tokio::sync::broadcast;
+use tokio::{sync::mpsc, task::JoinHandle};
 
 // Libraries used in this file.
 use std::{cell::RefCell, fmt, net::SocketAddr};
@@ -238,11 +241,11 @@ pub fn new_app(name: &str) -> clap::App {
                 .help("Comma separated list of data socket addresses of all nodes"),
         )
         .arg(
-            Arg::with_name("control-addresses")
-                .short("c")
-                .long("control-addresses")
-                .default_value("127.0.0.1:9000")
-                .help("Comma separated list of control socket addresses of all nodes"),
+            Arg::with_name("address")
+                .short("l")
+                .long("address")
+                .default_value("0.0.0.0:4444")
+                .help("Address of the Leader node."),
         )
         .arg(
             Arg::with_name("index")
@@ -266,4 +269,8 @@ pub fn new_app(name: &str) -> clap::App {
                 .takes_value(false)
                 .help("Sets the level of verbosity"),
         )
+}
+
+pub fn start_leader(leader_address: SocketAddr) -> LeaderHandle {
+    LeaderHandle::new(leader_address, Some(tracing::Level::TRACE))
 }

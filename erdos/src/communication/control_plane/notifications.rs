@@ -1,9 +1,13 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{dataflow::graph::{InternalGraph, JobGraph}, node::Resources, OperatorId};
+use crate::{
+    dataflow::graph::{InternalGraph, JobGraph},
+    node::Resources,
+    OperatorId,
+};
 
 #[derive(Debug, Clone)]
-pub enum DriverNotification {
+pub(crate) enum DriverNotification {
     SubmitGraph(JobGraph),
     Shutdown,
 }
@@ -12,7 +16,7 @@ pub enum DriverNotification {
 /// [`WorkerNode`](crate::node::WorkerNode) can send to a
 /// [`LeaderNode`](crate::node::LeaderNode).
 #[derive(Debug, Serialize, Deserialize)]
-pub enum WorkerNotification {
+pub(crate) enum WorkerNotification {
     Initialized(usize, Resources),
     OperatorReady(OperatorId),
     SubmitGraph(InternalGraph),
@@ -23,7 +27,7 @@ pub enum WorkerNotification {
 /// [`LeaderNode`](crate::node::LeaderNode) can send to a
 /// [`WorkerNode`](crate::node::WorkerNode).
 #[derive(Debug, Serialize, Deserialize)]
-pub enum LeaderNotification {
+pub(crate) enum LeaderNotification {
     ScheduleOperator(OperatorId),
     Shutdown,
 }

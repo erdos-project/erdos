@@ -43,12 +43,12 @@ pub(crate) use pusher::{Pusher, PusherT};
 
 // Crate-wide exports
 pub(crate) use endpoints::{RecvEndpoint, SendEndpoint};
+pub(crate) use control_plane::notifications::{
+    DriverNotification, LeaderNotification, WorkerNotification,
+};
 
 // Public Exports
 pub use control_plane::codec::ControlPlaneCodec;
-pub use control_plane::notifications::{
-    DriverNotification, LeaderNotification, WorkerNotification,
-};
 
 /// Message sent between nodes in order to coordinate node and operator initialization.
 #[derive(Debug, Clone, Serialize, Deserialize)]

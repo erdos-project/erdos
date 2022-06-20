@@ -202,9 +202,9 @@ impl JobGraph {
 impl fmt::Debug for JobGraph {
     // Outputs an adjacency list representation of the JobGraph.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let adjacency_list = HashMap::new();
+        let mut adjacency_list = HashMap::new();
         for operator in self.operators.values() {
-            let dependents = Vec::new();
+            let mut dependents = Vec::new();
             for write_stream_id in operator.write_streams.iter() {
                 if let Some(write_stream_destinations) = self.stream_destinations.get(write_stream_id) {
                     for dependent_job in write_stream_destinations {
