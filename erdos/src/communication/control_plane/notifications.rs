@@ -19,7 +19,7 @@ pub(crate) enum DriverNotification {
 pub(crate) enum WorkerNotification {
     Initialized(usize, Resources),
     OperatorReady(OperatorId),
-    SubmitGraph(InternalGraph),
+    SubmitGraph(String, InternalGraph),
     Shutdown,
 }
 

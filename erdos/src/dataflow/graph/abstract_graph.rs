@@ -1,4 +1,4 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 use serde::Deserialize;
 
@@ -19,6 +19,8 @@ use super::{
 ///
 /// The abstract graph is compiled into a [`JobGraph`], which ERDOS schedules and executes.
 pub struct AbstractGraph {
+    /// The name of this AbstractGraph.
+    name: String,
     /// Collection of operators.
     operators: HashMap<OperatorId, AbstractOperator>,
     /// A mapping from the OperatorId to the OperatorRunner.
@@ -34,8 +36,9 @@ pub struct AbstractGraph {
 }
 
 impl AbstractGraph {
-    pub fn new() -> Self {
+    pub fn new(name: String) -> Self {
         Self {
+            name,
             operators: HashMap::new(),
             operator_runners: HashMap::new(),
             streams: HashMap::new(),
@@ -241,6 +244,7 @@ impl AbstractGraph {
         }
 
         JobGraph::new(
+            self.name.clone(),
             operators,
             operator_runners,
             streams,
@@ -274,6 +278,7 @@ impl Clone for AbstractGraph {
         }
 
         Self {
+            name: self.name.clone(),
             operators: self.operators.clone(),
             operator_runners,
             streams,

@@ -220,7 +220,9 @@ pub fn reset() {
     RNG.with(|rng| {
         *rng.borrow_mut() = StdRng::from_seed(&[1913, 3, 26]);
     });
-    dataflow::graph::default_graph::set(dataflow::graph::AbstractGraph::new());
+    dataflow::graph::default_graph::set(dataflow::graph::AbstractGraph::new(
+        "DefaultGraph".to_string(),
+    ));
 }
 
 /// Defines command line arguments for running a multi-node ERDOS application.

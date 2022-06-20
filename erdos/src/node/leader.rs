@@ -27,7 +27,7 @@ use crate::{
 #[derive(Debug, Clone)]
 enum InterThreadMessage {
     WorkerInitialized(usize, Resources),
-    ScheduleJobGraph(InternalGraph),
+    ScheduleJobGraph(String, InternalGraph),
     ScheduleOperator(OperatorId, usize),
     Shutdown(usize),
     ShutdownAllWorkers,
@@ -151,12 +151,12 @@ impl LeaderNode {
                 self.worker_id_to_worker_state
                     .insert(worker_id, WorkerState::new(worker_id, worker_resources));
             }
-            InterThreadMessage::ScheduleJobGraph(abstract_job_graph) => {
+            InterThreadMessage::ScheduleJobGraph(job_name, job_graph) => {
                 // Invoke the Scheduler to retrieve the placements for this JobGraph.
                 let workers = self.worker_id_to_worker_state.values().cloned().collect();
                 let placements = self
                     .job_graph_scheduler
-                    .schedule_graph(&abstract_job_graph, &workers);
+                    .schedule_graph(&job_graph, &workers);
 
                 // Broadcast the ScheduleOperator message for the placed operators.
                 for (operator_id, worker_id) in placements.iter() {
@@ -212,13 +212,13 @@ impl LeaderNode {
                                 id_of_this_worker
                             );
                         }
-                        WorkerNotification::SubmitGraph(abstract_job_graph) => {
+                        WorkerNotification::SubmitGraph(job_name, job_graph) => {
                             tracing::trace!(
                                 "Leader received graph from Worker with ID: {}.",
                                 id_of_this_worker
                             );
                             let _ = channel_to_leader.send(
-                                InterThreadMessage::ScheduleJobGraph(abstract_job_graph)
+                                InterThreadMessage::ScheduleJobGraph(job_name, job_graph)
                             );
                         }
                         WorkerNotification::Shutdown => {

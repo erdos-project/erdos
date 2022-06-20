@@ -1,6 +1,6 @@
 // TODO(Sukrit): Rename this to worker.rs once the merge is complete.
 
-use std::net::SocketAddr;
+use std::{net::SocketAddr, collections::HashMap};
 
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -12,7 +12,7 @@ use crate::{
         CommunicationError, ControlPlaneCodec, DriverNotification, LeaderNotification,
         WorkerNotification,
     },
-    dataflow::graph::JobGraph,
+    dataflow::graph::{JobGraph, InternalGraph},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,6 +39,7 @@ pub(crate) struct WorkerNode {
     leader_address: SocketAddr,
     resources: Resources,
     driver_notification_rx: Receiver<DriverNotification>,
+    job_graphs: HashMap<String, JobGraph>,
 }
 
 impl WorkerNode {
@@ -53,6 +54,7 @@ impl WorkerNode {
             leader_address,
             resources,
             driver_notification_rx,
+            job_graphs: HashMap::new(),
         }
     }
 
@@ -65,11 +67,6 @@ impl WorkerNode {
             ControlPlaneCodec::<WorkerNotification, LeaderNotification>::default(),
         )
         .split();
-
-        // Initialize the JobGraph to be used for execution.
-        // TODO(Sukrit): This should be implemented a collection of JobGraphs
-        // that are concurrently being run by the Worker.
-        let mut execution_job_graph: JobGraph;
 
         // Communicate the ID of the Worker to the Leader.
         leader_tx
@@ -134,9 +131,13 @@ impl WorkerNode {
                             // Save the JobGraph, and communicate an Abstract version of
                             // the graph to the Leader.
                             tracing::debug!("The Worker {} received the JobGraph.", self.worker_id);
-                            execution_job_graph = job_graph;
+                            let job_name = job_graph.get_name().to_string();
+                            let internal_graph: InternalGraph = job_graph.clone().into();
+                            self.job_graphs.insert(job_name.clone(), job_graph);
 
-                            if let Err(error) = leader_tx.send(WorkerNotification::SubmitGraph(execution_job_graph.into())).await {
+                            if let Err(error) = leader_tx.send(
+                                WorkerNotification::SubmitGraph(job_name, internal_graph)
+                            ).await {
                                 tracing::error!(
                                     "Worker {} received an error when sending Abstract Graph message \
                                     to Leader: {:?}",

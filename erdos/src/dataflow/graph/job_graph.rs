@@ -14,6 +14,8 @@ use super::{
 // Graph abstraction is exposed to the developers as GraphBuilder.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct InternalGraph {
+    /// The name of the JobGraph that this graph is a representation of.
+    name: String,
     /// The mapping of all the operators in the Graph from their ID to
     /// their [`AbstractOperator`] representation.
     operators: HashMap<OperatorId, AbstractOperator>,
@@ -26,6 +28,10 @@ pub(crate) struct InternalGraph {
 }
 
 impl InternalGraph {
+    pub(crate) fn get_name(&self) -> &str {
+        &self.name
+    }
+
     pub(crate) fn get_operators(&self) -> &HashMap<OperatorId, AbstractOperator> {
         &self.operators
     }
@@ -34,6 +40,7 @@ impl InternalGraph {
 impl From<JobGraph> for InternalGraph {
     fn from(job_graph: JobGraph) -> Self {
         Self {
+            name: job_graph.name.clone(),
             operators: job_graph.operators.clone(),
             stream_sources: job_graph.stream_sources.clone(),
             stream_destinations: job_graph.stream_destinations.clone(),
@@ -43,6 +50,7 @@ impl From<JobGraph> for InternalGraph {
 
 #[derive(Clone)]
 pub(crate) struct JobGraph {
+    name: String,
     operators: HashMap<OperatorId, AbstractOperator>,
     operator_runners: HashMap<OperatorId, Box<dyn OperatorRunner>>,
     streams: HashMap<StreamId, Box<dyn AbstractStreamT>>,
@@ -53,6 +61,7 @@ pub(crate) struct JobGraph {
 
 impl JobGraph {
     pub(crate) fn new(
+        name: String,
         operators: HashMap<OperatorId, AbstractOperator>,
         operator_runners: HashMap<OperatorId, Box<dyn OperatorRunner>>,
         streams: Vec<Box<dyn AbstractStreamT>>,
@@ -96,6 +105,7 @@ impl JobGraph {
         }
 
         Self {
+            name,
             operators,
             operator_runners,
             // Convert to a HashMap to easily query streams.
@@ -106,9 +116,19 @@ impl JobGraph {
         }
     }
 
+    /// Retreives the name of the JobGraph.
+    pub(crate) fn get_name(&self) -> &str {
+        &self.name
+    }
+
     /// Returns a copy of the operators in the graph.
     pub fn operators(&self) -> Vec<AbstractOperator> {
         self.operators.values().cloned().collect()
+    }
+
+    /// Retrieve the [`AbstractOperator`] for the given ID.
+    pub(crate) fn get_operator(&self, operator_id: &OperatorId) -> Option<AbstractOperator> {
+        self.operators.get(operator_id).map(|operator| operator.clone())
     }
 
     /// Retrieve the execution function for a particular operator in the graph.

@@ -16,10 +16,11 @@ use crate::{
     OperatorConfig,
 };
 
-use super::{AbstractGraph, OperatorRunner, StreamSetupHook, AbstractOperatorType};
+use super::{AbstractGraph, AbstractOperatorType, OperatorRunner, StreamSetupHook};
 
 // TODO: Don't require a mutex over the entire graph, as this can call deadlocks.
-static DEFAULT_GRAPH: Lazy<Mutex<AbstractGraph>> = Lazy::new(|| Mutex::new(AbstractGraph::new()));
+static DEFAULT_GRAPH: Lazy<Mutex<AbstractGraph>> =
+    Lazy::new(|| Mutex::new(AbstractGraph::new("DefaultGraph".to_string())));
 
 /// Adds an operator to the default graph.
 ///
