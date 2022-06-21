@@ -39,20 +39,16 @@ impl DataSender {
     pub(crate) async fn new(
         node_id: NodeId,
         sink: SplitSink<Framed<TcpStream, MessageCodec>, InterProcessMessage>,
-        channels_to_senders: Arc<Mutex<ChannelsToSenders>>,
+        sender_control_rx: UnboundedReceiver<InterProcessMessage>,
         control_handler: &mut ControlMessageHandler,
     ) -> Self {
-        // Create a channel for this stream.
-        let (tx, rx) = mpsc::unbounded_channel();
-        // Add entry in the shared state map.
-        channels_to_senders.lock().await.add_sender(node_id, tx);
         // Set up control channel.
         let (control_tx, control_rx) = mpsc::unbounded_channel();
         control_handler.add_channel_to_data_sender(node_id, control_tx);
         Self {
             node_id,
             sink,
-            rx,
+            rx: sender_control_rx,
             control_tx: control_handler.get_channel_to_handler(),
             control_rx,
         }

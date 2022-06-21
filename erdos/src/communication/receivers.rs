@@ -44,20 +44,16 @@ impl DataReceiver {
     pub(crate) async fn new(
         node_id: NodeId,
         stream: SplitStream<Framed<TcpStream, MessageCodec>>,
-        channels_to_receivers: Arc<Mutex<ChannelsToReceivers>>,
+        receiver_control_rx: UnboundedReceiver<(StreamId, Box<dyn PusherT>)>,
         control_handler: &mut ControlMessageHandler,
     ) -> Self {
-        // Create a channel for this stream.
-        let (tx, rx) = mpsc::unbounded_channel();
-        // Add entry in the shared state vector.
-        channels_to_receivers.lock().await.add_sender(tx);
         // Set up control channel.
         let (control_tx, control_rx) = mpsc::unbounded_channel();
         control_handler.add_channel_to_data_receiver(node_id, control_tx);
         Self {
             node_id,
             stream,
-            rx,
+            rx: receiver_control_rx,
             stream_id_to_pusher: HashMap::new(),
             control_tx: control_handler.get_channel_to_handler(),
             control_rx,

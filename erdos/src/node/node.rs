@@ -1,4 +1,8 @@
-use std::{collections::HashSet, sync::Arc, thread};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+    thread,
+};
 
 use futures_util::stream::StreamExt;
 use tokio::{
@@ -174,16 +178,36 @@ impl Node {
     ) -> (Vec<DataSender>, Vec<DataReceiver>) {
         let mut sink_halves = Vec::new();
         let mut stream_halves = Vec::new();
-        while let Some((node_id, stream)) = streams.pop() {
+
+        // Create channels to the Sender and the Receiver
+        let mut data_receiver_control_rx = HashMap::with_capacity(streams.len());
+        let mut data_sender_control_rx = HashMap::with_capacity(streams.len());
+        {
+            let mut channels_to_receivers = self.channels_to_receivers.lock().await;
+            let mut channels_to_senders = self.channels_to_senders.lock().await;
+
+            for (node_id, _) in streams.iter() {
+                let (receiver_control_tx, receiver_control_rx) = mpsc::unbounded_channel();
+                channels_to_receivers.add_sender(receiver_control_tx);
+                data_receiver_control_rx.insert(*node_id, receiver_control_rx);
+
+                let (sender_control_tx, sender_control_rx) = mpsc::unbounded_channel();
+                channels_to_senders.add_sender(*node_id, sender_control_tx);
+                data_sender_control_rx.insert(*node_id, sender_control_rx);
+            }
+        }
+
+        for (node_id, stream) in streams {
             // Use the message codec to divide the TCP stream data into messages.
             let framed = Framed::new(stream, MessageCodec::new());
             let (split_sink, split_stream) = framed.split();
+
             // Create an ERDOS receiver for the stream half.
             stream_halves.push(
                 DataReceiver::new(
                     node_id,
                     split_stream,
-                    self.channels_to_receivers.clone(),
+                    data_receiver_control_rx.remove(&node_id).unwrap(),
                     &mut self.control_handler,
                 )
                 .await,
@@ -194,7 +218,7 @@ impl Node {
                 DataSender::new(
                     node_id,
                     split_sink,
-                    self.channels_to_senders.clone(),
+                    data_sender_control_rx.remove(&node_id).unwrap(),
                     &mut self.control_handler,
                 )
                 .await,
@@ -414,8 +438,7 @@ impl Node {
         // Assign values used later to avoid lifetime errors.
         let num_nodes = self.config.data_addresses.len();
         // Create TCPStreams between all node pairs.
-        let control_streams =
-            communication::create_tcp_streams(Vec::new(), self.id).await;
+        let control_streams = communication::create_tcp_streams(Vec::new(), self.id).await;
         let data_streams =
             communication::create_tcp_streams(self.config.data_addresses.clone(), self.id).await;
         let (control_senders, control_receivers) =
