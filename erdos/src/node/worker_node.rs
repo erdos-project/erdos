@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, net::SocketAddr};
 
-use futures::{SinkExt, StreamExt};
+use futures::{stream::SplitSink, SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::{net::TcpStream, sync::mpsc::Receiver};
 use tokio_util::codec::Framed;
@@ -82,56 +82,18 @@ impl WorkerNode {
                     match msg_from_leader {
                         Ok(msg_from_leader) => {
                             match msg_from_leader {
-                                LeaderNotification::ScheduleOperator(job_name, operator_id) => {
-                                    if let Some(job_graph) = self.job_graphs.get(&job_name) {
-                                        if let Some(operator) =
-                                            job_graph.get_operator(&operator_id)
-                                        {
-                                            tracing::debug!(
-                                                "The Worker with ID: {:?} received operator \
-                                                {} with ID: {:?}.",
-                                                self.worker_id,
-                                                operator.config.name.unwrap_or(
-                                                    "UnnamedOperator".to_string()
-                                                ),
-                                                operator_id
-                                            );
-                                            // TODO: Handle Operator
-                                            let _ = leader_tx.send(
-                                                WorkerNotification::OperatorReady(
-                                                    job_name,
-                                                    operator_id,
-                                                )
-                                            ).await?;
-                                        } else {
-                                            tracing::error!(
-                                                "The Operator with ID: {} was not found in \
-                                                JobGraph {}",
-                                                operator_id,
-                                                job_name
-                                            );
-                                        }
-                                    } else {
-                                        tracing::error!(
-                                            "The JobGraph {} was not registered on the Worker {}",
-                                            job_name,
-                                            self.worker_id
-                                        );
-                                    }
-                                }
-                                LeaderNotification::ExecuteGraph(job_name) => {
-                                    tracing::debug!(
-                                        "The Worker with ID {} is executing JobGraph {}",
-                                        self.worker_id,
-                                        job_name,
-                                    );
-                                }
                                 LeaderNotification::Shutdown => {
                                     tracing::debug!(
                                         "The Worker with ID: {} is shutting down.",
                                         self.worker_id
                                     );
                                     return Ok(());
+                                }
+                                _ => {
+                                    self.handle_leader_messages(
+                                        msg_from_leader,
+                                        &mut leader_tx
+                                    ).await;
                                 }
                             }
                         }
@@ -160,38 +122,129 @@ impl WorkerNode {
                             }
                             return Ok(());
                         }
-                        DriverNotification::RegisterGraph(job_graph) => {
-                            // Save the JobGraph.
-                            let job_graph_name = job_graph.get_name().clone().to_string();
-                            tracing::debug!("The Worker {} received the JobGraph {}.", self.worker_id, job_graph_name);
-                            self.job_graphs.insert(job_graph_name, job_graph);
-                        }
-                        DriverNotification::SubmitGraph(job_graph_name) => {
-                            // Retrieve the JobGraph and communicate an Abstract version
-                            // of the graph to the Leader.
-                            if let Some(job_graph) = self.job_graphs.get(&job_graph_name) {
-                                let internal_graph = job_graph.clone().into();
-                                if let Err(error) = leader_tx.send(
-                                    WorkerNotification::SubmitGraph(job_graph_name.clone(), internal_graph)
-                                ).await {
-                                    tracing::error!(
-                                        "Worker {} received an error when sending Abstract \
-                                        Graph message to Leader: {:?}",
-                                        self.worker_id,
-                                        error
-                                    );
-                                };
-                            } else {
-                                tracing::error!(
-                                    "Worker {} found no JobGraph with name {}",
-                                    self.worker_id,
-                                    job_graph_name,
-                                )
-                            }
-                        }
+                        _ => self.handle_driver_messages(driver_notification, &mut leader_tx).await,
                     }
                 }
             }
+        }
+    }
+
+    async fn handle_leader_messages(
+        &mut self,
+        msg_from_leader: LeaderNotification,
+        leader_tx: &mut SplitSink<
+            Framed<TcpStream, ControlPlaneCodec<WorkerNotification, LeaderNotification>>,
+            WorkerNotification,
+        >,
+    ) {
+        match msg_from_leader {
+            LeaderNotification::ScheduleOperator(job_name, operator_id) => {
+                if let Some(job_graph) = self.job_graphs.get(&job_name) {
+                    if let Some(operator) = job_graph.get_operator(&operator_id) {
+                        tracing::debug!(
+                            "The Worker with ID: {:?} received operator \
+                                                {} with ID: {:?}.",
+                            self.worker_id,
+                            operator
+                                .config
+                                .name
+                                .unwrap_or("UnnamedOperator".to_string()),
+                            operator_id
+                        );
+                        // TODO: Handle Operator
+                        if let Err(error) = leader_tx
+                            .send(WorkerNotification::OperatorReady(
+                                job_name.clone(),
+                                operator_id,
+                            ))
+                            .await
+                        {
+                            tracing::error!(
+                                "The Worker with ID: {:?} could not communicate the Ready \
+                                status of the Operator {} from the Job {} to the Leader. \
+                                Received error {:?}",
+                                self.worker_id,
+                                operator_id,
+                                job_name,
+                                error,
+                            )
+                        }
+                    } else {
+                        tracing::error!(
+                            "The Operator with ID: {} was not found in \
+                                                JobGraph {}",
+                            operator_id,
+                            job_name
+                        );
+                    }
+                } else {
+                    tracing::error!(
+                        "The JobGraph {} was not registered on the Worker {}",
+                        job_name,
+                        self.worker_id
+                    );
+                }
+            }
+            LeaderNotification::ExecuteGraph(job_name) => {
+                tracing::debug!(
+                    "The Worker with ID {} is executing JobGraph {}",
+                    self.worker_id,
+                    job_name,
+                );
+            }
+            // The shutdown arm is unreachable, because it should be handled in the main loop.
+            LeaderNotification::Shutdown => unreachable!(),
+        }
+    }
+
+    async fn handle_driver_messages(
+        &mut self,
+        driver_notification: DriverNotification,
+        leader_tx: &mut SplitSink<
+            Framed<TcpStream, ControlPlaneCodec<WorkerNotification, LeaderNotification>>,
+            WorkerNotification,
+        >,
+    ) {
+        match driver_notification {
+            DriverNotification::RegisterGraph(job_graph) => {
+                // Save the JobGraph.
+                let job_graph_name = job_graph.get_name().clone().to_string();
+                tracing::debug!(
+                    "The Worker {} received the JobGraph {}.",
+                    self.worker_id,
+                    job_graph_name
+                );
+                self.job_graphs.insert(job_graph_name, job_graph);
+            }
+            DriverNotification::SubmitGraph(job_graph_name) => {
+                // Retrieve the JobGraph and communicate an Abstract version
+                // of the graph to the Leader.
+                if let Some(job_graph) = self.job_graphs.get(&job_graph_name) {
+                    let internal_graph = job_graph.clone().into();
+                    if let Err(error) = leader_tx
+                        .send(WorkerNotification::SubmitGraph(
+                            job_graph_name.clone(),
+                            internal_graph,
+                        ))
+                        .await
+                    {
+                        tracing::error!(
+                            "Worker {} received an error when sending Abstract \
+                                    Graph message to Leader: {:?}",
+                            self.worker_id,
+                            error
+                        );
+                    };
+                } else {
+                    tracing::error!(
+                        "Worker {} found no JobGraph with name {}",
+                        self.worker_id,
+                        job_graph_name,
+                    )
+                }
+            }
+            // The shutdown arm is unreachable, because it should be handled in the main loop.
+            DriverNotification::Shutdown => unreachable!(),
         }
     }
 
