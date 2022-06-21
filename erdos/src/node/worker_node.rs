@@ -15,7 +15,7 @@ use crate::{
         CommunicationError, ControlPlaneCodec, DriverNotification, LeaderNotification,
         WorkerNotification,
     },
-    dataflow::graph::{InternalGraph, JobGraph},
+    dataflow::graph::JobGraph,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -184,6 +184,32 @@ impl WorkerNode {
                                 .unwrap_or("UnnamedOperator".to_string()),
                             operator_id
                         );
+
+                        // Connect to the addresses that send data to this Operator.
+                        for (worker_id, worker_address) in source_worker_addresses {
+                            // TODO (Sukrit): Check if we already have a connection.
+                            match TcpStream::connect(worker_address).await {
+                                Ok(worker_connection) => {
+                                    tracing::debug!(
+                                        "[Worker {}] Successfully connected to Worker {} at \
+                                                                            address {}.",
+                                        self.worker_id,
+                                        worker_id,
+                                        worker_address,
+                                    )
+                                }
+                                Err(error) => {
+                                    tracing::error!(
+                                        "[Worker {}] Received an error when connecting to Worker \
+                                                                    {} at address {}: {:?}",
+                                        self.worker_id,
+                                        worker_id,
+                                        worker_address,
+                                        error,
+                                    )
+                                }
+                            }
+                        }
 
                         // TODO: Handle Operator
                         if let Err(error) = leader_tx

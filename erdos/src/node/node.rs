@@ -174,7 +174,7 @@ impl Node {
     /// Splits a vector of TCPStreams into `DataSender`s and `DataReceiver`s.
     async fn split_data_streams(
         &mut self,
-        mut streams: Vec<(NodeId, TcpStream)>,
+        streams: Vec<(NodeId, TcpStream)>,
     ) -> (Vec<DataSender>, Vec<DataReceiver>) {
         let mut sink_halves = Vec::new();
         let mut stream_halves = Vec::new();
