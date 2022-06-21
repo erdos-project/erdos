@@ -16,7 +16,7 @@ use crate::{
         CommunicationError, ControlPlaneCodec, DriverNotification, LeaderNotification,
         WorkerNotification,
     },
-    dataflow::graph::InternalGraph,
+    dataflow::graph::{InternalGraph, Job},
     node::Resources,
     scheduler::{JobGraphScheduler, SimpleJobGraphScheduler},
     OperatorId,
@@ -28,7 +28,7 @@ use crate::{
 enum InterThreadMessage {
     WorkerInitialized(WorkerState),
     ScheduleJobGraph(String, InternalGraph),
-    ScheduleOperator(String, OperatorId, usize),
+    ScheduleOperator(String, OperatorId, usize, HashMap<usize, SocketAddr>),
     OperatorReady(String, OperatorId),
     ExecuteGraph(String),
     Shutdown(usize),
@@ -87,15 +87,15 @@ impl LeaderNode {
     }
 
     pub async fn run(&mut self) -> Result<(), CommunicationError> {
-        let leader_listener = TcpListener::bind(self.address).await?;
+        let leader_tcp_listener = TcpListener::bind(self.address).await?;
         let (workers_to_leader_tx, mut workers_to_leader_rx) = mpsc::unbounded_channel();
         let (leader_to_workers_tx, _) = broadcast::channel(100);
 
         loop {
             tokio::select! {
-               // Handle new Worker connections.
-                listener_result = leader_listener.accept() => {
-                    match listener_result {
+                // Handle new Worker connections.
+                worker_connection = leader_tcp_listener.accept() => {
+                    match worker_connection {
                         Ok((worker_stream, worker_address)) => {
                             // Create channels between Worker handler and Leader.
                             // Spawn a task to handle the Worker connection.
@@ -179,10 +179,40 @@ impl LeaderNode {
                 // been initialized or not.
                 let mut operator_status = HashMap::new();
                 for (operator_id, worker_id) in placements.iter() {
+                    // For all the sources of the Streams for this operator, let the Worker
+                    // know the address of the Workers executing them.
+                    let operator = job_graph.get_operator(operator_id).unwrap();
+                    let mut source_worker_addresses = HashMap::new();
+                    for read_stream_id in &operator.read_streams {
+                        match job_graph.get_source_operator(read_stream_id) {
+                            Some(job) => {
+                                match job {
+                                    Job::Operator(source_operator_id) => {
+                                        let source_worker_id =
+                                            placements.get(&source_operator_id).unwrap();
+                                        if source_worker_id != worker_id {
+                                            // If the Source of the Stream is not on the same
+                                            // Worker, then communicate the address of the Source.
+                                            let source_worker_address = self
+                                                .worker_id_to_worker_state
+                                                .get(source_worker_id)
+                                                .unwrap()
+                                                .address;
+                                            source_worker_addresses
+                                                .insert(*source_worker_id, source_worker_address);
+                                        }
+                                    }
+                                    Job::Driver => todo!(),
+                                }
+                            }
+                            None => unreachable!(),
+                        }
+                    }
                     let _ = leader_to_workers_tx.send(InterThreadMessage::ScheduleOperator(
                         job_name.clone(),
                         operator_id.clone(),
                         *worker_id,
+                        source_worker_addresses,
                     ));
                     operator_status.insert(operator_id.clone(), OperatorState::NotReady);
                 }
@@ -303,7 +333,12 @@ impl LeaderNode {
                 // Communicate messages received from the Leader to the Worker.
                 Ok(msg_from_leader) = channel_from_leader.recv() => {
                     match msg_from_leader {
-                        InterThreadMessage::ScheduleOperator(job_name, operator_id, worker_id) => {
+                        InterThreadMessage::ScheduleOperator(
+                            job_name,
+                            operator_id,
+                            worker_id,
+                            source_worker_addresses,
+                        ) => {
                             // The Leader assigns an operator to a worker.
                             if id_of_this_worker == worker_id {
                                 tracing::debug!(
@@ -311,14 +346,20 @@ impl LeaderNode {
                                     operator_id,
                                     worker_id,
                                 );
-                                let _ = worker_tx.send(
-                                    LeaderNotification::ScheduleOperator(job_name, operator_id)
-                                ).await;
+                                let _ = worker_tx
+                                    .send(LeaderNotification::ScheduleOperator(
+                                        job_name,
+                                        operator_id,
+                                        source_worker_addresses,
+                                    ))
+                                    .await;
                             }
                         }
                         InterThreadMessage::ExecuteGraph(job_name) => {
                             // Tell the Worker to execute the operators for this graph.
-                            let _ = worker_tx.send(LeaderNotification::ExecuteGraph(job_name.clone())).await;
+                            let _ = worker_tx
+                                .send(LeaderNotification::ExecuteGraph(job_name.clone()))
+                                .await;
                             tracing::debug!(
                                 "The JobGraph {} is ready to execute on Worker {}",
                                 job_name,
@@ -334,7 +375,7 @@ impl LeaderNode {
                             );
                             return;
                         }
-                        _ => {},
+                        _ => {}
                     }
                 }
             }

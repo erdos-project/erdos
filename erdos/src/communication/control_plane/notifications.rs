@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::{collections::HashMap, net::SocketAddr};
 
 use serde::{Deserialize, Serialize};
 
@@ -31,7 +31,7 @@ pub(crate) enum WorkerNotification {
 /// [`WorkerNode`](crate::node::WorkerNode).
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum LeaderNotification {
-    ScheduleOperator(String, OperatorId),
+    ScheduleOperator(String, OperatorId, HashMap<usize, SocketAddr>),
     ExecuteGraph(String),
     Shutdown,
 }

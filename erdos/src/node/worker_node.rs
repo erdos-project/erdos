@@ -72,18 +72,39 @@ impl WorkerNode {
         .split();
 
         // Initialize the Data layer on a randomly-assigned port.
-        let data_listener = TcpListener::bind("0.0.0.0:0").await?;
+        // The data layer is used to retrieve the dataflow messages from other operators.
+        let worker_data_listener = TcpListener::bind("0.0.0.0:0").await?;
 
-        // Communicate the ID of the Worker to the Leader.
+        // Communicate the ID and data address of the Worker to the Leader.
         leader_tx
             .send(WorkerNotification::Initialized(
                 self.worker_id,
-                data_listener.local_addr().unwrap(),
+                worker_data_listener.local_addr().unwrap(),
                 self.resources.clone(),
             ))
             .await?;
         loop {
             tokio::select! {
+                // Handle connections for data messages from other Workers.
+                worker_connection = worker_data_listener.accept() => {
+                    match worker_connection {
+                        Ok((worker_stream, worker_address)) => {
+                            tracing::debug!(
+                                "Worker {} received connection from address: {}",
+                                self.worker_id,
+                                worker_address
+                            );
+                        }
+                        Err(error) => {
+                            tracing::error!(
+                                "Worker {} received an error when handling a Worker connection: {}",
+                                self.worker_id,
+                                error
+                            );
+                        }
+                    }
+                }
+
                 // Handle messages received from the Leader.
                 Some(msg_from_leader) = leader_rx.next() => {
                     match msg_from_leader {
@@ -145,12 +166,15 @@ impl WorkerNode {
         >,
     ) {
         match msg_from_leader {
-            LeaderNotification::ScheduleOperator(job_name, operator_id) => {
+            LeaderNotification::ScheduleOperator(
+                job_name,
+                operator_id,
+                source_worker_addresses,
+            ) => {
                 if let Some(job_graph) = self.job_graphs.get(&job_name) {
                     if let Some(operator) = job_graph.get_operator(&operator_id) {
                         tracing::debug!(
-                            "The Worker with ID: {:?} received operator \
-                                                {} with ID: {:?}.",
+                            "The Worker with ID: {:?} received operator {} with ID: {:?}.",
                             self.worker_id,
                             operator
                                 .config
@@ -158,6 +182,8 @@ impl WorkerNode {
                                 .unwrap_or("UnnamedOperator".to_string()),
                             operator_id
                         );
+
+                        tracing::debug!("Retrieved the addresses: {:?}", source_worker_addresses);
 
                         // TODO: Handle Operator
                         if let Err(error) = leader_tx
@@ -179,8 +205,7 @@ impl WorkerNode {
                         }
                     } else {
                         tracing::error!(
-                            "The Operator with ID: {} was not found in \
-                                                JobGraph {}",
+                            "The Operator with ID: {} was not found in JobGraph {}",
                             operator_id,
                             job_name
                         );
@@ -237,7 +262,7 @@ impl WorkerNode {
                         .await
                     {
                         tracing::error!(
-                            "Worker {} received an error when sending Abstract \
+                            "Worker {} received an error when sending Abstract 
                                     Graph message to Leader: {:?}",
                             self.worker_id,
                             error

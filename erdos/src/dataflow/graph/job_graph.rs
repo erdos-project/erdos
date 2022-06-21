@@ -32,8 +32,19 @@ impl InternalGraph {
         &self.name
     }
 
+    /// Retrieve the [`AbstractOperator`] for the given ID.
+    pub(crate) fn get_operator(&self, operator_id: &OperatorId) -> Option<AbstractOperator> {
+        self.operators.get(operator_id).cloned()
+    }
+
+    /// Retrieve the collection of [`AbstractOperator`]s in the Graph.
     pub(crate) fn get_operators(&self) -> &HashMap<OperatorId, AbstractOperator> {
         &self.operators
+    }
+
+    /// Retrieve the [`Job`] that publishes the data on the given stream_id.
+    pub(crate) fn get_source_operator(&self, stream_id: &StreamId) -> Option<Job> {
+        self.stream_sources.get(stream_id).cloned()
     }
 }
 
@@ -128,7 +139,9 @@ impl JobGraph {
 
     /// Retrieve the [`AbstractOperator`] for the given ID.
     pub(crate) fn get_operator(&self, operator_id: &OperatorId) -> Option<AbstractOperator> {
-        self.operators.get(operator_id).map(|operator| operator.clone())
+        self.operators
+            .get(operator_id)
+            .map(|operator| operator.clone())
     }
 
     /// Retrieve the execution function for a particular operator in the graph.
