@@ -63,7 +63,7 @@ impl WorkerNode {
 
     pub async fn run(&mut self) -> Result<(), CommunicationError> {
         // Connect to the Leader node.
-        tracing::debug!("Initialized Worker with ID: {}", self.worker_id);
+        tracing::debug!("[Worker {}] Initialized Worker.", self.worker_id);
         let leader_connection = TcpStream::connect(self.leader_address).await?;
         let (mut leader_tx, mut leader_rx) = Framed::new(
             leader_connection,
@@ -90,14 +90,15 @@ impl WorkerNode {
                     match worker_connection {
                         Ok((worker_stream, worker_address)) => {
                             tracing::debug!(
-                                "Worker {} received connection from address: {}",
+                                "[Worker {}] Received connection from address: {}",
                                 self.worker_id,
                                 worker_address
                             );
                         }
                         Err(error) => {
                             tracing::error!(
-                                "Worker {} received an error when handling a Worker connection: {}",
+                                "[Worker {}] Received an error when handling \
+                                                    a Worker connection: {}",
                                 self.worker_id,
                                 error
                             );
@@ -112,7 +113,7 @@ impl WorkerNode {
                             match msg_from_leader {
                                 LeaderNotification::Shutdown => {
                                     tracing::debug!(
-                                        "The Worker with ID: {} is shutting down.",
+                                        "[Worker {}] Shutting down.",
                                         self.worker_id
                                     );
                                     return Ok(());
@@ -127,7 +128,8 @@ impl WorkerNode {
                         }
                         Err(error) => {
                             tracing::error!(
-                                "Worker {} received error on the Leader connection: {:?}",
+                                "[Worker {}] Received error when retrieving messages \
+                                                            from the Leader: {:?}",
                                 self.worker_id,
                                 error
                             );
@@ -139,11 +141,11 @@ impl WorkerNode {
                 Some(driver_notification) = self.driver_notification_rx.recv() => {
                     match driver_notification {
                         DriverNotification::Shutdown => {
-                            tracing::info!("The Worker {} is shutting down.", self.worker_id);
+                            tracing::info!("[Worker {}] Shutting down.", self.worker_id);
                             if let Err(error) = leader_tx.send(WorkerNotification::Shutdown).await {
                                 tracing::error!(
-                                    "Worker {} received an error when sending Shutdown message \
-                                    to Leader: {:?}",
+                                    "[Worker {}] Received an error when sending Shutdown message \
+                                                                            to Leader: {:?}",
                                     self.worker_id,
                                     error
                                 );
@@ -174,7 +176,7 @@ impl WorkerNode {
                 if let Some(job_graph) = self.job_graphs.get(&job_name) {
                     if let Some(operator) = job_graph.get_operator(&operator_id) {
                         tracing::debug!(
-                            "The Worker with ID: {:?} received operator {} with ID: {:?}.",
+                            "[Worker {}] Received request to schedule Operator {} with ID: {:?}.",
                             self.worker_id,
                             operator
                                 .config
@@ -182,8 +184,6 @@ impl WorkerNode {
                                 .unwrap_or("UnnamedOperator".to_string()),
                             operator_id
                         );
-
-                        tracing::debug!("Retrieved the addresses: {:?}", source_worker_addresses);
 
                         // TODO: Handle Operator
                         if let Err(error) = leader_tx
@@ -194,9 +194,8 @@ impl WorkerNode {
                             .await
                         {
                             tracing::error!(
-                                "The Worker with ID: {:?} could not communicate the Ready \
-                                status of the Operator {} from the Job {} to the Leader. \
-                                Received error {:?}",
+                                "[Worker {}] Could not communicate the Ready status of Operator \
+                                        {} from the Job {} to the Leader. Received error {:?}",
                                 self.worker_id,
                                 operator_id,
                                 job_name,
@@ -205,22 +204,23 @@ impl WorkerNode {
                         }
                     } else {
                         tracing::error!(
-                            "The Operator with ID: {} was not found in JobGraph {}",
+                            "[Worker {}] Operator with ID: {} was not found in JobGraph {}",
+                            self.worker_id,
                             operator_id,
                             job_name
                         );
                     }
                 } else {
                     tracing::error!(
-                        "The JobGraph {} was not registered on the Worker {}",
-                        job_name,
-                        self.worker_id
+                        "[Worker {}] JobGraph {} was not registered on this Worker.",
+                        self.worker_id,
+                        job_name
                     );
                 }
             }
             LeaderNotification::ExecuteGraph(job_name) => {
                 tracing::debug!(
-                    "The Worker with ID {} is executing JobGraph {}",
+                    "[Worker {}] Executing JobGraph {}.",
                     self.worker_id,
                     job_name,
                 );
@@ -243,7 +243,7 @@ impl WorkerNode {
                 // Save the JobGraph.
                 let job_graph_name = job_graph.get_name().clone().to_string();
                 tracing::debug!(
-                    "The Worker {} received the JobGraph {}.",
+                    "[Worker {}] Registered the JobGraph {}.",
                     self.worker_id,
                     job_graph_name
                 );
@@ -262,15 +262,15 @@ impl WorkerNode {
                         .await
                     {
                         tracing::error!(
-                            "Worker {} received an error when sending Abstract 
-                                    Graph message to Leader: {:?}",
+                            "[Worker {}] Received an error when sending Abstract \
+                                                Graph message to Leader: {:?}",
                             self.worker_id,
                             error
                         );
                     };
                 } else {
                     tracing::error!(
-                        "Worker {} found no JobGraph with name {}",
+                        "[Worker {}] Found no JobGraph with name {}.",
                         self.worker_id,
                         job_graph_name,
                     )

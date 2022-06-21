@@ -1,13 +1,10 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use futures::{future, stream::SplitStream, FutureExt};
 use futures_util::stream::StreamExt;
 use tokio::{
     net::TcpStream,
-    sync::{
-        mpsc::{self, UnboundedReceiver, UnboundedSender},
-        Mutex,
-    },
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
 };
 use tokio_util::codec::Framed;
 
@@ -18,7 +15,6 @@ use crate::{
     },
     dataflow::stream::StreamId,
     node::NodeId,
-    scheduler::endpoints_manager::ChannelsToReceivers,
 };
 
 /// Listens on a TCP stream, and pushes messages it receives to operator executors.
