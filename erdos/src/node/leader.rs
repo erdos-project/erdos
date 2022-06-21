@@ -29,6 +29,8 @@ enum InterThreadMessage {
     WorkerInitialized(usize, Resources),
     ScheduleJobGraph(String, InternalGraph),
     ScheduleOperator(String, OperatorId, usize),
+    OperatorReady(String, OperatorId),
+    ExecuteGraph(String),
     Shutdown(usize),
     ShutdownAllWorkers,
 }
@@ -45,6 +47,12 @@ impl WorkerState {
     }
 }
 
+#[derive(PartialEq)]
+enum OperatorState {
+    Ready,
+    NotReady,
+}
+
 pub(crate) struct LeaderNode {
     /// The address that the LeaderNode binds to.
     address: SocketAddr,
@@ -56,6 +64,8 @@ pub(crate) struct LeaderNode {
     worker_id_to_worker_state: HashMap<usize, WorkerState>,
     /// The scheduler to be used for scheduling JobGraphs onto Workers.
     job_graph_scheduler: Box<dyn JobGraphScheduler + Send>,
+    /// A mapping between the name of the Job and the status of its Operators.
+    job_to_operator_state_map: HashMap<String, HashMap<OperatorId, OperatorState>>,
 }
 
 impl LeaderNode {
@@ -67,6 +77,7 @@ impl LeaderNode {
             worker_id_to_worker_state: HashMap::new(),
             // TODO (Sukrit): The type of Scheduler should be chosen by a Configuration.
             job_graph_scheduler: Box::new(SimpleJobGraphScheduler::default()),
+            job_to_operator_state_map: HashMap::new(),
         }
     }
 
@@ -159,12 +170,54 @@ impl LeaderNode {
                     .schedule_graph(&job_graph, &workers);
 
                 // Broadcast the ScheduleOperator message for the placed operators.
+                // Maintain a flag for each operator that checks if the operator has
+                // been initialized or not.
+                let mut operator_status = HashMap::new();
                 for (operator_id, worker_id) in placements.iter() {
                     let _ = leader_to_workers_tx.send(InterThreadMessage::ScheduleOperator(
                         job_name.clone(),
                         operator_id.clone(),
                         *worker_id,
                     ));
+                    operator_status.insert(operator_id.clone(), OperatorState::NotReady);
+                }
+
+                // Map the flags that check if the Operator is ready to the name of the JobGraph.
+                self.job_to_operator_state_map
+                    .insert(job_name, operator_status);
+            }
+            InterThreadMessage::OperatorReady(job_name, operator_id) => {
+                // Change the status of the Operator for the Job.
+                let mut job_ready_to_execute = false;
+                if let Some(operator_status) = self.job_to_operator_state_map.get_mut(&job_name) {
+                    if let Some(operator_status_value) = operator_status.get_mut(&operator_id) {
+                        *operator_status_value = OperatorState::Ready;
+                    } else {
+                        tracing::error!(
+                            "The Operator {} was not found in the Job {}.",
+                            operator_id,
+                            job_name
+                        );
+                    }
+
+                    // If all the Operators are ready now, tell the Workers to
+                    // begin executing the JobGraph.
+                    if operator_status
+                        .values()
+                        .into_iter()
+                        .all(|status| *status == OperatorState::Ready)
+                    {
+                        let _ = leader_to_workers_tx
+                            .send(InterThreadMessage::ExecuteGraph(job_name.clone()));
+                        job_ready_to_execute = true;
+                    }
+                } else {
+                    tracing::error!("The Job {} was not submitted to the Leader.", job_name);
+                }
+
+                // If the Job was executed, remove the state from the Map.
+                if job_ready_to_execute {
+                    self.job_to_operator_state_map.remove(&job_name);
                 }
             }
             InterThreadMessage::Shutdown(worker_id) => {
@@ -206,11 +259,15 @@ impl LeaderNode {
                                 InterThreadMessage::WorkerInitialized(worker_id, worker_resources)
                             );
                         },
-                        WorkerNotification::OperatorReady(operator_id) => {
+                        WorkerNotification::OperatorReady(job_name, operator_id) => {
                             tracing::trace!(
-                                "Operator {} is ready on Worker {}.",
+                                "Operator {} from Job {} is ready on Worker {}.",
                                 operator_id,
+                                job_name,
                                 id_of_this_worker
+                            );
+                            let _ = channel_to_leader.send(
+                                InterThreadMessage::OperatorReady(job_name, operator_id)
                             );
                         }
                         WorkerNotification::SubmitGraph(job_name, job_graph) => {
@@ -250,6 +307,15 @@ impl LeaderNode {
                                     LeaderNotification::ScheduleOperator(job_name, operator_id)
                                 ).await;
                             }
+                        }
+                        InterThreadMessage::ExecuteGraph(job_name) => {
+                            // Tell the Worker to execute the operators for this graph.
+                            let _ = worker_tx.send(LeaderNotification::ExecuteGraph(job_name.clone())).await;
+                            tracing::debug!(
+                                "The JobGraph {} is ready to execute on Worker {}",
+                                job_name,
+                                id_of_this_worker,
+                            );
                         }
                         InterThreadMessage::ShutdownAllWorkers => {
                             // The Leader requested all nodes to shutdown.

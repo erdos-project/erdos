@@ -98,7 +98,10 @@ impl WorkerNode {
                                             );
                                             // TODO: Handle Operator
                                             let _ = leader_tx.send(
-                                                WorkerNotification::OperatorReady(operator_id)
+                                                WorkerNotification::OperatorReady(
+                                                    job_name,
+                                                    operator_id,
+                                                )
                                             ).await?;
                                         } else {
                                             tracing::error!(
@@ -115,6 +118,13 @@ impl WorkerNode {
                                             self.worker_id
                                         );
                                     }
+                                }
+                                LeaderNotification::ExecuteGraph(job_name) => {
+                                    tracing::debug!(
+                                        "The Worker with ID {} is executing JobGraph {}",
+                                        self.worker_id,
+                                        job_name,
+                                    );
                                 }
                                 LeaderNotification::Shutdown => {
                                     tracing::debug!(

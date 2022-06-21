@@ -19,7 +19,7 @@ pub(crate) enum DriverNotification {
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum WorkerNotification {
     Initialized(usize, Resources),
-    OperatorReady(OperatorId),
+    OperatorReady(String, OperatorId),
     SubmitGraph(String, InternalGraph),
     Shutdown,
 }
@@ -30,5 +30,6 @@ pub(crate) enum WorkerNotification {
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum LeaderNotification {
     ScheduleOperator(String, OperatorId),
+    ExecuteGraph(String),
     Shutdown,
 }
