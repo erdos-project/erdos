@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -18,7 +20,7 @@ pub(crate) enum DriverNotification {
 /// [`LeaderNode`](crate::node::LeaderNode).
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum WorkerNotification {
-    Initialized(usize, Resources),
+    Initialized(usize, SocketAddr, Resources),
     OperatorReady(String, OperatorId),
     SubmitGraph(String, InternalGraph),
     Shutdown,

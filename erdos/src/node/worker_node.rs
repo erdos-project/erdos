@@ -4,7 +4,10 @@ use std::{collections::HashMap, net::SocketAddr};
 
 use futures::{stream::SplitSink, SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
-use tokio::{net::TcpStream, sync::mpsc::Receiver};
+use tokio::{
+    net::{TcpListener, TcpStream},
+    sync::mpsc::Receiver,
+};
 use tokio_util::codec::Framed;
 
 use crate::{
@@ -68,10 +71,14 @@ impl WorkerNode {
         )
         .split();
 
+        // Initialize the Data layer on a randomly-assigned port.
+        let data_listener = TcpListener::bind("0.0.0.0:0").await?;
+
         // Communicate the ID of the Worker to the Leader.
         leader_tx
             .send(WorkerNotification::Initialized(
                 self.worker_id,
+                data_listener.local_addr().unwrap(),
                 self.resources.clone(),
             ))
             .await?;
@@ -151,6 +158,7 @@ impl WorkerNode {
                                 .unwrap_or("UnnamedOperator".to_string()),
                             operator_id
                         );
+
                         // TODO: Handle Operator
                         if let Err(error) = leader_tx
                             .send(WorkerNotification::OperatorReady(
