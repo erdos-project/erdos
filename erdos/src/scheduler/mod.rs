@@ -34,13 +34,13 @@ impl JobGraphScheduler for SimpleJobGraphScheduler {
         job_graph: &InternalGraph,
         workers: &Vec<WorkerState>,
     ) -> HashMap<OperatorId, usize> {
-        let mut placement = HashMap::new();
+        let mut placements = HashMap::new();
 
         for (operator_id, operator) in job_graph.get_operators().iter() {
             let requested_node = operator.config.node_id;
-            placement.insert(operator_id.clone(), requested_node);
+            placements.insert(operator_id.clone(), requested_node);
         }
 
-        placement
+        placements
     }
 }

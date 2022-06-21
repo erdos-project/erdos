@@ -283,7 +283,11 @@ impl LeaderNode {
                 // Communicate messages received from the Worker to the Leader.
                 Some(Ok(msg_from_worker)) = worker_rx.next() => {
                     match msg_from_worker {
-                        WorkerNotification::Initialized(worker_id, worker_address, worker_resources) => {
+                        WorkerNotification::Initialized(
+                            worker_id,
+                            worker_address,
+                            worker_resources
+                        ) => {
                             id_of_this_worker = worker_id;
                             // Communicate the Worker ID to the Leader.
                             tracing::debug!(
