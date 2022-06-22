@@ -7,7 +7,7 @@ use crate::dataflow::{
     message::Message,
     operator::{OneInOneOut, OperatorConfig},
     stream::{OperatorStream, Stream, WriteStreamT},
-    Data,
+    Data, graph::GraphBuilder,
 };
 
 /// Maps an incoming stream of type D to a stream of type `I::Item` using the provided
@@ -125,7 +125,7 @@ where
     {
         let op_name = format!("MapOp_{}", self.id());
 
-        crate::connect_one_in_one_out(
+        GraphBuilder::new().connect_one_in_one_out(
             move || -> FlatMapOperator<D1, _> {
                 let map_fn = map_fn.clone();
                 FlatMapOperator::new(move |x| std::iter::once(map_fn(x)))
@@ -143,7 +143,7 @@ where
     {
         let op_name = format!("FlatMapOp_{}", self.id());
 
-        crate::connect_one_in_one_out(
+        GraphBuilder::new().connect_one_in_one_out(
             move || -> FlatMapOperator<D1, _> { FlatMapOperator::new(flat_map_fn.clone()) },
             || {},
             OperatorConfig::new().name(&op_name),

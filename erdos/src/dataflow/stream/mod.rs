@@ -43,8 +43,6 @@ pub use loop_stream::LoopStream;
 pub use read_stream::ReadStream;
 pub use write_stream::WriteStream;
 
-use super::graph::default_graph;
-
 pub type StreamId = crate::Uuid;
 
 /// Write stream trait which allows specialized implementations of
@@ -56,10 +54,12 @@ pub trait WriteStreamT<D: Data> {
 
 pub trait Stream<D: Data> {
     fn name(&self) -> String {
-        default_graph::get_stream_name(&self.id())
+        todo!();
+        // default_graph::get_stream_name(&self.id())
     }
     fn set_name(&mut self, name: &str) {
-        default_graph::set_stream_name(&self.id(), name);
+        todo!();
+        // default_graph::set_stream_name(&self.id(), name);
     }
     fn id(&self) -> StreamId;
 }

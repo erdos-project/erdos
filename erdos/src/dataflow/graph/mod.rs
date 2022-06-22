@@ -10,14 +10,13 @@ use crate::{
 };
 
 // Private submodules
-mod abstract_graph;
 mod job_graph;
 
 // Public submodules
-pub(crate) mod default_graph;
+pub(crate) mod graph_builder;
 
 // Crate-wide exports
-pub(crate) use abstract_graph::AbstractGraph;
+pub(crate) use graph_builder::GraphBuilder;
 pub(crate) use job_graph::JobGraph;
 use serde::Deserialize;
 
@@ -45,12 +44,12 @@ impl<
 
 /// Trait for functions used to set up ingest and extract streams.
 pub(crate) trait StreamSetupHook:
-    'static + Fn(&AbstractGraph, &mut ChannelManager) + Sync + Send
+    'static + Fn(&GraphBuilder, &mut ChannelManager) + Sync + Send
 {
     fn box_clone(&self) -> Box<dyn StreamSetupHook>;
 }
 
-impl<T: 'static + Fn(&AbstractGraph, &mut ChannelManager) + Sync + Send + Clone> StreamSetupHook
+impl<T: 'static + Fn(&GraphBuilder, &mut ChannelManager) + Sync + Send + Clone> StreamSetupHook
     for T
 {
     fn box_clone(&self) -> Box<dyn StreamSetupHook> {

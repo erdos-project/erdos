@@ -14,7 +14,7 @@ use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::format::FmtSpan;
 
-use crate::dataflow::graph::{default_graph, JobGraph};
+use crate::dataflow::graph::JobGraph;
 use crate::scheduler::{
     channel_manager::ChannelManager,
     endpoints_manager::{ChannelsToReceivers, ChannelsToSenders},
@@ -27,7 +27,7 @@ use crate::{
         senders::{self, ControlSender, DataSender},
         ControlMessage, ControlMessageCodec, ControlMessageHandler, MessageCodec,
     },
-    dataflow::graph::AbstractGraph,
+    dataflow::graph::GraphBuilder,
 };
 
 use super::worker::Worker;
@@ -46,7 +46,7 @@ pub struct Node {
     /// Unique node id.
     id: NodeId,
     /// Queryable, uncompiled version of the JobGraph which stores metadata (e.g. stream names).
-    abstract_graph: Option<AbstractGraph>,
+    abstract_graph: Option<GraphBuilder>,
     /// Dataflow graph which the node will execute.
     job_graph: Option<JobGraph>,
     /// Structure to be used to send `Sender` updates to receiver threads.
@@ -112,11 +112,11 @@ impl Node {
     /// Runs an ERDOS node.
     ///
     /// The method never returns.
-    pub fn run(&mut self) {
+    pub fn run(&mut self, mut graph_builder: GraphBuilder) {
         tracing::debug!("Node {}: running", self.id);
         // Set the dataflow graph if it hasn't been set already.
         if self.job_graph.is_none() {
-            let mut abstract_graph = default_graph::clone();
+            let mut abstract_graph = graph_builder.clone();
             self.job_graph = Some(abstract_graph.compile());
             self.abstract_graph = Some(abstract_graph);
         }
@@ -134,16 +134,16 @@ impl Node {
     /// Runs an ERDOS node in a seperate OS thread.
     ///
     /// The method immediately returns.
-    pub fn run_async(mut self) -> NodeHandle {
+    pub fn run_async(mut self, mut graph_builder: GraphBuilder) -> NodeHandle {
         // Clone to avoid move to other thread.
         let shutdown_tx = self.shutdown_tx.clone();
         // Copy dataflow graph to the other thread
-        let mut abstract_graph = default_graph::clone();
+        let mut abstract_graph = graph_builder.clone();
         self.job_graph = Some(abstract_graph.compile());
         self.abstract_graph = Some(abstract_graph);
         let initialized = self.initialized.clone();
         let thread_handle = thread::spawn(move || {
-            self.run();
+            self.run(graph_builder);
         });
         // Wait for ERDOS to start up.
         let (lock, cvar) = &*initialized;

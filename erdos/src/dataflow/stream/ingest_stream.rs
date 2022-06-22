@@ -8,7 +8,7 @@ use serde::Deserialize;
 
 use crate::{
     dataflow::{
-        graph::{default_graph, AbstractGraph},
+        graph::GraphBuilder,
         Data, Message,
     },
     scheduler::channel_manager::ChannelManager,
@@ -89,7 +89,7 @@ where
         // A hook to initialize the ingest stream's connections to downstream operators.
         let write_stream_option_copy = Arc::clone(&ingest_stream.write_stream_option);
 
-        let setup_hook = move |graph: &AbstractGraph, channel_manager: &mut ChannelManager| {
+        let setup_hook = move |graph: &GraphBuilder, channel_manager: &mut ChannelManager| {
             match channel_manager.get_send_endpoints(id) {
                 Ok(send_endpoints) => {
                     let write_stream =
@@ -103,8 +103,8 @@ where
             }
         };
 
-        default_graph::add_ingest_stream(&ingest_stream, setup_hook);
-        default_graph::set_stream_name(&id, &format!("ingest_stream_{}", id));
+        // default_graph::add_ingest_stream(&ingest_stream, setup_hook);
+        // default_graph::set_stream_name(&id, &format!("ingest_stream_{}", id));
 
         ingest_stream
     }
@@ -136,11 +136,11 @@ where
                 thread::sleep(Duration::from_millis(100));
             }
         } else {
-            tracing::warn!(
-                "Trying to send messages on a closed IngestStream {} (ID: {})",
-                default_graph::get_stream_name(&self.id()),
-                self.id(),
-            );
+            // tracing::warn!(
+            //     "Trying to send messages on a closed IngestStream {} (ID: {})",
+            //     default_graph::get_stream_name(&self.id()),
+            //     self.id(),
+            // );
             Err(SendError::Closed)
         }
     }

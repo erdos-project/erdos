@@ -8,7 +8,7 @@ use serde::Deserialize;
 
 use crate::{
     dataflow::{
-        graph::{default_graph, AbstractGraph},
+        graph::GraphBuilder,
         Data, Message,
     },
     scheduler::channel_manager::ChannelManager,
@@ -101,7 +101,7 @@ where
         };
 
         let read_stream_option_copy = extract_stream.read_stream_option.clone();
-        let hook = move |graph: &AbstractGraph, channel_manager: &mut ChannelManager| {
+        let hook = move |graph: &GraphBuilder, channel_manager: &mut ChannelManager| {
             match channel_manager.take_recv_endpoint(id) {
                 Ok(recv_endpoint) => {
                     let read_stream =
@@ -112,7 +112,7 @@ where
             }
         };
 
-        default_graph::add_extract_stream(&extract_stream, hook);
+        // default_graph::add_extract_stream(&extract_stream, hook);
         extract_stream
     }
 
@@ -158,9 +158,9 @@ where
         self.id
     }
 
-    pub fn name(&self) -> String {
-        default_graph::get_stream_name(&self.id)
-    }
+    // pub fn name(&self) -> String {
+    //     default_graph::get_stream_name(&self.id)
+    // }
 }
 
 // Needed to avoid deadlock in Python

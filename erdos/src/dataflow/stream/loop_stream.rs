@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use serde::Deserialize;
 
-use crate::dataflow::{graph::default_graph, Data};
+use crate::dataflow::Data;
 
 use super::{OperatorStream, Stream, StreamId};
 
@@ -39,12 +39,13 @@ where
             id,
             phantom: PhantomData,
         };
-        default_graph::add_loop_stream(&loop_stream);
+        // default_graph::add_loop_stream(&loop_stream);
         loop_stream
     }
 
     pub fn connect_loop(&self, stream: &OperatorStream<D>) {
-        default_graph::connect_loop(self, stream);
+        // default_graph::connect_loop(self, stream);
+        todo!();
     }
 }
 

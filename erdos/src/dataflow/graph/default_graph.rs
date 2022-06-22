@@ -16,10 +16,10 @@ use crate::{
     OperatorConfig,
 };
 
-use super::{AbstractGraph, OperatorRunner, StreamSetupHook};
+use super::{GraphBuilder, OperatorRunner, StreamSetupHook};
 
 // TODO: Don't require a mutex over the entire graph, as this can call deadlocks.
-static DEFAULT_GRAPH: Lazy<Mutex<AbstractGraph>> = Lazy::new(|| Mutex::new(AbstractGraph::new()));
+static DEFAULT_GRAPH: Lazy<Mutex<GraphBuilder>> = Lazy::new(|| Mutex::new(GraphBuilder::new()));
 
 /// Adds an operator to the default graph.
 ///
@@ -113,11 +113,11 @@ pub(crate) fn resolve_stream_id(stream_id: &StreamId) -> Option<StreamId> {
     DEFAULT_GRAPH.lock().unwrap().resolve_stream_id(stream_id)
 }
 
-pub(crate) fn clone() -> AbstractGraph {
+pub(crate) fn clone() -> GraphBuilder {
     DEFAULT_GRAPH.lock().unwrap().clone()
 }
 
 /// Updates the graph, and returns previous value
-pub(crate) fn set(graph: AbstractGraph) -> AbstractGraph {
+pub(crate) fn set(graph: GraphBuilder) -> GraphBuilder {
     std::mem::replace(DEFAULT_GRAPH.lock().unwrap().deref_mut(), graph)
 }

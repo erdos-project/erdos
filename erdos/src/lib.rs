@@ -156,7 +156,7 @@ pub mod scheduler;
 
 // Public exports
 pub use configuration::Configuration;
-pub use dataflow::{connect::*, OperatorConfig};
+pub use dataflow::OperatorConfig;
 
 /// A unique identifier for an operator.
 pub type OperatorId = Uuid;
@@ -215,7 +215,7 @@ pub fn reset() {
     RNG.with(|rng| {
         *rng.borrow_mut() = StdRng::from_seed(&[1913, 3, 26]);
     });
-    dataflow::graph::default_graph::set(dataflow::graph::AbstractGraph::new());
+    // dataflow::graph::default_graph::set(dataflow::graph::GraphBuilder::new());
 }
 
 /// Defines command line arguments for running a multi-node ERDOS application.
