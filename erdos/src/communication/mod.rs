@@ -43,13 +43,14 @@ pub(crate) use pusher::{Pusher, PusherT};
 pub(crate) use endpoints::{RecvEndpoint, SendEndpoint};
 
 /// Message sent between nodes in order to coordinate node and operator initialization.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub enum ControlMessage {
     AllOperatorsInitializedOnNode(NodeId),
     OperatorInitialized(OperatorId),
     RunOperator(OperatorId),
     DataSenderInitialized(NodeId),
     DataReceiverInitialized(NodeId),
+    PusherUpdate(StreamId, Box<dyn PusherT>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
