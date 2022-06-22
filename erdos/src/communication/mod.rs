@@ -18,7 +18,6 @@ use tokio::{
 use crate::{dataflow::stream::StreamId, node::NodeId, OperatorId};
 
 // Private submodules
-mod control_message_codec;
 mod control_message_handler;
 mod endpoints;
 mod errors;
@@ -35,7 +34,6 @@ pub(crate) mod control_plane;
 use serializable::Serializable;
 
 // Module-wide exports
-pub(crate) use control_message_codec::ControlMessageCodec;
 pub(crate) use control_message_handler::ControlMessageHandler;
 pub(crate) use errors::{CodecError, CommunicationError, TryRecvError};
 pub(crate) use message_codec::MessageCodec;
@@ -52,8 +50,6 @@ pub enum ControlMessage {
     RunOperator(OperatorId),
     DataSenderInitialized(NodeId),
     DataReceiverInitialized(NodeId),
-    ControlSenderInitialized(NodeId),
-    ControlReceiverInitialized(NodeId),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

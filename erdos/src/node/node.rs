@@ -27,9 +27,9 @@ use crate::Configuration;
 use crate::{
     communication::{
         self,
-        receivers::{self, ControlReceiver, DataReceiver},
-        senders::{self, ControlSender, DataSender},
-        ControlMessage, ControlMessageCodec, ControlMessageHandler, MessageCodec,
+        receivers::{self, DataReceiver},
+        senders::{self, DataSender},
+        ControlMessage, ControlMessageHandler, MessageCodec,
     },
     dataflow::graph::AbstractGraph,
 };
@@ -227,50 +227,15 @@ impl Node {
         (sink_halves, stream_halves)
     }
 
-    /// Splits a vector of TCPStreams into `ControlMessageHandler`, `ControlSender`s and `ControlReceiver`s.
-    async fn split_control_streams(
-        &mut self,
-        streams: Vec<(NodeId, TcpStream)>,
-    ) -> (Vec<ControlSender>, Vec<ControlReceiver>) {
-        let mut control_receivers = Vec::new();
-        let mut control_senders = Vec::new();
-
-        for (node_id, stream) in streams {
-            // Use the message codec to divide the TCP stream data into messages.
-            let framed = Framed::new(stream, ControlMessageCodec::new());
-            let (split_sink, split_stream) = framed.split();
-            // Create an control receiver for the stream half.
-            control_receivers.push(ControlReceiver::new(
-                node_id,
-                split_stream,
-                &mut self.control_handler,
-            ));
-            // Create an control sender for the sink half.
-            control_senders.push(ControlSender::new(
-                node_id,
-                split_sink,
-                &mut self.control_handler,
-            ));
-        }
-
-        (control_senders, control_receivers)
-    }
-
     async fn wait_for_communication_layer_initialized(&mut self) -> Result<(), String> {
         let num_nodes = self.config.data_addresses.len();
 
-        let mut control_senders_initialized = HashSet::new();
-        control_senders_initialized.insert(self.id);
-        let mut control_receivers_initialized = HashSet::new();
-        control_receivers_initialized.insert(self.id);
         let mut data_senders_initialized = HashSet::new();
         data_senders_initialized.insert(self.id);
         let mut data_receivers_initialized = HashSet::new();
         data_receivers_initialized.insert(self.id);
 
-        while control_senders_initialized.len() < num_nodes
-            || control_receivers_initialized.len() < num_nodes
-            || data_senders_initialized.len() < num_nodes
+        while data_senders_initialized.len() < num_nodes
             || data_receivers_initialized.len() < num_nodes
         {
             let msg = self
@@ -279,12 +244,6 @@ impl Node {
                 .await
                 .map_err(|e| format!("Error receiving control message: {:?}", e))?;
             match msg {
-                ControlMessage::ControlSenderInitialized(node_id) => {
-                    control_senders_initialized.insert(node_id);
-                }
-                ControlMessage::ControlReceiverInitialized(node_id) => {
-                    control_receivers_initialized.insert(node_id);
-                }
                 ControlMessage::DataSenderInitialized(node_id) => {
                     data_senders_initialized.insert(node_id);
                 }
@@ -438,32 +397,22 @@ impl Node {
         // Assign values used later to avoid lifetime errors.
         let num_nodes = self.config.data_addresses.len();
         // Create TCPStreams between all node pairs.
-        let control_streams = communication::create_tcp_streams(Vec::new(), self.id).await;
         let data_streams =
             communication::create_tcp_streams(self.config.data_addresses.clone(), self.id).await;
-        let (control_senders, control_receivers) =
-            self.split_control_streams(control_streams).await;
         let (senders, receivers) = self.split_data_streams(data_streams).await;
         // Listen for shutdown message.
         let mut shutdown_rx = self.shutdown_rx.take().unwrap();
         let shutdown_fut = shutdown_rx.recv();
         // Execute threads that send data to other nodes.
-        let control_senders_fut = senders::run_control_senders(control_senders);
         let senders_fut = senders::run_senders(senders);
         // Execute threads that receive data from other nodes.
-        let control_recvs_fut = receivers::run_control_receivers(control_receivers);
         let recvs_fut = receivers::run_receivers(receivers);
         // Execute operators.
         let ops_fut = self.run_operators();
         // These threads only complete when a failure happens.
         if num_nodes <= 1 {
             // Senders and Receivers should return if there's only 1 node.
-            if let Err(e) = tokio::try_join!(
-                senders_fut,
-                recvs_fut,
-                control_senders_fut,
-                control_recvs_fut
-            ) {
+            if let Err(e) = tokio::try_join!(senders_fut, recvs_fut,) {
                 tracing::error!(
                     "Non-fatal network communication error; this should not happen! {:?}",
                     e
@@ -480,11 +429,6 @@ impl Node {
             tokio::select! {
                 Err(e) = senders_fut => tracing::error!("Error with data senders: {:?}", e),
                 Err(e) = recvs_fut => tracing::error!("Error with data receivers: {:?}", e),
-                Err(e) = control_senders_fut => tracing::error!("Error with control senders: {:?}", e),
-                Err(e) = control_recvs_fut => tracing::error!(
-
-                    "Error with control receivers: {:?}", e
-                ),
                 Err(e) = ops_fut => tracing::error!(
 
                     "Error running operators on node {:?}: {:?}", self.id, e

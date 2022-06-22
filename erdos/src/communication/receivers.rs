@@ -10,8 +10,8 @@ use tokio_util::codec::Framed;
 
 use crate::{
     communication::{
-        CommunicationError, ControlMessage, ControlMessageCodec, ControlMessageHandler,
-        InterProcessMessage, MessageCodec, PusherT,
+        CommunicationError, ControlMessage, ControlMessageHandler, InterProcessMessage,
+        MessageCodec, PusherT,
     },
     dataflow::stream::StreamId,
     node::NodeId,
@@ -108,68 +108,6 @@ impl DataReceiver {
 /// It launches a task that listens for new messages for each TCP connection.
 pub(crate) async fn run_receivers(
     mut receivers: Vec<DataReceiver>,
-) -> Result<(), CommunicationError> {
-    // Wait for all futures to finish. It will happen only when all streams are closed.
-    future::join_all(receivers.iter_mut().map(|receiver| receiver.run())).await;
-    Ok(())
-}
-
-/// Listens on a TCP stream, and pushes control messages it receives to the node.
-#[allow(dead_code)]
-pub(crate) struct ControlReceiver {
-    /// The id of the node the stream is receiving data from.
-    node_id: NodeId,
-    /// Framed TCP read stream.
-    stream: SplitStream<Framed<TcpStream, ControlMessageCodec>>,
-    /// Tokio channel sender to `ControlMessageHandler`.
-    control_tx: UnboundedSender<ControlMessage>,
-    /// Tokio channel receiver from `ControlMessageHandler`.
-    control_rx: UnboundedReceiver<ControlMessage>,
-}
-
-impl ControlReceiver {
-    pub(crate) fn new(
-        node_id: NodeId,
-        stream: SplitStream<Framed<TcpStream, ControlMessageCodec>>,
-        control_handler: &mut ControlMessageHandler,
-    ) -> Self {
-        // Set up control channel.
-        let (tx, control_rx) = tokio::sync::mpsc::unbounded_channel();
-        control_handler.add_channel_to_control_receiver(node_id, tx);
-        Self {
-            node_id,
-            stream,
-            control_tx: control_handler.get_channel_to_handler(),
-            control_rx,
-        }
-    }
-
-    pub(crate) async fn run(&mut self) -> Result<(), CommunicationError> {
-        // TODO: update `self.channel_to_handler` for up-to-date mappings.
-        // between channels and handlers (e.g. for fault-tolerance).
-        // Notify `ControlMessageHandler` that sender is initialized.
-        self.control_tx
-            .send(ControlMessage::ControlReceiverInitialized(self.node_id))
-            .map_err(CommunicationError::from)?;
-        while let Some(res) = self.stream.next().await {
-            match res {
-                Ok(msg) => {
-                    self.control_tx
-                        .send(msg)
-                        .map_err(CommunicationError::from)?;
-                }
-                Err(e) => return Err(CommunicationError::from(e)),
-            }
-        }
-        Ok(())
-    }
-}
-
-/// Receives TCP messages, and pushes them to the ControlHandler
-/// The function receives a vector of framed TCP receiver halves.
-/// It launches a task that listens for new messages for each TCP connection.
-pub(crate) async fn run_control_receivers(
-    mut receivers: Vec<ControlReceiver>,
 ) -> Result<(), CommunicationError> {
     // Wait for all futures to finish. It will happen only when all streams are closed.
     future::join_all(receivers.iter_mut().map(|receiver| receiver.run())).await;

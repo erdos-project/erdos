@@ -245,9 +245,7 @@ impl ControlMessageHandler {
         while result.is_none() {
             match self.read().await {
                 Ok(control_msg) => match control_msg.clone() {
-                    ControlMessage::ControlSenderInitialized(_)
-                    | ControlMessage::ControlReceiverInitialized(_)
-                    | ControlMessage::DataSenderInitialized(_)
+                    ControlMessage::DataSenderInitialized(_)
                     | ControlMessage::DataReceiverInitialized(_) => result = Some(Ok(control_msg)),
                     _ => read_msgs.push(control_msg),
                 },
