@@ -1,105 +1,106 @@
 use std::collections::HashMap;
 
-use futures::{future, stream::SplitStream, FutureExt};
-use futures_util::stream::StreamExt;
+use futures::{future, stream::SplitStream, StreamExt};
 use tokio::{
     net::TcpStream,
-    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
+    sync::{broadcast, mpsc},
 };
 use tokio_util::codec::Framed;
 
 use crate::{
     communication::{
-        CommunicationError, ControlMessage, ControlMessageHandler, InterProcessMessage,
-        MessageCodec, PusherT,
+        CommunicationError, ControlMessage, InterProcessMessage, MessageCodec, PusherT,
     },
     dataflow::stream::StreamId,
-    node::NodeId,
 };
 
 /// Listens on a TCP stream, and pushes messages it receives to operator executors.
 #[allow(dead_code)]
 pub(crate) struct DataReceiver {
-    /// The id of the node the TCP stream is receiving data from.
-    node_id: NodeId,
-    /// Framed TCP read stream.
-    stream: SplitStream<Framed<TcpStream, MessageCodec>>,
-    /// Channel receiver on which new pusher updates are received.
-    rx: UnboundedReceiver<(StreamId, Box<dyn PusherT>)>,
+    /// The id of the [`Worker`] the TCP stream is receiving data from.
+    worker_id: usize,
+    /// The receiver of the Framed TCP stream for the Worker connection.
+    tcp_stream: SplitStream<Framed<TcpStream, MessageCodec>>,
+    /// Broadcast channel where [`PusherT`] objects are received from [`Worker`]s.
+    stream_pusher_update_rx: broadcast::Receiver<(StreamId, Box<dyn PusherT>)>,
     /// Mapping between stream id to [`PusherT`] trait objects.
-    /// [`PusherT`] trait objects are used to deserialize and send
-    /// messages to operators.
+    /// [`PusherT`] trait objects are used to deserialize and send messages to operators.
     stream_id_to_pusher: HashMap<StreamId, Box<dyn PusherT>>,
-    /// Tokio channel sender to `ControlMessageHandler`.
-    control_tx: UnboundedSender<ControlMessage>,
-    /// Tokio channel receiver from `ControlMessageHandler`.
-    control_rx: UnboundedReceiver<ControlMessage>,
+    /// MPSC channel to communicate messages to the Worker.
+    channel_to_worker_tx: mpsc::Sender<ControlMessage>,
 }
 
 impl DataReceiver {
     pub(crate) async fn new(
-        node_id: NodeId,
-        stream: SplitStream<Framed<TcpStream, MessageCodec>>,
-        receiver_control_rx: UnboundedReceiver<(StreamId, Box<dyn PusherT>)>,
-        control_handler: &mut ControlMessageHandler,
+        worker_id: usize,
+        tcp_stream: SplitStream<Framed<TcpStream, MessageCodec>>,
+        stream_pusher_update_rx: broadcast::Receiver<(StreamId, Box<dyn PusherT>)>,
+        channel_to_worker_tx: mpsc::Sender<ControlMessage>,
     ) -> Self {
-        // Set up control channel.
-        let (control_tx, control_rx) = mpsc::unbounded_channel();
-        control_handler.add_channel_to_data_receiver(node_id, control_tx);
         Self {
-            node_id,
-            stream,
-            rx: receiver_control_rx,
+            worker_id,
+            tcp_stream,
+            stream_pusher_update_rx,
             stream_id_to_pusher: HashMap::new(),
-            control_tx: control_handler.get_channel_to_handler(),
-            control_rx,
+            channel_to_worker_tx,
         }
     }
 
     pub(crate) async fn run(&mut self) -> Result<(), CommunicationError> {
-        // Notify `ControlMessageHandler` that receiver is initialized.
-        self.control_tx
-            .send(ControlMessage::DataReceiverInitialized(self.node_id))
+        // Notify the Worker that the DataReceiver is initialized.
+        self.channel_to_worker_tx
+            .send(ControlMessage::DataReceiverInitialized(self.worker_id))
+            .await
             .map_err(CommunicationError::from)?;
-        while let Some(res) = self.stream.next().await {
-            match res {
-                // Push the message to the listening operator executors.
-                Ok(msg) => {
-                    // Update pushers before we send the message.
-                    // Note: we may want to update the pushers less frequently.
-                    self.update_pushers().await;
-                    // Send the message.
-                    let (metadata, bytes) = match msg {
-                        InterProcessMessage::Serialized { metadata, bytes } => (metadata, bytes),
-                        InterProcessMessage::Deserialized {
-                            metadata: _,
-                            data: _,
-                        } => unreachable!(),
-                    };
-                    match self.stream_id_to_pusher.get_mut(&metadata.stream_id) {
-                        Some(pusher) => {
-                            if let Err(e) = pusher.send_from_bytes(bytes) {
-                                return Err(e);
+
+        // Listen for updates to the Pusher and messages on the TCP stream.
+        loop {
+            tokio::select! {
+                // We want to bias the select towards Pusher updates in order to
+                // minimize any lost messages.
+                biased;
+                Ok(pusher_update) = self.stream_pusher_update_rx.recv() => {
+                    // Update the StreamID to dyn PusherT mapping if we have an update.
+                    let (stream_id, stream_pusher) = pusher_update;
+                    self.stream_id_to_pusher.insert(stream_id, stream_pusher);
+                }
+
+                // Listen for messages on the TCP connection, and send them to the Pusher
+                // corresponding to the StreamId specified in the metadata of the message.
+                Some(message) = self.tcp_stream.next() => {
+                    match message {
+                        Ok(message) => {
+                            // Read the Metadata from the Message.
+                            let (metadata, bytes) = match message {
+                                InterProcessMessage::Serialized { metadata, bytes } => {
+                                    (metadata, bytes)
+                                }
+                                InterProcessMessage::Deserialized { metadata: _, data: _ } => {
+                                    unreachable!()
+                                }
+                            };
+
+                            // Find the corresponding Pusher for the message, and send the bytes.
+                            match self.stream_id_to_pusher.get_mut(&metadata.stream_id) {
+                                Some(pusher) => {
+                                    if let Err(error) = pusher.send_from_bytes(bytes) {
+                                        return Err(error);
+                                    }
+                                }
+                                None => tracing::error!(
+                                    "[Receiver for Worker {}] Could not find a Pusher \
+                                                                for StreamID: {}.",
+                                    self.worker_id,
+                                    metadata.stream_id,
+                                ),
                             }
                         }
-                        None => panic!(
-                            "Receiver does not have any pushers. \
-                             Race condition during data-flow reconfiguration."
-                        ),
+                        Err(error) => return Err(error.into()),
                     }
                 }
-                Err(e) => return Err(CommunicationError::from(e)),
             }
         }
         Ok(())
-    }
-
-    // TODO: update this method.
-    async fn update_pushers(&mut self) {
-        // Execute while we still have pusher updates.
-        while let Some(Some((stream_id, pusher))) = self.rx.recv().now_or_never() {
-            self.stream_id_to_pusher.insert(stream_id, pusher);
-        }
     }
 }
 
