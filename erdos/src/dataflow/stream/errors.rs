@@ -70,6 +70,8 @@ impl From<CommunicationError> for SendError {
                 eprintln!("Got write stream IOError {}", io_error);
                 SendError::IOError
             }
+            // Streams should not be exposed to protocol errors.
+            CommunicationError::ProtocolError => unreachable!(),
         }
     }
 }

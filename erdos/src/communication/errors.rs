@@ -18,6 +18,10 @@ pub enum CommunicationError {
     BincodeError(bincode::Error),
     /// Failed to read/write data from/to the TCP stream.
     IoError(io::Error),
+    /// Failed to correctly follow protocol.
+    /// This can be raised when there are protocol errors between
+    /// the Leader and the Worker, or between Workers.
+    ProtocolError,
 }
 
 impl Error for CommunicationError {}

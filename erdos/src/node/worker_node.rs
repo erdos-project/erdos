@@ -105,7 +105,7 @@ impl WorkerNode {
                                 self.worker_id,
                                 worker_address
                             );
-                            self.handle_worker_connections(worker_stream, worker_address).await;
+                            let _ = self.handle_worker_connections(worker_stream, worker_address).await;
                         }
                         Err(error) => {
                             tracing::error!(
@@ -333,7 +333,7 @@ impl WorkerNode {
         &mut self,
         tcp_stream: TcpStream,
         worker_address: SocketAddr,
-    ) {
+    ) -> Result<(), CommunicationError> {
         // Split the TCP stream into a Sink and a Stream, and receive the first message from the
         // Worker that contains the ID of the Worker.
         let (worker_sink, mut worker_stream) =
@@ -350,12 +350,18 @@ impl WorkerNode {
                         worker_address,
                         );
                     } else {
-                        tracing::debug!("The EHLO procedure went wrong!");
+                        tracing::error!(
+                            "[Worker {}] The EHLO procedure went wrong with Worker at address {}!",
+                            self.worker_id,
+                            worker_address
+                        );
+                        return Err(CommunicationError::ProtocolError);
                     }
                 }
-                Err(_) => todo!(),
+                Err(error) => return Err(error.into()),
             }
         }
+        Ok(())
     }
 
     pub(crate) fn get_id(&self) -> usize {
