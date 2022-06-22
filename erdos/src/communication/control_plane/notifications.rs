@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     dataflow::graph::{InternalGraph, JobGraph},
-    node::Resources,
+    node::WorkerState,
     OperatorId,
 };
 
@@ -20,7 +20,7 @@ pub(crate) enum DriverNotification {
 /// [`LeaderNode`](crate::node::LeaderNode).
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum WorkerNotification {
-    Initialized(usize, SocketAddr, Resources),
+    Initialized(WorkerState),
     OperatorReady(String, OperatorId),
     SubmitGraph(String, InternalGraph),
     Shutdown,

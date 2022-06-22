@@ -22,6 +22,31 @@ use crate::{
     node::Resources,
 };
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct WorkerState {
+    id: usize,
+    address: SocketAddr,
+    resources: Resources,
+}
+
+impl WorkerState {
+    fn new(id: usize, address: SocketAddr, resources: Resources) -> Self {
+        Self {
+            id,
+            address,
+            resources,
+        }
+    }
+
+    pub(crate) fn get_address(&self) -> SocketAddr {
+        self.address
+    }
+
+    pub(crate) fn get_id(&self) -> usize {
+        self.id
+    }
+}
+
 pub(crate) struct WorkerNode {
     worker_id: usize,
     leader_address: SocketAddr,
@@ -62,11 +87,11 @@ impl WorkerNode {
 
         // Communicate the ID and data address of the Worker to the Leader.
         leader_tx
-            .send(WorkerNotification::Initialized(
+            .send(WorkerNotification::Initialized(WorkerState::new(
                 self.worker_id,
                 worker_data_listener.local_addr().unwrap(),
                 self.resources.clone(),
-            ))
+            )))
             .await?;
         loop {
             tokio::select! {

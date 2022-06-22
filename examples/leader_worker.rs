@@ -7,7 +7,7 @@ use erdos::{
         stream::WriteStreamT,
         Message, Timestamp, WriteStream,
     },
-    node::handles::WorkerHandle,
+    node::WorkerHandle,
     Configuration, OperatorConfig,
 };
 
@@ -90,5 +90,5 @@ fn main() {
         let _ = worker_handle.register();
     }
 
-    loop { }
+    loop {}
 }

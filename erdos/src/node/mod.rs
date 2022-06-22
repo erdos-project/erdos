@@ -11,27 +11,27 @@
 //! scheduling operators, and hope to provide a versatile solution.
 
 // Private submodules
+mod handles;
 mod leader;
 #[allow(clippy::module_inception)]
 mod node;
 mod worker_node;
-mod handles;
 
 // Crate-wide visible submodules
 pub(crate) mod lattice;
 pub(crate) mod operator_event;
-pub(crate) mod worker;
 pub(crate) mod resources;
+pub(crate) mod worker;
 
 // Public submodules
 #[doc(hidden)]
 pub mod operator_executors;
 
 // Crate-wide exports.
-pub(crate) use leader::{LeaderNode, WorkerState};
-pub(crate) use worker_node::WorkerNode;
+pub(crate) use leader::LeaderNode;
 pub(crate) use resources::Resources;
+pub(crate) use worker_node::{WorkerNode, WorkerState};
 
 // Public exports
-pub use node::{Node, NodeHandle, NodeId};
 pub use handles::{LeaderHandle, WorkerHandle};
+pub use node::{Node, NodeHandle, NodeId};

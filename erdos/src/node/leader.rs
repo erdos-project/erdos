@@ -20,7 +20,7 @@ use crate::{
         CommunicationError,
     },
     dataflow::graph::{InternalGraph, Job},
-    node::Resources,
+    node::WorkerState,
     scheduler::{JobGraphScheduler, SimpleJobGraphScheduler},
     OperatorId,
 };
@@ -36,23 +36,6 @@ enum InterThreadMessage {
     ExecuteGraph(String),
     Shutdown(usize),
     ShutdownAllWorkers,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct WorkerState {
-    id: usize,
-    address: SocketAddr,
-    resources: Resources,
-}
-
-impl WorkerState {
-    fn new(id: usize, address: SocketAddr, resources: Resources) -> Self {
-        Self {
-            id,
-            address,
-            resources,
-        }
-    }
 }
 
 #[derive(PartialEq)]
@@ -168,7 +151,7 @@ impl LeaderNode {
         match worker_handler_msg {
             InterThreadMessage::WorkerInitialized(worker_state) => {
                 self.worker_id_to_worker_state
-                    .insert(worker_state.id, worker_state);
+                    .insert(worker_state.get_id(), worker_state);
             }
             InterThreadMessage::ScheduleJobGraph(job_name, job_graph) => {
                 // Invoke the Scheduler to retrieve the placements for this JobGraph.
@@ -200,7 +183,7 @@ impl LeaderNode {
                                                 .worker_id_to_worker_state
                                                 .get(source_worker_id)
                                                 .unwrap()
-                                                .address;
+                                                .get_address();
                                             source_worker_addresses
                                                 .insert(*source_worker_id, source_worker_address);
                                         }
@@ -286,22 +269,16 @@ impl LeaderNode {
                 // Communicate messages received from the Worker to the Leader.
                 Some(Ok(msg_from_worker)) = worker_rx.next() => {
                     match msg_from_worker {
-                        WorkerNotification::Initialized(
-                            worker_id,
-                            worker_address,
-                            worker_resources
-                        ) => {
-                            id_of_this_worker = worker_id;
+                        WorkerNotification::Initialized(worker_state) => {
+                            id_of_this_worker = worker_state.get_id();
                             // Communicate the Worker ID to the Leader.
                             tracing::debug!(
                                 "Initialized a Worker with the ID {} at {}",
-                                worker_id,
-                                worker_address,
+                                worker_state.get_id(),
+                                worker_state.get_address(),
                             );
                             let _ = channel_to_leader.send(
-                                InterThreadMessage::WorkerInitialized(
-                                    WorkerState::new(worker_id, worker_address, worker_resources)
-                                )
+                                InterThreadMessage::WorkerInitialized(worker_state)
                             );
                         },
                         WorkerNotification::OperatorReady(job_name, operator_id) => {

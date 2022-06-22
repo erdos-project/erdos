@@ -7,9 +7,9 @@ use tracing_subscriber::fmt::format::FmtSpan;
 
 use crate::{
     communication::{control_plane::notifications::DriverNotification, CommunicationError},
-    dataflow::graph::{default_graph, JobGraph},
+    dataflow::graph::default_graph,
     node::{LeaderNode, Resources, WorkerNode},
-    Configuration, Uuid,
+    Configuration,
 };
 
 /// A [`LeaderHandle`] is used by driver applications to interact
