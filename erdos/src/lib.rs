@@ -131,17 +131,12 @@
 #![feature(specialization)]
 #![feature(box_into_pin)]
 
-use communication::DriverNotification;
-use futures::StreamExt;
-use node::handles::LeaderHandle;
-use signal_hook_tokio::{Handle, Signals};
 // Re-exports of libraries used in macros.
 #[doc(hidden)]
 pub use ::tokio;
-use tokio::{sync::mpsc, task::JoinHandle};
 
 // Libraries used in this file.
-use std::{cell::RefCell, fmt, net::SocketAddr};
+use std::{cell::RefCell, fmt};
 
 use abomonation_derive::Abomonation;
 use clap::{self, App, Arg};
@@ -271,8 +266,4 @@ pub fn new_app(name: &str) -> clap::App {
                 .takes_value(false)
                 .help("Sets the level of verbosity"),
         )
-}
-
-pub fn start_leader(leader_address: SocketAddr) -> LeaderHandle {
-    LeaderHandle::new(leader_address, Some(tracing::Level::TRACE))
 }

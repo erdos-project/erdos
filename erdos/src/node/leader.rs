@@ -13,8 +13,11 @@ use tokio_util::codec::Framed;
 
 use crate::{
     communication::{
-        CommunicationError, ControlPlaneCodec, DriverNotification, LeaderNotification,
-        WorkerNotification,
+        control_plane::{
+            notifications::{DriverNotification, LeaderNotification, WorkerNotification},
+            ControlPlaneCodec,
+        },
+        CommunicationError,
     },
     dataflow::graph::{InternalGraph, Job},
     node::Resources,

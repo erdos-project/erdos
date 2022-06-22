@@ -15,20 +15,23 @@ mod leader;
 #[allow(clippy::module_inception)]
 mod node;
 mod worker_node;
+mod handles;
 
 // Crate-wide visible submodules
 pub(crate) mod lattice;
 pub(crate) mod operator_event;
 pub(crate) mod worker;
+pub(crate) mod resources;
 
 // Public submodules
 #[doc(hidden)]
 pub mod operator_executors;
-pub mod handles;
 
 // Crate-wide exports.
 pub(crate) use leader::{LeaderNode, WorkerState};
-pub(crate) use worker_node::{Resources, WorkerNode};
+pub(crate) use worker_node::WorkerNode;
+pub(crate) use resources::Resources;
 
 // Public exports
 pub use node::{Node, NodeHandle, NodeId};
+pub use handles::{LeaderHandle, WorkerHandle};

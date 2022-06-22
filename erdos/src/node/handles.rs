@@ -6,7 +6,7 @@ use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::format::FmtSpan;
 
 use crate::{
-    communication::{CommunicationError, DriverNotification},
+    communication::{control_plane::notifications::DriverNotification, CommunicationError},
     dataflow::graph::{default_graph, JobGraph},
     node::{LeaderNode, Resources, WorkerNode},
     Configuration, Uuid,
@@ -26,7 +26,7 @@ pub struct LeaderHandle {
 }
 
 impl LeaderHandle {
-    pub(crate) fn new(leader_address: SocketAddr, logging_level: Option<tracing::Level>) -> Self {
+    pub fn new(leader_address: SocketAddr, logging_level: Option<tracing::Level>) -> Self {
         // Initialize the logger.
         let logger_guard = if let Some(logging_level) = logging_level {
             let display_thread_ids = logging_level >= Level::TRACE;

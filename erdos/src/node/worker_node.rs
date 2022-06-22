@@ -12,30 +12,15 @@ use tokio_util::codec::Framed;
 
 use crate::{
     communication::{
-        CommunicationError, ControlPlaneCodec, DriverNotification, LeaderNotification,
-        WorkerNotification,
+        control_plane::{
+            notifications::{DriverNotification, LeaderNotification, WorkerNotification},
+            ControlPlaneCodec,
+        },
+        CommunicationError, MessageCodec,
     },
     dataflow::graph::JobGraph,
+    node::Resources,
 };
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct Resources {
-    num_cpus: usize,
-    num_gpus: usize,
-}
-
-impl Resources {
-    pub fn new(num_cpus: usize, num_gpus: usize) -> Self {
-        Self { num_cpus, num_gpus }
-    }
-
-    pub fn empty() -> Self {
-        Self {
-            num_cpus: 0,
-            num_gpus: 0,
-        }
-    }
-}
 
 pub(crate) struct WorkerNode {
     worker_id: usize,
@@ -176,7 +161,7 @@ impl WorkerNode {
                 if let Some(job_graph) = self.job_graphs.get(&job_name) {
                     if let Some(operator) = job_graph.get_operator(&operator_id) {
                         tracing::debug!(
-                            "[Worker {}] Received request to schedule Operator {} with ID: {:?}.",
+                            "[Worker {}] Received request to schedule {} with ID: {:?}.",
                             self.worker_id,
                             operator
                                 .config
@@ -196,7 +181,10 @@ impl WorkerNode {
                                         self.worker_id,
                                         worker_id,
                                         worker_address,
-                                    )
+                                    );
+
+                                    let (other_worker_tx, other_worker_rx) =
+                                        Framed::new(worker_connection, MessageCodec::new()).split();
                                 }
                                 Err(error) => {
                                     tracing::error!(

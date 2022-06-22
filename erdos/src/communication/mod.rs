@@ -20,7 +20,6 @@ use crate::{dataflow::stream::StreamId, node::NodeId, OperatorId};
 // Private submodules
 mod control_message_codec;
 mod control_message_handler;
-mod control_plane;
 mod endpoints;
 mod errors;
 mod message_codec;
@@ -30,6 +29,7 @@ mod serializable;
 pub(crate) mod pusher;
 pub(crate) mod receivers;
 pub(crate) mod senders;
+pub(crate) mod control_plane;
 
 // Private imports
 use serializable::Serializable;
@@ -43,12 +43,6 @@ pub(crate) use pusher::{Pusher, PusherT};
 
 // Crate-wide exports
 pub(crate) use endpoints::{RecvEndpoint, SendEndpoint};
-pub(crate) use control_plane::notifications::{
-    DriverNotification, LeaderNotification, WorkerNotification,
-};
-
-// Public Exports
-pub use control_plane::codec::ControlPlaneCodec;
 
 /// Message sent between nodes in order to coordinate node and operator initialization.
 #[derive(Debug, Clone, Serialize, Deserialize)]

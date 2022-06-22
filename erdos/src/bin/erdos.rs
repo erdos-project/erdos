@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 
 use clap::{App, Arg, SubCommand};
+use erdos::node::LeaderHandle;
 use futures::stream::StreamExt;
 use signal_hook::consts::SIGINT;
 use signal_hook_tokio::{Handle, Signals};
@@ -94,24 +95,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(matches) = matches.subcommand_matches("start") {
         let leader_address: SocketAddr = matches.value_of("address").unwrap().parse()?;
         if matches.is_present("leader") {
-            let leader_handle = erdos::start_leader(leader_address);
+            let leader_handle = LeaderHandle::new(leader_address, None);
             loop {
                 if let Some(notification) = driver_notification_rx_channel.recv().await {
                     match notification {
-                        CLINotifications::Shutdown => {
-                            match leader_handle.shutdown().await {
-                                Ok(_) => {
-                                    cleanup_notification_channels(signals_handle, signals_task).await?;
-                                    println!("[x] Successfully shut down the leader.");
-                                    return Ok(());
-                                }
-                                Err(error) => {
-                                    println!("[x] Error encountered when shutting down the Leader: {:?}", error);
-                                    cleanup_notification_channels(signals_handle, signals_task).await?;
-                                    return Err(error.into());
-                                }
+                        CLINotifications::Shutdown => match leader_handle.shutdown().await {
+                            Ok(_) => {
+                                cleanup_notification_channels(signals_handle, signals_task).await?;
+                                println!("[x] Successfully shut down the leader.");
+                                return Ok(());
                             }
-                        }
+                            Err(error) => {
+                                println!(
+                                    "[x] Error encountered when shutting down the Leader: {:?}",
+                                    error
+                                );
+                                cleanup_notification_channels(signals_handle, signals_task).await?;
+                                return Err(error.into());
+                            }
+                        },
                     }
                 }
             }
