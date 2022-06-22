@@ -75,9 +75,7 @@ impl DataReceiver {
                                 InterProcessMessage::Serialized { metadata, bytes } => {
                                     (metadata, bytes)
                                 }
-                                InterProcessMessage::Deserialized { metadata: _, data: _ } => {
-                                    unreachable!()
-                                }
+                                _ => unreachable!(),
                             };
 
                             // Find the corresponding Pusher for the message, and send the bytes.

@@ -1,7 +1,8 @@
 // TODO(Sukrit): Rename this to worker.rs once the merge is complete.
 
-use std::{collections::HashMap, net::SocketAddr};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
+use bytes::BytesMut;
 use futures::{stream::SplitSink, SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -16,9 +17,9 @@ use crate::{
             notifications::{DriverNotification, LeaderNotification, WorkerNotification},
             ControlPlaneCodec,
         },
-        CommunicationError, MessageCodec,
+        CommunicationError, EhloMetadata, InterProcessMessage, MessageCodec,
     },
-    dataflow::graph::JobGraph,
+    dataflow::{graph::JobGraph, stream::StreamId},
     node::Resources,
 };
 
@@ -104,6 +105,7 @@ impl WorkerNode {
                                 self.worker_id,
                                 worker_address
                             );
+                            self.handle_worker_connections(worker_stream, worker_address).await;
                         }
                         Err(error) => {
                             tracing::error!(
@@ -208,8 +210,15 @@ impl WorkerNode {
                                         worker_address,
                                     );
 
-                                    let (other_worker_tx, other_worker_rx) =
+                                    let (mut other_worker_tx, other_worker_rx) =
                                         Framed::new(worker_connection, MessageCodec::new()).split();
+                                    let _ = other_worker_tx
+                                        .send(InterProcessMessage::Ehlo {
+                                            metadata: EhloMetadata {
+                                                worker_id: self.worker_id,
+                                            },
+                                        })
+                                        .await;
                                 }
                                 Err(error) => {
                                     tracing::error!(
@@ -317,6 +326,35 @@ impl WorkerNode {
             }
             // The shutdown arm is unreachable, because it should be handled in the main loop.
             DriverNotification::Shutdown => unreachable!(),
+        }
+    }
+
+    async fn handle_worker_connections(
+        &mut self,
+        tcp_stream: TcpStream,
+        worker_address: SocketAddr,
+    ) {
+        // Split the TCP stream into a Sink and a Stream, and receive the first message from the
+        // Worker that contains the ID of the Worker.
+        let (worker_sink, mut worker_stream) =
+            Framed::new(tcp_stream, MessageCodec::default()).split();
+        if let Some(result) = worker_stream.next().await {
+            match result {
+                Ok(message) => {
+                    if let InterProcessMessage::Ehlo { metadata } = message {
+                        let other_worker_id = metadata.worker_id;
+                        tracing::debug!(
+                        "[Worker {}] Received an incoming connection from Worker {} from address {}.",
+                        self.worker_id,
+                        other_worker_id,
+                        worker_address,
+                        );
+                    } else {
+                        tracing::debug!("The EHLO procedure went wrong!");
+                    }
+                }
+                Err(_) => todo!(),
+            }
         }
     }
 

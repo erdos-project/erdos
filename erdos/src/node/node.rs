@@ -203,26 +203,26 @@ impl Node {
             let (split_sink, split_stream) = framed.split();
 
             // Create an ERDOS receiver for the stream half.
-            stream_halves.push(
-                DataReceiver::new(
-                    node_id,
-                    split_stream,
-                    data_receiver_control_rx.remove(&node_id).unwrap(),
-                    &mut self.control_handler,
-                )
-                .await,
-            );
+            // stream_halves.push(
+            //     DataReceiver::new(
+            //         node_id,
+            //         split_stream,
+            //         data_receiver_control_rx.remove(&node_id).unwrap(),
+            //         &mut self.control_handler,
+            //     )
+            //     .await,
+            // );
 
             // Create an ERDOS sender for the sink half.
-            sink_halves.push(
-                DataSender::new(
-                    node_id,
-                    split_sink,
-                    data_sender_control_rx.remove(&node_id).unwrap(),
-                    &mut self.control_handler,
-                )
-                .await,
-            );
+            // sink_halves.push(
+            //     DataSender::new(
+            //         node_id,
+            //         split_sink,
+            //         data_sender_control_rx.remove(&node_id).unwrap(),
+            //         &mut self.control_handler,
+            //     )
+            //     .await,
+            // );
         }
         (sink_halves, stream_halves)
     }

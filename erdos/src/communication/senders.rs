@@ -4,61 +4,60 @@ use futures_util::sink::SinkExt;
 use tokio::{
     self,
     net::TcpStream,
-    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
+    sync::mpsc::{self, UnboundedReceiver},
 };
 use tokio_util::codec::Framed;
 
-use crate::communication::{
-    CommunicationError, ControlMessage, ControlMessageHandler, InterProcessMessage, MessageCodec,
-};
-use crate::node::NodeId;
+use crate::communication::{CommunicationError, ControlMessage, InterProcessMessage, MessageCodec};
 
 #[allow(dead_code)]
 /// The [`DataSender`] pulls messages from a FIFO inter-thread channel.
 /// The [`DataSender`] services all operators sending messages to a particular
 /// node which may result in congestion.
 pub(crate) struct DataSender {
-    /// The id of the node the sink is sending data to.
-    node_id: NodeId,
-    /// Framed TCP write sink.
-    sink: SplitSink<Framed<TcpStream, MessageCodec>, InterProcessMessage>,
-    /// Tokio channel receiver on which to receive data from worker threads.
-    rx: UnboundedReceiver<InterProcessMessage>,
-    /// Tokio channel sender to `ControlMessageHandler`.
-    control_tx: UnboundedSender<ControlMessage>,
-    /// Tokio channel receiver from `ControlMessageHandler`.
-    control_rx: UnboundedReceiver<ControlMessage>,
+    /// The ID of the [`Worker`] that the TCP stream is sending data to.
+    worker_id: usize,
+    /// The sender of the Framed TCP stream for the Worker connection.
+    tcp_stream: SplitSink<Framed<TcpStream, MessageCodec>, InterProcessMessage>,
+    /// MPSC channel to receive data messages from operators that are to
+    /// be forwarded on the underlying TCP stream.
+    data_message_rx: UnboundedReceiver<InterProcessMessage>,
+    /// MPSC channel to communicate messages to the Worker.
+    channel_to_worker: mpsc::Sender<ControlMessage>,
 }
 
 impl DataSender {
     pub(crate) async fn new(
-        node_id: NodeId,
-        sink: SplitSink<Framed<TcpStream, MessageCodec>, InterProcessMessage>,
-        sender_control_rx: UnboundedReceiver<InterProcessMessage>,
-        control_handler: &mut ControlMessageHandler,
+        worker_id: usize,
+        tcp_stream: SplitSink<Framed<TcpStream, MessageCodec>, InterProcessMessage>,
+        data_message_rx: UnboundedReceiver<InterProcessMessage>,
+        channel_to_worker: mpsc::Sender<ControlMessage>,
     ) -> Self {
-        // Set up control channel.
-        let (control_tx, control_rx) = mpsc::unbounded_channel();
-        control_handler.add_channel_to_data_sender(node_id, control_tx);
         Self {
-            node_id,
-            sink,
-            rx: sender_control_rx,
-            control_tx: control_handler.get_channel_to_handler(),
-            control_rx,
+            worker_id,
+            tcp_stream,
+            data_message_rx,
+            channel_to_worker,
         }
     }
 
     pub(crate) async fn run(&mut self) -> Result<(), CommunicationError> {
-        // Notify [`ControlMessageHandler`] that sender is initialized.
-        self.control_tx
-            .send(ControlMessage::DataSenderInitialized(self.node_id))
+        // Notify the Worker that the DataSender is initialized.
+        self.channel_to_worker
+            .send(ControlMessage::DataSenderInitialized(self.worker_id))
+            .await
             .map_err(CommunicationError::from)?;
-        // TODO: listen on control_rx?
+
+        // Listen for messages from different operators that must be forwarded on the TCP stream.
         loop {
-            match self.rx.recv().await {
+            match self.data_message_rx.recv().await {
                 Some(msg) => {
-                    if let Err(e) = self.sink.send(msg).await.map_err(CommunicationError::from) {
+                    if let Err(e) = self
+                        .tcp_stream
+                        .send(msg)
+                        .await
+                        .map_err(CommunicationError::from)
+                    {
                         return Err(e);
                     }
                 }

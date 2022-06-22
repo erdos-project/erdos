@@ -2,8 +2,11 @@ use byteorder::{ByteOrder, NetworkEndian, WriteBytesExt};
 use bytes::{BufMut, BytesMut};
 use std::fmt::Debug;
 use tokio_util::codec::{Decoder, Encoder};
+use tracing::metadata;
 
 use crate::communication::{CodecError, InterProcessMessage, MessageMetadata};
+
+use super::Metadata;
 
 const HEADER_SIZE: usize = 8;
 
@@ -27,14 +30,14 @@ enum DecodeStatus {
 pub struct MessageCodec {
     /// Current part of the message to decode.
     status: DecodeStatus,
-    msg_metadata: Option<MessageMetadata>,
+    metadata: Option<Metadata>,
 }
 
 impl MessageCodec {
     pub fn new() -> MessageCodec {
         MessageCodec {
             status: DecodeStatus::Header,
-            msg_metadata: None,
+            metadata: None,
         }
     }
 }
@@ -74,9 +77,9 @@ impl Decoder for MessageCodec {
             } => {
                 if buf.len() >= metadata_size {
                     let metadata_bytes = buf.split_to(metadata_size);
-                    let metadata: MessageMetadata =
+                    let metadata =
                         bincode::deserialize(&metadata_bytes).map_err(CodecError::BincodeError)?;
-                    self.msg_metadata = Some(metadata);
+                    self.metadata = Some(metadata);
                     self.status = DecodeStatus::Data { data_size };
                     self.decode(buf)
                 } else {
@@ -87,10 +90,12 @@ impl Decoder for MessageCodec {
             DecodeStatus::Data { data_size } => {
                 if buf.len() >= data_size {
                     let bytes = buf.split_to(data_size);
-                    let msg = InterProcessMessage::new_serialized(
-                        bytes,
-                        self.msg_metadata.take().unwrap(),
-                    );
+                    let msg = match self.metadata.take().unwrap() {
+                        Metadata::MessageMetadata(metadata) => {
+                            InterProcessMessage::new_serialized(bytes, metadata)
+                        }
+                        Metadata::EhloMetadata(metadata) => InterProcessMessage::new_ehlo(metadata),
+                    };
                     self.status = DecodeStatus::Header;
                     Ok(Some(msg))
                 } else {
@@ -111,7 +116,10 @@ impl Encoder<InterProcessMessage> for MessageCodec {
     fn encode(&mut self, msg: InterProcessMessage, buf: &mut BytesMut) -> Result<(), CodecError> {
         // Serialize and write the header.
         let (metadata, data) = match msg {
-            InterProcessMessage::Deserialized { metadata, data } => (metadata, data),
+            InterProcessMessage::Deserialized { metadata, data } => {
+                (Metadata::MessageMetadata(metadata), Some(data))
+            }
+            InterProcessMessage::Ehlo { metadata } => (Metadata::EhloMetadata(metadata), None),
             InterProcessMessage::Serialized {
                 metadata: _,
                 bytes: _,
@@ -121,7 +129,10 @@ impl Encoder<InterProcessMessage> for MessageCodec {
         // Allocate memory in the buffer for serialized metadata and data
         // to reduce memory allocations.
         let metadata_size = bincode::serialized_size(&metadata).map_err(CodecError::from)?;
-        let data_size = data.serialized_size().unwrap();
+        let data_size = match &data {
+            Some(data) => data.serialized_size().unwrap(),
+            None => 0,
+        };
         buf.reserve(HEADER_SIZE + metadata_size as usize + data_size);
 
         // Serialize directly into the buffer.
@@ -129,7 +140,9 @@ impl Encoder<InterProcessMessage> for MessageCodec {
         writer.write_u32::<NetworkEndian>(metadata_size as u32)?;
         writer.write_u32::<NetworkEndian>(data_size as u32)?;
         bincode::serialize_into(&mut writer, &metadata).map_err(CodecError::from)?;
-        data.encode_into(buf).unwrap();
+        if let Some(data) = data {
+            data.encode_into(buf).unwrap();
+        }
 
         Ok(())
     }

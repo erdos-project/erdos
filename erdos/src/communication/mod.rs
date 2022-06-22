@@ -25,10 +25,10 @@ mod message_codec;
 mod serializable;
 
 // Crate-wide visible submodules
+pub(crate) mod control_plane;
 pub(crate) mod pusher;
 pub(crate) mod receivers;
 pub(crate) mod senders;
-pub(crate) mod control_plane;
 
 // Private imports
 use serializable::Serializable;
@@ -53,8 +53,19 @@ pub enum ControlMessage {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Metadata {
+    MessageMetadata(MessageMetadata),
+    EhloMetadata(EhloMetadata),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MessageMetadata {
     pub stream_id: StreamId,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EhloMetadata {
+    pub worker_id: usize,
 }
 
 #[derive(Clone)]
@@ -66,6 +77,9 @@ pub enum InterProcessMessage {
     Deserialized {
         metadata: MessageMetadata,
         data: Arc<dyn Serializable + Send + Sync>,
+    },
+    Ehlo {
+        metadata: EhloMetadata,
     },
 }
 
@@ -82,6 +96,10 @@ impl InterProcessMessage {
             metadata: MessageMetadata { stream_id },
             data,
         }
+    }
+
+    pub fn new_ehlo(metadata: EhloMetadata) -> Self {
+        Self::Ehlo { metadata }
     }
 }
 
