@@ -52,11 +52,10 @@ impl DataPlane {
                 worker_connection = self.worker_connection_listener.accept() => {
                     match worker_connection {
                         Ok((worker_stream, worker_address)) => {
-                            let _ = self.handle_incoming_worker_connections(
-                                         worker_stream,
-                                         worker_address
-                                    ).await;
-                        },
+                            let _ = self
+                                .handle_incoming_worker_connections(worker_stream, worker_address)
+                                .await;
+                        }
                         Err(error) => {
                             tracing::error!(
                                 "[DataPlane {}] Received an error when handling a \
@@ -75,10 +74,12 @@ impl DataPlane {
                             for (stream_id, worker_address) in stream_sources {
                                 match worker_address {
                                     WorkerAddress::Remote(worker_id, worker_address) => {
-                                        let _ = self.handle_outgoing_worker_connections(
-                                                    worker_id,
-                                                    worker_address
-                                                ).await;
+                                        let _ = self
+                                            .handle_outgoing_worker_connections(
+                                                worker_id,
+                                                worker_address,
+                                            )
+                                            .await;
                                     }
                                     WorkerAddress::Local => todo!(),
                                 }
@@ -164,7 +165,7 @@ impl DataPlane {
                     other_worker_id,
                     worker_address,
                     error,
-                )
+                );
                 Err(error.into())
             }
         }
