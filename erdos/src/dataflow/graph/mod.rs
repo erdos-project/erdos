@@ -21,10 +21,7 @@ pub(crate) use internal_graph::InternalGraph;
 pub(crate) use job_graph::JobGraph;
 use serde::Deserialize;
 
-use super::{
-    stream::{OperatorStream, StreamId},
-    Data, Stream,
-};
+use super::{stream::StreamId, Data, Stream};
 
 /// Trait for functions that set up operator execution.
 pub(crate) trait OperatorRunner:

@@ -43,6 +43,12 @@ pub struct InternalGraph {
     loop_streams: HashMap<StreamId, Option<StreamId>>,
 }
 
+impl Default for InternalGraph {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InternalGraph {
     pub fn new() -> Self {
         Self {
@@ -63,8 +69,8 @@ impl InternalGraph {
     {
         // A hook to initialize the ingest stream's connections to downstream operators.
         let write_stream_option_copy = ingest_stream.get_write_stream();
-        let name_copy = ingest_stream.name().clone();
-        let id_copy = ingest_stream.id().clone();
+        let name_copy = ingest_stream.name();
+        let id_copy = ingest_stream.id();
         let setup_hook = move |channel_manager: &mut ChannelManager| match channel_manager
             .get_send_endpoints(id_copy)
         {
@@ -95,8 +101,8 @@ impl InternalGraph {
         for<'a> D: Data + Deserialize<'a>,
     {
         let read_stream_option_copy = extract_stream.get_read_stream();
-        let name_copy = extract_stream.name().clone();
-        let id_copy = extract_stream.id().clone();
+        let name_copy = extract_stream.name();
+        let id_copy = extract_stream.id();
 
         let hook = move |channel_manager: &mut ChannelManager| match channel_manager
             .take_recv_endpoint(id_copy)
