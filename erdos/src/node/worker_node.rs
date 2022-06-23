@@ -1,13 +1,15 @@
 // TODO(Sukrit): Rename this to worker.rs once the merge is complete.
 
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr};
 
-use bytes::BytesMut;
 use futures::{stream::SplitSink, SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::{
     net::{TcpListener, TcpStream},
-    sync::mpsc::Receiver,
+    sync::{
+        broadcast,
+        mpsc::{self, Receiver, UnboundedSender},
+    },
 };
 use tokio_util::codec::Framed;
 
@@ -17,9 +19,10 @@ use crate::{
             notifications::{DriverNotification, LeaderNotification, WorkerNotification},
             ControlPlaneCodec,
         },
+        data_plane::{data_plane::DataPlane, notifications::DataPlaneNotification},
         CommunicationError, EhloMetadata, InterProcessMessage, MessageCodec,
     },
-    dataflow::{graph::JobGraph, stream::StreamId},
+    dataflow::graph::JobGraph,
     node::Resources,
 };
 
@@ -84,40 +87,28 @@ impl WorkerNode {
 
         // Initialize the Data layer on a randomly-assigned port.
         // The data layer is used to retrieve the dataflow messages from other operators.
-        let worker_data_listener = TcpListener::bind("0.0.0.0:0").await?;
+        let (mut channel_to_data_plane_tx, channel_to_data_plane_rx) = mpsc::unbounded_channel();
+        let (channel_from_data_plane_tx, channel_from_data_plane_rx) = mpsc::unbounded_channel();
+        let mut data_plane = DataPlane::new(
+            self.worker_id,
+            "0.0.0.0:0".parse().unwrap(),
+            channel_to_data_plane_rx,
+            channel_from_data_plane_tx,
+        )
+        .await?;
+        let data_plane_address = data_plane.get_address();
+        let data_plane_handle = tokio::spawn(async move { data_plane.run().await });
 
-        // Communicate the ID and data address of the Worker to the Leader.
+        // Communicate the ID and data plane address of the Worker to the Leader.
         leader_tx
             .send(WorkerNotification::Initialized(WorkerState::new(
                 self.worker_id,
-                worker_data_listener.local_addr().unwrap(),
+                data_plane_address,
                 self.resources.clone(),
             )))
             .await?;
         loop {
             tokio::select! {
-                // Handle connections for data messages from other Workers.
-                worker_connection = worker_data_listener.accept() => {
-                    match worker_connection {
-                        Ok((worker_stream, worker_address)) => {
-                            tracing::debug!(
-                                "[Worker {}] Received connection from address: {}",
-                                self.worker_id,
-                                worker_address
-                            );
-                            let _ = self.handle_worker_connections(worker_stream, worker_address).await;
-                        }
-                        Err(error) => {
-                            tracing::error!(
-                                "[Worker {}] Received an error when handling \
-                                                    a Worker connection: {}",
-                                self.worker_id,
-                                error
-                            );
-                        }
-                    }
-                }
-
                 // Handle messages received from the Leader.
                 Some(msg_from_leader) = leader_rx.next() => {
                     match msg_from_leader {
@@ -133,6 +124,7 @@ impl WorkerNode {
                                 _ => {
                                     self.handle_leader_messages(
                                         msg_from_leader,
+                                        &mut channel_to_data_plane_tx,
                                         &mut leader_tx
                                     ).await;
                                 }
@@ -162,6 +154,7 @@ impl WorkerNode {
                                     error
                                 );
                             }
+                            tokio::join!(data_plane_handle);
                             return Ok(());
                         }
                         _ => self.handle_driver_messages(driver_notification, &mut leader_tx).await,
@@ -174,6 +167,7 @@ impl WorkerNode {
     async fn handle_leader_messages(
         &mut self,
         msg_from_leader: LeaderNotification,
+        channel_to_data_plane: &mut UnboundedSender<DataPlaneNotification>,
         leader_tx: &mut SplitSink<
             Framed<TcpStream, ControlPlaneCodec<WorkerNotification, LeaderNotification>>,
             WorkerNotification,
@@ -187,51 +181,20 @@ impl WorkerNode {
             ) => {
                 if let Some(job_graph) = self.job_graphs.get(&job_name) {
                     if let Some(operator) = job_graph.get_operator(&operator_id) {
+                        let operator_name = match &operator.config.name {
+                            Some(name) => name.clone(),
+                            None => "UnnamedOperator".to_string(),
+                        };
                         tracing::debug!(
                             "[Worker {}] Received request to schedule {} with ID: {:?}.",
                             self.worker_id,
-                            operator
-                                .config
-                                .name
-                                .unwrap_or("UnnamedOperator".to_string()),
+                            operator_name,
                             operator_id
                         );
-
-                        // Connect to the addresses that send data to this Operator.
-                        for (worker_id, worker_address) in source_worker_addresses {
-                            // TODO (Sukrit): Check if we already have a connection.
-                            match TcpStream::connect(worker_address).await {
-                                Ok(worker_connection) => {
-                                    tracing::debug!(
-                                        "[Worker {}] Successfully connected to Worker {} at \
-                                                                            address {}.",
-                                        self.worker_id,
-                                        worker_id,
-                                        worker_address,
-                                    );
-
-                                    let (mut other_worker_tx, other_worker_rx) =
-                                        Framed::new(worker_connection, MessageCodec::new()).split();
-                                    let _ = other_worker_tx
-                                        .send(InterProcessMessage::Ehlo {
-                                            metadata: EhloMetadata {
-                                                worker_id: self.worker_id,
-                                            },
-                                        })
-                                        .await;
-                                }
-                                Err(error) => {
-                                    tracing::error!(
-                                        "[Worker {}] Received an error when connecting to Worker \
-                                                                    {} at address {}: {:?}",
-                                        self.worker_id,
-                                        worker_id,
-                                        worker_address,
-                                        error,
-                                    )
-                                }
-                            }
-                        }
+                        let _ = channel_to_data_plane.send(DataPlaneNotification::SetupConnections(
+                            operator,
+                            source_worker_addresses,
+                        ));
 
                         // TODO: Handle Operator
                         if let Err(error) = leader_tx
@@ -327,41 +290,6 @@ impl WorkerNode {
             // The shutdown arm is unreachable, because it should be handled in the main loop.
             DriverNotification::Shutdown => unreachable!(),
         }
-    }
-
-    async fn handle_worker_connections(
-        &mut self,
-        tcp_stream: TcpStream,
-        worker_address: SocketAddr,
-    ) -> Result<(), CommunicationError> {
-        // Split the TCP stream into a Sink and a Stream, and receive the first message from the
-        // Worker that contains the ID of the Worker.
-        let (worker_sink, mut worker_stream) =
-            Framed::new(tcp_stream, MessageCodec::default()).split();
-        if let Some(result) = worker_stream.next().await {
-            match result {
-                Ok(message) => {
-                    if let InterProcessMessage::Ehlo { metadata } = message {
-                        let other_worker_id = metadata.worker_id;
-                        tracing::debug!(
-                        "[Worker {}] Received an incoming connection from Worker {} from address {}.",
-                        self.worker_id,
-                        other_worker_id,
-                        worker_address,
-                        );
-                    } else {
-                        tracing::error!(
-                            "[Worker {}] The EHLO procedure went wrong with Worker at address {}!",
-                            self.worker_id,
-                            worker_address
-                        );
-                        return Err(CommunicationError::ProtocolError);
-                    }
-                }
-                Err(error) => return Err(error.into()),
-            }
-        }
-        Ok(())
     }
 
     pub(crate) fn get_id(&self) -> usize {

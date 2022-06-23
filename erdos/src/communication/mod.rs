@@ -21,11 +21,11 @@ use crate::{dataflow::stream::StreamId, node::NodeId, OperatorId};
 mod control_message_handler;
 mod endpoints;
 mod errors;
-mod message_codec;
 mod serializable;
 
 // Crate-wide visible submodules
 pub(crate) mod control_plane;
+pub(crate) mod data_plane;
 pub(crate) mod pusher;
 pub(crate) mod receivers;
 pub(crate) mod senders;
@@ -35,8 +35,8 @@ use serializable::Serializable;
 
 // Module-wide exports
 pub(crate) use control_message_handler::ControlMessageHandler;
+pub(crate) use data_plane::codec::MessageCodec;
 pub(crate) use errors::{CodecError, CommunicationError, TryRecvError};
-pub(crate) use message_codec::MessageCodec;
 pub(crate) use pusher::{Pusher, PusherT};
 
 // Crate-wide exports
@@ -51,6 +51,7 @@ pub enum ControlMessage {
     DataSenderInitialized(NodeId),
     DataReceiverInitialized(NodeId),
     PusherUpdate(StreamId, Box<dyn PusherT>),
+    PusherUpdated(StreamId),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

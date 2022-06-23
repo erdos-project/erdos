@@ -14,16 +14,23 @@ use tokio_util::codec::Framed;
 use crate::{
     communication::{
         control_plane::{
-            notifications::{DriverNotification, LeaderNotification, WorkerNotification},
+            notifications::{
+                DriverNotification, LeaderNotification, WorkerAddress, WorkerNotification,
+            },
             ControlPlaneCodec,
         },
         CommunicationError,
     },
-    dataflow::graph::{InternalGraph, Job},
+    dataflow::{
+        graph::{InternalGraph, Job},
+        stream::StreamId,
+    },
     node::WorkerState,
     scheduler::{JobGraphScheduler, SimpleJobGraphScheduler},
     OperatorId,
 };
+
+use super::worker::Worker;
 
 /// The [`InterThreadMessage`] enum defines the messages that the different
 /// spawned tasks may communicate back to the main loop of the [`LeaderNode`].
@@ -31,7 +38,7 @@ use crate::{
 enum InterThreadMessage {
     WorkerInitialized(WorkerState),
     ScheduleJobGraph(String, InternalGraph),
-    ScheduleOperator(String, OperatorId, usize, HashMap<usize, SocketAddr>),
+    ScheduleOperator(String, OperatorId, usize, HashMap<StreamId, WorkerAddress>),
     OperatorReady(String, OperatorId),
     ExecuteGraph(String),
     Shutdown(usize),
@@ -176,7 +183,9 @@ impl LeaderNode {
                                     Job::Operator(source_operator_id) => {
                                         let source_worker_id =
                                             placements.get(&source_operator_id).unwrap();
-                                        if source_worker_id != worker_id {
+                                        let source_address = if source_worker_id == worker_id {
+                                            WorkerAddress::Local
+                                        } else {
                                             // If the Source of the Stream is not on the same
                                             // Worker, then communicate the address of the Source.
                                             let source_worker_address = self
@@ -184,9 +193,13 @@ impl LeaderNode {
                                                 .get(source_worker_id)
                                                 .unwrap()
                                                 .get_address();
-                                            source_worker_addresses
-                                                .insert(*source_worker_id, source_worker_address);
-                                        }
+                                            WorkerAddress::Remote(
+                                                *source_worker_id,
+                                                source_worker_address,
+                                            )
+                                        };
+                                        source_worker_addresses
+                                            .insert(*read_stream_id, source_address);
                                     }
                                     Job::Driver => todo!(),
                                 }

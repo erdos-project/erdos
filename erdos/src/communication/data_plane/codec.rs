@@ -4,9 +4,8 @@ use std::fmt::Debug;
 use tokio_util::codec::{Decoder, Encoder};
 use tracing::metadata;
 
-use crate::communication::{CodecError, InterProcessMessage, MessageMetadata};
+use crate::communication::{CodecError, InterProcessMessage, Metadata, MessageMetadata};
 
-use super::Metadata;
 
 const HEADER_SIZE: usize = 8;
 

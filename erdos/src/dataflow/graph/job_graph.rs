@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt, fs::File, hash::Hash, io::prelude::*};
+use std::{collections::HashMap, fmt, fs::File, io::prelude::*};
 
 use serde::{Deserialize, Serialize};
 
@@ -139,9 +139,7 @@ impl JobGraph {
 
     /// Retrieve the [`AbstractOperator`] for the given ID.
     pub(crate) fn get_operator(&self, operator_id: &OperatorId) -> Option<AbstractOperator> {
-        self.operators
-            .get(operator_id)
-            .map(|operator| operator.clone())
+        self.operators.get(operator_id).cloned()
     }
 
     /// Retrieve the execution function for a particular operator in the graph.

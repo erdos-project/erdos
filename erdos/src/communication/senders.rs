@@ -4,7 +4,7 @@ use futures_util::sink::SinkExt;
 use tokio::{
     self,
     net::TcpStream,
-    sync::mpsc::{self, UnboundedReceiver},
+    sync::mpsc::{UnboundedReceiver, UnboundedSender},
 };
 use tokio_util::codec::Framed;
 
@@ -23,15 +23,15 @@ pub(crate) struct DataSender {
     /// be forwarded on the underlying TCP stream.
     data_message_rx: UnboundedReceiver<InterProcessMessage>,
     /// MPSC channel to communicate messages to the Worker.
-    channel_to_worker: mpsc::Sender<ControlMessage>,
+    channel_to_worker: UnboundedSender<ControlMessage>,
 }
 
 impl DataSender {
-    pub(crate) async fn new(
+    pub(crate) fn new(
         worker_id: usize,
         tcp_stream: SplitSink<Framed<TcpStream, MessageCodec>, InterProcessMessage>,
         data_message_rx: UnboundedReceiver<InterProcessMessage>,
-        channel_to_worker: mpsc::Sender<ControlMessage>,
+        channel_to_worker: UnboundedSender<ControlMessage>,
     ) -> Self {
         Self {
             worker_id,
@@ -45,7 +45,6 @@ impl DataSender {
         // Notify the Worker that the DataSender is initialized.
         self.channel_to_worker
             .send(ControlMessage::DataSenderInitialized(self.worker_id))
-            .await
             .map_err(CommunicationError::from)?;
 
         // Listen for messages from different operators that must be forwarded on the TCP stream.
