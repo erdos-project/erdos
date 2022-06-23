@@ -8,12 +8,14 @@ use tokio::{
 };
 use tokio_util::codec::Framed;
 
-use crate::communication::{CommunicationError, ControlMessage, InterProcessMessage, MessageCodec};
+use crate::communication::{CommunicationError, InterProcessMessage, MessageCodec};
+
+use super::data_plane::notifications::DataPlaneNotification;
 
 #[allow(dead_code)]
 /// The [`DataSender`] pulls messages from a FIFO inter-thread channel.
 /// The [`DataSender`] services all operators sending messages to a particular
-/// node which may result in congestion.
+/// Worker which may result in congestion.
 pub(crate) struct DataSender {
     /// The ID of the [`Worker`] that the TCP stream is sending data to.
     worker_id: usize,
@@ -22,8 +24,8 @@ pub(crate) struct DataSender {
     /// MPSC channel to receive data messages from operators that are to
     /// be forwarded on the underlying TCP stream.
     data_message_rx: UnboundedReceiver<InterProcessMessage>,
-    /// MPSC channel to communicate messages to the Worker.
-    channel_to_worker: UnboundedSender<ControlMessage>,
+    /// MPSC channel to communicate messages to the [`DataPlane`] handler.
+    data_plane_notification_tx: UnboundedSender<DataPlaneNotification>,
 }
 
 impl DataSender {
@@ -31,20 +33,20 @@ impl DataSender {
         worker_id: usize,
         tcp_stream: SplitSink<Framed<TcpStream, MessageCodec>, InterProcessMessage>,
         data_message_rx: UnboundedReceiver<InterProcessMessage>,
-        channel_to_worker: UnboundedSender<ControlMessage>,
+        data_plane_notification_tx: UnboundedSender<DataPlaneNotification>,
     ) -> Self {
         Self {
             worker_id,
             tcp_stream,
             data_message_rx,
-            channel_to_worker,
+            data_plane_notification_tx,
         }
     }
 
     pub(crate) async fn run(&mut self) -> Result<(), CommunicationError> {
         // Notify the Worker that the DataSender is initialized.
-        self.channel_to_worker
-            .send(ControlMessage::DataSenderInitialized(self.worker_id))
+        self.data_plane_notification_tx
+            .send(DataPlaneNotification::SenderInitialized(self.worker_id))
             .map_err(CommunicationError::from)?;
 
         // Listen for messages from different operators that must be forwarded on the TCP stream.
