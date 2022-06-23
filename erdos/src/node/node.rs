@@ -14,18 +14,21 @@ use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::format::FmtSpan;
 
-use crate::communication::{
-    self,
-    receivers::{self, ControlReceiver, DataReceiver},
-    senders::{self, ControlSender, DataSender},
-    ControlMessage, ControlMessageCodec, ControlMessageHandler, MessageCodec,
-};
-use crate::dataflow::graph::{graph::Graph, JobGraph};
+use crate::dataflow::graph::JobGraph;
 use crate::scheduler::{
     channel_manager::ChannelManager,
     endpoints_manager::{ChannelsToReceivers, ChannelsToSenders},
 };
 use crate::Configuration;
+use crate::{
+    communication::{
+        self,
+        receivers::{self, ControlReceiver, DataReceiver},
+        senders::{self, ControlSender, DataSender},
+        ControlMessage, ControlMessageCodec, ControlMessageHandler, MessageCodec,
+    },
+    dataflow::Graph,
+};
 
 use super::worker::Worker;
 

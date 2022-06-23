@@ -13,6 +13,7 @@ pub mod time;
 
 // Public exports
 pub use deadlines::TimestampDeadline;
+pub use graph::Graph;
 pub use message::{Data, Message, TimestampedData};
 pub use operator::OperatorConfig;
 pub use state::{AppendableState, State};
