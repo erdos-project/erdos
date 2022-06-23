@@ -14,21 +14,18 @@ use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::format::FmtSpan;
 
-use crate::dataflow::graph::{JobGraph, graph::Graph};
+use crate::communication::{
+    self,
+    receivers::{self, ControlReceiver, DataReceiver},
+    senders::{self, ControlSender, DataSender},
+    ControlMessage, ControlMessageCodec, ControlMessageHandler, MessageCodec,
+};
+use crate::dataflow::graph::{graph::Graph, JobGraph};
 use crate::scheduler::{
     channel_manager::ChannelManager,
     endpoints_manager::{ChannelsToReceivers, ChannelsToSenders},
 };
 use crate::Configuration;
-use crate::{
-    communication::{
-        self,
-        receivers::{self, ControlReceiver, DataReceiver},
-        senders::{self, ControlSender, DataSender},
-        ControlMessage, ControlMessageCodec, ControlMessageHandler, MessageCodec,
-    },
-    dataflow::graph::InternalGraph,
-};
 
 use super::worker::Worker;
 
@@ -117,7 +114,6 @@ impl Node {
         // Set the dataflow graph if it hasn't been set already.
         if self.job_graph.is_none() {
             self.job_graph = Some(graph.compile());
-            self.graph = Some(graph);
         }
         // Build a runtime with n threads.
         let runtime = Builder::new_multi_thread()
@@ -133,28 +129,27 @@ impl Node {
     /// Runs an ERDOS node in a seperate OS thread.
     ///
     /// The method immediately returns.
-    // pub fn run_async(mut self, graph: Graph) -> NodeHandle {
-    //     // Clone to avoid move to other thread.
-    //     let shutdown_tx = self.shutdown_tx.clone();
-    //     // Copy dataflow graph to the other thread
-    //     self.job_graph = Some(graph.compile());
-    //     self.graph = Some(graph);
-    //     let initialized = self.initialized.clone();
-    //     let thread_handle = thread::spawn(move || {
-    //         self.run(graph);
-    //     });
-    //     // Wait for ERDOS to start up.
-    //     let (lock, cvar) = &*initialized;
-    //     let mut started = lock.lock().unwrap();
-    //     while !*started {
-    //         started = cvar.wait(started).unwrap();
-    //     }
+    pub fn run_async(mut self, graph: Graph) -> NodeHandle {
+        // Clone to avoid move to other thread.
+        let shutdown_tx = self.shutdown_tx.clone();
+        // Copy dataflow graph to the other thread
+        self.job_graph = Some(graph.compile());
+        let initialized = self.initialized.clone();
+        let thread_handle = thread::spawn(move || {
+            self.run(graph);
+        });
+        // Wait for ERDOS to start up.
+        let (lock, cvar) = &*initialized;
+        let mut started = lock.lock().unwrap();
+        while !*started {
+            started = cvar.wait(started).unwrap();
+        }
 
-    //     NodeHandle {
-    //         thread_handle,
-    //         shutdown_tx,
-    //     }
-    // }
+        NodeHandle {
+            thread_handle,
+            shutdown_tx,
+        }
+    }
 
     fn set_node_initialized(&mut self) {
         let (lock, cvar) = &*self.initialized;
@@ -379,9 +374,7 @@ impl Node {
         if self.id == 0 {
             let mut channel_manager_mut = channel_manager.lock().unwrap();
             for setup_hook in job_graph.get_driver_setup_hooks() {
-                (setup_hook)(
-                    &mut channel_manager_mut,
-                );
+                (setup_hook)(&mut channel_manager_mut);
             }
         }
         // Broadcast all operators initialized on current node.

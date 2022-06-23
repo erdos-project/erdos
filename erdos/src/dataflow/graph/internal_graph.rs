@@ -11,7 +11,7 @@ use crate::{
             ParallelTwoInOneOut, Sink, Source, TwoInOneOut,
         },
         stream::{ExtractStream, IngestStream, OperatorStream, Stream, StreamId},
-        AppendableState, Data, LoopStream, State,
+        AppendableState, Data, LoopStream, ReadStream, State, WriteStream,
     },
     node::operator_executors::{
         OneInExecutor, OneInOneOutMessageProcessor, OneInTwoOutMessageProcessor, OperatorExecutorT,
@@ -24,8 +24,7 @@ use crate::{
 };
 
 use super::{
-    job_graph::JobGraph, AbstractOperator, AbstractStream, AbstractStreamT, OperatorRunner,
-    StreamSetupHook,
+    job_graph::JobGraph, AbstractOperator, AbstractStream, AbstractStreamT, StreamSetupHook,
 };
 
 /// The abstract graph representation of an ERDOS program defined in the driver.
@@ -55,80 +54,34 @@ impl InternalGraph {
         }
     }
 
-    /// Adds an operator and its read and write streams to the graph.
-    /// Write streams are automatically named based on the operator name.
-    pub(crate) fn add_operator<F, T, U, V, W>(
-        &mut self,
-        config: OperatorConfig,
-        runner: F,
-        left_read_stream: Option<&dyn Stream<T>>,
-        right_read_stream: Option<&dyn Stream<U>>,
-        left_write_stream: Option<&OperatorStream<V>>,
-        right_write_stream: Option<&OperatorStream<W>>,
-    ) where
-        F: OperatorRunner,
-        for<'a> T: Data + Deserialize<'a>,
-        for<'a> U: Data + Deserialize<'a>,
-        for<'a> V: Data + Deserialize<'a>,
-        for<'a> W: Data + Deserialize<'a>,
-    {
-        let read_streams = match (left_read_stream, right_read_stream) {
-            (Some(ls), Some(rs)) => vec![ls.id(), rs.id()],
-            (Some(ls), None) => vec![ls.id()],
-            (None, Some(rs)) => vec![rs.id()],
-            (None, None) => vec![],
-        };
-
-        let write_streams = match (left_write_stream, right_write_stream) {
-            (Some(ls), Some(rs)) => vec![ls.id(), rs.id()],
-            (Some(ls), None) => vec![ls.id()],
-            (None, Some(rs)) => vec![rs.id()],
-            (None, None) => vec![],
-        };
-
-        // Add write streams to the graph.
-        if let Some(ls) = left_write_stream {
-            let stream_name = if write_streams.len() == 1 {
-                format!("{}-write-stream", config.get_name())
-            } else {
-                format!("{}-write-left-stream", config.get_name())
-            };
-            let abstract_stream = AbstractStream::<V>::new(ls.id(), stream_name);
-            self.streams.insert(ls.id(), Box::new(abstract_stream));
-        }
-        if let Some(rs) = right_write_stream {
-            let stream_name = format!("{}-right-write-stream", config.get_name());
-            let abstract_stream = AbstractStream::<W>::new(rs.id(), stream_name);
-            self.streams.insert(rs.id(), Box::new(abstract_stream));
-        }
-
-        let operator_id = config.id;
-        let abstract_operator = AbstractOperator {
-            id: operator_id,
-            runner: Box::new(runner),
-            config,
-            read_streams,
-            write_streams,
-        };
-        self.operators.insert(operator_id, abstract_operator);
-    }
-
     /// Adds an [`IngestStream`] to the graph.
     /// [`IngestStream`]s are automatically named based on the number of [`IngestStream`]s
     /// in the graph.
-    pub(crate) fn add_ingest_stream<D>(
-        &mut self,
-        ingest_stream: &IngestStream<D>,
-        setup_hook: impl StreamSetupHook,
-    ) where
+    pub(crate) fn add_ingest_stream<D>(&mut self, ingest_stream: &IngestStream<D>)
+    where
         for<'a> D: Data + Deserialize<'a>,
     {
-        // Note: do not call IngestStream::name or IngestStream::set_name, as this will try to
-        // acquire a lock to this graph, causing a deadlock.
-        let name = format!("ingest-stream-{}", self.ingest_streams.len());
-        let abstract_stream = AbstractStream::<D>::new(ingest_stream.id(), name);
-        self.streams
-            .insert(ingest_stream.id(), Box::new(abstract_stream));
+        // A hook to initialize the ingest stream's connections to downstream operators.
+        let write_stream_option_copy = ingest_stream.get_write_stream();
+        let name_copy = ingest_stream.name().clone();
+        let id_copy = ingest_stream.id().clone();
+        let setup_hook = move |channel_manager: &mut ChannelManager| match channel_manager
+            .get_send_endpoints(id_copy)
+        {
+            Ok(send_endpoints) => {
+                let write_stream = WriteStream::new(id_copy, &name_copy, send_endpoints);
+                write_stream_option_copy
+                    .lock()
+                    .unwrap()
+                    .replace(write_stream);
+            }
+            Err(msg) => panic!("Unable to set up IngestStream {}: {}", id_copy, msg),
+        };
+
+        self.streams.insert(
+            ingest_stream.id(),
+            Box::new(AbstractStream::from(ingest_stream)),
+        );
 
         self.ingest_streams
             .insert(ingest_stream.id(), Box::new(setup_hook));
@@ -137,17 +90,26 @@ impl InternalGraph {
     /// Adds an [`ExtractStream`] to the graph.
     /// [`ExtractStream`]s are automatically named based on the number of [`ExtractStream`]s
     /// in the graph.
-    pub(crate) fn add_extract_stream<D>(
-        &mut self,
-        extract_stream: &ExtractStream<D>,
-        setup_hook: impl StreamSetupHook,
-    ) where
+    pub(crate) fn add_extract_stream<D>(&mut self, extract_stream: &ExtractStream<D>)
+    where
         for<'a> D: Data + Deserialize<'a>,
     {
-        // Note: do not call IngestStream::name or IngestStream::set_name, as this will try to
-        // acquire a lock to this graph, causing a deadlock.
+        let read_stream_option_copy = extract_stream.get_read_stream();
+        let name_copy = extract_stream.name().clone();
+        let id_copy = extract_stream.id().clone();
+
+        let hook = move |channel_manager: &mut ChannelManager| match channel_manager
+            .take_recv_endpoint(id_copy)
+        {
+            Ok(recv_endpoint) => {
+                let read_stream = ReadStream::new(id_copy, &name_copy, recv_endpoint);
+                read_stream_option_copy.lock().unwrap().replace(read_stream);
+            }
+            Err(msg) => panic!("Unable to set up ExtractStream {}: {}", id_copy, msg),
+        };
+
         self.extract_streams
-            .insert(extract_stream.id(), Box::new(setup_hook));
+            .insert(extract_stream.id(), Box::new(hook));
     }
 
     /// Adds a [`LoopStream`] to the graph.
@@ -155,10 +117,10 @@ impl InternalGraph {
     where
         for<'a> D: Data + Deserialize<'a>,
     {
-        let name = format!("loop-stream-{}", self.loop_streams.len());
-        let abstract_stream = AbstractStream::<D>::new(loop_stream.id(), name);
-        self.streams
-            .insert(loop_stream.id(), Box::new(abstract_stream));
+        self.streams.insert(
+            loop_stream.id(),
+            Box::new(AbstractStream::from(loop_stream)),
+        );
 
         self.loop_streams.insert(loop_stream.id(), None);
     }
@@ -203,14 +165,20 @@ impl InternalGraph {
                 Box::new(executor)
             };
 
-        self.add_operator::<_, (), (), T, ()>(
-            config,
-            op_runner,
-            None,
-            None,
-            Some(write_stream),
-            None,
+        self.streams.insert(
+            write_stream_id,
+            Box::new(AbstractStream::from(write_stream)),
         );
+
+        let abstract_operator = AbstractOperator {
+            id: config.id,
+            runner: Box::new(op_runner),
+            config,
+            read_streams: vec![],
+            write_streams: vec![write_stream_id],
+        };
+        self.operators
+            .insert(abstract_operator.id, abstract_operator);
     }
 
     /// Adds a [`ParallelSink`] operator, which receives data on input read streams and directly
@@ -251,14 +219,15 @@ impl InternalGraph {
                 ))
             };
 
-        self.add_operator::<_, T, (), (), ()>(
+        let abstract_operator = AbstractOperator {
+            id: config.id,
+            runner: Box::new(op_runner),
             config,
-            op_runner,
-            Some(read_stream),
-            None,
-            None,
-            None,
-        );
+            read_streams: vec![read_stream_id],
+            write_streams: vec![],
+        };
+        self.operators
+            .insert(abstract_operator.id, abstract_operator);
     }
 
     /// Adds a [`Sink`] operator, which receives data on input read streams and directly interacts
@@ -298,14 +267,15 @@ impl InternalGraph {
                 ))
             };
 
-        self.add_operator::<_, T, (), (), ()>(
+        let abstract_operator = AbstractOperator {
+            id: config.id,
+            runner: Box::new(op_runner),
             config,
-            op_runner,
-            Some(read_stream),
-            None,
-            None,
-            None,
-        );
+            read_streams: vec![read_stream_id],
+            write_streams: vec![],
+        };
+        self.operators
+            .insert(abstract_operator.id, abstract_operator);
     }
 
     /// Adds a [`ParallelOneInOneOut`] operator that has one input read stream and one output
@@ -351,14 +321,20 @@ impl InternalGraph {
                 ))
             };
 
-        self.add_operator::<_, T, (), U, ()>(
-            config,
-            op_runner,
-            Some(read_stream),
-            None,
-            Some(write_stream),
-            None,
+        self.streams.insert(
+            write_stream_id,
+            Box::new(AbstractStream::from(write_stream)),
         );
+
+        let abstract_operator = AbstractOperator {
+            id: config.id,
+            runner: Box::new(op_runner),
+            config,
+            read_streams: vec![read_stream_id],
+            write_streams: vec![write_stream_id],
+        };
+        self.operators
+            .insert(abstract_operator.id, abstract_operator);
     }
 
     /// Adds a [`OneInOneOut`] operator that has one input read stream and one output write stream.
@@ -402,14 +378,20 @@ impl InternalGraph {
                 ))
             };
 
-        self.add_operator::<_, T, (), U, ()>(
-            config,
-            op_runner,
-            Some(read_stream),
-            None,
-            Some(write_stream),
-            None,
+        self.streams.insert(
+            write_stream_id,
+            Box::new(AbstractStream::from(write_stream)),
         );
+
+        let abstract_operator = AbstractOperator {
+            id: config.id,
+            runner: Box::new(op_runner),
+            config,
+            read_streams: vec![read_stream_id],
+            write_streams: vec![write_stream_id],
+        };
+        self.operators
+            .insert(abstract_operator.id, abstract_operator);
     }
 
     /// Adds a [`ParallelTwoInOneOut`] operator that has two input read streams and one output
@@ -461,14 +443,20 @@ impl InternalGraph {
                 ))
             };
 
-        self.add_operator::<_, T, U, V, ()>(
-            config,
-            op_runner,
-            Some(left_read_stream),
-            Some(right_read_stream),
-            Some(write_stream),
-            None,
+        self.streams.insert(
+            write_stream_id,
+            Box::new(AbstractStream::from(write_stream)),
         );
+
+        let abstract_operator = AbstractOperator {
+            id: config.id,
+            runner: Box::new(op_runner),
+            config,
+            read_streams: vec![left_read_stream_id, right_read_stream_id],
+            write_streams: vec![write_stream_id],
+        };
+        self.operators
+            .insert(abstract_operator.id, abstract_operator);
     }
 
     /// Adds a [`TwoInOneOut`] operator that has two input read streams and one output write stream.
@@ -518,14 +506,20 @@ impl InternalGraph {
                 ))
             };
 
-        self.add_operator::<_, T, U, V, ()>(
-            config,
-            op_runner,
-            Some(left_read_stream),
-            Some(right_read_stream),
-            Some(write_stream),
-            None,
+        self.streams.insert(
+            write_stream_id,
+            Box::new(AbstractStream::from(write_stream)),
         );
+
+        let abstract_operator = AbstractOperator {
+            id: config.id,
+            runner: Box::new(op_runner),
+            config,
+            read_streams: vec![left_read_stream_id, right_read_stream_id],
+            write_streams: vec![write_stream_id],
+        };
+        self.operators
+            .insert(abstract_operator.id, abstract_operator);
     }
 
     /// Adds a [`ParallelOneInTwoOut`] operator that has one input read stream and two output
@@ -577,14 +571,24 @@ impl InternalGraph {
                 ))
             };
 
-        self.add_operator::<_, T, (), U, V>(
-            config,
-            op_runner,
-            Some(read_stream),
-            None,
-            Some(left_write_stream),
-            Some(right_write_stream),
+        self.streams.insert(
+            left_write_stream_id,
+            Box::new(AbstractStream::from(left_write_stream)),
         );
+        self.streams.insert(
+            right_write_stream_id,
+            Box::new(AbstractStream::from(right_write_stream)),
+        );
+
+        let abstract_operator = AbstractOperator {
+            id: config.id,
+            runner: Box::new(op_runner),
+            config,
+            read_streams: vec![read_stream_id],
+            write_streams: vec![left_write_stream_id, right_write_stream_id],
+        };
+        self.operators
+            .insert(abstract_operator.id, abstract_operator);
     }
 
     /// Adds a [`OneInTwoOut`] operator that has one input read stream and two output write streams.
@@ -634,22 +638,24 @@ impl InternalGraph {
                 ))
             };
 
-        self.add_operator::<_, T, (), U, V>(
-            config,
-            op_runner,
-            Some(read_stream),
-            None,
-            Some(left_write_stream),
-            Some(right_write_stream),
+        self.streams.insert(
+            left_write_stream_id,
+            Box::new(AbstractStream::from(left_write_stream)),
         );
-    }
+        self.streams.insert(
+            right_write_stream_id,
+            Box::new(AbstractStream::from(right_write_stream)),
+        );
 
-    pub(crate) fn get_stream_name(&self, stream_id: &StreamId) -> String {
-        self.streams.get(stream_id).unwrap().name()
-    }
-
-    pub(crate) fn set_stream_name(&mut self, stream_id: &StreamId, name: String) {
-        self.streams.get_mut(stream_id).unwrap().set_name(name);
+        let abstract_operator = AbstractOperator {
+            id: config.id,
+            runner: Box::new(op_runner),
+            config,
+            read_streams: vec![read_stream_id],
+            write_streams: vec![left_write_stream_id, right_write_stream_id],
+        };
+        self.operators
+            .insert(abstract_operator.id, abstract_operator);
     }
 
     /// If `stream_id` corresponds to a [`LoopStream`], returns the [`StreamId`] of the

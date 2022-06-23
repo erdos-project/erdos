@@ -6,10 +6,7 @@ use std::{
 
 use serde::Deserialize;
 
-use crate::{
-    dataflow::{graph::InternalGraph, Data, Message},
-    scheduler::channel_manager::ChannelManager,
-};
+use crate::dataflow::{graph::InternalGraph, Data, Message};
 
 use super::{errors::SendError, Stream, StreamId, WriteStream, WriteStreamT};
 
@@ -79,48 +76,27 @@ where
     for<'a> D: Data + Deserialize<'a>,
 {
     /// Returns a new instance of the [`IngestStream`].
-    pub fn new(name: &str, graph: Arc<Mutex<InternalGraph>>) -> Self {
-        tracing::debug!("Initializing an IngestStream");
-        let id = StreamId::new_deterministic();
-        let ingest_stream = Self {
-            id,
+    pub(crate) fn new(name: &str, graph: Arc<Mutex<InternalGraph>>) -> Self {
+        tracing::debug!(
+            "Initializing an IngestStream with name: {}",
+            name.to_string()
+        );
+
+        Self {
+            id: StreamId::new_deterministic(),
             name: name.to_string(),
             write_stream_option: Arc::new(Mutex::new(None)),
             graph: Arc::clone(&graph),
-        };
+        }
+    }
 
-        // A hook to initialize the ingest stream's connections to downstream operators.
-        let write_stream_option_copy = Arc::clone(&ingest_stream.write_stream_option);
-        let name_copy = name.to_string().clone();
-
-        let setup_hook = move |channel_manager: &mut ChannelManager| match channel_manager
-            .get_send_endpoints(id)
-        {
-            Ok(send_endpoints) => {
-                let write_stream = WriteStream::new(id, &name_copy, send_endpoints);
-                write_stream_option_copy
-                    .lock()
-                    .unwrap()
-                    .replace(write_stream);
-            }
-            Err(msg) => panic!("Unable to set up IngestStream {}: {}", id, msg),
-        };
-
-        graph
-            .lock()
-            .unwrap()
-            .add_ingest_stream(&ingest_stream, setup_hook);
-        graph
-            .lock()
-            .unwrap()
-            .set_stream_name(&id, format!("ingest_stream_{}", id));
-
-        ingest_stream
+    pub(crate) fn get_write_stream(&self) -> Arc<Mutex<Option<WriteStream<D>>>> {
+        Arc::clone(&self.write_stream_option)
     }
 
     /// Returns `true` if a top watermark message was received or the [`IngestStream`] failed to
     /// set up.
-    pub fn is_closed(&self) -> bool {
+    pub(crate) fn is_closed(&self) -> bool {
         self.write_stream_option
             .lock()
             .unwrap()
@@ -133,7 +109,7 @@ where
     ///
     /// # Arguments
     /// * `msg` - The message to be sent on the stream.
-    pub fn send(&mut self, msg: Message<D>) -> Result<(), SendError> {
+    pub(crate) fn send(&mut self, msg: Message<D>) -> Result<(), SendError> {
         if !self.is_closed() {
             loop {
                 {
@@ -159,6 +135,9 @@ impl<D> Stream<D> for IngestStream<D>
 where
     for<'a> D: Data + Deserialize<'a>,
 {
+    fn name(&self) -> String {
+        self.name.clone()
+    }
     fn id(&self) -> StreamId {
         self.id
     }

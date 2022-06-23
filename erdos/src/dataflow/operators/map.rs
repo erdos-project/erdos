@@ -125,7 +125,10 @@ where
     {
         let op_name = format!("MapOp_{}", self.id());
 
-        let write_stream = OperatorStream::new(Arc::clone(&self.get_graph()));
+        let write_stream = OperatorStream::new(
+            &format!("{}-write-stream", op_name),
+            Arc::clone(&self.get_graph()),
+        );
         self.get_graph().lock().unwrap().connect_one_in_one_out(
             move || -> FlatMapOperator<D1, _> {
                 let map_fn = map_fn.clone();
@@ -146,7 +149,10 @@ where
     {
         let op_name = format!("FlatMapOp_{}", self.id());
 
-        let write_stream = OperatorStream::new(Arc::clone(&self.get_graph()));
+        let write_stream = OperatorStream::new(
+            &format!("{}-write-stream", op_name),
+            Arc::clone(&self.get_graph()),
+        );
         self.get_graph().lock().unwrap().connect_one_in_one_out(
             move || -> FlatMapOperator<D1, _> { FlatMapOperator::new(flat_map_fn.clone()) },
             || {},

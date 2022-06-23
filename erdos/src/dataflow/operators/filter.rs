@@ -93,7 +93,10 @@ where
     {
         let op_name = format!("FilterOp_{}", self.id());
 
-        let write_stream = OperatorStream::new(Arc::clone(&self.get_graph()));
+        let write_stream = OperatorStream::new(
+            &format!("{}-write-stream", op_name),
+            Arc::clone(&self.get_graph()),
+        );
         self.get_graph().lock().unwrap().connect_one_in_one_out(
             move || -> FilterOperator<D> { FilterOperator::new(filter_fn.clone()) },
             || {},

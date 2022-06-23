@@ -9,7 +9,7 @@ use crate::{
             ParallelTwoInOneOut, Sink, Source, TwoInOneOut,
         },
         stream::{ExtractStream, IngestStream, OperatorStream},
-        AppendableState, Data, State, Stream,
+        AppendableState, Data, LoopStream, State, Stream,
     },
     OperatorConfig,
 };
@@ -31,14 +31,39 @@ impl Graph {
     where
         for<'a> D: Data + Deserialize<'a>,
     {
-        IngestStream::new(name, Arc::clone(&self.internal_graph))
+        let ingest_stream = IngestStream::new(name, Arc::clone(&self.internal_graph));
+        self.internal_graph
+            .lock()
+            .unwrap()
+            .add_ingest_stream(&ingest_stream);
+
+        ingest_stream
     }
 
-    pub fn get_extract_stream<D>(&self, stream: &OperatorStream<D>) -> ExtractStream<D>
+    pub fn get_extract_stream<D>(&self, name: &str, stream: &OperatorStream<D>) -> ExtractStream<D>
     where
         for<'a> D: Data + Deserialize<'a>,
     {
-        ExtractStream::new(stream, Arc::clone(&self.internal_graph))
+        let extract_stream = ExtractStream::new(name, stream);
+        self.internal_graph
+            .lock()
+            .unwrap()
+            .add_extract_stream(&extract_stream);
+
+        extract_stream
+    }
+
+    pub(crate) fn get_loop_stream<D>(&self, name: &str) -> LoopStream<D>
+    where
+        for<'a> D: Data + Deserialize<'a>,
+    {
+        let loop_stream = LoopStream::new(name, Arc::clone(&self.internal_graph));
+        self.internal_graph
+            .lock()
+            .unwrap()
+            .add_loop_stream(&loop_stream);
+
+        loop_stream
     }
 
     pub fn connect_source<O, T>(
@@ -50,7 +75,10 @@ impl Graph {
         O: 'static + Source<T>,
         T: Data + for<'a> Deserialize<'a>,
     {
-        let write_stream = OperatorStream::new(Arc::clone(&self.internal_graph));
+        let write_stream = OperatorStream::new(
+            &format!("{}-write-stream", config.get_name()),
+            Arc::clone(&self.internal_graph),
+        );
         self.internal_graph
             .lock()
             .unwrap()
@@ -113,7 +141,10 @@ impl Graph {
         U: Data + for<'a> Deserialize<'a>,
         V: 'static + Send + Sync,
     {
-        let write_stream = OperatorStream::new(Arc::clone(&self.internal_graph));
+        let write_stream = OperatorStream::new(
+            &format!("{}-write-stream", config.get_name()),
+            Arc::clone(&self.internal_graph),
+        );
         self.internal_graph
             .lock()
             .unwrap()
@@ -142,7 +173,10 @@ impl Graph {
         T: Data + for<'a> Deserialize<'a>,
         U: Data + for<'a> Deserialize<'a>,
     {
-        let write_stream = OperatorStream::new(Arc::clone(&self.internal_graph));
+        let write_stream = OperatorStream::new(
+            &format!("{}-write-stream", config.get_name()),
+            Arc::clone(&self.internal_graph),
+        );
         self.internal_graph.lock().unwrap().connect_one_in_one_out(
             operator_fn,
             state_fn,
@@ -171,7 +205,10 @@ impl Graph {
         V: Data + for<'a> Deserialize<'a>,
         W: 'static + Send + Sync,
     {
-        let write_stream = OperatorStream::new(Arc::clone(&self.internal_graph));
+        let write_stream = OperatorStream::new(
+            &format!("{}-write-stream", config.get_name()),
+            Arc::clone(&self.internal_graph),
+        );
         self.internal_graph
             .lock()
             .unwrap()
@@ -203,7 +240,10 @@ impl Graph {
         U: Data + for<'a> Deserialize<'a>,
         V: Data + for<'a> Deserialize<'a>,
     {
-        let write_stream = OperatorStream::new(Arc::clone(&self.internal_graph));
+        let write_stream = OperatorStream::new(
+            &format!("{}-write-stream", config.get_name()),
+            Arc::clone(&self.internal_graph),
+        );
         self.internal_graph.lock().unwrap().connect_two_in_one_out(
             operator_fn,
             state_fn,
@@ -232,8 +272,14 @@ impl Graph {
         V: Data + for<'a> Deserialize<'a>,
         W: 'static + Send + Sync,
     {
-        let left_write_stream = OperatorStream::new(Arc::clone(&self.internal_graph));
-        let right_write_stream = OperatorStream::new(Arc::clone(&self.internal_graph));
+        let left_write_stream = OperatorStream::new(
+            &format!("{}-left-write-stream", config.get_name()),
+            Arc::clone(&self.internal_graph),
+        );
+        let right_write_stream = OperatorStream::new(
+            &format!("{}-right-write-stream", config.get_name()),
+            Arc::clone(&self.internal_graph),
+        );
         self.internal_graph
             .lock()
             .unwrap()
@@ -264,8 +310,14 @@ impl Graph {
         U: Data + for<'a> Deserialize<'a>,
         V: Data + for<'a> Deserialize<'a>,
     {
-        let left_write_stream = OperatorStream::new(Arc::clone(&self.internal_graph));
-        let right_write_stream = OperatorStream::new(Arc::clone(&self.internal_graph));
+        let left_write_stream = OperatorStream::new(
+            &format!("{}-left-write-stream", config.get_name()),
+            Arc::clone(&self.internal_graph),
+        );
+        let right_write_stream = OperatorStream::new(
+            &format!("{}-right-write-stream", config.get_name()),
+            Arc::clone(&self.internal_graph),
+        );
         self.internal_graph.lock().unwrap().connect_one_in_two_out(
             operator_fn,
             state_fn,

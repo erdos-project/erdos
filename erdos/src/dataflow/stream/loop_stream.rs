@@ -29,6 +29,7 @@ where
     for<'a> D: Data + Deserialize<'a>,
 {
     id: StreamId,
+    name: String,
     phantom: PhantomData<D>,
     graph: Arc<Mutex<InternalGraph>>,
 }
@@ -37,15 +38,14 @@ impl<D> LoopStream<D>
 where
     for<'a> D: Data + Deserialize<'a>,
 {
-    pub fn new(graph: Arc<Mutex<InternalGraph>>) -> Self {
+    pub(crate) fn new(name: &str, graph: Arc<Mutex<InternalGraph>>) -> Self {
         let id = StreamId::new_deterministic();
-        let loop_stream = Self {
+        Self {
             id,
+            name: name.to_string(),
             phantom: PhantomData,
             graph: Arc::clone(&graph),
-        };
-        graph.lock().unwrap().add_loop_stream(&loop_stream);
-        loop_stream
+        }
     }
 
     pub fn connect_loop(&self, stream: &OperatorStream<D>) {
@@ -59,6 +59,9 @@ where
 {
     fn id(&self) -> StreamId {
         self.id
+    }
+    fn name(&self) -> String {
+        self.name.clone()
     }
     fn get_graph(&self) -> std::sync::Arc<std::sync::Mutex<InternalGraph>> {
         Arc::clone(&self.graph)
