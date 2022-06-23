@@ -272,8 +272,8 @@ impl Graph {
             state_fn,
             config,
             read_stream,
-            left_write_stream,
-            right_write_stream,
+            left_write_stream.clone(),
+            right_write_stream.clone(),
         );
 
         (left_write_stream, right_write_stream)

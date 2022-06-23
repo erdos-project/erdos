@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use serde::Deserialize;
 
 use crate::dataflow::{
@@ -135,12 +137,16 @@ where
     /// ```
     fn timestamp_join(&self, other: &dyn Stream<U>) -> OperatorStream<(T, U)> {
         let name = format!("TimestampJoinOp_{}_{}", self.name(), other.name());
+        let write_stream = OperatorStream::new(Arc::clone(&self.get_graph()));
+
         self.get_graph().lock().unwrap().connect_two_in_one_out(
             TimestampJoinOperator::new,
             TimeVersionedState::new,
             OperatorConfig::new().name(&name),
             self,
             other,
-        )
+            write_stream.clone(),
+        );
+        write_stream
     }
 }

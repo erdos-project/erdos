@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use serde::Deserialize;
 
 use crate::{
@@ -82,12 +84,16 @@ where
 {
     fn concat(&self, other: &dyn Stream<D>) -> OperatorStream<D> {
         let name = format!("ConcatOp_{}_{}", self.name(), other.name());
+        let write_stream = OperatorStream::new(Arc::clone(&self.get_graph()));
+
         self.get_graph().lock().unwrap().connect_two_in_one_out(
             ConcatOperator::new,
             || {},
             OperatorConfig::new().name(&name),
             self,
             other,
-        )
+            write_stream.clone(),
+        );
+        write_stream
     }
 }

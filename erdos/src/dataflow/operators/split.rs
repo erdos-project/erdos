@@ -102,12 +102,17 @@ where
         F: 'static + Fn(&D1) -> bool + Send + Sync + Clone,
     {
         let op_name = format!("SplitOp_{}", self.id());
+        let left_write_stream = OperatorStream::new(Arc::clone(&self.get_graph()));
+        let right_write_stream = OperatorStream::new(Arc::clone(&self.get_graph()));
 
         self.get_graph().lock().unwrap().connect_one_in_two_out(
             move || -> SplitOperator<D1> { SplitOperator::new(split_fn.clone()) },
             || {},
             OperatorConfig::new().name(&op_name),
             self,
-        )
+            left_write_stream.clone(),
+            right_write_stream.clone(),
+        );
+        (left_write_stream, right_write_stream)
     }
 }
