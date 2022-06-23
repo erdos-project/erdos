@@ -1,13 +1,16 @@
 use std::net::SocketAddr;
 
-use futures::{StreamExt, SinkExt};
+use futures::{SinkExt, StreamExt};
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
 };
 use tokio_util::codec::Framed;
 
-use crate::communication::{CommunicationError, InterProcessMessage, MessageCodec, control_plane::notifications::WorkerAddress, EhloMetadata};
+use crate::communication::{
+    control_plane::notifications::WorkerAddress, CommunicationError, EhloMetadata,
+    InterProcessMessage, MessageCodec,
+};
 
 use super::notifications::DataPlaneNotification;
 
@@ -49,7 +52,10 @@ impl DataPlane {
                 worker_connection = self.worker_connection_listener.accept() => {
                     match worker_connection {
                         Ok((worker_stream, worker_address)) => {
-                            let _ = self.handle_worker_connections(worker_stream, worker_address).await;
+                            let _ = self.handle_incoming_worker_connections(
+                                         worker_stream,
+                                         worker_address
+                                    ).await;
                         },
                         Err(error) => {
                             tracing::error!(
@@ -67,39 +73,12 @@ impl DataPlane {
                     match worker_message {
                         DataPlaneNotification::SetupConnections(operator, stream_sources) => {
                             for (stream_id, worker_address) in stream_sources {
-                                match worker_address { 
+                                match worker_address {
                                     WorkerAddress::Remote(worker_id, worker_address) => {
-                                        match TcpStream::connect(worker_address).await {
-                                            Ok(worker_connection) => {
-                                                tracing::debug!(
-                                                    "[Worker {}] Successfully connected to Worker {} at \
-                                                                                        address {}.",
-                                                    self.worker_id,
+                                        let _ = self.handle_outgoing_worker_connections(
                                                     worker_id,
-                                                    worker_address,
-                                                );
-        
-                                                let (mut other_worker_tx, other_worker_rx) =
-                                                    Framed::new(worker_connection, MessageCodec::new()).split();
-                                                let _ = other_worker_tx
-                                                    .send(InterProcessMessage::Ehlo {
-                                                        metadata: EhloMetadata {
-                                                            worker_id: self.worker_id,
-                                                        },
-                                                    })
-                                                    .await;
-                                            }
-                                            Err(error) => {
-                                                tracing::error!(
-                                                    "[Worker {}] Received an error when connecting to Worker \
-                                                                                {} at address {}: {:?}",
-                                                    self.worker_id,
-                                                    worker_id,
-                                                    worker_address,
-                                                    error,
-                                                )
-                                            }
-                                        }
+                                                    worker_address
+                                                ).await;
                                     }
                                     WorkerAddress::Local => todo!(),
                                 }
@@ -112,7 +91,7 @@ impl DataPlane {
         Ok(())
     }
 
-    async fn handle_worker_connections(
+    async fn handle_incoming_worker_connections(
         &mut self,
         tcp_stream: TcpStream,
         worker_address: SocketAddr,
@@ -125,11 +104,20 @@ impl DataPlane {
                 Ok(message) => {
                     if let InterProcessMessage::Ehlo { metadata } = message {
                         let other_worker_id = metadata.worker_id;
-                        tracing::debug!("[DataPlane {}] Received an incoming connection from Worker {} from address {}.", self.worker_id, other_worker_id, worker_address);
+                        tracing::debug!(
+                            "[DataPlane {}] Received an incoming connection from \
+                                                    Worker {} from address {}.",
+                            self.worker_id,
+                            other_worker_id,
+                            worker_address
+                        );
                         other_worker_id
                     } else {
                         tracing::error!(
-                            "[DataPlane {}] The EHLO procedure went wrong with Worker at address {}!", self.worker_id, worker_address,
+                            "[DataPlane {}] The EHLO procedure went wrong with \
+                                                    Worker at address {}!",
+                            self.worker_id,
+                            worker_address,
                         );
                         return Err(CommunicationError::ProtocolError);
                     }
@@ -140,6 +128,46 @@ impl DataPlane {
             unreachable!()
         };
         Ok(())
+    }
+
+    async fn handle_outgoing_worker_connections(
+        &mut self,
+        other_worker_id: usize,
+        worker_address: SocketAddr,
+    ) -> Result<(), CommunicationError> {
+        match TcpStream::connect(worker_address).await {
+            Ok(worker_connection) => {
+                tracing::debug!(
+                    "[DataPlane {}] Successfully connected to Worker {} at \
+                                                        address {}.",
+                    self.worker_id,
+                    other_worker_id,
+                    worker_address,
+                );
+
+                let (mut other_worker_tx, other_worker_rx) =
+                    Framed::new(worker_connection, MessageCodec::new()).split();
+                let _ = other_worker_tx
+                    .send(InterProcessMessage::Ehlo {
+                        metadata: EhloMetadata {
+                            worker_id: self.worker_id,
+                        },
+                    })
+                    .await;
+                Ok(())
+            }
+            Err(error) => {
+                tracing::error!(
+                    "[DataPlane {}] Received an error when connecting to Worker \
+                                                {} at address {}: {:?}",
+                    self.worker_id,
+                    other_worker_id,
+                    worker_address,
+                    error,
+                )
+                Err(error.into())
+            }
+        }
     }
 
     pub fn get_address(&self) -> SocketAddr {
