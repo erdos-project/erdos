@@ -8,48 +8,48 @@ use tokio::{
 use tokio_util::codec::Framed;
 
 use crate::{
-    communication::{
-        CommunicationError, ControlMessage, InterProcessMessage, MessageCodec, PusherT,
-    },
+    communication::{CommunicationError, InterProcessMessage, MessageCodec, PusherT},
     dataflow::stream::StreamId,
 };
+
+use super::data_plane::notifications::DataPlaneNotification;
 
 /// Listens on a TCP stream, and pushes messages it receives to operator executors.
 #[allow(dead_code)]
 pub(crate) struct DataReceiver {
     /// The id of the [`Worker`] the TCP stream is receiving data from.
     worker_id: usize,
-    /// The receiver of the Framed TCP stream for the Worker connection.
+    /// The receiver of the Framed TCP stream for the connection to the other Worker.
     tcp_stream: SplitStream<Framed<TcpStream, MessageCodec>>,
-    /// Broadcast channel where [`ControlMessage`] commands are received from Worker.
-    control_message_rx: Receiver<ControlMessage>,
+    /// Broadcast channel where [`DataPlaneNotification`]s are received.
+    data_plane_notification_rx: Receiver<DataPlaneNotification>,
+    /// MPSC channel to communicate messages to the [`DataPlane`] handler.
+    data_plane_notification_tx: UnboundedSender<DataPlaneNotification>,
     /// Mapping between stream id to [`PusherT`] trait objects.
     /// [`PusherT`] trait objects are used to deserialize and send messages to operators.
     stream_id_to_pusher: HashMap<StreamId, Box<dyn PusherT>>,
-    /// MPSC channel to communicate messages to the Worker.
-    channel_to_worker_tx: UnboundedSender<ControlMessage>,
 }
 
 impl DataReceiver {
     pub(crate) fn new(
         worker_id: usize,
         tcp_stream: SplitStream<Framed<TcpStream, MessageCodec>>,
-        control_message_rx: Receiver<ControlMessage>,
-        channel_to_worker_tx: UnboundedSender<ControlMessage>,
+        data_plane_notification_rx: Receiver<DataPlaneNotification>,
+        data_plane_notification_tx: UnboundedSender<DataPlaneNotification>,
     ) -> Self {
         Self {
             worker_id,
             tcp_stream,
-            control_message_rx,
+            data_plane_notification_rx,
+            data_plane_notification_tx,
             stream_id_to_pusher: HashMap::new(),
-            channel_to_worker_tx,
         }
     }
 
     pub(crate) async fn run(&mut self) -> Result<(), CommunicationError> {
         // Notify the Worker that the DataReceiver is initialized.
-        self.channel_to_worker_tx
-            .send(ControlMessage::DataReceiverInitialized(self.worker_id))
+        self.data_plane_notification_tx
+            .send(DataPlaneNotification::ReceiverInitialized(self.worker_id))
             .map_err(CommunicationError::from)?;
 
         // Listen for updates to the Pusher and messages on the TCP stream.
@@ -58,14 +58,14 @@ impl DataReceiver {
                 // We want to bias the select towards Pusher updates in order to
                 // minimize any lost messages.
                 biased;
-                Ok(control_message) = self.control_message_rx.recv() => {
-                    match control_message {
+                Ok(notification) = self.data_plane_notification_rx.recv() => {
+                    match notification {
                         // Update the StreamID to dyn PusherT mapping if we have an update.
-                        ControlMessage::PusherUpdate(stream_id, stream_pusher) => {
+                        DataPlaneNotification::PusherUpdate(stream_id, stream_pusher) => {
                             self.stream_id_to_pusher.insert(stream_id, stream_pusher);
                             // Inform the Worker that the Pusher has been updated.
-                            self.channel_to_worker_tx
-                                .send(ControlMessage::PusherUpdated(stream_id))
+                            self.data_plane_notification_tx
+                                .send(DataPlaneNotification::PusherUpdated(stream_id))
                                 .map_err(CommunicationError::from)?;
                         },
                         _ => {},
@@ -105,7 +105,6 @@ impl DataReceiver {
                 }
             }
         }
-        Ok(())
     }
 }
 
