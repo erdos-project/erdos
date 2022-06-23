@@ -6,7 +6,7 @@ use crate::dataflow::{
     operator::{OperatorConfig, TwoInOneOut},
     state::TimeVersionedState,
     stream::{OperatorStream, Stream, WriteStreamT},
-    Data, graph::GraphBuilder,
+    Data,
 };
 
 /// Joins messages with matching timestamps from two different streams.
@@ -135,7 +135,7 @@ where
     /// ```
     fn timestamp_join(&self, other: &dyn Stream<U>) -> OperatorStream<(T, U)> {
         let name = format!("TimestampJoinOp_{}_{}", self.name(), other.name());
-        GraphBuilder::new().connect_two_in_one_out(
+        self.get_graph().lock().unwrap().connect_two_in_one_out(
             TimestampJoinOperator::new,
             TimeVersionedState::new,
             OperatorConfig::new().name(&name),

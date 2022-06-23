@@ -27,7 +27,7 @@ use super::{
 /// The abstract graph representation of an ERDOS program defined in the driver.
 ///
 /// The abstract graph is compiled into a [`JobGraph`], which ERDOS schedules and executes.
-pub struct GraphBuilder {
+pub struct InternalGraph {
     /// Collection of operators.
     operators: HashMap<OperatorId, AbstractOperator>,
     /// Collection of all streams in the graph.
@@ -40,7 +40,7 @@ pub struct GraphBuilder {
     loop_streams: HashMap<StreamId, Option<StreamId>>,
 }
 
-impl GraphBuilder {
+impl InternalGraph {
     pub fn new() -> Self {
         Self {
             operators: HashMap::new(),
@@ -178,13 +178,13 @@ impl GraphBuilder {
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
         mut config: OperatorConfig,
-    ) -> OperatorStream<T>
+        write_stream: OperatorStream<T>,
+    )
     where
         O: 'static + Source<T>,
         T: Data + for<'a> Deserialize<'a>,
     {
         config.id = OperatorId::new_deterministic();
-        let write_stream = OperatorStream::new();
 
         let config_copy = config.clone();
         let write_stream_id = write_stream.id();
@@ -208,13 +208,11 @@ impl GraphBuilder {
             Some(&write_stream),
             None,
         );
-
-        write_stream
     }
 
     /// Adds a [`ParallelSink`] operator, which receives data on input read streams and directly
     /// interacts with external systems.
-    pub fn connect_parallel_sink<O, S, T, U>(
+    pub(crate) fn connect_parallel_sink<O, S, T, U>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
         // Add state as an explicit argument to support future features such as state sharing.
@@ -264,7 +262,7 @@ impl GraphBuilder {
 
     /// Adds a [`Sink`] operator, which receives data on input read streams and directly interacts
     /// with external systems.
-    pub fn connect_sink<O, S, T>(
+    pub(crate) fn connect_sink<O, S, T>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
         // Add state as an explicit argument to support future features such as state sharing.
@@ -313,14 +311,15 @@ impl GraphBuilder {
 
     /// Adds a [`ParallelOneInOneOut`] operator that has one input read stream and one output
     /// write stream.
-    pub fn connect_parallel_one_in_one_out<O, S, T, U, V>(
+    pub(crate) fn connect_parallel_one_in_one_out<O, S, T, U, V>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
         // Add state as an explicit argument to support future features such as state sharing.
         state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
         mut config: OperatorConfig,
         read_stream: &dyn Stream<T>,
-    ) -> OperatorStream<U>
+        write_stream: OperatorStream<U>,
+    )
     where
         O: 'static + ParallelOneInOneOut<S, T, U, V>,
         S: AppendableState<V>,
@@ -329,7 +328,6 @@ impl GraphBuilder {
         V: 'static + Send + Sync,
     {
         config.id = OperatorId::new_deterministic();
-        let write_stream = OperatorStream::new();
 
         let config_copy = config.clone();
         let read_stream_id = read_stream.id();
@@ -365,19 +363,18 @@ impl GraphBuilder {
             Some(&write_stream),
             None,
         );
-
-        write_stream
     }
 
     /// Adds a [`OneInOneOut`] operator that has one input read stream and one output write stream.
-    pub fn connect_one_in_one_out<O, S, T, U>(
+    pub(crate) fn connect_one_in_one_out<O, S, T, U>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
         // Add state as an explicit argument to support future features such as state sharing.
         state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
         mut config: OperatorConfig,
         read_stream: &dyn Stream<T>,
-    ) -> OperatorStream<U>
+        write_stream: OperatorStream<U>,
+    )
     where
         O: 'static + OneInOneOut<S, T, U>,
         S: State,
@@ -385,7 +382,6 @@ impl GraphBuilder {
         U: Data + for<'a> Deserialize<'a>,
     {
         config.id = OperatorId::new_deterministic();
-        let write_stream = OperatorStream::new();
 
         let config_copy = config.clone();
         let read_stream_id = read_stream.id();
@@ -421,13 +417,11 @@ impl GraphBuilder {
             Some(&write_stream),
             None,
         );
-
-        write_stream
     }
 
     /// Adds a [`ParallelTwoInOneOut`] operator that has two input read streams and one output
     /// write stream.
-    pub fn connect_parallel_two_in_one_out<O, S, T, U, V, W>(
+    pub(crate) fn connect_parallel_two_in_one_out<O, S, T, U, V, W>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
         // Add state as an explicit argument to support future features such as state sharing.
@@ -435,7 +429,8 @@ impl GraphBuilder {
         mut config: OperatorConfig,
         left_read_stream: &dyn Stream<T>,
         right_read_stream: &dyn Stream<U>,
-    ) -> OperatorStream<V>
+        write_stream: OperatorStream<V>,
+    )
     where
         O: 'static + ParallelTwoInOneOut<S, T, U, V, W>,
         S: AppendableState<W>,
@@ -445,7 +440,6 @@ impl GraphBuilder {
         W: 'static + Send + Sync,
     {
         config.id = OperatorId::new_deterministic();
-        let write_stream = OperatorStream::new();
 
         let config_copy = config.clone();
         let left_read_stream_id = left_read_stream.id();
@@ -487,8 +481,6 @@ impl GraphBuilder {
             Some(&write_stream),
             None,
         );
-
-        write_stream
     }
 
     /// Adds a [`TwoInOneOut`] operator that has two input read streams and one output write stream.
@@ -500,7 +492,8 @@ impl GraphBuilder {
         mut config: OperatorConfig,
         left_read_stream: &dyn Stream<T>,
         right_read_stream: &dyn Stream<U>,
-    ) -> OperatorStream<V>
+        write_stream: OperatorStream<V>,
+    )
     where
         O: 'static + TwoInOneOut<S, T, U, V>,
         S: State,
@@ -509,7 +502,6 @@ impl GraphBuilder {
         V: Data + for<'a> Deserialize<'a>,
     {
         config.id = OperatorId::new_deterministic();
-        let write_stream = OperatorStream::new();
 
         let config_copy = config.clone();
         let left_read_stream_id = left_read_stream.id();
@@ -551,8 +543,6 @@ impl GraphBuilder {
             Some(&write_stream),
             None,
         );
-
-        write_stream
     }
 
     /// Adds a [`ParallelOneInTwoOut`] operator that has one input read stream and two output
@@ -564,7 +554,9 @@ impl GraphBuilder {
         state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
         mut config: OperatorConfig,
         read_stream: &dyn Stream<T>,
-    ) -> (OperatorStream<U>, OperatorStream<V>)
+        left_write_stream: OperatorStream<U>,
+        right_write_stream: OperatorStream<V>,
+    )
     where
         O: 'static + ParallelOneInTwoOut<S, T, U, V, W>,
         S: AppendableState<W>,
@@ -574,8 +566,6 @@ impl GraphBuilder {
         W: 'static + Send + Sync,
     {
         config.id = OperatorId::new_deterministic();
-        let left_write_stream = OperatorStream::new();
-        let right_write_stream = OperatorStream::new();
 
         let config_copy = config.clone();
         let read_stream_id = read_stream.id();
@@ -614,8 +604,6 @@ impl GraphBuilder {
             Some(&left_write_stream),
             Some(&right_write_stream),
         );
-
-        (left_write_stream, right_write_stream)
     }
 
     /// Adds a [`OneInTwoOut`] operator that has one input read stream and two output write streams.
@@ -626,7 +614,9 @@ impl GraphBuilder {
         state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
         mut config: OperatorConfig,
         read_stream: &dyn Stream<T>,
-    ) -> (OperatorStream<U>, OperatorStream<V>)
+        left_write_stream: OperatorStream<U>,
+        right_write_stream: OperatorStream<V>,
+    )
     where
         O: 'static + OneInTwoOut<S, T, U, V>,
         S: State,
@@ -635,8 +625,6 @@ impl GraphBuilder {
         V: Data + for<'a> Deserialize<'a>,
     {
         config.id = OperatorId::new_deterministic();
-        let left_write_stream = OperatorStream::new();
-        let right_write_stream = OperatorStream::new();
 
         let config_copy = config.clone();
         let read_stream_id = read_stream.id();
@@ -675,8 +663,6 @@ impl GraphBuilder {
             Some(&left_write_stream),
             Some(&right_write_stream),
         );
-
-        (left_write_stream, right_write_stream)
     }
 
     pub(crate) fn get_stream_name(&self, stream_id: &StreamId) -> String {

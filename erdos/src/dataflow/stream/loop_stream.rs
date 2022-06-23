@@ -1,8 +1,11 @@
-use std::marker::PhantomData;
+use std::{
+    marker::PhantomData,
+    sync::{Arc, Mutex},
+};
 
 use serde::Deserialize;
 
-use crate::dataflow::Data;
+use crate::dataflow::{graph::InternalGraph, Data};
 
 use super::{OperatorStream, Stream, StreamId};
 
@@ -27,34 +30,26 @@ where
 {
     id: StreamId,
     phantom: PhantomData<D>,
+    graph: Arc<Mutex<InternalGraph>>,
 }
 
 impl<D> LoopStream<D>
 where
     for<'a> D: Data + Deserialize<'a>,
 {
-    pub fn new() -> Self {
+    pub fn new(graph: Arc<Mutex<InternalGraph>>) -> Self {
         let id = StreamId::new_deterministic();
         let loop_stream = Self {
             id,
             phantom: PhantomData,
+            graph: Arc::clone(&graph),
         };
-        // default_graph::add_loop_stream(&loop_stream);
+        graph.lock().unwrap().add_loop_stream(&loop_stream);
         loop_stream
     }
 
     pub fn connect_loop(&self, stream: &OperatorStream<D>) {
-        // default_graph::connect_loop(self, stream);
-        todo!();
-    }
-}
-
-impl<D> Default for LoopStream<D>
-where
-    for<'a> D: Data + Deserialize<'a>,
-{
-    fn default() -> Self {
-        Self::new()
+        self.get_graph().lock().unwrap().connect_loop(self, stream);
     }
 }
 
@@ -64,5 +59,8 @@ where
 {
     fn id(&self) -> StreamId {
         self.id
+    }
+    fn get_graph(&self) -> std::sync::Arc<std::sync::Mutex<InternalGraph>> {
+        Arc::clone(&self.graph)
     }
 }

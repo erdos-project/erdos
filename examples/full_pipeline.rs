@@ -4,7 +4,7 @@ use std::{thread, time::Duration};
 
 use erdos::dataflow::context::*;
 use erdos::dataflow::deadlines::*;
-use erdos::dataflow::graph::GraphBuilder;
+use erdos::dataflow::graph::graph::Graph;
 use erdos::dataflow::operator::*;
 use erdos::dataflow::state::TimeVersionedState;
 use erdos::dataflow::stream::*;
@@ -306,8 +306,8 @@ fn main() {
     // );
 
     // Example use of an ingest stream.
-    let ingest_stream = IngestStream::new();
-    let sink_config = OperatorConfig::new().name("IngestSinkOperator");
+    // let ingest_stream = IngestStream::new();
+    // let sink_config = OperatorConfig::new().name("IngestSinkOperator");
     // erdos::connect_sink(
     //     SinkOperator::new,
     //     TimeVersionedState::new,
@@ -328,9 +328,23 @@ fn main() {
     //let (even_stream, odd_stream) =
     //    erdos::connect_one_in_two_out(EvenOddOperator::new, || {}, even_odd_config, &source_stream);
 
-    let graph = GraphBuilder::new();
-    graph.add_ingest_stream(ingest_stream);
-    graph.connect_sink(SinkOperator::new, TimeVersionedState::new, sink_config, &ingest_stream);
+    let mut graph = Graph::new();
+    let ingest_stream: IngestStream<u32>= graph.get_ingest_stream("ingest1");
+
+    let source_config = OperatorConfig::new().name("SourceOperator");
+    let source_stream = graph.connect_source(SourceOperator::new, source_config);
+
+    let square_config = OperatorConfig::new().name("SquareOperator");
+    let square_stream =
+        graph.connect_one_in_one_out(SquareOperator::new, || {}, square_config, &source_stream);
+
+    let sink_config = OperatorConfig::new().name("SquareSinkOperator");
+    graph.connect_sink(
+        SinkOperator::new,
+        TimeVersionedState::new,
+        sink_config,
+        &square_stream,
+    );
 
     node.run(graph);
 }

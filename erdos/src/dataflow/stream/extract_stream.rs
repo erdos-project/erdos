@@ -8,7 +8,7 @@ use serde::Deserialize;
 
 use crate::{
     dataflow::{
-        graph::GraphBuilder,
+        graph::InternalGraph,
         Data, Message,
     },
     scheduler::channel_manager::ChannelManager,
@@ -74,6 +74,8 @@ where
     id: StreamId,
     /// The ReadStream associated with the ExtractStream.
     read_stream_option: Arc<Mutex<Option<ReadStream<D>>>>,
+    //
+    graph: Arc<Mutex<InternalGraph>>,
 }
 
 impl<D> ExtractStream<D>
@@ -85,7 +87,7 @@ where
     /// # Arguments
     /// * `stream`: The [`Stream`] returned by an [operator](crate::dataflow::operator)
     /// from which to extract messages.
-    pub fn new(stream: &OperatorStream<D>) -> Self {
+    pub fn new(stream: &OperatorStream<D>, graph: Arc<Mutex<InternalGraph>>) -> Self {
         tracing::debug!(
             "Initializing an ExtractStream with the ReadStream {} (ID: {})",
             stream.name(),
@@ -98,21 +100,24 @@ where
         let extract_stream = Self {
             id,
             read_stream_option: Arc::new(Mutex::new(None)),
+            graph: Arc::clone(&graph),
         };
 
         let read_stream_option_copy = extract_stream.read_stream_option.clone();
-        let hook = move |graph: &GraphBuilder, channel_manager: &mut ChannelManager| {
+        let name_copy = stream.name().clone();
+
+        let hook = move |channel_manager: &mut ChannelManager| {
             match channel_manager.take_recv_endpoint(id) {
                 Ok(recv_endpoint) => {
                     let read_stream =
-                        ReadStream::new(id, &graph.get_stream_name(&id), recv_endpoint);
+                        ReadStream::new(id, &name_copy, recv_endpoint);
                     read_stream_option_copy.lock().unwrap().replace(read_stream);
                 }
                 Err(msg) => panic!("Unable to set up ExtractStream {}: {}", id, msg),
             }
         };
 
-        // default_graph::add_extract_stream(&extract_stream, hook);
+        graph.lock().unwrap().add_extract_stream(&extract_stream, hook);
         extract_stream
     }
 
@@ -158,9 +163,9 @@ where
         self.id
     }
 
-    // pub fn name(&self) -> String {
-    //     default_graph::get_stream_name(&self.id)
-    // }
+    pub fn name(&self) -> String {
+        self.graph.lock().unwrap().get_stream_name(&self.id)
+    }
 }
 
 // Needed to avoid deadlock in Python

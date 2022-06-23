@@ -8,7 +8,6 @@ use crate::dataflow::{
     operator::{OneInOneOut, OperatorConfig},
     stream::{OperatorStream, Stream, WriteStreamT},
     Data,
-    graph::GraphBuilder,
 };
 
 /// Filters an incoming stream of type D, retaining messages in the stream that
@@ -94,11 +93,14 @@ where
     {
         let op_name = format!("FilterOp_{}", self.id());
 
-        GraphBuilder::new().connect_one_in_one_out(
+        let write_stream = OperatorStream::new(Arc::clone(&self.get_graph()));
+        self.get_graph().lock().unwrap().connect_one_in_one_out(
             move || -> FilterOperator<D> { FilterOperator::new(filter_fn.clone()) },
             || {},
             OperatorConfig::new().name(&op_name),
             self,
-        )
+            write_stream.clone(),
+        );
+        write_stream
     }
 }

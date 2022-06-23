@@ -5,7 +5,7 @@ use crate::{
         context::TwoInOneOutContext,
         operator::TwoInOneOut,
         stream::{OperatorStream, WriteStreamT},
-        Data, Message, Stream, graph::GraphBuilder,
+        Data, Message, Stream,
     },
     OperatorConfig,
 };
@@ -82,7 +82,7 @@ where
 {
     fn concat(&self, other: &dyn Stream<D>) -> OperatorStream<D> {
         let name = format!("ConcatOp_{}_{}", self.name(), other.name());
-        GraphBuilder::new().connect_two_in_one_out(
+        self.get_graph().lock().unwrap().connect_two_in_one_out(
             ConcatOperator::new,
             || {},
             OperatorConfig::new().name(&name),

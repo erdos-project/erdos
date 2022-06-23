@@ -14,7 +14,7 @@ use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::format::FmtSpan;
 
-use crate::dataflow::graph::JobGraph;
+use crate::dataflow::graph::{JobGraph, graph::Graph};
 use crate::scheduler::{
     channel_manager::ChannelManager,
     endpoints_manager::{ChannelsToReceivers, ChannelsToSenders},
@@ -27,7 +27,7 @@ use crate::{
         senders::{self, ControlSender, DataSender},
         ControlMessage, ControlMessageCodec, ControlMessageHandler, MessageCodec,
     },
-    dataflow::graph::GraphBuilder,
+    dataflow::graph::InternalGraph,
 };
 
 use super::worker::Worker;
@@ -46,7 +46,7 @@ pub struct Node {
     /// Unique node id.
     id: NodeId,
     /// Queryable, uncompiled version of the JobGraph which stores metadata (e.g. stream names).
-    abstract_graph: Option<GraphBuilder>,
+    graph: Option<Graph>,
     /// Dataflow graph which the node will execute.
     job_graph: Option<JobGraph>,
     /// Structure to be used to send `Sender` updates to receiver threads.
@@ -97,7 +97,7 @@ impl Node {
         Self {
             config,
             id,
-            abstract_graph: None,
+            graph: None,
             job_graph: None,
             channels_to_receivers: Arc::new(Mutex::new(ChannelsToReceivers::new())),
             channels_to_senders: Arc::new(Mutex::new(ChannelsToSenders::new())),
@@ -112,13 +112,12 @@ impl Node {
     /// Runs an ERDOS node.
     ///
     /// The method never returns.
-    pub fn run(&mut self, mut graph_builder: GraphBuilder) {
+    pub fn run(&mut self, graph: Graph) {
         tracing::debug!("Node {}: running", self.id);
         // Set the dataflow graph if it hasn't been set already.
         if self.job_graph.is_none() {
-            let mut abstract_graph = graph_builder.clone();
-            self.job_graph = Some(abstract_graph.compile());
-            self.abstract_graph = Some(abstract_graph);
+            self.job_graph = Some(graph.compile());
+            self.graph = Some(graph);
         }
         // Build a runtime with n threads.
         let runtime = Builder::new_multi_thread()
@@ -134,29 +133,28 @@ impl Node {
     /// Runs an ERDOS node in a seperate OS thread.
     ///
     /// The method immediately returns.
-    pub fn run_async(mut self, mut graph_builder: GraphBuilder) -> NodeHandle {
-        // Clone to avoid move to other thread.
-        let shutdown_tx = self.shutdown_tx.clone();
-        // Copy dataflow graph to the other thread
-        let mut abstract_graph = graph_builder.clone();
-        self.job_graph = Some(abstract_graph.compile());
-        self.abstract_graph = Some(abstract_graph);
-        let initialized = self.initialized.clone();
-        let thread_handle = thread::spawn(move || {
-            self.run(graph_builder);
-        });
-        // Wait for ERDOS to start up.
-        let (lock, cvar) = &*initialized;
-        let mut started = lock.lock().unwrap();
-        while !*started {
-            started = cvar.wait(started).unwrap();
-        }
+    // pub fn run_async(mut self, graph: Graph) -> NodeHandle {
+    //     // Clone to avoid move to other thread.
+    //     let shutdown_tx = self.shutdown_tx.clone();
+    //     // Copy dataflow graph to the other thread
+    //     self.job_graph = Some(graph.compile());
+    //     self.graph = Some(graph);
+    //     let initialized = self.initialized.clone();
+    //     let thread_handle = thread::spawn(move || {
+    //         self.run(graph);
+    //     });
+    //     // Wait for ERDOS to start up.
+    //     let (lock, cvar) = &*initialized;
+    //     let mut started = lock.lock().unwrap();
+    //     while !*started {
+    //         started = cvar.wait(started).unwrap();
+    //     }
 
-        NodeHandle {
-            thread_handle,
-            shutdown_tx,
-        }
-    }
+    //     NodeHandle {
+    //         thread_handle,
+    //         shutdown_tx,
+    //     }
+    // }
 
     fn set_node_initialized(&mut self) {
         let (lock, cvar) = &*self.initialized;
@@ -382,7 +380,6 @@ impl Node {
             let mut channel_manager_mut = channel_manager.lock().unwrap();
             for setup_hook in job_graph.get_driver_setup_hooks() {
                 (setup_hook)(
-                    self.abstract_graph.as_ref().unwrap(),
                     &mut channel_manager_mut,
                 );
             }

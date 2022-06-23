@@ -7,7 +7,7 @@ use crate::dataflow::{
     message::Message,
     operator::{OneInTwoOut, OperatorConfig},
     stream::{OperatorStream, Stream, WriteStreamT},
-    Data, graph::GraphBuilder,
+    Data,
 };
 
 /// Splits an incoming stream of type D1 into two different streams of type D1 using the provided
@@ -103,7 +103,7 @@ where
     {
         let op_name = format!("SplitOp_{}", self.id());
 
-        GraphBuilder::new().connect_one_in_two_out(
+        self.get_graph().lock().unwrap().connect_one_in_two_out(
             move || -> SplitOperator<D1> { SplitOperator::new(split_fn.clone()) },
             || {},
             OperatorConfig::new().name(&op_name),

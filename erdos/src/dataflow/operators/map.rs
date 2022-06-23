@@ -7,7 +7,7 @@ use crate::dataflow::{
     message::Message,
     operator::{OneInOneOut, OperatorConfig},
     stream::{OperatorStream, Stream, WriteStreamT},
-    Data, graph::GraphBuilder,
+    Data,
 };
 
 /// Maps an incoming stream of type D to a stream of type `I::Item` using the provided
@@ -125,7 +125,8 @@ where
     {
         let op_name = format!("MapOp_{}", self.id());
 
-        GraphBuilder::new().connect_one_in_one_out(
+        let write_stream = OperatorStream::new(Arc::clone(&self.get_graph()));
+        self.get_graph().lock().unwrap().connect_one_in_one_out(
             move || -> FlatMapOperator<D1, _> {
                 let map_fn = map_fn.clone();
                 FlatMapOperator::new(move |x| std::iter::once(map_fn(x)))
@@ -133,7 +134,9 @@ where
             || {},
             OperatorConfig::new().name(&op_name),
             self,
-        )
+            write_stream.clone(),
+        );
+        write_stream
     }
 
     fn flat_map<F, I>(&self, flat_map_fn: F) -> OperatorStream<D2>
@@ -143,11 +146,14 @@ where
     {
         let op_name = format!("FlatMapOp_{}", self.id());
 
-        GraphBuilder::new().connect_one_in_one_out(
+        let write_stream = OperatorStream::new(Arc::clone(&self.get_graph()));
+        self.get_graph().lock().unwrap().connect_one_in_one_out(
             move || -> FlatMapOperator<D1, _> { FlatMapOperator::new(flat_map_fn.clone()) },
             || {},
             OperatorConfig::new().name(&op_name),
             self,
-        )
+            write_stream.clone(),
+        );
+        write_stream
     }
 }
