@@ -110,8 +110,8 @@ where
             || {},
             OperatorConfig::new().name(&op_name),
             self,
-            left_write_stream.clone(),
-            right_write_stream.clone(),
+            &left_write_stream,
+            &right_write_stream,
         );
         (left_write_stream, right_write_stream)
     }

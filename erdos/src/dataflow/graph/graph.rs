@@ -51,11 +51,10 @@ impl Graph {
         T: Data + for<'a> Deserialize<'a>,
     {
         let write_stream = OperatorStream::new(Arc::clone(&self.internal_graph));
-        self.internal_graph.lock().unwrap().connect_source(
-            operator_fn,
-            config,
-            write_stream.clone(),
-        );
+        self.internal_graph
+            .lock()
+            .unwrap()
+            .connect_source(operator_fn, config, &write_stream);
 
         write_stream
     }
@@ -123,7 +122,7 @@ impl Graph {
                 state_fn,
                 config,
                 read_stream,
-                write_stream.clone(),
+                &write_stream,
             );
 
         write_stream
@@ -149,7 +148,7 @@ impl Graph {
             state_fn,
             config,
             read_stream,
-            write_stream.clone(),
+            &write_stream,
         );
 
         write_stream
@@ -182,7 +181,7 @@ impl Graph {
                 config,
                 left_read_stream,
                 right_read_stream,
-                write_stream.clone(),
+                &write_stream,
             );
 
         write_stream
@@ -211,7 +210,7 @@ impl Graph {
             config,
             left_read_stream,
             right_read_stream,
-            write_stream.clone(),
+            &write_stream,
         );
 
         write_stream
@@ -243,8 +242,8 @@ impl Graph {
                 state_fn,
                 config,
                 read_stream,
-                left_write_stream.clone(),
-                right_write_stream.clone(),
+                &left_write_stream,
+                &right_write_stream,
             );
 
         (left_write_stream, right_write_stream)
@@ -272,8 +271,8 @@ impl Graph {
             state_fn,
             config,
             read_stream,
-            left_write_stream.clone(),
-            right_write_stream.clone(),
+            &left_write_stream,
+            &right_write_stream,
         );
 
         (left_write_stream, right_write_stream)

@@ -7,10 +7,7 @@ use std::{
 use serde::Deserialize;
 
 use crate::{
-    dataflow::{
-        graph::InternalGraph,
-        Data, Message,
-    },
+    dataflow::{graph::InternalGraph, Data, Message},
     scheduler::channel_manager::ChannelManager,
 };
 
@@ -106,18 +103,20 @@ where
         let read_stream_option_copy = extract_stream.read_stream_option.clone();
         let name_copy = stream.name().clone();
 
-        let hook = move |channel_manager: &mut ChannelManager| {
-            match channel_manager.take_recv_endpoint(id) {
-                Ok(recv_endpoint) => {
-                    let read_stream =
-                        ReadStream::new(id, &name_copy, recv_endpoint);
-                    read_stream_option_copy.lock().unwrap().replace(read_stream);
-                }
-                Err(msg) => panic!("Unable to set up ExtractStream {}: {}", id, msg),
+        let hook = move |channel_manager: &mut ChannelManager| match channel_manager
+            .take_recv_endpoint(id)
+        {
+            Ok(recv_endpoint) => {
+                let read_stream = ReadStream::new(id, &name_copy, recv_endpoint);
+                read_stream_option_copy.lock().unwrap().replace(read_stream);
             }
+            Err(msg) => panic!("Unable to set up ExtractStream {}: {}", id, msg),
         };
 
-        graph.lock().unwrap().add_extract_stream(&extract_stream, hook);
+        graph
+            .lock()
+            .unwrap()
+            .add_extract_stream(&extract_stream, hook);
         extract_stream
     }
 

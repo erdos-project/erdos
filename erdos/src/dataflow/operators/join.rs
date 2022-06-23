@@ -145,7 +145,7 @@ where
             OperatorConfig::new().name(&name),
             self,
             other,
-            write_stream.clone(),
+            &write_stream,
         );
         write_stream
     }

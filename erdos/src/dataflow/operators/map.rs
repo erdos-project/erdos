@@ -134,7 +134,7 @@ where
             || {},
             OperatorConfig::new().name(&op_name),
             self,
-            write_stream.clone(),
+            &write_stream,
         );
         write_stream
     }
@@ -152,7 +152,7 @@ where
             || {},
             OperatorConfig::new().name(&op_name),
             self,
-            write_stream.clone(),
+            &write_stream,
         );
         write_stream
     }

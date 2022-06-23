@@ -93,18 +93,17 @@ where
         let write_stream_option_copy = Arc::clone(&ingest_stream.write_stream_option);
         let name_copy = name.to_string().clone();
 
-        let setup_hook = move |channel_manager: &mut ChannelManager| {
-            match channel_manager.get_send_endpoints(id) {
-                Ok(send_endpoints) => {
-                    let write_stream =
-                        WriteStream::new(id, &name_copy, send_endpoints);
-                    write_stream_option_copy
-                        .lock()
-                        .unwrap()
-                        .replace(write_stream);
-                }
-                Err(msg) => panic!("Unable to set up IngestStream {}: {}", id, msg),
+        let setup_hook = move |channel_manager: &mut ChannelManager| match channel_manager
+            .get_send_endpoints(id)
+        {
+            Ok(send_endpoints) => {
+                let write_stream = WriteStream::new(id, &name_copy, send_endpoints);
+                write_stream_option_copy
+                    .lock()
+                    .unwrap()
+                    .replace(write_stream);
             }
+            Err(msg) => panic!("Unable to set up IngestStream {}: {}", id, msg),
         };
 
         graph
@@ -146,11 +145,11 @@ where
                 thread::sleep(Duration::from_millis(100));
             }
         } else {
-            // tracing::warn!(
-            //     "Trying to send messages on a closed IngestStream {} (ID: {})",
-            //     default_graph::get_stream_name(&self.id()),
-            //     self.id(),
-            // );
+            tracing::warn!(
+                "Trying to send messages on a closed IngestStream {} (ID: {})",
+                self.name,
+                self.id(),
+            );
             Err(SendError::Closed)
         }
     }

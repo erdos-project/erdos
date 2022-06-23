@@ -6,10 +6,13 @@ use std::sync::{Arc, Mutex};
 
 use crate::{
     dataflow::{
+        operator::{
+            OneInOneOut, OneInTwoOut, ParallelOneInOneOut, ParallelOneInTwoOut, ParallelSink,
+            ParallelTwoInOneOut, Sink, Source, TwoInOneOut,
+        },
         stream::{ExtractStream, IngestStream, OperatorStream, Stream, StreamId},
-        Data, LoopStream, operator::{Source, Sink, ParallelSink, ParallelOneInOneOut, OneInOneOut, ParallelTwoInOneOut, TwoInOneOut, ParallelOneInTwoOut, OneInTwoOut}, State, AppendableState,
+        AppendableState, Data, LoopStream, State,
     },
-    OperatorConfig, OperatorId,
     node::operator_executors::{
         OneInExecutor, OneInOneOutMessageProcessor, OneInTwoOutMessageProcessor, OperatorExecutorT,
         ParallelOneInOneOutMessageProcessor, ParallelOneInTwoOutMessageProcessor,
@@ -17,6 +20,7 @@ use crate::{
         SourceExecutor, TwoInExecutor, TwoInOneOutMessageProcessor,
     },
     scheduler::channel_manager::ChannelManager,
+    OperatorConfig, OperatorId,
 };
 
 use super::{
@@ -178,9 +182,8 @@ impl InternalGraph {
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
         mut config: OperatorConfig,
-        write_stream: OperatorStream<T>,
-    )
-    where
+        write_stream: &OperatorStream<T>,
+    ) where
         O: 'static + Source<T>,
         T: Data + for<'a> Deserialize<'a>,
     {
@@ -205,7 +208,7 @@ impl InternalGraph {
             op_runner,
             None,
             None,
-            Some(&write_stream),
+            Some(write_stream),
             None,
         );
     }
@@ -235,9 +238,7 @@ impl InternalGraph {
             move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
                 let mut channel_manager = channel_manager.lock().unwrap();
 
-                let read_stream = channel_manager
-                    .take_read_stream(stream_id)
-                    .unwrap();
+                let read_stream = channel_manager.take_read_stream(stream_id).unwrap();
 
                 Box::new(OneInExecutor::new(
                     config_copy.clone(),
@@ -284,9 +285,7 @@ impl InternalGraph {
             move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
                 let mut channel_manager = channel_manager.lock().unwrap();
 
-                let read_stream = channel_manager
-                    .take_read_stream(stream_id)
-                    .unwrap();
+                let read_stream = channel_manager.take_read_stream(stream_id).unwrap();
 
                 Box::new(OneInExecutor::new(
                     config_copy.clone(),
@@ -318,9 +317,8 @@ impl InternalGraph {
         state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
         mut config: OperatorConfig,
         read_stream: &dyn Stream<T>,
-        write_stream: OperatorStream<U>,
-    )
-    where
+        write_stream: &OperatorStream<U>,
+    ) where
         O: 'static + ParallelOneInOneOut<S, T, U, V>,
         S: AppendableState<V>,
         T: Data + for<'a> Deserialize<'a>,
@@ -338,9 +336,7 @@ impl InternalGraph {
             move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
                 let mut channel_manager = channel_manager.lock().unwrap();
 
-                let read_stream = channel_manager
-                    .take_read_stream(stream_id)
-                    .unwrap();
+                let read_stream = channel_manager.take_read_stream(stream_id).unwrap();
                 let write_stream = channel_manager.write_stream(write_stream_id).unwrap();
 
                 Box::new(OneInExecutor::new(
@@ -360,7 +356,7 @@ impl InternalGraph {
             op_runner,
             Some(read_stream),
             None,
-            Some(&write_stream),
+            Some(write_stream),
             None,
         );
     }
@@ -373,9 +369,8 @@ impl InternalGraph {
         state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
         mut config: OperatorConfig,
         read_stream: &dyn Stream<T>,
-        write_stream: OperatorStream<U>,
-    )
-    where
+        write_stream: &OperatorStream<U>,
+    ) where
         O: 'static + OneInOneOut<S, T, U>,
         S: State,
         T: Data + for<'a> Deserialize<'a>,
@@ -392,9 +387,7 @@ impl InternalGraph {
             move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
                 let mut channel_manager = channel_manager.lock().unwrap();
 
-                let read_stream = channel_manager
-                    .take_read_stream(stream_id)
-                    .unwrap();
+                let read_stream = channel_manager.take_read_stream(stream_id).unwrap();
                 let write_stream = channel_manager.write_stream(write_stream_id).unwrap();
 
                 Box::new(OneInExecutor::new(
@@ -414,7 +407,7 @@ impl InternalGraph {
             op_runner,
             Some(read_stream),
             None,
-            Some(&write_stream),
+            Some(write_stream),
             None,
         );
     }
@@ -429,9 +422,8 @@ impl InternalGraph {
         mut config: OperatorConfig,
         left_read_stream: &dyn Stream<T>,
         right_read_stream: &dyn Stream<U>,
-        write_stream: OperatorStream<V>,
-    )
-    where
+        write_stream: &OperatorStream<V>,
+    ) where
         O: 'static + ParallelTwoInOneOut<S, T, U, V, W>,
         S: AppendableState<W>,
         T: Data + for<'a> Deserialize<'a>,
@@ -452,12 +444,8 @@ impl InternalGraph {
             move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
                 let mut channel_manager = channel_manager.lock().unwrap();
 
-                let left_read_stream = channel_manager
-                    .take_read_stream(left_stream_id)
-                    .unwrap();
-                let right_read_stream = channel_manager
-                    .take_read_stream(right_stream_id)
-                    .unwrap();
+                let left_read_stream = channel_manager.take_read_stream(left_stream_id).unwrap();
+                let right_read_stream = channel_manager.take_read_stream(right_stream_id).unwrap();
                 let write_stream = channel_manager.write_stream(write_stream_id).unwrap();
 
                 Box::new(TwoInExecutor::new(
@@ -478,7 +466,7 @@ impl InternalGraph {
             op_runner,
             Some(left_read_stream),
             Some(right_read_stream),
-            Some(&write_stream),
+            Some(write_stream),
             None,
         );
     }
@@ -492,9 +480,8 @@ impl InternalGraph {
         mut config: OperatorConfig,
         left_read_stream: &dyn Stream<T>,
         right_read_stream: &dyn Stream<U>,
-        write_stream: OperatorStream<V>,
-    )
-    where
+        write_stream: &OperatorStream<V>,
+    ) where
         O: 'static + TwoInOneOut<S, T, U, V>,
         S: State,
         T: Data + for<'a> Deserialize<'a>,
@@ -514,12 +501,8 @@ impl InternalGraph {
             move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
                 let mut channel_manager = channel_manager.lock().unwrap();
 
-                let left_read_stream = channel_manager
-                    .take_read_stream(left_stream_id)
-                    .unwrap();
-                let right_read_stream = channel_manager
-                    .take_read_stream(right_stream_id)
-                    .unwrap();
+                let left_read_stream = channel_manager.take_read_stream(left_stream_id).unwrap();
+                let right_read_stream = channel_manager.take_read_stream(right_stream_id).unwrap();
                 let write_stream = channel_manager.write_stream(write_stream_id).unwrap();
 
                 Box::new(TwoInExecutor::new(
@@ -540,7 +523,7 @@ impl InternalGraph {
             op_runner,
             Some(left_read_stream),
             Some(right_read_stream),
-            Some(&write_stream),
+            Some(write_stream),
             None,
         );
     }
@@ -554,10 +537,9 @@ impl InternalGraph {
         state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
         mut config: OperatorConfig,
         read_stream: &dyn Stream<T>,
-        left_write_stream: OperatorStream<U>,
-        right_write_stream: OperatorStream<V>,
-    )
-    where
+        left_write_stream: &OperatorStream<U>,
+        right_write_stream: &OperatorStream<V>,
+    ) where
         O: 'static + ParallelOneInTwoOut<S, T, U, V, W>,
         S: AppendableState<W>,
         T: Data + for<'a> Deserialize<'a>,
@@ -577,11 +559,10 @@ impl InternalGraph {
             move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
                 let mut channel_manager = channel_manager.lock().unwrap();
 
-                let read_stream = channel_manager
-                    .take_read_stream(stream_id)
-                    .unwrap();
+                let read_stream = channel_manager.take_read_stream(stream_id).unwrap();
                 let left_write_stream = channel_manager.write_stream(left_write_stream_id).unwrap();
-                let right_write_stream = channel_manager.write_stream(right_write_stream_id).unwrap();
+                let right_write_stream =
+                    channel_manager.write_stream(right_write_stream_id).unwrap();
 
                 Box::new(OneInExecutor::new(
                     config_copy.clone(),
@@ -601,8 +582,8 @@ impl InternalGraph {
             op_runner,
             Some(read_stream),
             None,
-            Some(&left_write_stream),
-            Some(&right_write_stream),
+            Some(left_write_stream),
+            Some(right_write_stream),
         );
     }
 
@@ -614,10 +595,9 @@ impl InternalGraph {
         state_fn: impl Fn() -> S + Clone + Send + Sync + 'static,
         mut config: OperatorConfig,
         read_stream: &dyn Stream<T>,
-        left_write_stream: OperatorStream<U>,
-        right_write_stream: OperatorStream<V>,
-    )
-    where
+        left_write_stream: &OperatorStream<U>,
+        right_write_stream: &OperatorStream<V>,
+    ) where
         O: 'static + OneInTwoOut<S, T, U, V>,
         S: State,
         T: Data + for<'a> Deserialize<'a>,
@@ -636,11 +616,10 @@ impl InternalGraph {
             move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
                 let mut channel_manager = channel_manager.lock().unwrap();
 
-                let read_stream = channel_manager
-                    .take_read_stream(stream_id)
-                    .unwrap();
+                let read_stream = channel_manager.take_read_stream(stream_id).unwrap();
                 let left_write_stream = channel_manager.write_stream(left_write_stream_id).unwrap();
-                let right_write_stream = channel_manager.write_stream(right_write_stream_id).unwrap();
+                let right_write_stream =
+                    channel_manager.write_stream(right_write_stream_id).unwrap();
 
                 Box::new(OneInExecutor::new(
                     config_copy.clone(),
@@ -660,8 +639,8 @@ impl InternalGraph {
             op_runner,
             Some(read_stream),
             None,
-            Some(&left_write_stream),
-            Some(&right_write_stream),
+            Some(left_write_stream),
+            Some(right_write_stream),
         );
     }
 
