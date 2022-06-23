@@ -18,7 +18,10 @@
 //! Messages sent across nodes are serialized using
 //! [abomonation](https://github.com/TimelyDataflow/abomonation) if possible,
 //! before falling back to [bincode](https://github.com/servo/bincode).
-use std::{marker::PhantomData, sync::{Arc, Mutex}};
+use std::{
+    marker::PhantomData,
+    sync::{Arc, Mutex},
+};
 
 use crate::dataflow::{Data, Message};
 

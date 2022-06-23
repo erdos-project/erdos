@@ -329,7 +329,7 @@ fn main() {
     //    erdos::connect_one_in_two_out(EvenOddOperator::new, || {}, even_odd_config, &source_stream);
 
     let graph = Graph::new();
-    let ingest_stream: IngestStream<u32>= graph.get_ingest_stream("ingest1");
+    let ingest_stream: IngestStream<u32> = graph.get_ingest_stream("ingest1");
 
     let source_config = OperatorConfig::new().name("SourceOperator");
     let source_stream = graph.connect_source(SourceOperator::new, source_config);
