@@ -4,10 +4,10 @@ use std::{thread, time::Duration};
 
 use erdos::dataflow::context::*;
 use erdos::dataflow::deadlines::*;
-use erdos::dataflow::graph::graph::Graph;
 use erdos::dataflow::operator::*;
 use erdos::dataflow::state::TimeVersionedState;
 use erdos::dataflow::stream::*;
+use erdos::dataflow::Graph;
 use erdos::dataflow::*;
 use erdos::node::Node;
 use erdos::Configuration;
@@ -329,10 +329,13 @@ fn main() {
     //    erdos::connect_one_in_two_out(EvenOddOperator::new, || {}, even_odd_config, &source_stream);
 
     let graph = Graph::new();
-    let ingest_stream: IngestStream<u32> = graph.get_ingest_stream("ingest1");
+    let ingest_stream: IngestStream<u32> = graph.add_ingest_stream("ingest1");
+    let mut loop_stream: LoopStream<usize> = graph.add_loop_stream();
 
     let source_config = OperatorConfig::new().name("SourceOperator");
     let source_stream = graph.connect_source(SourceOperator::new, source_config);
+
+    loop_stream.connect_loop(&source_stream);
 
     let square_config = OperatorConfig::new().name("SquareOperator");
     let square_stream =
@@ -345,6 +348,8 @@ fn main() {
         sink_config,
         &square_stream,
     );
+
+    let extract_stream: ExtractStream<usize> = graph.extract(&square_stream);
 
     node.run(graph);
 }

@@ -80,17 +80,16 @@ where
     /// # Arguments
     /// * `stream`: The [`Stream`] returned by an [operator](crate::dataflow::operator)
     /// from which to extract messages.
-    pub fn new(name: &str, stream: &OperatorStream<D>) -> Self {
+    pub fn new(stream: &OperatorStream<D>) -> Self {
         tracing::debug!(
-            "Initializing an ExtractStream {} with the ReadStream {} (ID: {})",
-            name.to_string(),
+            "Initializing an ExtractStream with the ReadStream {} (ID: {})",
             stream.name(),
             stream.id(),
         );
 
         Self {
             id: stream.id(),
-            name: name.to_string(),
+            name: stream.name(),
             read_stream_option: Arc::new(Mutex::new(None)),
         }
     }

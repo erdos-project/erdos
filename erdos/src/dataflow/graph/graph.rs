@@ -33,7 +33,7 @@ impl Graph {
         }
     }
 
-    pub fn get_ingest_stream<D>(&self, name: &str) -> IngestStream<D>
+    pub fn add_ingest_stream<D>(&self, name: &str) -> IngestStream<D>
     where
         for<'a> D: Data + Deserialize<'a>,
     {
@@ -46,11 +46,11 @@ impl Graph {
         ingest_stream
     }
 
-    pub fn get_extract_stream<D>(&self, name: &str, stream: &OperatorStream<D>) -> ExtractStream<D>
+    pub fn extract<D>(&self, stream: &OperatorStream<D>) -> ExtractStream<D>
     where
         for<'a> D: Data + Deserialize<'a>,
     {
-        let extract_stream = ExtractStream::new(name, stream);
+        let extract_stream = ExtractStream::new(stream);
         self.internal_graph
             .lock()
             .unwrap()
@@ -59,11 +59,11 @@ impl Graph {
         extract_stream
     }
 
-    pub(crate) fn get_loop_stream<D>(&self, name: &str) -> LoopStream<D>
+    pub fn add_loop_stream<D>(&self) -> LoopStream<D>
     where
         for<'a> D: Data + Deserialize<'a>,
     {
-        let loop_stream = LoopStream::new(name, Arc::clone(&self.internal_graph));
+        let loop_stream = LoopStream::new(Arc::clone(&self.internal_graph));
         self.internal_graph
             .lock()
             .unwrap()
