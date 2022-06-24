@@ -12,6 +12,8 @@ use crate::{
     Configuration,
 };
 
+use super::worker_node::WorkerId;
+
 /// A [`LeaderHandle`] is used by driver applications to interact
 /// with the Leader node running on their local instance.
 pub struct LeaderHandle {
@@ -78,7 +80,7 @@ pub struct WorkerHandle {
     /// A handle to communicate notifications to the underlying Worker.
     worker_handle: mpsc::Sender<DriverNotification>,
     /// An ID for the WorkerHandle that mirrors the ID of the underlying Worker.
-    handle_id: usize,
+    handle_id: WorkerId,
     /// A handle for the asynchronously running Worker task.
     worker_task: JoinHandle<Result<(), CommunicationError>>,
     /// A handle to the Tokio runtime spawned for this Worker.

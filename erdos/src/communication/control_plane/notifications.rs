@@ -7,7 +7,7 @@ use crate::{
         graph::{InternalGraph, JobGraph},
         stream::StreamId,
     },
-    node::WorkerState,
+    node::{WorkerState, WorkerId},
     OperatorId,
 };
 
@@ -31,7 +31,7 @@ pub(crate) enum WorkerNotification {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) enum WorkerAddress {
-    Remote(usize, SocketAddr),
+    Remote(WorkerId, SocketAddr),
     Local,
 }
 

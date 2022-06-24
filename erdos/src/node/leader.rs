@@ -30,7 +30,7 @@ use crate::{
     OperatorId,
 };
 
-use super::worker::Worker;
+use super::{worker_node::WorkerId};
 
 /// The [`InterThreadMessage`] enum defines the messages that the different
 /// spawned tasks may communicate back to the main loop of the [`LeaderNode`].
@@ -38,10 +38,10 @@ use super::worker::Worker;
 enum InterThreadMessage {
     WorkerInitialized(WorkerState),
     ScheduleJobGraph(String, InternalGraph),
-    ScheduleOperator(String, OperatorId, usize, HashMap<StreamId, WorkerAddress>),
+    ScheduleOperator(String, OperatorId, WorkerId, HashMap<StreamId, WorkerAddress>),
     OperatorReady(String, OperatorId),
     ExecuteGraph(String),
-    Shutdown(usize),
+    Shutdown(WorkerId),
     ShutdownAllWorkers,
 }
 
@@ -59,7 +59,7 @@ pub(crate) struct LeaderNode {
     /// A Vector containing the handlers corresponding to each Worker.
     worker_handlers: Vec<JoinHandle<()>>,
     /// A mapping between the ID of the Worker and the state maintained for it.
-    worker_id_to_worker_state: HashMap<usize, WorkerState>,
+    worker_id_to_worker_state: HashMap<WorkerId, WorkerState>,
     /// The scheduler to be used for scheduling JobGraphs onto Workers.
     job_graph_scheduler: Box<dyn JobGraphScheduler + Send>,
     /// A mapping between the name of the Job and the status of its Operators.

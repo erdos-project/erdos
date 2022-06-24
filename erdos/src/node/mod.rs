@@ -35,3 +35,6 @@ pub(crate) use worker_node::{WorkerNode, WorkerState};
 // Public exports
 pub use handles::{LeaderHandle, WorkerHandle};
 pub use node::{Node, NodeHandle, NodeId};
+
+// TODO (Sukrit): Should we define a Newtype here or leave this as an alias?
+pub type WorkerId = usize;

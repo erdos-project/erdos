@@ -26,15 +26,18 @@ use crate::{
     node::Resources,
 };
 
+// TODO (Sukrit): Should we define a Newtype here or leave this as an alias?
+pub type WorkerId = usize;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct WorkerState {
-    id: usize,
+    id: WorkerId,
     address: SocketAddr,
     resources: Resources,
 }
 
 impl WorkerState {
-    fn new(id: usize, address: SocketAddr, resources: Resources) -> Self {
+    fn new(id: WorkerId, address: SocketAddr, resources: Resources) -> Self {
         Self {
             id,
             address,
@@ -46,13 +49,13 @@ impl WorkerState {
         self.address
     }
 
-    pub(crate) fn get_id(&self) -> usize {
+    pub(crate) fn get_id(&self) -> WorkerId {
         self.id
     }
 }
 
 pub(crate) struct WorkerNode {
-    worker_id: usize,
+    worker_id: WorkerId,
     leader_address: SocketAddr,
     resources: Resources,
     driver_notification_rx: Receiver<DriverNotification>,
@@ -61,7 +64,7 @@ pub(crate) struct WorkerNode {
 
 impl WorkerNode {
     pub fn new(
-        worker_id: usize,
+        worker_id: WorkerId,
         leader_address: SocketAddr,
         resources: Resources,
         driver_notification_rx: Receiver<DriverNotification>,
@@ -292,7 +295,7 @@ impl WorkerNode {
         }
     }
 
-    pub(crate) fn get_id(&self) -> usize {
+    pub(crate) fn get_id(&self) -> WorkerId {
         self.worker_id.clone()
     }
 }
