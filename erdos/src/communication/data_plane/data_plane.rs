@@ -11,8 +11,8 @@ use tokio::{
 use tokio_util::codec::Framed;
 
 use crate::communication::{
-    control_plane::notifications::WorkerAddress, receivers::DataReceiver, CommunicationError,
-    EhloMetadata, InterProcessMessage, MessageCodec, senders::DataSender,
+    control_plane::notifications::WorkerAddress, receivers::DataReceiver, senders::DataSender,
+    CommunicationError, EhloMetadata, InterProcessMessage, MessageCodec,
 };
 
 use super::notifications::DataPlaneNotification;
@@ -25,10 +25,8 @@ pub(crate) struct DataPlane {
     channel_from_worker: UnboundedReceiver<DataPlaneNotification>,
     channel_to_worker: UnboundedSender<DataPlaneNotification>,
     channel_to_receivers: Sender<DataPlaneNotification>,
-    channel_from_receivers: UnboundedReceiver<DataPlaneNotification>,
-    channel_from_receivers_tx: UnboundedSender<DataPlaneNotification>,
-    channel_from_senders: UnboundedReceiver<DataPlaneNotification>,
-    channel_from_senders_tx: UnboundedSender<DataPlaneNotification>,
+    channel_from_senders_receivers: UnboundedReceiver<DataPlaneNotification>,
+    channel_from_senders_receivers_tx: UnboundedSender<DataPlaneNotification>,
 }
 
 impl DataPlane {
@@ -38,16 +36,17 @@ impl DataPlane {
         channel_from_worker: UnboundedReceiver<DataPlaneNotification>,
         channel_to_worker: UnboundedSender<DataPlaneNotification>,
     ) -> Result<Self, CommunicationError> {
+        // Bind to the address that the DataPlane should be working on.
         let worker_connection_listener = TcpListener::bind(address).await?;
 
         // Construct the notification channels between the DataPlane and the threads
         // that receive data from the other Workers.
         let (channel_to_receivers, _) = broadcast::channel(100);
-        let (channel_from_receivers_tx, channel_from_receivers) = mpsc::unbounded_channel();
 
         // Construct the notification channels between the DataPlane and the threads
-        // that send data to the other Workers.
-        let (channel_from_senders_tx, channel_from_senders) = mpsc::unbounded_channel();
+        // that send and receive data to/from the other Workers.
+        let (channel_from_senders_receivers_tx, channel_from_senders_receivers) =
+            mpsc::unbounded_channel();
 
         Ok(Self {
             worker_id,
@@ -55,10 +54,8 @@ impl DataPlane {
             channel_from_worker,
             channel_to_worker,
             channel_to_receivers,
-            channel_from_receivers,
-            channel_from_receivers_tx,
-            channel_from_senders,
-            channel_from_senders_tx,
+            channel_from_senders_receivers,
+            channel_from_senders_receivers_tx,
         })
     }
 
@@ -158,7 +155,7 @@ impl DataPlane {
             other_worker_id,
             worker_stream,
             self.channel_to_receivers.subscribe(),
-            self.channel_from_receivers_tx.clone(),
+            self.channel_from_senders_receivers_tx.clone(),
         );
 
         let (data_message_sender_tx, data_message_sender_rx) = mpsc::unbounded_channel();
@@ -166,9 +163,9 @@ impl DataPlane {
             other_worker_id,
             worker_sink,
             data_message_sender_rx,
-            self.channel_from_senders_tx.clone(),
+            self.channel_from_senders_receivers_tx.clone(),
         );
-        
+
         Ok(())
     }
 
