@@ -1,9 +1,11 @@
 //! Functions and structures for building an ERDOS application.
 
+// Crate-wide submodules.
+pub(crate) mod graph;
+
 // Public submodules
 pub mod context;
 pub mod deadlines;
-pub mod graph;
 pub mod message;
 pub mod operator;
 pub mod operators;

@@ -10,10 +10,10 @@ use crate::{
 };
 
 // Private submodules
+mod graph;
 mod job_graph;
 
-// Public submodules
-pub mod graph;
+// Crate-wide submodules
 pub(crate) mod internal_graph;
 
 // Crate-wide exports
