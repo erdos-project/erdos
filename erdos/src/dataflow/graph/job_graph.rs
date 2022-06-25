@@ -50,11 +50,18 @@ impl InternalGraph {
 
 impl From<JobGraph> for InternalGraph {
     fn from(job_graph: JobGraph) -> Self {
+        let mut sources = HashMap::new();
+        let mut destinations = HashMap::new();
+
+        for (stream_id, stream) in job_graph.streams.iter() {
+            sources.insert(*stream_id, stream.get_source());
+            destinations.insert(*stream_id, stream.get_destinations());
+        }
         Self {
             name: job_graph.name.clone(),
             operators: job_graph.operators.clone(),
-            stream_sources: job_graph.stream_sources.clone(),
-            stream_destinations: job_graph.stream_destinations.clone(),
+            stream_sources: sources,
+            stream_destinations: destinations,
         }
     }
 }
@@ -65,8 +72,6 @@ pub(crate) struct JobGraph {
     operators: HashMap<OperatorId, AbstractOperator>,
     operator_runners: HashMap<OperatorId, Box<dyn OperatorRunner>>,
     streams: HashMap<StreamId, Box<dyn AbstractStreamT>>,
-    stream_sources: HashMap<StreamId, Job>,
-    stream_destinations: HashMap<StreamId, Vec<Job>>,
     driver_setup_hooks: Vec<Box<dyn StreamSetupHook>>,
 }
 
@@ -79,39 +84,32 @@ impl JobGraph {
         ingest_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
         extract_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
     ) -> Self {
-        let mut stream_sources = HashMap::new();
-        let mut stream_destinations: HashMap<StreamId, Vec<Job>> = HashMap::new();
+        // Initialize a HashMap of streams.
+        let mut stream_id_to_stream_map: HashMap<StreamId, Box<dyn AbstractStreamT>> =
+            streams.into_iter().map(|s| (s.id(), s)).collect();
 
-        // Initialize stream destination vectors.
-        // Necessary because the JobGraph assumes that each stream
-        // has a destination vector (may be empty).
-        for s in streams.iter() {
-            stream_destinations.insert(s.id(), Vec::new());
-        }
-
+        // Register the source and destination of each stream.
+        // TODO (Sukrit): This should happen at the time of compilation.
         for operator in operators.values() {
-            for &read_stream_id in operator.read_streams.iter() {
-                stream_destinations
-                    .entry(read_stream_id)
-                    .or_default()
-                    .push(Job::Operator(operator.id));
+            for read_stream_id in operator.read_streams.iter() {
+                let read_stream = stream_id_to_stream_map.get_mut(read_stream_id).unwrap();
+                read_stream.add_destination(Job::Operator(operator.id));
             }
-            for &write_stream_id in operator.write_streams.iter() {
-                stream_sources.insert(write_stream_id, Job::Operator(operator.id));
+            for write_stream_id in operator.write_streams.iter() {
+                let write_stream = stream_id_to_stream_map.get_mut(write_stream_id).unwrap();
+                write_stream.register_source(Job::Operator(operator.id));
             }
         }
-
         let mut driver_setup_hooks = Vec::new();
         for (ingest_stream_id, setup_hook) in ingest_streams {
-            stream_sources.insert(ingest_stream_id, Job::Driver);
+            let ingest_stream = stream_id_to_stream_map.get_mut(&ingest_stream_id).unwrap();
+            ingest_stream.register_source(Job::Driver);
             driver_setup_hooks.push(setup_hook);
         }
 
         for (extract_stream_id, setup_hook) in extract_streams {
-            stream_destinations
-                .entry(extract_stream_id)
-                .or_default()
-                .push(Job::Driver);
+            let extract_stream = stream_id_to_stream_map.get_mut(&extract_stream_id).unwrap();
+            extract_stream.add_destination(Job::Driver);
             driver_setup_hooks.push(setup_hook);
         }
 
@@ -119,10 +117,7 @@ impl JobGraph {
             name,
             operators,
             operator_runners,
-            // Convert to a HashMap to easily query streams.
-            streams: streams.into_iter().map(|s| (s.id(), s)).collect(),
-            stream_sources,
-            stream_destinations,
+            streams: stream_id_to_stream_map,
             driver_setup_hooks,
         }
     }
@@ -154,31 +149,8 @@ impl JobGraph {
     }
 
     /// Returns the stream, the stream's source, and the stream's destinations.
-    pub fn get_streams(&self) -> Vec<(Box<dyn AbstractStreamT>, Job, Vec<Job>)> {
-        self.streams
-            .values()
-            .map(|s| {
-                let source = *self.stream_sources.get(&s.id()).unwrap_or_else(|| {
-                    panic!(
-                        "Internal error: stream {} (ID: {}) must have a source",
-                        s.name(),
-                        s.id()
-                    )
-                });
-                let destinations = self
-                    .stream_destinations
-                    .get(&s.id())
-                    .cloned()
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "Internal error: stream {} (ID: {}) must have a destination",
-                            s.name(),
-                            s.id()
-                        )
-                    });
-                (s.box_clone(), source, destinations)
-            })
-            .collect()
+    pub fn get_streams(&self) -> Vec<Box<dyn AbstractStreamT>> {
+        self.streams.values().into_iter().cloned().collect()
     }
 
     /// Returns the hooks used to set up ingest and extract streams.
@@ -213,27 +185,24 @@ impl JobGraph {
         }
 
         writeln!(file, "   // Streams")?;
-        for (stream_id, source) in self.stream_sources.iter() {
-            let source_id = match source {
+        for stream in self.streams.values().into_iter() {
+            let source_id = match stream.get_source() {
                 Job::Driver => driver_id,
-                Job::Operator(id) => *id,
+                Job::Operator(id) => id,
             };
-            if let Some(dests) = self.stream_destinations.get(stream_id) {
-                for dest in dests.iter() {
-                    let dest_id = match dest {
-                        Job::Driver => driver_id,
-                        Job::Operator(id) => *id,
-                    };
-                    let stream_name = self.streams.get(stream_id).unwrap().name();
-                    writeln!(
-                        file,
-                        "   \"{}\" -> \"{}\" [label=\"{}\"];",
-                        source_id, dest_id, stream_name
-                    )?;
-                }
+            for destination in stream.get_destinations().iter() {
+                let destination_id = match destination {
+                    Job::Driver => driver_id,
+                    Job::Operator(id) => *id,
+                };
+                let stream_name = stream.name();
+                writeln!(
+                    file,
+                    "   \"{}\" -> \"{}\" [label=\"{}\"];",
+                    source_id, destination_id, stream_name
+                )?;
             }
         }
-
         writeln!(file, "}}")?;
         file.flush()
     }
@@ -246,18 +215,15 @@ impl fmt::Debug for JobGraph {
         for operator in self.operators.values() {
             let mut dependents = Vec::new();
             for write_stream_id in operator.write_streams.iter() {
-                if let Some(write_stream_destinations) =
-                    self.stream_destinations.get(write_stream_id)
-                {
-                    for dependent_job in write_stream_destinations {
-                        match dependent_job {
-                            Job::Operator(dependent_job_id) => {
-                                if let Some(dependent_job) = self.operators.get(dependent_job_id) {
-                                    dependents.push(dependent_job.config.get_name())
-                                }
+                let write_stream = self.streams.get(write_stream_id).unwrap();
+                for dependent_job in write_stream.get_destinations() {
+                    match dependent_job {
+                        Job::Operator(dependent_job_id) => {
+                            if let Some(dependent_job) = self.operators.get(&dependent_job_id) {
+                                dependents.push(dependent_job.config.get_name())
                             }
-                            Job::Driver => dependents.push("Driver".to_string()),
                         }
+                        Job::Driver => dependents.push("Driver".to_string()),
                     }
                 }
             }

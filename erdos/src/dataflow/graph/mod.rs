@@ -82,7 +82,7 @@ pub(crate) enum Job {
 
 /// A typed representation of a stream used to setup
 /// and configure the dataflow graphs.
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct AbstractStream<D>
 where
     for<'a> D: Data + Deserialize<'a>,
@@ -90,6 +90,8 @@ where
     id: StreamId,
     name: String,
     phantom: PhantomData<D>,
+    source: Option<Job>,
+    destinations: Vec<Job>,
 }
 
 impl<D> AbstractStream<D>
@@ -101,6 +103,8 @@ where
             id,
             name,
             phantom: PhantomData,
+            source: None,
+            destinations: Vec::new(),
         }
     }
 }
@@ -113,6 +117,13 @@ pub(crate) trait AbstractStreamT: Send + Sync {
     fn set_name(&mut self, name: String);
     fn box_clone(&self) -> Box<dyn AbstractStreamT>;
     fn to_stream_endpoints_t(&self) -> Box<dyn StreamEndpointsT>;
+    fn get_source(&self) -> Job;
+    fn get_destinations(&self) -> Vec<Job>;
+    // TODO (Sukrit): These methods have been implemented as a hack
+    // right now, these should be a part of the AbstractOperator once
+    // these changes are tracked before the compilation to the JobGraph.
+    fn register_source(&mut self, job: Job);
+    fn add_destination(&mut self, job: Job);
 }
 
 impl<D> AbstractStreamT for AbstractStream<D>
@@ -137,6 +148,22 @@ where
 
     fn to_stream_endpoints_t(&self) -> Box<dyn StreamEndpointsT> {
         Box::new(StreamEndpoints::<D>::new(self.id, self.name()))
+    }
+
+    fn get_source(&self) -> Job {
+        self.source.unwrap()
+    }
+
+    fn get_destinations(&self) -> Vec<Job> {
+        self.destinations.clone()
+    }
+
+    fn register_source(&mut self, job: Job) {
+        self.source = Some(job);
+    }
+
+    fn add_destination(&mut self, job: Job) {
+        self.destinations.push(job);
     }
 }
 

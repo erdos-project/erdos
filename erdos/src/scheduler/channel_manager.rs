@@ -189,7 +189,10 @@ impl ChannelManager {
             .map(|o| (o.config.id, o))
             .collect();
 
-        for (stream, source, destinations) in job_graph.get_streams() {
+        for stream in job_graph.get_streams() {
+            let source = stream.get_source();
+            let destinations = stream.get_destinations();
+            
             // Whether the source is on the current node.
             let contains_source = match source {
                 Job::Operator(operator_id) => local_operator_ids.contains(&operator_id),
