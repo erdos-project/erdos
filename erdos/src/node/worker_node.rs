@@ -5,11 +5,8 @@ use std::{collections::HashMap, net::SocketAddr};
 use futures::{stream::SplitSink, SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::{
-    net::{TcpListener, TcpStream},
-    sync::{
-        broadcast,
-        mpsc::{self, Receiver, UnboundedSender},
-    },
+    net::TcpStream,
+    sync::mpsc::{self, Receiver, UnboundedSender},
 };
 use tokio_util::codec::Framed;
 
@@ -20,14 +17,13 @@ use crate::{
             ControlPlaneCodec,
         },
         data_plane::{data_plane::DataPlane, notifications::DataPlaneNotification},
-        CommunicationError, EhloMetadata, InterProcessMessage, MessageCodec,
+        CommunicationError,
     },
     dataflow::graph::JobGraph,
     node::Resources,
 };
 
-// TODO (Sukrit): Should we define a Newtype here or leave this as an alias?
-pub type WorkerId = usize;
+use super::WorkerId;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct WorkerState {
@@ -177,11 +173,7 @@ impl WorkerNode {
         >,
     ) {
         match msg_from_leader {
-            LeaderNotification::ScheduleOperator(
-                job_name,
-                operator_id,
-                source_worker_addresses,
-            ) => {
+            LeaderNotification::ScheduleOperator(job_name, operator_id, worker_addresses) => {
                 if let Some(job_graph) = self.job_graphs.get(&job_name) {
                     if let Some(operator) = job_graph.get_operator(&operator_id) {
                         let operator_name = match &operator.config.name {
@@ -192,12 +184,11 @@ impl WorkerNode {
                             "[Worker {}] Received request to schedule {} with ID: {:?}.",
                             self.worker_id,
                             operator_name,
-                            operator_id
+                            operator_id,
                         );
-                        let _ = channel_to_data_plane.send(DataPlaneNotification::SetupConnections(
-                            operator,
-                            source_worker_addresses,
-                        ));
+                        let _ = channel_to_data_plane.send(
+                            DataPlaneNotification::SetupConnections(operator, worker_addresses),
+                        );
 
                         // TODO: Handle Operator
                         if let Err(error) = leader_tx

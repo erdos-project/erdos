@@ -46,6 +46,13 @@ impl InternalGraph {
     pub(crate) fn get_source_operator(&self, stream_id: &StreamId) -> Option<Job> {
         self.stream_sources.get(stream_id).cloned()
     }
+
+    pub(crate) fn get_destinations(&self, stream_id: &StreamId) -> Vec<Job> {
+        match self.stream_destinations.get(stream_id) {
+            Some(destinations) => destinations.clone(),
+            None => Vec::new(),
+        }
+    }
 }
 
 impl From<JobGraph> for InternalGraph {

@@ -30,7 +30,8 @@ use crate::{
     OperatorId,
 };
 
-use super::{worker_node::WorkerId};
+use super::WorkerId;
+
 
 /// The [`InterThreadMessage`] enum defines the messages that the different
 /// spawned tasks may communicate back to the main loop of the [`LeaderNode`].
@@ -38,7 +39,12 @@ use super::{worker_node::WorkerId};
 enum InterThreadMessage {
     WorkerInitialized(WorkerState),
     ScheduleJobGraph(String, InternalGraph),
-    ScheduleOperator(String, OperatorId, WorkerId, HashMap<StreamId, WorkerAddress>),
+    ScheduleOperator(
+        String,
+        OperatorId,
+        WorkerId,
+        HashMap<StreamId, WorkerAddress>,
+    ),
     OperatorReady(String, OperatorId),
     ExecuteGraph(String),
     Shutdown(WorkerId),
@@ -172,10 +178,12 @@ impl LeaderNode {
                 // been initialized or not.
                 let mut operator_status = HashMap::new();
                 for (operator_id, worker_id) in placements.iter() {
+                    // For both the read and write streams of the operator, inform the
+                    // Worker of the address of the Workers executing them.
                     // For all the sources of the Streams for this operator, let the Worker
                     // know the address of the Workers executing them.
                     let operator = job_graph.get_operator(operator_id).unwrap();
-                    let mut source_worker_addresses = HashMap::new();
+                    let mut worker_addresses = HashMap::new();
                     for read_stream_id in &operator.read_streams {
                         match job_graph.get_source_operator(read_stream_id) {
                             Some(job) => {
@@ -198,8 +206,7 @@ impl LeaderNode {
                                                 source_worker_address,
                                             )
                                         };
-                                        source_worker_addresses
-                                            .insert(*read_stream_id, source_address);
+                                        worker_addresses.insert(*read_stream_id, source_address);
                                     }
                                     Job::Driver => todo!(),
                                 }
@@ -207,11 +214,37 @@ impl LeaderNode {
                             None => unreachable!(),
                         }
                     }
+                    for write_stream_id in &operator.write_streams {
+                        for destination in job_graph.get_destinations(write_stream_id) {
+                            match destination {
+                                Job::Operator(destination_operator_id) => {
+                                    let destination_worker_id =
+                                        placements.get(&destination_operator_id).unwrap();
+                                    let destination_address = if destination_worker_id == worker_id
+                                    {
+                                        WorkerAddress::Local
+                                    } else {
+                                        let destination_worker_address = self
+                                            .worker_id_to_worker_state
+                                            .get(destination_worker_id)
+                                            .unwrap()
+                                            .get_address();
+                                        WorkerAddress::Remote(
+                                            *destination_worker_id,
+                                            destination_worker_address,
+                                        )
+                                    };
+                                    worker_addresses.insert(*write_stream_id, destination_address);
+                                }
+                                Job::Driver => todo!(),
+                            }
+                        }
+                    }
                     let _ = leader_to_workers_tx.send(InterThreadMessage::ScheduleOperator(
                         job_name.clone(),
                         operator_id.clone(),
                         *worker_id,
-                        source_worker_addresses,
+                        worker_addresses,
                     ));
                     operator_status.insert(operator_id.clone(), OperatorState::NotReady);
                 }

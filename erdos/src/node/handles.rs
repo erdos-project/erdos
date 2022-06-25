@@ -12,7 +12,8 @@ use crate::{
     Configuration,
 };
 
-use super::worker_node::WorkerId;
+use super::WorkerId;
+
 
 /// A [`LeaderHandle`] is used by driver applications to interact
 /// with the Leader node running on their local instance.
