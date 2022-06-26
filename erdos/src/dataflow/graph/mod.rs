@@ -18,8 +18,8 @@ pub(crate) mod default_graph;
 
 // Crate-wide exports
 pub(crate) use abstract_graph::AbstractGraph;
-pub(crate) use job_graph::JobGraph;
 pub(crate) use job_graph::InternalGraph;
+pub(crate) use job_graph::JobGraph;
 use serde::{Deserialize, Serialize};
 
 use super::{stream::StreamId, Data};
@@ -72,7 +72,7 @@ impl Clone for Box<dyn StreamSetupHook> {
 }
 
 /// Specifies the type of job.
-#[derive(Clone, Copy, Serialize, Deserialize, Debug)]
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Hash, Eq)]
 pub(crate) enum Job {
     /// An operator in the dataflow.
     Operator(OperatorId),

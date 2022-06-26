@@ -1,23 +1,24 @@
-use std::{collections::HashMap, net::SocketAddr};
-
-
-use futures::{
-    SinkExt, StreamExt,
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    sync::{Arc, Mutex},
 };
+
+use futures::{SinkExt, StreamExt};
 use tokio::{
     net::{TcpListener, TcpStream},
-    sync::{
-        mpsc::{self, UnboundedReceiver, UnboundedSender},
-    },
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
 };
 use tokio_util::codec::Framed;
 
 use crate::{
     communication::{
-        control_plane::notifications::WorkerAddress,
-        CommunicationError, EhloMetadata, InterProcessMessage, MessageCodec,
+        control_plane::notifications::WorkerAddress, CommunicationError, EhloMetadata,
+        InterProcessMessage, MessageCodec,
     },
+    dataflow::graph::{AbstractStreamT, Job},
     node::WorkerId,
+    scheduler::channel_manager::ChannelManager,
 };
 
 use super::{notifications::DataPlaneNotification, worker_connection::WorkerConnection};
@@ -32,6 +33,7 @@ pub(crate) struct DataPlane {
     channel_from_worker_connections: UnboundedReceiver<DataPlaneNotification>,
     channel_from_worker_connections_tx: UnboundedSender<DataPlaneNotification>,
     connections_to_other_workers: HashMap<WorkerId, WorkerConnection>,
+    stream_manager: Arc<Mutex<ChannelManager>>,
 }
 
 impl DataPlane {
@@ -57,6 +59,7 @@ impl DataPlane {
             channel_from_worker_connections,
             channel_from_worker_connections_tx,
             connections_to_other_workers: HashMap::new(),
+            stream_manager: Arc::new(Mutex::new(ChannelManager::default())),
         })
     }
 
@@ -94,17 +97,13 @@ impl DataPlane {
                 // Handle messages from the Worker node.
                 Some(worker_message) = self.channel_from_worker.recv() => {
                     match worker_message {
-                        DataPlaneNotification::SetupReadStream(stream, source_address) => {
-                            match source_address {
-                                WorkerAddress::Remote(worker_id, worker_address) => {
-                                    match self.handle_outgoing_worker_connections(worker_id, worker_address).await {
-                                        Ok(connection) => {
-                                            self.connections_to_other_workers.insert(connection.get_id(), connection);
-                                        }
-                                        Err(_) => todo!(),
-                                    }
+                        DataPlaneNotification::SetupStream(stream, worker_addresses) => {
+                            let stream_id = stream.id();
+                            match self.setup_stream(stream, worker_addresses).await {
+                                Ok(()) => {}
+                                Err(error) => {
+                                    tracing::error!("[DataPlane {}] Received error when setting up Stream {}: {:?}", self.worker_id, stream_id, error);
                                 }
-                                WorkerAddress::Local => todo!(),
                             }
                         }
                         _ => unreachable!(),
@@ -129,7 +128,7 @@ impl DataPlane {
     }
 
     async fn handle_incoming_worker_connections(
-        &mut self,
+        &self,
         tcp_stream: TcpStream,
         worker_address: SocketAddr,
     ) -> Result<WorkerConnection, CommunicationError> {
@@ -173,7 +172,7 @@ impl DataPlane {
     }
 
     async fn handle_outgoing_worker_connections(
-        &mut self,
+        &self,
         other_worker_id: usize,
         worker_address: SocketAddr,
     ) -> Result<WorkerConnection, CommunicationError> {
@@ -215,6 +214,32 @@ impl DataPlane {
                 Err(error.into())
             }
         }
+    }
+
+    async fn setup_stream(
+        &mut self,
+        stream: Box<dyn AbstractStreamT>,
+        worker_addresses: HashMap<Job, WorkerAddress>,
+    ) -> Result<(), CommunicationError> {
+        // Retrieve the source operator for the stream, and find the address of the worker
+        // that is executing that operator.
+        let stream_source = stream.get_source();
+        let source_address = worker_addresses.get(&stream_source).unwrap();
+
+        match source_address {
+            WorkerAddress::Remote(worker_id, worker_address) => {
+                // If there is no connection to the Worker, initiate a new connection.
+                if !self.connections_to_other_workers.contains_key(worker_id) {
+                    let connection = self
+                        .handle_outgoing_worker_connections(*worker_id, *worker_address)
+                        .await?;
+                    self.connections_to_other_workers
+                        .insert(connection.get_id(), connection);
+                }
+            }
+            WorkerAddress::Local => todo!(),
+        }
+        Ok(())
     }
 
     pub fn get_address(&self) -> SocketAddr {

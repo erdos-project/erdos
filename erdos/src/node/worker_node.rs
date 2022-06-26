@@ -187,13 +187,22 @@ impl WorkerNode {
                             operator_id,
                         );
                         // Ask the Data plane to setup the read streams for this operator.
+                        // for read_stream_id in operator.read_streams {
+                        //     let read_stream = job_graph.get_stream(&read_stream_id).unwrap();
+                        //     let _ =
+                        //         channel_to_data_plane.send(DataPlaneNotification::SetupReadStream(
+                        //             read_stream,
+                        //             worker_addresses.get(&read_stream_id).unwrap().clone(),
+                        //         ));
+                        // }
+
+                        // Ask the Data plane to setup the read streams for this operator.
                         for read_stream_id in operator.read_streams {
                             let read_stream = job_graph.get_stream(&read_stream_id).unwrap();
-                            let _ =
-                                channel_to_data_plane.send(DataPlaneNotification::SetupReadStream(
-                                    read_stream,
-                                    worker_addresses.get(&read_stream_id).unwrap().clone(),
-                                ));
+                            let _ = channel_to_data_plane.send(DataPlaneNotification::SetupStream(
+                                read_stream,
+                                worker_addresses.clone(),
+                            ));
                         }
                         // TODO: Ask Data Plane to setup write streams for this operator.
 

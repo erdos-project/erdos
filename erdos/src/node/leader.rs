@@ -38,12 +38,7 @@ use super::WorkerId;
 enum InterThreadMessage {
     WorkerInitialized(WorkerState),
     ScheduleJobGraph(String, InternalGraph),
-    ScheduleOperator(
-        String,
-        OperatorId,
-        WorkerId,
-        HashMap<StreamId, WorkerAddress>,
-    ),
+    ScheduleOperator(String, OperatorId, WorkerId, HashMap<Job, WorkerAddress>),
     OperatorReady(String, OperatorId),
     ExecuteGraph(String),
     Shutdown(WorkerId),
@@ -181,14 +176,14 @@ impl LeaderNode {
                     let mut worker_addresses = HashMap::new();
 
                     // For all the ReadStreams of this operator, let the Worker executing it
-                    // know the addresses of the source of the stream.
+                    // know the addresses of the source operator of the stream.
                     for read_stream_id in &operator.read_streams {
                         match job_graph.get_source_operator(read_stream_id) {
                             Some(job) => {
                                 if let Some(worker_address) =
                                     self.get_worker_address(*worker_id, &job, &placements)
                                 {
-                                    worker_addresses.insert(*read_stream_id, worker_address);
+                                    worker_addresses.insert(job, worker_address);
                                 }
                             }
                             None => unreachable!(),
@@ -202,12 +197,12 @@ impl LeaderNode {
                             if let Some(worker_address) =
                                 self.get_worker_address(*worker_id, &destination, &placements)
                             {
-                                worker_addresses.insert(*write_stream_id, worker_address);
+                                worker_addresses.insert(destination, worker_address);
                             }
                         }
                     }
 
-                    // Inform the Worker to initiate appropriate connections and schedule 
+                    // Inform the Worker to initiate appropriate connections and schedule
                     // the Operator.
                     let _ = leader_to_workers_tx.send(InterThreadMessage::ScheduleOperator(
                         job_name.clone(),

@@ -3,10 +3,7 @@ use std::{collections::HashMap, net::SocketAddr};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    dataflow::{
-        graph::{InternalGraph, JobGraph},
-        stream::StreamId,
-    },
+    dataflow::graph::{InternalGraph, Job, JobGraph},
     node::{WorkerId, WorkerState},
     OperatorId,
 };
@@ -40,7 +37,7 @@ pub(crate) enum WorkerAddress {
 /// [`WorkerNode`](crate::node::WorkerNode).
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum LeaderNotification {
-    ScheduleOperator(String, OperatorId, HashMap<StreamId, WorkerAddress>),
+    ScheduleOperator(String, OperatorId, HashMap<Job, WorkerAddress>),
     ExecuteGraph(String),
     Shutdown,
 }

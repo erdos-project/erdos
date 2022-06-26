@@ -192,7 +192,7 @@ impl ChannelManager {
         for stream in job_graph.get_streams() {
             let source = stream.get_source();
             let destinations = stream.get_destinations();
-            
+
             // Whether the source is on the current node.
             let contains_source = match source {
                 Job::Operator(operator_id) => local_operator_ids.contains(&operator_id),
@@ -354,5 +354,14 @@ impl ChannelManager {
             .name();
         self.get_send_endpoints(stream_id)
             .map(|endpoints| WriteStream::new(stream_id, &name, endpoints))
+    }
+}
+
+impl Default for ChannelManager {
+    fn default() -> Self {
+        Self {
+            node_id: 0,
+            stream_entries: HashMap::new(),
+        }
     }
 }
