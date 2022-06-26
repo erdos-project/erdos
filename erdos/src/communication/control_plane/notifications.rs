@@ -7,7 +7,7 @@ use crate::{
         graph::{InternalGraph, JobGraph},
         stream::StreamId,
     },
-    node::{WorkerState, WorkerId},
+    node::{WorkerId, WorkerState},
     OperatorId,
 };
 

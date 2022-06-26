@@ -52,6 +52,8 @@ impl DataReceiver {
             .send(DataPlaneNotification::ReceiverInitialized(self.worker_id))
             .map_err(CommunicationError::from)?;
 
+        tracing::debug!("[DataReceiver {}] Initialized DataReceiver.", self.worker_id);
+
         // Listen for updates to the Pusher and messages on the TCP stream.
         loop {
             tokio::select! {

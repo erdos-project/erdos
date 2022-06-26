@@ -155,9 +155,13 @@ impl JobGraph {
         }
     }
 
-    /// Returns the stream, the stream's source, and the stream's destinations.
+    /// Returns the streams of this JobGraph.
     pub fn get_streams(&self) -> Vec<Box<dyn AbstractStreamT>> {
         self.streams.values().into_iter().cloned().collect()
+    }
+
+    pub fn get_stream(&self, stream_id: &StreamId) -> Option<Box<dyn AbstractStreamT>> {
+        self.streams.get(stream_id).cloned()
     }
 
     /// Returns the hooks used to set up ingest and extract streams.

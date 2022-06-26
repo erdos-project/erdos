@@ -32,7 +32,6 @@ use crate::{
 
 use super::WorkerId;
 
-
 /// The [`InterThreadMessage`] enum defines the messages that the different
 /// spawned tasks may communicate back to the main loop of the [`LeaderNode`].
 #[derive(Debug, Clone)]
@@ -178,68 +177,38 @@ impl LeaderNode {
                 // been initialized or not.
                 let mut operator_status = HashMap::new();
                 for (operator_id, worker_id) in placements.iter() {
-                    // For both the read and write streams of the operator, inform the
-                    // Worker of the address of the Workers executing them.
-                    // For all the sources of the Streams for this operator, let the Worker
-                    // know the address of the Workers executing them.
                     let operator = job_graph.get_operator(operator_id).unwrap();
                     let mut worker_addresses = HashMap::new();
+
+                    // For all the ReadStreams of this operator, let the Worker executing it
+                    // know the addresses of the source of the stream.
                     for read_stream_id in &operator.read_streams {
                         match job_graph.get_source_operator(read_stream_id) {
                             Some(job) => {
-                                match job {
-                                    Job::Operator(source_operator_id) => {
-                                        let source_worker_id =
-                                            placements.get(&source_operator_id).unwrap();
-                                        let source_address = if source_worker_id == worker_id {
-                                            WorkerAddress::Local
-                                        } else {
-                                            // If the Source of the Stream is not on the same
-                                            // Worker, then communicate the address of the Source.
-                                            let source_worker_address = self
-                                                .worker_id_to_worker_state
-                                                .get(source_worker_id)
-                                                .unwrap()
-                                                .get_address();
-                                            WorkerAddress::Remote(
-                                                *source_worker_id,
-                                                source_worker_address,
-                                            )
-                                        };
-                                        worker_addresses.insert(*read_stream_id, source_address);
-                                    }
-                                    Job::Driver => todo!(),
+                                if let Some(worker_address) =
+                                    self.get_worker_address(*worker_id, &job, &placements)
+                                {
+                                    worker_addresses.insert(*read_stream_id, worker_address);
                                 }
                             }
                             None => unreachable!(),
                         }
                     }
+
+                    // For all the WriteStreams of this operator, let the Worker executing it
+                    // know the addresses of the destinations of this stream.
                     for write_stream_id in &operator.write_streams {
                         for destination in job_graph.get_destinations(write_stream_id) {
-                            match destination {
-                                Job::Operator(destination_operator_id) => {
-                                    let destination_worker_id =
-                                        placements.get(&destination_operator_id).unwrap();
-                                    let destination_address = if destination_worker_id == worker_id
-                                    {
-                                        WorkerAddress::Local
-                                    } else {
-                                        let destination_worker_address = self
-                                            .worker_id_to_worker_state
-                                            .get(destination_worker_id)
-                                            .unwrap()
-                                            .get_address();
-                                        WorkerAddress::Remote(
-                                            *destination_worker_id,
-                                            destination_worker_address,
-                                        )
-                                    };
-                                    worker_addresses.insert(*write_stream_id, destination_address);
-                                }
-                                Job::Driver => todo!(),
+                            if let Some(worker_address) =
+                                self.get_worker_address(*worker_id, &destination, &placements)
+                            {
+                                worker_addresses.insert(*write_stream_id, worker_address);
                             }
                         }
                     }
+
+                    // Inform the Worker to initiate appropriate connections and schedule 
+                    // the Operator.
                     let _ = leader_to_workers_tx.send(InterThreadMessage::ScheduleOperator(
                         job_name.clone(),
                         operator_id.clone(),
@@ -409,6 +378,38 @@ impl LeaderNode {
                     }
                 }
             }
+        }
+    }
+
+    fn get_worker_address(
+        &self,
+        worker_id: WorkerId,
+        operator: &Job,
+        placements: &HashMap<OperatorId, WorkerId>,
+    ) -> Option<WorkerAddress> {
+        match operator {
+            Job::Operator(operator_id) => {
+                let worker_id_for_operator = match placements.get(operator_id) {
+                    Some(worker_id) => *worker_id,
+                    None => {
+                        tracing::error!("No placement found for Operator {}.", operator_id);
+                        return None;
+                    }
+                };
+                let worker_address = if worker_id_for_operator == worker_id {
+                    WorkerAddress::Local
+                } else {
+                    // Find the address of the Worker node.
+                    let worker_address = self
+                        .worker_id_to_worker_state
+                        .get(&worker_id_for_operator)
+                        .unwrap()
+                        .get_address();
+                    WorkerAddress::Remote(worker_id_for_operator, worker_address)
+                };
+                return Some(worker_address);
+            }
+            Job::Driver => todo!(),
         }
     }
 }

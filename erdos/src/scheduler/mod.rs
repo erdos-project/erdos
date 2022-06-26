@@ -1,6 +1,10 @@
 use std::collections::HashMap;
 
-use crate::{dataflow::graph::InternalGraph, node::WorkerState, OperatorId};
+use crate::{
+    dataflow::graph::InternalGraph,
+    node::{WorkerId, WorkerState},
+    OperatorId,
+};
 
 // Crate-wide visible submodules
 pub(crate) mod endpoints_manager;
@@ -13,7 +17,7 @@ pub(crate) trait JobGraphScheduler {
         &mut self,
         job_graph: &InternalGraph,
         workers: &Vec<WorkerState>,
-    ) -> HashMap<OperatorId, usize>;
+    ) -> HashMap<OperatorId, WorkerId>;
 }
 
 // TODO (Sukrit): Implement more schedulers and move these implementations
@@ -33,7 +37,7 @@ impl JobGraphScheduler for SimpleJobGraphScheduler {
         &mut self,
         job_graph: &InternalGraph,
         workers: &Vec<WorkerState>,
-    ) -> HashMap<OperatorId, usize> {
+    ) -> HashMap<OperatorId, WorkerId> {
         let mut placements = HashMap::new();
 
         for (operator_id, operator) in job_graph.get_operators().iter() {
