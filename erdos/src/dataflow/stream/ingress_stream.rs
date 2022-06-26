@@ -57,7 +57,7 @@ use super::{errors::SendError, Stream, StreamId, WriteStream, WriteStreamT};
 ///     assert_eq!(*message.data().unwrap(), 2 * i);
 /// }
 /// ```
-pub struct IngestStream<D>
+pub struct IngressStream<D>
 where
     for<'a> D: Data + Deserialize<'a>,
 {
@@ -71,7 +71,7 @@ where
     graph: Arc<Mutex<InternalGraph>>,
 }
 
-impl<D> IngestStream<D>
+impl<D> IngressStream<D>
 where
     for<'a> D: Data + Deserialize<'a>,
 {
@@ -131,7 +131,7 @@ where
     }
 }
 
-impl<D> Stream<D> for IngestStream<D>
+impl<D> Stream<D> for IngressStream<D>
 where
     for<'a> D: Data + Deserialize<'a>,
 {
@@ -146,7 +146,7 @@ where
     }
 }
 
-impl<D> WriteStreamT<D> for IngestStream<D>
+impl<D> WriteStreamT<D> for IngressStream<D>
 where
     for<'a> D: Data + Deserialize<'a>,
 {

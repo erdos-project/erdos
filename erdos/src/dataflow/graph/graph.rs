@@ -8,7 +8,7 @@ use crate::{
             OneInOneOut, OneInTwoOut, ParallelOneInOneOut, ParallelOneInTwoOut, ParallelSink,
             ParallelTwoInOneOut, Sink, Source, TwoInOneOut,
         },
-        stream::{ExtractStream, IngestStream, OperatorStream},
+        stream::{EgressStream, IngressStream, OperatorStream},
         AppendableState, Data, LoopStream, State, Stream,
     },
     OperatorConfig,
@@ -33,11 +33,11 @@ impl Graph {
         }
     }
 
-    pub fn add_ingest_stream<D>(&self, name: &str) -> IngestStream<D>
+    pub fn add_ingress<D>(&self, name: &str) -> IngressStream<D>
     where
         for<'a> D: Data + Deserialize<'a>,
     {
-        let ingest_stream = IngestStream::new(name, Arc::clone(&self.internal_graph));
+        let ingest_stream = IngressStream::new(name, Arc::clone(&self.internal_graph));
         self.internal_graph
             .lock()
             .unwrap()
@@ -46,11 +46,11 @@ impl Graph {
         ingest_stream
     }
 
-    pub fn extract<D>(&self, stream: &OperatorStream<D>) -> ExtractStream<D>
+    pub fn add_egress<D>(&self, stream: &OperatorStream<D>) -> EgressStream<D>
     where
         for<'a> D: Data + Deserialize<'a>,
     {
-        let extract_stream = ExtractStream::new(stream);
+        let extract_stream = EgressStream::new(stream);
         self.internal_graph
             .lock()
             .unwrap()

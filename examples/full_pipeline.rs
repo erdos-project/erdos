@@ -329,7 +329,7 @@ fn main() {
     //    erdos::connect_one_in_two_out(EvenOddOperator::new, || {}, even_odd_config, &source_stream);
 
     let graph = Graph::new();
-    let ingest_stream: IngestStream<u32> = graph.add_ingest_stream("ingest1");
+    let ingest_stream: IngressStream<u32> = graph.add_ingress("ingest1");
     let mut loop_stream: LoopStream<usize> = graph.add_loop_stream();
 
     let source_config = OperatorConfig::new().name("SourceOperator");
@@ -349,7 +349,7 @@ fn main() {
         &square_stream,
     );
 
-    let extract_stream: ExtractStream<usize> = graph.extract(&square_stream);
+    let extract_stream: EgressStream<usize> = graph.add_egress(&square_stream);
 
     node.run(graph);
 }

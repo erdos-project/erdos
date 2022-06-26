@@ -10,7 +10,7 @@ use crate::{
             OneInOneOut, OneInTwoOut, ParallelOneInOneOut, ParallelOneInTwoOut, ParallelSink,
             ParallelTwoInOneOut, Sink, Source, TwoInOneOut,
         },
-        stream::{ExtractStream, IngestStream, OperatorStream, Stream, StreamId},
+        stream::{EgressStream, IngressStream, OperatorStream, Stream, StreamId},
         AppendableState, Data, LoopStream, ReadStream, State, WriteStream,
     },
     node::operator_executors::{
@@ -63,7 +63,7 @@ impl InternalGraph {
     /// Adds an [`IngestStream`] to the graph.
     /// [`IngestStream`]s are automatically named based on the number of [`IngestStream`]s
     /// in the graph.
-    pub(crate) fn add_ingest_stream<D>(&mut self, ingest_stream: &IngestStream<D>)
+    pub(crate) fn add_ingest_stream<D>(&mut self, ingest_stream: &IngressStream<D>)
     where
         for<'a> D: Data + Deserialize<'a>,
     {
@@ -96,7 +96,7 @@ impl InternalGraph {
     /// Adds an [`ExtractStream`] to the graph.
     /// [`ExtractStream`]s are automatically named based on the number of [`ExtractStream`]s
     /// in the graph.
-    pub(crate) fn add_extract_stream<D>(&mut self, extract_stream: &ExtractStream<D>)
+    pub(crate) fn add_extract_stream<D>(&mut self, extract_stream: &EgressStream<D>)
     where
         for<'a> D: Data + Deserialize<'a>,
     {

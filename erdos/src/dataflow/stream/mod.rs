@@ -26,8 +26,8 @@ use std::{
 use crate::dataflow::{Data, Message};
 
 // Private submodules
-mod extract_stream;
-mod ingest_stream;
+mod egress_stream;
+mod ingress_stream;
 mod loop_stream;
 mod read_stream;
 mod write_stream;
@@ -39,8 +39,8 @@ pub mod errors;
 use errors::SendError;
 
 // Public exports
-pub use extract_stream::ExtractStream;
-pub use ingest_stream::IngestStream;
+pub use egress_stream::EgressStream;
+pub use ingress_stream::IngressStream;
 #[doc(hidden)]
 pub use loop_stream::LoopStream;
 pub use read_stream::ReadStream;

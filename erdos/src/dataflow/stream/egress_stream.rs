@@ -60,7 +60,7 @@ use super::{
 ///     assert_eq!(*message.data().unwrap(), 2 * i);
 /// }
 /// ```
-pub struct ExtractStream<D>
+pub struct EgressStream<D>
 where
     for<'a> D: Data + Deserialize<'a>,
 {
@@ -71,7 +71,7 @@ where
     read_stream_option: Arc<Mutex<Option<ReadStream<D>>>>,
 }
 
-impl<D> ExtractStream<D>
+impl<D> EgressStream<D>
 where
     for<'a> D: Data + Deserialize<'a>,
 {
@@ -146,4 +146,4 @@ where
 }
 
 // Needed to avoid deadlock in Python
-unsafe impl<D> Send for ExtractStream<D> where for<'a> D: Data + Deserialize<'a> {}
+unsafe impl<D> Send for EgressStream<D> where for<'a> D: Data + Deserialize<'a> {}
