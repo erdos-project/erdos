@@ -49,7 +49,10 @@ impl DataSender {
             .send(DataPlaneNotification::SenderInitialized(self.worker_id))
             .map_err(CommunicationError::from)?;
 
-        tracing::debug!("[DataSender {}] Initialized DataSender.", self.worker_id);
+        tracing::debug!(
+            "[DataSender for Worker {}] Initialized DataSender.",
+            self.worker_id
+        );
 
         // Listen for messages from different operators that must be forwarded on the TCP stream.
         loop {

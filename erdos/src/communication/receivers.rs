@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use futures::{future, stream::SplitStream, StreamExt};
 use tokio::{
     net::TcpStream,
-    sync::{broadcast::Receiver, mpsc::UnboundedSender},
+    sync::mpsc::{UnboundedReceiver, UnboundedSender},
 };
 use tokio_util::codec::Framed;
 
@@ -21,9 +21,9 @@ pub(crate) struct DataReceiver {
     worker_id: usize,
     /// The receiver of the Framed TCP stream for the connection to the other Worker.
     tcp_stream: SplitStream<Framed<TcpStream, MessageCodec>>,
-    /// Broadcast channel where [`DataPlaneNotification`]s are received.
-    data_plane_notification_rx: Receiver<DataPlaneNotification>,
-    /// MPSC channel to communicate messages to the [`DataPlane`] handler.
+    /// Channel where [`DataPlaneNotification`]s are received.
+    data_plane_notification_rx: UnboundedReceiver<DataPlaneNotification>,
+    /// Channel where notifications are communicated to the [`DataPlane`] handler.
     data_plane_notification_tx: UnboundedSender<DataPlaneNotification>,
     /// Mapping between stream id to [`PusherT`] trait objects.
     /// [`PusherT`] trait objects are used to deserialize and send messages to operators.
@@ -34,7 +34,7 @@ impl DataReceiver {
     pub(crate) fn new(
         worker_id: usize,
         tcp_stream: SplitStream<Framed<TcpStream, MessageCodec>>,
-        data_plane_notification_rx: Receiver<DataPlaneNotification>,
+        data_plane_notification_rx: UnboundedReceiver<DataPlaneNotification>,
         data_plane_notification_tx: UnboundedSender<DataPlaneNotification>,
     ) -> Self {
         Self {
@@ -52,7 +52,10 @@ impl DataReceiver {
             .send(DataPlaneNotification::ReceiverInitialized(self.worker_id))
             .map_err(CommunicationError::from)?;
 
-        tracing::debug!("[DataReceiver {}] Initialized DataReceiver.", self.worker_id);
+        tracing::debug!(
+            "[DataReceiver for Worker {}] Initialized DataReceiver.",
+            self.worker_id
+        );
 
         // Listen for updates to the Pusher and messages on the TCP stream.
         loop {
@@ -60,7 +63,7 @@ impl DataReceiver {
                 // We want to bias the select towards Pusher updates in order to
                 // minimize any lost messages.
                 biased;
-                Ok(notification) = self.data_plane_notification_rx.recv() => {
+                Some(notification) = self.data_plane_notification_rx.recv() => {
                     match notification {
                         // Update the StreamID to dyn PusherT mapping if we have an update.
                         DataPlaneNotification::PusherUpdate(stream_id, stream_pusher) => {
@@ -95,8 +98,8 @@ impl DataReceiver {
                                     }
                                 }
                                 None => tracing::error!(
-                                    "[Receiver for Worker {}] Could not find a Pusher \
-                                                                for StreamID: {}.",
+                                    "[DataReceiver for Worker {}] Could not find a Pusher \
+                                                                    for StreamID: {}.",
                                     self.worker_id,
                                     metadata.stream_id,
                                 ),

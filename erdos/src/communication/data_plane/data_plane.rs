@@ -1,72 +1,26 @@
 use std::{collections::HashMap, net::SocketAddr};
 
+
 use futures::{
-    stream::{SplitSink, SplitStream},
     SinkExt, StreamExt,
 };
 use tokio::{
     net::{TcpListener, TcpStream},
     sync::{
-        broadcast::{self, Sender},
         mpsc::{self, UnboundedReceiver, UnboundedSender},
     },
-    task::JoinHandle,
 };
 use tokio_util::codec::Framed;
 
 use crate::{
     communication::{
-        control_plane::notifications::WorkerAddress, receivers::DataReceiver, senders::DataSender,
+        control_plane::notifications::WorkerAddress,
         CommunicationError, EhloMetadata, InterProcessMessage, MessageCodec,
     },
-    dataflow::Message,
     node::WorkerId,
 };
 
-use super::notifications::DataPlaneNotification;
-
-struct WorkerConnection {
-    worker_id: WorkerId,
-    data_receiver_handle: JoinHandle<Result<(), CommunicationError>>,
-    receiver_initialized: bool,
-    data_sender_handle: JoinHandle<Result<(), CommunicationError>>,
-    sender_initialized: bool,
-    channel_to_data_sender: UnboundedSender<InterProcessMessage>,
-}
-
-impl WorkerConnection {
-    fn new(
-        worker_id: WorkerId,
-        data_receiver_handle: JoinHandle<Result<(), CommunicationError>>,
-        data_sender_handle: JoinHandle<Result<(), CommunicationError>>,
-        channel_to_data_sender: UnboundedSender<InterProcessMessage>,
-    ) -> Self {
-        Self {
-            worker_id,
-            data_receiver_handle,
-            data_sender_handle,
-            channel_to_data_sender,
-            receiver_initialized: false,
-            sender_initialized: false,
-        }
-    }
-
-    fn get_id(&self) -> WorkerId {
-        self.worker_id
-    }
-
-    fn set_data_sender_initialized(&mut self) {
-        self.sender_initialized = true;
-    }
-
-    fn set_data_receiver_initialized(&mut self) {
-        self.receiver_initialized = true;
-    }
-
-    fn is_initialized(&mut self) -> bool {
-        self.sender_initialized && self.receiver_initialized
-    }
-}
+use super::{notifications::DataPlaneNotification, worker_connection::WorkerConnection};
 
 /// [`DataPlane`] manages the connections amongst Workers, and enables
 /// [`Worker`]s to communicate data messages to each other.
@@ -75,9 +29,8 @@ pub(crate) struct DataPlane {
     worker_connection_listener: TcpListener,
     channel_from_worker: UnboundedReceiver<DataPlaneNotification>,
     channel_to_worker: UnboundedSender<DataPlaneNotification>,
-    channel_to_receivers: Sender<DataPlaneNotification>,
-    channel_from_senders_receivers: UnboundedReceiver<DataPlaneNotification>,
-    channel_from_senders_receivers_tx: UnboundedSender<DataPlaneNotification>,
+    channel_from_worker_connections: UnboundedReceiver<DataPlaneNotification>,
+    channel_from_worker_connections_tx: UnboundedSender<DataPlaneNotification>,
     connections_to_other_workers: HashMap<WorkerId, WorkerConnection>,
 }
 
@@ -92,12 +45,8 @@ impl DataPlane {
         let worker_connection_listener = TcpListener::bind(address).await?;
 
         // Construct the notification channels between the DataPlane and the threads
-        // that receive data from the other Workers.
-        let (channel_to_receivers, _) = broadcast::channel(100);
-
-        // Construct the notification channels between the DataPlane and the threads
         // that send and receive data to/from the other Workers.
-        let (channel_from_senders_receivers_tx, channel_from_senders_receivers) =
+        let (channel_from_worker_connections_tx, channel_from_worker_connections) =
             mpsc::unbounded_channel();
 
         Ok(Self {
@@ -105,9 +54,8 @@ impl DataPlane {
             worker_connection_listener,
             channel_from_worker,
             channel_to_worker,
-            channel_to_receivers,
-            channel_from_senders_receivers,
-            channel_from_senders_receivers_tx,
+            channel_from_worker_connections,
+            channel_from_worker_connections_tx,
             connections_to_other_workers: HashMap::new(),
         })
     }
@@ -149,12 +97,12 @@ impl DataPlane {
                         DataPlaneNotification::SetupReadStream(stream, source_address) => {
                             match source_address {
                                 WorkerAddress::Remote(worker_id, worker_address) => {
-                                    let _ = self
-                                        .handle_outgoing_worker_connections(
-                                            worker_id,
-                                            worker_address,
-                                        )
-                                        .await;
+                                    match self.handle_outgoing_worker_connections(worker_id, worker_address).await {
+                                        Ok(connection) => {
+                                            self.connections_to_other_workers.insert(connection.get_id(), connection);
+                                        }
+                                        Err(_) => todo!(),
+                                    }
                                 }
                                 WorkerAddress::Local => todo!(),
                             }
@@ -164,7 +112,7 @@ impl DataPlane {
                 }
 
                 // Handle messages from the Senders and the Receivers.
-                Some(notification) = self.channel_from_senders_receivers.recv() => {
+                Some(notification) = self.channel_from_worker_connections.recv() => {
                     match notification {
                         DataPlaneNotification::ReceiverInitialized(worker_id) => {
                             self.connections_to_other_workers.get_mut(&worker_id).unwrap().set_data_receiver_initialized();
@@ -216,8 +164,12 @@ impl DataPlane {
         } else {
             unreachable!()
         };
-
-        Ok(self.setup_worker_connection(other_worker_id, worker_stream, worker_sink))
+        Ok(WorkerConnection::new(
+            other_worker_id,
+            worker_sink,
+            worker_stream,
+            self.channel_from_worker_connections_tx.clone(),
+        ))
     }
 
     async fn handle_outgoing_worker_connections(
@@ -244,7 +196,12 @@ impl DataPlane {
                         },
                     })
                     .await;
-                Ok(self.setup_worker_connection(other_worker_id, worker_stream, worker_sink))
+                Ok(WorkerConnection::new(
+                    other_worker_id,
+                    worker_sink,
+                    worker_stream,
+                    self.channel_from_worker_connections_tx.clone(),
+                ))
             }
             Err(error) => {
                 tracing::error!(
@@ -258,39 +215,6 @@ impl DataPlane {
                 Err(error.into())
             }
         }
-    }
-
-    fn setup_worker_connection(
-        &self,
-        worker_id: WorkerId,
-        worker_stream: SplitStream<Framed<TcpStream, MessageCodec>>,
-        worker_sink: SplitSink<Framed<TcpStream, MessageCodec>, InterProcessMessage>,
-    ) -> WorkerConnection {
-        // Create and execute a DataReceiver for the connection to this Worker.
-        let mut data_receiver = DataReceiver::new(
-            worker_id,
-            worker_stream,
-            self.channel_to_receivers.subscribe(),
-            self.channel_from_senders_receivers_tx.clone(),
-        );
-        let data_receiver_handle = tokio::spawn(async move { data_receiver.run().await });
-
-        // Create and execute a DataSender for the connection to this Worker.
-        let (data_message_sender_tx, data_message_sender_rx) = mpsc::unbounded_channel();
-        let mut data_sender = DataSender::new(
-            worker_id,
-            worker_sink,
-            data_message_sender_rx,
-            self.channel_from_senders_receivers_tx.clone(),
-        );
-        let data_sender_handle = tokio::spawn(async move { data_sender.run().await });
-
-        WorkerConnection::new(
-            worker_id,
-            data_receiver_handle,
-            data_sender_handle,
-            data_message_sender_tx,
-        )
     }
 
     pub fn get_address(&self) -> SocketAddr {
