@@ -78,7 +78,7 @@ where
     /// Returns a new instance of the [`IngressStream`].
     pub(crate) fn new(name: &str, graph: Arc<Mutex<InternalGraph>>) -> Self {
         tracing::debug!(
-            "Initializing an IngestStream with name: {}",
+            "Initializing an IngressStream with name: {}",
             name.to_string()
         );
 

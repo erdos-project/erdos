@@ -52,7 +52,7 @@ impl SquareOperator {
 impl OneInOneOut<(), usize, usize> for SquareOperator {
     fn setup(&mut self, ctx: &mut SetupContext<()>) {
         ctx.add_deadline(TimestampDeadline::new(
-            move |_s: &(), _t: &Timestamp| -> Duration { Duration::new(2, 0) },
+            move |_s: &(), _t: &Timestamp| -> Duration { Duration::new(1, 0) },
             |_s: &(), _t: &Timestamp| {
                 tracing::info!("SquareOperator @ {:?}: Missed deadline.", _t);
             },
@@ -60,7 +60,7 @@ impl OneInOneOut<(), usize, usize> for SquareOperator {
     }
 
     fn on_data(&mut self, ctx: &mut OneInOneOutContext<(), usize>, data: &usize) {
-        thread::sleep(Duration::new(2, 0));
+        thread::sleep(Duration::new(1, 0));
         tracing::info!("SquareOperator @ {:?}: received {}", ctx.timestamp(), data);
         let timestamp = ctx.timestamp().clone();
         ctx.write_stream()
@@ -247,13 +247,14 @@ fn main() {
     //println!("The s value is {}", s.s);
     let args = erdos::new_app("ERDOS").get_matches();
     let mut node = Node::new(Configuration::from_args(&args));
+    let graph = Graph::new();
 
-    // let source_config = OperatorConfig::new().name("SourceOperator");
-    // let source_stream = erdos::connect_source(SourceOperator::new, source_config);
+    let source_config = OperatorConfig::new().name("SourceOperator");
+    let source_stream = graph.connect_source(SourceOperator::new, source_config);
 
-    // let square_config = OperatorConfig::new().name("SquareOperator");
-    // let square_stream =
-    //     erdos::connect_one_in_one_out(SquareOperator::new, || {}, square_config, &source_stream);
+    let square_config = OperatorConfig::new().name("SquareOperator");
+    let square_stream =
+        graph.connect_one_in_one_out(SquareOperator::new, || {}, square_config, &source_stream);
 
     // let map_config = OperatorConfig::new().name("FlatMapOperator");
     // let map_stream = erdos::connect_one_in_one_out(
@@ -281,13 +282,13 @@ fn main() {
     //     &filter_stream,
     // );
 
-    //let sum_config = OperatorConfig::new().name("SumOperator");
-    //let sum_stream = erdos::connect_one_in_one_out(
-    //    SumOperator::new,
-    //    TimeVersionedState::new,
-    //    sum_config,
-    //    &square_stream,
-    //);
+    let sum_config = OperatorConfig::new().name("SumOperator");
+    let sum_stream = graph.connect_one_in_one_out(
+        SumOperator::new,
+        TimeVersionedState::new,
+        sum_config,
+        &square_stream,
+    );
 
     // let left_sink_config = OperatorConfig::new().name("LeftSinkOperator");
     // erdos::connect_sink(
@@ -306,48 +307,30 @@ fn main() {
     // );
 
     // Example use of an ingest stream.
-    // let ingest_stream = IngestStream::new();
-    // let sink_config = OperatorConfig::new().name("IngestSinkOperator");
-    // erdos::connect_sink(
-    //     SinkOperator::new,
-    //     TimeVersionedState::new,
-    //     sink_config,
-    //     &ingest_stream,
-    // );
-
-    // let join_sum_config = OperatorConfig::new().name("JoinSumOperator");
-    // let join_stream = erdos::connect_two_in_one_out(
-    //    JoinSumOperator::new,
-    //    TimeVersionedState::new,
-    //    join_sum_config,
-    //    &source_stream,
-    //    &sum_stream,
-    // );
-
-    //let even_odd_config = OperatorConfig::new().name("EvenOddOperator");
-    //let (even_stream, odd_stream) =
-    //    erdos::connect_one_in_two_out(EvenOddOperator::new, || {}, even_odd_config, &source_stream);
-
-    let graph = Graph::new();
-    let _ingest_stream: IngressStream<u32> = graph.add_ingress("ingest1");
-    let mut loop_stream: LoopStream<usize> = graph.add_loop_stream();
-
-    let source_config = OperatorConfig::new().name("SourceOperator");
-    let source_stream = graph.connect_source(SourceOperator::new, source_config);
-
-    loop_stream.connect_loop(&source_stream);
-
-    let square_config = OperatorConfig::new().name("SquareOperator");
-    let square_stream =
-        graph.connect_one_in_one_out(SquareOperator::new, || {}, square_config, &source_stream);
-
-    let sink_config = OperatorConfig::new().name("SquareSinkOperator");
+    let ingest_stream: IngressStream<usize> = graph.add_ingress("Ingest1");
+    let sink_config = OperatorConfig::new().name("IngestSinkOperator");
     graph.connect_sink(
         SinkOperator::new,
         TimeVersionedState::new,
         sink_config,
-        &square_stream,
+        &ingest_stream,
     );
+
+    let join_sum_config = OperatorConfig::new().name("JoinSumOperator");
+    let _join_stream = graph.connect_two_in_one_out(
+        JoinSumOperator::new,
+        TimeVersionedState::new,
+        join_sum_config,
+        &source_stream,
+        &sum_stream,
+    );
+
+    let even_odd_config = OperatorConfig::new().name("EvenOddOperator");
+    let (_even_stream, _odd_stream) =
+        graph.connect_one_in_two_out(EvenOddOperator::new, || {}, even_odd_config, &source_stream);
+
+    let mut loop_stream: LoopStream<usize> = graph.add_loop_stream();
+    loop_stream.connect_loop(&source_stream);
 
     let _extract_stream: EgressStream<usize> = graph.add_egress(&square_stream);
 

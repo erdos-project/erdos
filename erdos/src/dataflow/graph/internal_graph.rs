@@ -124,11 +124,14 @@ impl InternalGraph {
         for<'a> D: Data + Deserialize<'a>,
     {
         self.streams.insert(
-            loop_stream.id(),
-            Box::new(AbstractStream::from(loop_stream)),
+            loop_stream.get_id(),
+            Box::new(AbstractStream::<D>::new(
+                loop_stream.get_id(),
+                format!("LoopStream-{}", loop_stream.get_id()),
+            )),
         );
 
-        self.loop_streams.insert(loop_stream.id(), None);
+        self.loop_streams.insert(loop_stream.get_id(), None);
     }
 
     /// Connects a [`LoopStream`] to another stream in order to close a loop.
@@ -139,7 +142,7 @@ impl InternalGraph {
     ) where
         for<'a> D: Data + Deserialize<'a>,
     {
-        if let Some(v) = self.loop_streams.get_mut(&loop_stream.id()) {
+        if let Some(v) = self.loop_streams.get_mut(&loop_stream.get_id()) {
             *v = Some(stream.id());
         }
     }

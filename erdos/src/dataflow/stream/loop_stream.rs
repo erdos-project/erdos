@@ -7,7 +7,7 @@ use serde::Deserialize;
 
 use crate::dataflow::{graph::InternalGraph, Data};
 
-use super::{OperatorStream, Stream, StreamId};
+use super::{OperatorStream, StreamId};
 
 /// Enables loops in the dataflow.
 ///
@@ -29,7 +29,6 @@ where
     for<'a> D: Data + Deserialize<'a>,
 {
     id: StreamId,
-    name: Option<String>,
     phantom: PhantomData<D>,
     graph: Arc<Mutex<InternalGraph>>,
 }
@@ -40,43 +39,30 @@ where
 {
     pub(crate) fn new(graph: Arc<Mutex<InternalGraph>>) -> Self {
         let id = StreamId::new_deterministic();
+
+        tracing::debug!("Initializing a LoopStream with ID: {}", id,);
+
         Self {
             id,
-            name: None,
             phantom: PhantomData,
             graph: Arc::clone(&graph),
         }
     }
 
     pub fn connect_loop(&mut self, stream: &OperatorStream<D>) {
-        self.name = Some(stream.clone().name());
-        self.get_graph().lock().unwrap().connect_loop(self, stream);
+        Arc::clone(&self.graph)
+            .lock()
+            .unwrap()
+            .connect_loop(self, stream);
 
         tracing::debug!(
-            "Connected LoopStream with ID: {} to stream with name: {:?}",
+            "Connected LoopStream with ID: {} to stream named: {}",
             self.id,
-            self.name
+            stream.name,
         );
     }
-}
 
-impl<D> Stream<D> for LoopStream<D>
-where
-    for<'a> D: Data + Deserialize<'a>,
-{
-    fn id(&self) -> StreamId {
+    pub(crate) fn get_id(&self) -> StreamId {
         self.id
-    }
-    fn name(&self) -> String {
-        match &self.name {
-            Some(name) => name.to_string(),
-            None => {
-                tracing::error!("LoopStream with ID: {} does not have a name set", self.id);
-                "LoopStream".to_string()
-            }
-        }
-    }
-    fn get_graph(&self) -> std::sync::Arc<std::sync::Mutex<InternalGraph>> {
-        Arc::clone(&self.graph)
     }
 }
