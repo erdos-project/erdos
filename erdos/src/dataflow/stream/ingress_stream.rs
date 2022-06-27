@@ -10,19 +10,19 @@ use crate::dataflow::{graph::InternalGraph, Data, Message};
 
 use super::{errors::SendError, Stream, StreamId, WriteStream, WriteStreamT};
 
-/// An [`IngestStream`] enables drivers to inject data into a running ERDOS application.
+/// An [`IngressStream`] enables drivers to inject data into a running ERDOS application.
 ///
-/// Similar to a [`WriteStream`], an [`IngestStream`] exposes a [`send`](IngestStream::send)
+/// Similar to a [`WriteStream`], an [`IngressStream`] exposes a [`send`](IngressStream::send)
 /// function to allow drivers to send data to the operators of the constructed graph.
 ///
 /// # Example
-/// The below example shows how to use an [`IngestStream`] to send data to a
+/// The below example shows how to use an [`IngressStream`] to send data to a
 /// [`FlatMapOperator`](crate::dataflow::operators::FlatMapOperator),
 /// and retrieve the processed values through an
-/// [`ExtractStream`](crate::dataflow::stream::ExtractStream).
+/// [`EgressStream`](crate::dataflow::stream::EgressStream).
 /// ```no_run
 /// # use erdos::dataflow::{
-/// #    stream::{IngestStream, ExtractStream, Stream},
+/// #    stream::{IngressStream, ExtractStream, Stream},
 /// #    operators::FlatMapOperator,
 /// #    OperatorConfig, Message, Timestamp
 /// # };
@@ -32,7 +32,7 @@ use super::{errors::SendError, Stream, StreamId, WriteStream, WriteStreamT};
 /// let args = erdos::new_app("ERDOS").get_matches();
 /// let mut node = Node::new(Configuration::from_args(&args));
 ///
-/// // Create an IngestStream.
+/// // Create an IngressStream.
 /// let mut ingest_stream = IngestStream::new();
 ///
 /// // Create an ExtractStream from the ReadStream of the FlatMapOperator.
@@ -46,7 +46,7 @@ use super::{errors::SendError, Stream, StreamId, WriteStream, WriteStreamT};
 ///
 /// node.run_async();
 ///
-/// // Send data on the IngestStream.
+/// // Send data on the IngressStream.
 /// for i in 1..10 {
 ///     ingest_stream.send(Message::new_message(Timestamp::Time(vec![i as u64]), i)).unwrap();
 /// }
@@ -75,7 +75,7 @@ impl<D> IngressStream<D>
 where
     for<'a> D: Data + Deserialize<'a>,
 {
-    /// Returns a new instance of the [`IngestStream`].
+    /// Returns a new instance of the [`IngressStream`].
     pub(crate) fn new(name: &str, graph: Arc<Mutex<InternalGraph>>) -> Self {
         tracing::debug!(
             "Initializing an IngestStream with name: {}",
@@ -94,7 +94,7 @@ where
         Arc::clone(&self.write_stream_option)
     }
 
-    /// Returns `true` if a top watermark message was received or the [`IngestStream`] failed to
+    /// Returns `true` if a top watermark message was received or the [`IngressStream`] failed to
     /// set up.
     pub(crate) fn is_closed(&self) -> bool {
         self.write_stream_option
@@ -122,7 +122,7 @@ where
             }
         } else {
             tracing::warn!(
-                "Trying to send messages on a closed IngestStream {} (ID: {})",
+                "Trying to send messages on a closed IngressStream {} (ID: {})",
                 self.name,
                 self.id(),
             );

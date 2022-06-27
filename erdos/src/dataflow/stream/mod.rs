@@ -44,6 +44,7 @@ pub use ingress_stream::IngressStream;
 #[doc(hidden)]
 pub use loop_stream::LoopStream;
 pub use read_stream::ReadStream;
+use serde::Deserialize;
 pub use write_stream::WriteStream;
 
 use super::graph::InternalGraph;
@@ -82,6 +83,13 @@ impl<D: Data> OperatorStream<D> {
             phantom: PhantomData,
             graph,
         }
+    }
+
+    pub(crate) fn to_egress(&self) -> EgressStream<D> 
+    where
+        for<'a> D: Data + Deserialize<'a>,
+    {
+        EgressStream::new(self)
     }
 }
 

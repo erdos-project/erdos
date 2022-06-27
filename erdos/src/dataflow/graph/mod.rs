@@ -44,7 +44,7 @@ impl<
     }
 }
 
-/// Trait for functions used to set up ingest and extract streams.
+/// Trait for functions used to set up ingress and egress streams.
 pub(crate) trait StreamSetupHook: 'static + Fn(&mut ChannelManager) + Sync + Send {
     fn box_clone(&self) -> Box<dyn StreamSetupHook>;
 }

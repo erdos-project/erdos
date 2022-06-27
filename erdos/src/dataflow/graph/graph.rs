@@ -37,26 +37,26 @@ impl Graph {
     where
         for<'a> D: Data + Deserialize<'a>,
     {
-        let ingest_stream = IngressStream::new(name, Arc::clone(&self.internal_graph));
+        let ingress_stream = IngressStream::new(name, Arc::clone(&self.internal_graph));
         self.internal_graph
             .lock()
             .unwrap()
-            .add_ingest_stream(&ingest_stream);
+            .add_ingress_stream(&ingress_stream);
 
-        ingest_stream
+        ingress_stream
     }
 
     pub fn add_egress<D>(&self, stream: &OperatorStream<D>) -> EgressStream<D>
     where
         for<'a> D: Data + Deserialize<'a>,
     {
-        let extract_stream = EgressStream::new(stream);
+        let egress_stream = stream.to_egress();
         self.internal_graph
             .lock()
             .unwrap()
-            .add_extract_stream(&extract_stream);
+            .add_egress_stream(&egress_stream);
 
-        extract_stream
+        egress_stream
     }
 
     pub fn add_loop_stream<D>(&self) -> LoopStream<D>

@@ -35,10 +35,10 @@ pub struct InternalGraph {
     operators: HashMap<OperatorId, AbstractOperator>,
     /// Collection of all streams in the graph.
     streams: HashMap<StreamId, Box<dyn AbstractStreamT>>,
-    /// Collection of ingest streams and the corresponding functions to execute for setup.
-    ingest_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
-    /// Collection of extract streams and the corresponding functions to execute for setup.
-    extract_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
+    /// Collection of ingress streams and the corresponding functions to execute for setup.
+    ingress_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
+    /// Collection of egress streams and the corresponding functions to execute for setup.
+    egress_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
     /// Collection of loop streams and the streams to which they connect.
     loop_streams: HashMap<StreamId, Option<StreamId>>,
 }
@@ -54,23 +54,23 @@ impl InternalGraph {
         Self {
             operators: HashMap::new(),
             streams: HashMap::new(),
-            ingest_streams: HashMap::new(),
-            extract_streams: HashMap::new(),
+            ingress_streams: HashMap::new(),
+            egress_streams: HashMap::new(),
             loop_streams: HashMap::new(),
         }
     }
 
-    /// Adds an [`IngestStream`] to the graph.
-    /// [`IngestStream`]s are automatically named based on the number of [`IngestStream`]s
+    /// Adds an [`IngressStream`] to the graph.
+    /// [`IngressStream`]s are automatically named based on the number of [`IngressStream`]s
     /// in the graph.
-    pub(crate) fn add_ingest_stream<D>(&mut self, ingest_stream: &IngressStream<D>)
+    pub(crate) fn add_ingress_stream<D>(&mut self, ingress_stream: &IngressStream<D>)
     where
         for<'a> D: Data + Deserialize<'a>,
     {
-        // A hook to initialize the ingest stream's connections to downstream operators.
-        let write_stream_option_copy = ingest_stream.get_write_stream();
-        let name_copy = ingest_stream.name();
-        let id_copy = ingest_stream.id();
+        // A hook to initialize the ingress stream's connections to downstream operators.
+        let write_stream_option_copy = ingress_stream.get_write_stream();
+        let name_copy = ingress_stream.name();
+        let id_copy = ingress_stream.id();
         let setup_hook = move |channel_manager: &mut ChannelManager| match channel_manager
             .get_send_endpoints(id_copy)
         {
@@ -81,28 +81,28 @@ impl InternalGraph {
                     .unwrap()
                     .replace(write_stream);
             }
-            Err(msg) => panic!("Unable to set up IngestStream {}: {}", id_copy, msg),
+            Err(msg) => panic!("Unable to set up IngressStream {}: {}", id_copy, msg),
         };
 
         self.streams.insert(
-            ingest_stream.id(),
-            Box::new(AbstractStream::from(ingest_stream)),
+            ingress_stream.id(),
+            Box::new(AbstractStream::from(ingress_stream)),
         );
 
-        self.ingest_streams
-            .insert(ingest_stream.id(), Box::new(setup_hook));
+        self.ingress_streams
+            .insert(ingress_stream.id(), Box::new(setup_hook));
     }
 
-    /// Adds an [`ExtractStream`] to the graph.
-    /// [`ExtractStream`]s are automatically named based on the number of [`ExtractStream`]s
+    /// Adds an [`EgressStream`] to the graph.
+    /// [`EgressStream`]s are automatically named based on the number of [`EgressStream`]s
     /// in the graph.
-    pub(crate) fn add_extract_stream<D>(&mut self, extract_stream: &EgressStream<D>)
+    pub(crate) fn add_egress_stream<D>(&mut self, egress_stream: &EgressStream<D>)
     where
         for<'a> D: Data + Deserialize<'a>,
     {
-        let read_stream_option_copy = extract_stream.get_read_stream();
-        let name_copy = extract_stream.name();
-        let id_copy = extract_stream.id();
+        let read_stream_option_copy = egress_stream.get_read_stream();
+        let name_copy = egress_stream.name();
+        let id_copy = egress_stream.id();
 
         let hook = move |channel_manager: &mut ChannelManager| match channel_manager
             .take_recv_endpoint(id_copy)
@@ -111,11 +111,11 @@ impl InternalGraph {
                 let read_stream = ReadStream::new(id_copy, &name_copy, recv_endpoint);
                 read_stream_option_copy.lock().unwrap().replace(read_stream);
             }
-            Err(msg) => panic!("Unable to set up ExtractStream {}: {}", id_copy, msg),
+            Err(msg) => panic!("Unable to set up EgressStream {}: {}", id_copy, msg),
         };
 
-        self.extract_streams
-            .insert(extract_stream.id(), Box::new(hook));
+        self.egress_streams
+            .insert(egress_stream.id(), Box::new(hook));
     }
 
     /// Adds a [`LoopStream`] to the graph.
@@ -694,22 +694,22 @@ impl InternalGraph {
             .map(|(_k, v)| v.box_clone())
             .collect();
 
-        let mut ingest_streams = HashMap::new();
-        let ingest_stream_ids: Vec<_> = self.ingest_streams.keys().cloned().collect();
-        for stream_id in ingest_stream_ids {
+        let mut ingress_streams = HashMap::new();
+        let ingress_stream_ids: Vec<_> = self.ingress_streams.keys().cloned().collect();
+        for stream_id in ingress_stream_ids {
             // Remove and re-insert setup hook to satisfy static lifetimes.
-            let setup_hook = self.ingest_streams.remove(&stream_id).unwrap();
-            ingest_streams.insert(stream_id, setup_hook.box_clone());
-            self.ingest_streams.insert(stream_id, setup_hook);
+            let setup_hook = self.ingress_streams.remove(&stream_id).unwrap();
+            ingress_streams.insert(stream_id, setup_hook.box_clone());
+            self.ingress_streams.insert(stream_id, setup_hook);
         }
 
-        let mut extract_streams = HashMap::new();
-        let extract_stream_ids: Vec<_> = self.extract_streams.keys().cloned().collect();
-        for stream_id in extract_stream_ids {
+        let mut egress_streams = HashMap::new();
+        let egress_stream_ids: Vec<_> = self.egress_streams.keys().cloned().collect();
+        for stream_id in egress_stream_ids {
             // Remove and re-insert setup hook to satisfy static lifetimes.
-            let setup_hook = self.extract_streams.remove(&stream_id).unwrap();
-            extract_streams.insert(stream_id, setup_hook.box_clone());
-            self.extract_streams.insert(stream_id, setup_hook);
+            let setup_hook = self.egress_streams.remove(&stream_id).unwrap();
+            egress_streams.insert(stream_id, setup_hook.box_clone());
+            self.egress_streams.insert(stream_id, setup_hook);
         }
 
         let mut operators: Vec<_> = self.operators.values().cloned().collect();
@@ -724,7 +724,7 @@ impl InternalGraph {
             }
         }
 
-        JobGraph::new(operators, streams, ingest_streams, extract_streams)
+        JobGraph::new(operators, streams, ingress_streams, egress_streams)
     }
 
     // TODO: implement this using the Clone trait.
@@ -735,29 +735,29 @@ impl InternalGraph {
             .map(|(&k, v)| (k, v.box_clone()))
             .collect();
 
-        let mut ingest_streams = HashMap::new();
-        let ingest_stream_ids: Vec<_> = self.ingest_streams.keys().cloned().collect();
-        for stream_id in ingest_stream_ids {
+        let mut ingress_streams = HashMap::new();
+        let ingress_stream_ids: Vec<_> = self.ingress_streams.keys().cloned().collect();
+        for stream_id in ingress_stream_ids {
             // Remove and re-insert setup hook to satisfy static lifetimes.
-            let setup_hook = self.ingest_streams.remove(&stream_id).unwrap();
-            ingest_streams.insert(stream_id, setup_hook.box_clone());
-            self.ingest_streams.insert(stream_id, setup_hook);
+            let setup_hook = self.ingress_streams.remove(&stream_id).unwrap();
+            ingress_streams.insert(stream_id, setup_hook.box_clone());
+            self.ingress_streams.insert(stream_id, setup_hook);
         }
 
-        let mut extract_streams = HashMap::new();
-        let extract_stream_ids: Vec<_> = self.extract_streams.keys().cloned().collect();
-        for stream_id in extract_stream_ids {
+        let mut egress_streams = HashMap::new();
+        let egress_stream_ids: Vec<_> = self.egress_streams.keys().cloned().collect();
+        for stream_id in egress_stream_ids {
             // Remove and re-insert setup hook to satisfy static lifetimes.
-            let setup_hook = self.extract_streams.remove(&stream_id).unwrap();
-            extract_streams.insert(stream_id, setup_hook.box_clone());
-            self.extract_streams.insert(stream_id, setup_hook);
+            let setup_hook = self.egress_streams.remove(&stream_id).unwrap();
+            egress_streams.insert(stream_id, setup_hook.box_clone());
+            self.egress_streams.insert(stream_id, setup_hook);
         }
 
         Self {
             operators: self.operators.clone(),
             streams,
-            ingest_streams,
-            extract_streams,
+            ingress_streams,
+            egress_streams,
             loop_streams: self.loop_streams.clone(),
         }
     }
