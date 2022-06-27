@@ -1,6 +1,9 @@
 // TODO(Sukrit): Rename this to worker.rs once the merge is complete.
 
-use std::{collections::HashMap, net::SocketAddr};
+use std::{
+    collections::{HashMap, HashSet},
+    net::SocketAddr,
+};
 
 use futures::{stream::SplitSink, SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -22,8 +25,12 @@ use crate::{
         },
         CommunicationError,
     },
-    dataflow::graph::{Job, JobGraph},
+    dataflow::{
+        graph::{Job, JobGraph},
+        stream::StreamId,
+    },
     node::Resources,
+    OperatorId,
 };
 
 use super::WorkerId;
@@ -59,6 +66,7 @@ pub(crate) struct WorkerNode {
     resources: Resources,
     driver_notification_rx: Receiver<DriverNotification>,
     job_graphs: HashMap<String, JobGraph>,
+    pending_stream_setups: HashMap<Job, (String, HashSet<StreamId>)>,
 }
 
 impl WorkerNode {
@@ -74,6 +82,7 @@ impl WorkerNode {
             resources,
             driver_notification_rx,
             job_graphs: HashMap::new(),
+            pending_stream_setups: HashMap::new(),
         }
     }
 
@@ -166,20 +175,82 @@ impl WorkerNode {
 
                 // Handle messages received from the DataPlane.
                 Some(data_plane_notification) = channel_from_data_plane_rx.recv() => {
-                    match data_plane_notification {
-                        DataPlaneNotification::StreamReady(job, stream_id) => {
-                            tracing::trace!(
-                                "[Worker {}] Received StreamReady notification for \
-                                                        Stream {} at Job {:?}.",
-                                self.worker_id,
-                                stream_id,
-                                job
-                            );
+                    self.handle_data_plane_messages(data_plane_notification, &mut leader_tx).await;
+                }
+            }
+        }
+    }
+
+    async fn handle_data_plane_messages(
+        &mut self,
+        notification: DataPlaneNotification,
+        leader_tx: &mut SplitSink<
+            Framed<TcpStream, ControlPlaneCodec<WorkerNotification, LeaderNotification>>,
+            WorkerNotification,
+        >,
+    ) {
+        match notification {
+            DataPlaneNotification::StreamReady(job, stream_id) => {
+                tracing::trace!(
+                    "[Worker {}] Received StreamReady notification for Stream {} at Job {:?}.",
+                    self.worker_id,
+                    stream_id,
+                    job
+                );
+
+                tracing::debug!("The stream setup map is {:?}", self.pending_stream_setups);
+                match self.pending_stream_setups.get_mut(&job) {
+                    Some((job_name, pending_streams)) => {
+                        match pending_streams.remove(&stream_id) {
+                            true => {
+                                // If the set is empty, notify the Leader of the
+                                // successful initialization of the Operator.
+                                if pending_streams.is_empty() {
+                                    let job_id = if let Job::Operator(id) = job {
+                                        id
+                                    } else {
+                                        OperatorId::nil()
+                                    };
+                                    if let Err(error) = leader_tx
+                                        .send(WorkerNotification::OperatorReady(
+                                            job_name.clone(),
+                                            job_id,
+                                        ))
+                                        .await
+                                    {
+                                        tracing::error!(
+                                            "[Worker {}] Could not communicate the Ready status of Operator \
+                                                    {} from the Job {} to the Leader. Received error {:?}",
+                                            self.worker_id,
+                                            job_id,
+                                            job_name,
+                                            error,
+                                        )
+                                    }
+                                    self.pending_stream_setups.remove(&job);
+                                }
+                            }
+                            false => {
+                                tracing::warn!(
+                                    "[Worker {}] Could not find pending Stream {:?} for Job {:?}.",
+                                    self.worker_id,
+                                    stream_id,
+                                    job,
+                                );
+                            }
                         }
-                        _ => unreachable!(),
+                    }
+                    None => {
+                        tracing::warn!(
+                            "[Worker {}] Inconsistency between the state of \
+                                the pending Stream setups for Job {:?}.",
+                            self.worker_id,
+                            job,
+                        );
                     }
                 }
             }
+            _ => unreachable!(),
         }
     }
 
@@ -231,12 +302,26 @@ impl WorkerNode {
                                 .push(StreamType::WriteStream(write_stream, destination_addresses));
                         }
 
-                        // Ask the DataPlane to setup all the streams for this operator.
-                        if let Err(error) =
-                            channel_to_data_plane.send(DataPlaneNotification::SetupStreams(
-                                Job::Operator(operator_id),
-                                streams,
-                            ))
+                        // Cache the streams that need to be initialized to call this Operator ready.
+                        let job = Job::Operator(operator_id);
+                        let pending_setups = streams
+                            .iter()
+                            .map(|stream_type| match stream_type {
+                                StreamType::ReadStream(stream, _) => stream.id(),
+                                StreamType::WriteStream(stream, _) => stream.id(),
+                            })
+                            .collect();
+                        tracing::debug!(
+                            "[Worker {}] The Job {:?} is pending setup of {:?} streams.",
+                            self.worker_id,
+                            job,
+                            pending_setups
+                        );
+                        self.pending_stream_setups
+                            .insert(job, (job_name, pending_setups));
+
+                        if let Err(error) = channel_to_data_plane
+                            .send(DataPlaneNotification::SetupStreams(job, streams))
                         {
                             tracing::warn!(
                                 "[Worker {}] Received error when requesting the setup of \
@@ -246,24 +331,6 @@ impl WorkerNode {
                                 operator_id,
                                 error
                             );
-                        }
-
-                        // TODO: Handle Operator
-                        if let Err(error) = leader_tx
-                            .send(WorkerNotification::OperatorReady(
-                                job_name.clone(),
-                                operator_id,
-                            ))
-                            .await
-                        {
-                            tracing::error!(
-                                "[Worker {}] Could not communicate the Ready status of Operator \
-                                        {} from the Job {} to the Leader. Received error {:?}",
-                                self.worker_id,
-                                operator_id,
-                                job_name,
-                                error,
-                            )
                         }
                     } else {
                         tracing::error!(

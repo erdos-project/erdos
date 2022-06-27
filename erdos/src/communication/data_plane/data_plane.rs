@@ -44,7 +44,7 @@ pub(crate) struct DataPlane {
     /// with the given ID.
     worker_to_stream_setup_map: HashMap<WorkerId, Vec<(Job, Box<dyn AbstractStreamT>)>>,
     /// Caches the jobs that are pending before a Stream can be notified as Ready.
-    pending_job_setup_map: HashMap<StreamId, HashSet<Job>>,
+    pending_job_setups: HashMap<StreamId, HashSet<Job>>,
 }
 
 impl DataPlane {
@@ -72,7 +72,7 @@ impl DataPlane {
             connections_to_other_workers: HashMap::new(),
             stream_manager: Arc::new(Mutex::new(ChannelManager::default())),
             worker_to_stream_setup_map: HashMap::new(),
-            pending_job_setup_map: HashMap::new(),
+            pending_job_setups: HashMap::new(),
         })
     }
 
@@ -111,7 +111,7 @@ impl DataPlane {
                 Some(worker_message) = self.channel_from_worker.recv() => {
                     match worker_message {
                         DataPlaneNotification::SetupStreams(job, streams) => {
-                            if let Err(error) = self.setup_streams(streams).await {
+                            if let Err(error) = self.setup_streams(job, streams).await {
                                 tracing::warn!(
                                     "[DataPlane {}] Received error when setting up streams \
                                     for the Job {:?}: {:?}",
@@ -160,7 +160,7 @@ impl DataPlane {
                         );
 
                         // Remove the job from the pending job set of the Stream.
-                        match self.pending_job_setup_map.get_mut(&stream.id()) {
+                        match self.pending_job_setups.get_mut(&stream.id()) {
                             Some(pending_jobs) => {
                                 match pending_jobs.remove(job) {
                                     true => {
@@ -174,21 +174,21 @@ impl DataPlane {
                                                 ),
                                             ) {
                                                 tracing::warn!(
-                                            "[DataPlane {}] Received error when notifying Worker \
-                                                of StreamReady for Stream {} and Job {:?}: {:?}",
-                                            self.worker_id,
-                                            stream.id(),
-                                            stream.get_source(),
-                                            error
-                                        );
+                                                    "[DataPlane {}] Received error when notifying Worker \
+                                                        of StreamReady for Stream {} and Job {:?}: {:?}",
+                                                    self.worker_id,
+                                                    stream.id(),
+                                                    stream.get_source(),
+                                                    error
+                                                );
                                             }
-                                            self.pending_job_setup_map.remove(&stream.id());
+                                            self.pending_job_setups.remove(&stream.id());
                                         }
                                     }
                                     false => {
                                         tracing::warn!(
                                             "[DataPlane {}] Could not find Job \
-                                {:?} in pending jobs for Stream {}.",
+                                            {:?} in pending jobs for Stream {}.",
                                             self.worker_id,
                                             job,
                                             stream.id()
@@ -210,18 +210,18 @@ impl DataPlane {
                     }
                 }
             }
-            DataPlaneNotification::PusherUpdated(stream_id, job) => {
+            DataPlaneNotification::PusherUpdated(sending_job, stream_id, receiving_job) => {
                 // Notify the Worker that the Stream is ready for the given Job.
                 if let Err(error) = self
                     .channel_to_worker
-                    .send(DataPlaneNotification::StreamReady(job, stream_id))
+                    .send(DataPlaneNotification::StreamReady(receiving_job, stream_id))
                 {
                     tracing::error!(
                         "[DataPlane {}] Received error when notifying Worker of \
                                 StreamReady for Stream {} and Job {:?}: {:?}",
                         self.worker_id,
                         stream_id,
-                        job,
+                        receiving_job,
                         error
                     );
                 } else {
@@ -230,7 +230,7 @@ impl DataPlane {
                             StreamReady for Stream {} and Job {:?}.",
                         self.worker_id,
                         stream_id,
-                        job
+                        receiving_job
                     );
                 }
             }
@@ -329,11 +329,15 @@ impl DataPlane {
         }
     }
 
-    async fn setup_streams(&mut self, streams: Vec<StreamType>) -> Result<(), CommunicationError> {
+    async fn setup_streams(
+        &mut self,
+        job: Job,
+        streams: Vec<StreamType>,
+    ) -> Result<(), CommunicationError> {
         for stream in streams {
             match stream {
                 StreamType::ReadStream(stream, source_address) => {
-                    self.setup_read_stream(stream, source_address).await?
+                    self.setup_read_stream(stream, job, source_address).await?
                 }
                 StreamType::WriteStream(stream, destination_addresses) => {
                     self.setup_write_stream(stream, destination_addresses);
@@ -346,6 +350,7 @@ impl DataPlane {
     async fn setup_read_stream(
         &mut self,
         stream: Box<dyn AbstractStreamT>,
+        destination_job: Job,
         source_address: WorkerAddress,
     ) -> Result<(), CommunicationError> {
         tracing::debug!(
@@ -376,7 +381,7 @@ impl DataPlane {
                 let mut stream_manager = self.stream_manager.lock().unwrap();
                 if let Err(error) = stream_manager.add_inter_worker_recv_endpoint(
                     &stream,
-                    stream.get_source(),
+                    destination_job,
                     &worker_connection,
                 ) {
                     tracing::error!(
@@ -432,7 +437,7 @@ impl DataPlane {
 
                             // Save the destination that needs to be setup for the given job.
                             let pending_job_setups =
-                                self.pending_job_setup_map.entry(stream.id()).or_default();
+                                self.pending_job_setups.entry(stream.id()).or_default();
                             pending_job_setups.insert(destination);
                         }
                     }

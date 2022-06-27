@@ -287,7 +287,7 @@ impl ChannelManager {
     pub fn add_inter_worker_recv_endpoint(
         &mut self,
         stream: &Box<dyn AbstractStreamT>,
-        source_job: Job,
+        receiving_job: Job,
         worker_connection: &WorkerConnection,
     ) -> Result<(), CommunicationError> {
         // If there are no endpoints for this stream, create endpoints and install
@@ -303,9 +303,9 @@ impl ChannelManager {
         // Register for a new endpoint with the Pusher.
         let stream_endpoints = self.stream_entries.get_mut(&stream.id()).unwrap();
         let stream_pusher = self.stream_pushers.get(&stream.id()).unwrap();
-        let _ =
-            stream_endpoints.add_inter_worker_recv_endpoint(source_job, Arc::clone(stream_pusher));
-        worker_connection.notify_pusher_update(stream.id(), source_job)?;
+        let _ = stream_endpoints
+            .add_inter_worker_recv_endpoint(stream.get_source(), Arc::clone(stream_pusher));
+        worker_connection.notify_pusher_update(stream.get_source(), stream.id(), receiving_job)?;
 
         Ok(())
     }

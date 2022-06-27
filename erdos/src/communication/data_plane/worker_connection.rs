@@ -93,11 +93,16 @@ impl WorkerConnection {
 
     pub(crate) fn notify_pusher_update(
         &self,
+        sending_job: Job,
         stream_id: StreamId,
-        job: Job,
+        receiving_job: Job,
     ) -> Result<(), CommunicationError> {
         self.channel_to_data_receiver
-            .send(DataPlaneNotification::UpdatePusher(stream_id, job))
+            .send(DataPlaneNotification::UpdatePusher(
+                sending_job,
+                stream_id,
+                receiving_job,
+            ))
             .map_err(CommunicationError::from)
     }
 
