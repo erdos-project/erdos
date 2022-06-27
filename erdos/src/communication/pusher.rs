@@ -25,6 +25,9 @@ pub(crate) trait PusherT: Send {
     /// Retrieve the Jobs for which an endpoint is registered on this Pusher.
     fn get_jobs(&self) -> Vec<Job>;
 
+    /// Checks if an endpoint exists for the given Job inside this Pusher.
+    fn contains_endpoint(&self, job: &Job) -> bool;
+
     fn as_any(&mut self) -> &mut dyn Any;
 
     /// Creates message from bytes and sends it to endpoints.
@@ -87,6 +90,10 @@ where
 
     fn stream_id(&self) -> StreamId {
         self.stream_id
+    }
+
+    fn contains_endpoint(&self, job: &Job) -> bool {
+        self.endpoints.contains_key(job)
     }
 }
 

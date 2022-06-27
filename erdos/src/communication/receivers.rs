@@ -75,14 +75,43 @@ impl DataReceiver {
                             tracing::debug!("[DataReceiver for Worker {}] Installed Pusher {:?}.", self.worker_id, pusher);
                             }
                             self.stream_id_to_pusher.insert(stream_id, stream_pusher);
-                            // Inform the Worker that the Pusher has been updated.
-                            self.data_plane_notification_tx
-                                .send(DataPlaneNotification::PusherUpdated(stream_id))
-                                .map_err(CommunicationError::from)?;
                         },
-                        DataPlaneNotification::UpdatePusher(stream_id) => {
+                        DataPlaneNotification::UpdatePusher(stream_id, job) => {
                             let pusher = self.stream_id_to_pusher.get(&stream_id).unwrap().lock().unwrap();
-                            tracing::debug!("[DataReceiver for Worker {}] Updated Pusher {:?}.", self.worker_id, pusher);
+                            tracing::debug!(
+                                "[DataReceiver for Worker {}] Received a Pusher update \
+                                            notification for {:?} with Job {:?}.",
+                                self.worker_id,
+                                pusher,
+                                job,
+                            );
+
+                            // Notify the DataPlane of the successful installation.
+                            match pusher.contains_endpoint(&job) {
+                                true => {
+                                    if let Err(error) = self.data_plane_notification_tx.send(DataPlaneNotification::PusherUpdated(stream_id, job)) {
+                                        tracing::error!(
+                                            "[DataReceiver for Worker {}] Error sending the \
+                                            PusherUpdated notification to the DataPlane for \
+                                                            Stream {:?} and Job {:?}: {:?}",
+                                            self.worker_id,
+                                            stream_id,
+                                            job,
+                                            error,
+                                        );
+                                    }
+                                }
+                                false => {
+                                    tracing::warn!(
+                                        "[DataReceiver for Worker {}] The DataReceiver was \
+                                        notified of the update of the Pusher for Stream {} \
+                                        with an endpoint for Job {:?}, but none was found.",
+                                        self.worker_id,
+                                        stream_id,
+                                        job,
+                                    );
+                                }
+                            }
                         }
                         _ => {},
                     }

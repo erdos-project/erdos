@@ -1,4 +1,5 @@
 use std::{
+    fmt,
     marker::PhantomData,
     sync::{Arc, Mutex},
 };
@@ -170,6 +171,12 @@ where
 impl Clone for Box<dyn AbstractStreamT> {
     fn clone(&self) -> Self {
         (**self).box_clone()
+    }
+}
+
+impl fmt::Debug for dyn AbstractStreamT {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "AbstractStream {} (ID={})", self.name(), self.id())
     }
 }
 

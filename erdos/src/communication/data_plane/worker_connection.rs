@@ -13,7 +13,7 @@ use crate::{
         receivers::DataReceiver, senders::DataSender, CommunicationError, InterProcessMessage,
         MessageCodec, PusherT,
     },
-    dataflow::stream::StreamId,
+    dataflow::{graph::Job, stream::StreamId},
     node::WorkerId,
 };
 
@@ -94,9 +94,10 @@ impl WorkerConnection {
     pub(crate) fn notify_pusher_update(
         &self,
         stream_id: StreamId,
+        job: Job,
     ) -> Result<(), CommunicationError> {
         self.channel_to_data_receiver
-            .send(DataPlaneNotification::UpdatePusher(stream_id))
+            .send(DataPlaneNotification::UpdatePusher(stream_id, job))
             .map_err(CommunicationError::from)
     }
 

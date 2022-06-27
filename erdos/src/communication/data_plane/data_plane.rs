@@ -39,7 +39,7 @@ pub(crate) struct DataPlane {
     stream_manager: Arc<Mutex<ChannelManager>>,
     /// Caches the Streams that need to be setup upon connection to a Worker
     /// with the given ID.
-    worker_to_stream_setup_map: HashMap<WorkerId, StreamId>,
+    worker_to_stream_setup_map: HashMap<WorkerId, Vec<Box<dyn AbstractStreamT>>>,
     /// Bookkeeping to ensure that all channels for a Stream are correctly initialized.
     stream_to_channel_setup_map: HashMap<StreamId, HashMap<Job, bool>>,
 }
@@ -126,19 +126,59 @@ impl DataPlane {
 
                 // Handle messages from the Senders and the Receivers.
                 Some(notification) = self.channel_from_worker_connections.recv() => {
-                    match notification {
-                        DataPlaneNotification::ReceiverInitialized(worker_id) => {
-                            self.connections_to_other_workers.get_mut(&worker_id).unwrap().set_data_receiver_initialized();
-                        }
-                        DataPlaneNotification::SenderInitialized(worker_id) => {
-                            // Generate the cached channels for this Worker.
-                            self.connections_to_other_workers.get_mut(&worker_id).unwrap().set_data_sender_initialized();
-                        }
-                        _ => unreachable!(),
-                    }
+                    self.handle_notification_from_worker_connections(notification);
                 }
 
             }
+        }
+    }
+
+    fn handle_notification_from_worker_connections(&mut self, notification: DataPlaneNotification) {
+        match notification {
+            DataPlaneNotification::ReceiverInitialized(worker_id) => {
+                self.connections_to_other_workers
+                    .get_mut(&worker_id)
+                    .unwrap()
+                    .set_data_receiver_initialized();
+            }
+            DataPlaneNotification::SenderInitialized(worker_id) => {
+                self.connections_to_other_workers
+                    .get_mut(&worker_id)
+                    .unwrap()
+                    .set_data_sender_initialized();
+            }
+            DataPlaneNotification::PusherUpdated(stream_id, job) => {
+                // Update the status of the Job for the given stream.
+                match self.stream_to_channel_setup_map.get_mut(&stream_id) {
+                    Some(job_status) => match job_status.get_mut(&job) {
+                        Some(initialized) => {
+                            *initialized = true;
+
+                            // TODO (Sukrit): If the status of all Jobs is initialized now, 
+                            // tell the Worker that the Stream was successfully initialized.
+                        }
+                        None => {
+                            tracing::warn!(
+                                "[DataPlane {}] Could nto find the status for the Job {:?} \
+                                    for Stream {} for which the DataPlane was notified of a \
+                                    PusherUpdate.",
+                                self.worker_id,
+                                job,
+                                stream_id
+                            );
+                        }
+                    },
+                    None => {
+                        tracing::warn!(
+                            "[DataPlane {}] Could not find the status for Jobs for Stream {} for \
+                            which the DataPlane was notified of a PusherUpdate.",
+                            self.worker_id,
+                            stream_id
+                        );
+                    }
+                }
+            }
+            _ => unreachable!(),
         }
     }
 
@@ -269,11 +309,11 @@ impl DataPlane {
                 );
 
                 // Bookkeep the endpoints required to mark this Stream ready.
-                let stream_bookeeping = self
+                let stream_bookkeeping = self
                     .stream_to_channel_setup_map
                     .entry(stream.id())
                     .or_default();
-                stream_bookeeping.insert(stream.get_source(), false);
+                stream_bookkeeping.insert(stream.get_source(), false);
             }
             WorkerAddress::Local => todo!(),
         }
@@ -310,7 +350,19 @@ impl DataPlane {
                         }
                         None => {
                             // Cache the generation of the endpoints until the connection
-                            // is established by the receiver.
+                            // to the required Worker is established by their receiver.
+                            let worker_map = self
+                                .worker_to_stream_setup_map
+                                .entry(*worker_id)
+                                .or_default();
+                            worker_map.push(stream.clone());
+
+                            // Bookkeep the endpoints required to mark this Stream ready.
+                            let stream_bookkeeping = self
+                                .stream_to_channel_setup_map
+                                .entry(stream.id())
+                                .or_default();
+                            stream_bookkeeping.insert(destination, false);
                         }
                     }
                 }

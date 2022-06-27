@@ -305,7 +305,7 @@ impl ChannelManager {
         let stream_pusher = self.stream_pushers.get(&stream.id()).unwrap();
         let _ =
             stream_endpoints.add_inter_worker_recv_endpoint(source_job, Arc::clone(stream_pusher));
-        worker_connection.notify_pusher_update(stream.id())?;
+        worker_connection.notify_pusher_update(stream.id(), source_job)?;
 
         Ok(())
     }
