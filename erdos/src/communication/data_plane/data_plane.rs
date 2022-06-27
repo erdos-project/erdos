@@ -149,34 +149,27 @@ impl DataPlane {
                     .set_data_sender_initialized();
             }
             DataPlaneNotification::PusherUpdated(stream_id, job) => {
-                // Update the status of the Job for the given stream.
-                match self.stream_to_channel_setup_map.get_mut(&stream_id) {
-                    Some(job_status) => match job_status.get_mut(&job) {
-                        Some(initialized) => {
-                            *initialized = true;
-
-                            // TODO (Sukrit): If the status of all Jobs is initialized now,
-                            // tell the Worker that the Stream was successfully initialized.
-                        }
-                        None => {
-                            tracing::warn!(
-                                "[DataPlane {}] Could nto find the status for the Job {:?} \
-                                    for Stream {} for which the DataPlane was notified of a \
-                                    PusherUpdate.",
-                                self.worker_id,
-                                job,
-                                stream_id
-                            );
-                        }
-                    },
-                    None => {
-                        tracing::warn!(
-                            "[DataPlane {}] Could not find the status for Jobs for Stream {} for \
-                            which the DataPlane was notified of a PusherUpdate.",
-                            self.worker_id,
-                            stream_id
-                        );
-                    }
+                // Notify the Worker that the Stream is ready for the given Job.
+                if let Err(error) = self
+                    .channel_to_worker
+                    .send(DataPlaneNotification::StreamReady(job, stream_id))
+                {
+                    tracing::error!(
+                        "[DataPlane {}] Received error when notifying Worker of \
+                                StreamReady for Stream {} and Job {:?}: {:?}",
+                        self.worker_id,
+                        stream_id,
+                        job,
+                        error
+                    );
+                } else {
+                    tracing::trace!(
+                        "[DataPlane {}] Successfully notified Worker of \
+                            StreamReady for Stream {} and Job {:?}.",
+                        self.worker_id,
+                        stream_id,
+                        job
+                    );
                 }
             }
             _ => unreachable!(),
@@ -322,13 +315,6 @@ impl DataPlane {
                     stream.get_source(),
                     &worker_connection,
                 );
-
-                // Bookkeep the endpoints required to mark this Stream ready.
-                let stream_bookkeeping = self
-                    .stream_to_channel_setup_map
-                    .entry(stream.id())
-                    .or_default();
-                stream_bookkeeping.insert(stream.get_source(), false);
             }
             WorkerAddress::Local => todo!(),
         }

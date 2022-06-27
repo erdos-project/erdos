@@ -21,6 +21,7 @@ pub(crate) enum StreamType {
 #[derive(Debug, Clone)]
 pub(crate) enum DataPlaneNotification {
     SetupStreams(Job, Vec<StreamType>),
+    StreamReady(Job, StreamId),
     ReceiverInitialized(WorkerId),
     SenderInitialized(WorkerId),
     InstallPusher(StreamId, Arc<Mutex<dyn PusherT>>),
