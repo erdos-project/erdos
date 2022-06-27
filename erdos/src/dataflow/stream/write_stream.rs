@@ -70,7 +70,7 @@ impl<D: Data> WriteStream<D> {
     ) -> Self {
         tracing::debug!("Initializing a WriteStream {} with the ID: {}", name, id);
 
-        let mut pusher = Pusher::new();
+        let mut pusher = Pusher::new(id);
         for (job, endpoint) in endpoints {
             pusher.add_endpoint(job, endpoint);
         }

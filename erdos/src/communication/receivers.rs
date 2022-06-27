@@ -72,7 +72,7 @@ impl DataReceiver {
                         DataPlaneNotification::InstallPusher(stream_id, stream_pusher) => {
                             {
                             let pusher = stream_pusher.lock().unwrap();
-                            tracing::debug!("[DataReceiver for Worker {}] Installed Pusher for Stream {}.", self.worker_id, stream_id);
+                            tracing::debug!("[DataReceiver for Worker {}] Installed Pusher {:?}.", self.worker_id, pusher);
                             }
                             self.stream_id_to_pusher.insert(stream_id, stream_pusher);
                             // Inform the Worker that the Pusher has been updated.
@@ -82,7 +82,7 @@ impl DataReceiver {
                         },
                         DataPlaneNotification::UpdatePusher(stream_id) => {
                             let pusher = self.stream_id_to_pusher.get(&stream_id).unwrap().lock().unwrap();
-                            tracing::debug!("[DataReceiver for Worker {}] The Pusher for Stream {}.", self.worker_id, stream_id);
+                            tracing::debug!("[DataReceiver for Worker {}] Updated Pusher {:?}.", self.worker_id, pusher);
                         }
                         _ => {},
                     }

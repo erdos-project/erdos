@@ -152,7 +152,7 @@ where
     }
 
     fn get_pusher(&self) -> Arc<Mutex<dyn PusherT>> {
-        Arc::new(Mutex::new(Pusher::<Arc<Message<D>>>::new()))
+        Arc::new(Mutex::new(Pusher::<Arc<Message<D>>>::new(self.stream_id)))
     }
 }
 
