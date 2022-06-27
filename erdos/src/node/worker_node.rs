@@ -90,7 +90,8 @@ impl WorkerNode {
         // Initialize the Data layer on a randomly-assigned port.
         // The data layer is used to retrieve the dataflow messages from other operators.
         let (mut channel_to_data_plane_tx, channel_to_data_plane_rx) = mpsc::unbounded_channel();
-        let (channel_from_data_plane_tx, channel_from_data_plane_rx) = mpsc::unbounded_channel();
+        let (channel_from_data_plane_tx, mut channel_from_data_plane_rx) =
+            mpsc::unbounded_channel();
         let mut data_plane = DataPlane::new(
             self.worker_id,
             "0.0.0.0:0".parse().unwrap(),
@@ -160,6 +161,22 @@ impl WorkerNode {
                             return Ok(());
                         }
                         _ => self.handle_driver_messages(driver_notification, &mut leader_tx).await,
+                    }
+                }
+
+                // Handle messages received from the DataPlane.
+                Some(data_plane_notification) = channel_from_data_plane_rx.recv() => {
+                    match data_plane_notification {
+                        DataPlaneNotification::StreamReady(job, stream_id) => {
+                            tracing::trace!(
+                                "[Worker {}] Received StreamReady notification for \
+                                                        Stream {} at Job {:?}.",
+                                self.worker_id,
+                                stream_id,
+                                job
+                            );
+                        }
+                        _ => unreachable!(),
                     }
                 }
             }
