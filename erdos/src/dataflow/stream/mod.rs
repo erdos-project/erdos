@@ -85,7 +85,7 @@ impl<D: Data> OperatorStream<D> {
         }
     }
 
-    pub(crate) fn to_egress(&self) -> EgressStream<D> 
+    pub(crate) fn to_egress(&self) -> EgressStream<D>
     where
         for<'a> D: Data + Deserialize<'a>,
     {
