@@ -143,10 +143,72 @@ impl DataPlane {
                     .set_data_receiver_initialized();
             }
             DataPlaneNotification::SenderInitialized(worker_id) => {
-                self.connections_to_other_workers
+                let worker_connection = self
+                    .connections_to_other_workers
                     .get_mut(&worker_id)
-                    .unwrap()
-                    .set_data_sender_initialized();
+                    .unwrap();
+
+                // Mark the sender as initialized and install any cached endpoints for this node.
+                worker_connection.set_data_sender_initialized();
+                if let Some(cached_setups) = self.worker_to_stream_setup_map.get(&worker_id) {
+                    let mut stream_manager = self.stream_manager.lock().unwrap();
+                    for (job, stream) in cached_setups {
+                        stream_manager.add_inter_worker_send_endpoint(
+                            stream,
+                            job.clone(),
+                            &worker_connection,
+                        );
+
+                        // Remove the job from the pending job set of the Stream.
+                        match self.pending_job_setup_map.get_mut(&stream.id()) {
+                            Some(pending_jobs) => {
+                                match pending_jobs.remove(job) {
+                                    true => {
+                                        // If the set is empty, notify the Worker of the successful
+                                        // initialization of this stream for its source job.
+                                        if pending_jobs.is_empty() {
+                                            if let Err(error) = self.channel_to_worker.send(
+                                                DataPlaneNotification::StreamReady(
+                                                    stream.get_source(),
+                                                    stream.id(),
+                                                ),
+                                            ) {
+                                                tracing::warn!(
+                                            "[DataPlane {}] Received error when notifying Worker \
+                                                of StreamReady for Stream {} and Job {:?}: {:?}",
+                                            self.worker_id,
+                                            stream.id(),
+                                            stream.get_source(),
+                                            error
+                                        );
+                                            }
+                                            self.pending_job_setup_map.remove(&stream.id());
+                                        }
+                                    }
+                                    false => {
+                                        tracing::warn!(
+                                            "[DataPlane {}] Could not find Job \
+                                {:?} in pending jobs for Stream {}.",
+                                            self.worker_id,
+                                            job,
+                                            stream.id()
+                                        );
+                                    }
+                                }
+                            }
+                            None => {
+                                tracing::warn!(
+                                    "[DataPlane {}] Inconsistency between cached streams to be \
+                                    setup for Worker {}, Stream {} and Job {:?}.",
+                                    self.worker_id,
+                                    worker_id,
+                                    stream.id(),
+                                    job
+                                );
+                            }
+                        }
+                    }
+                }
             }
             DataPlaneNotification::PusherUpdated(stream_id, job) => {
                 // Notify the Worker that the Stream is ready for the given Job.
@@ -213,74 +275,13 @@ impl DataPlane {
             unreachable!()
         };
 
-        // Create the WorkerConnection and initialize any cached endpoints for this node.
-        let worker_connection = WorkerConnection::new(
+        // Create a new WorkerConnection.
+        Ok(WorkerConnection::new(
             other_worker_id,
             worker_sink,
             worker_stream,
             self.channel_from_worker_connections_tx.clone(),
-        );
-        if let Some(cached_setups) = self.worker_to_stream_setup_map.get(&other_worker_id) {
-            let mut stream_manager = self.stream_manager.lock().unwrap();
-            for (job, stream) in cached_setups {
-                stream_manager.add_inter_worker_send_endpoint(
-                    stream,
-                    job.clone(),
-                    &worker_connection,
-                );
-
-                // Remove the job from the pending job set of the Stream.
-                match self.pending_job_setup_map.get_mut(&stream.id()) {
-                    Some(pending_jobs) => {
-                        match pending_jobs.remove(job) {
-                            true => {
-                                // If the set is empty, notify the Worker of the successful
-                                // initialization of this stream for its source job.
-                                if pending_jobs.is_empty() {
-                                    if let Err(error) = self.channel_to_worker.send(
-                                        DataPlaneNotification::StreamReady(
-                                            stream.get_source(),
-                                            stream.id(),
-                                        ),
-                                    ) {
-                                        tracing::warn!(
-                                            "[DataPlane {}] Received error when notifying Worker \
-                                                of StreamReady for Stream {} and Job {:?}: {:?}",
-                                            self.worker_id,
-                                            stream.id(),
-                                            stream.get_source(),
-                                            error
-                                        );
-                                    }
-                                    self.pending_job_setup_map.remove(&stream.id());
-                                }
-                            }
-                            false => {
-                                tracing::warn!(
-                                    "[DataPlane {}] Could not find Job \
-                                {:?} in pending jobs for Stream {}.",
-                                    self.worker_id,
-                                    job,
-                                    stream.id()
-                                );
-                            }
-                        }
-                    }
-                    None => {
-                        tracing::warn!(
-                            "[DataPlane {}] Inconsistency between cached streams to be \
-                                    setup for Worker {}, Stream {} and Job {:?}.",
-                            self.worker_id,
-                            other_worker_id,
-                            stream.id(),
-                            job
-                        );
-                    }
-                }
-            }
-        }
-
-        Ok(worker_connection)
+        ))
     }
 
     async fn handle_outgoing_worker_connections(
