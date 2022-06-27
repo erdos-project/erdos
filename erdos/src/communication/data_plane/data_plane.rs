@@ -43,8 +43,6 @@ pub(crate) struct DataPlane {
     /// Caches the Streams that need to be setup upon connection to a Worker
     /// with the given ID.
     worker_to_stream_setup_map: HashMap<WorkerId, Vec<Box<dyn AbstractStreamT>>>,
-    /// Bookkeeping to ensure that all channels for a Stream are correctly initialized.
-    stream_to_channel_setup_map: HashMap<StreamId, HashMap<Job, bool>>,
 }
 
 impl DataPlane {
@@ -72,7 +70,6 @@ impl DataPlane {
             connections_to_other_workers: HashMap::new(),
             stream_manager: Arc::new(Mutex::new(ChannelManager::default())),
             worker_to_stream_setup_map: HashMap::new(),
-            stream_to_channel_setup_map: HashMap::new(),
         })
     }
 
@@ -357,13 +354,6 @@ impl DataPlane {
                                 .entry(*worker_id)
                                 .or_default();
                             worker_map.push(stream.clone());
-
-                            // Bookkeep the endpoints required to mark this Stream ready.
-                            let stream_bookkeeping = self
-                                .stream_to_channel_setup_map
-                                .entry(stream.id())
-                                .or_default();
-                            stream_bookkeeping.insert(destination, false);
                         }
                     }
                 }
