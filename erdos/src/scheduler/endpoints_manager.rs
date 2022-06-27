@@ -25,20 +25,20 @@ impl ChannelsToReceivers {
         }
     }
 
-    /// Adds a `mpsc::Sender` to a new receiver thread.
-    pub fn add_sender(&mut self, sender: UnboundedSender<(StreamId, Box<dyn PusherT>)>) {
-        self.senders.push(sender);
-    }
+    // /// Adds a `mpsc::Sender` to a new receiver thread.
+    // pub fn add_sender(&mut self, sender: UnboundedSender<(StreamId, Box<dyn PusherT>)>) {
+    //     self.senders.push(sender);
+    // }
 
-    /// Updates the receivers about the existance of a new operator.
-    ///
-    /// It sends a `PusherT` to message on all receiving threads.
-    pub fn send(&mut self, stream_id: StreamId, pusher: Box<dyn PusherT>) {
-        for sender in self.senders.iter_mut() {
-            let msg = (stream_id, pusher.clone());
-            sender.send(msg).unwrap();
-        }
-    }
+    // /// Updates the receivers about the existance of a new operator.
+    // ///
+    // /// It sends a `PusherT` to message on all receiving threads.
+    // pub fn send(&mut self, stream_id: StreamId, pusher: Box<dyn PusherT>) {
+    //     for sender in self.senders.iter_mut() {
+    //         // let msg = (stream_id, pusher.clone());
+    //         // sender.send(msg).unwrap();
+    //     }
+    // }
 }
 
 /// Wrapper used to store mappings between node ids and `mpsc::UnboundedSender` to sender threads.
@@ -55,20 +55,20 @@ impl ChannelsToSenders {
         }
     }
 
-    /// Adds a `mpsc::UnboundedSender` to a node.
-    pub fn add_sender(
-        &mut self,
-        node_id: NodeId,
-        sender: tokio::sync::mpsc::UnboundedSender<InterProcessMessage>,
-    ) {
-        self.senders.insert(node_id, sender);
-    }
+    // /// Adds a `mpsc::UnboundedSender` to a node.
+    // pub fn add_sender(
+    //     &mut self,
+    //     node_id: NodeId,
+    //     sender: tokio::sync::mpsc::UnboundedSender<InterProcessMessage>,
+    // ) {
+    //     self.senders.insert(node_id, sender);
+    // }
 
-    /// Returns the associated `mpsc::UnboundedSender` for a given node.
-    pub fn clone_channel(
-        &self,
-        node_id: NodeId,
-    ) -> Option<tokio::sync::mpsc::UnboundedSender<InterProcessMessage>> {
-        self.senders.get(&node_id).cloned()
-    }
+    // /// Returns the associated `mpsc::UnboundedSender` for a given node.
+    // pub fn clone_channel(
+    //     &self,
+    //     node_id: NodeId,
+    // ) -> Option<tokio::sync::mpsc::UnboundedSender<InterProcessMessage>> {
+    //     self.senders.get(&node_id).cloned()
+    // }
 }

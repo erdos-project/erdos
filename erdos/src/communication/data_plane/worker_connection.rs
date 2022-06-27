@@ -99,4 +99,8 @@ impl WorkerConnection {
             .send(DataPlaneNotification::UpdatePusher(stream_id))
             .map_err(CommunicationError::from)
     }
+
+    pub(crate) fn get_channel_to_sender(&self) -> UnboundedSender<InterProcessMessage> {
+        self.channel_to_data_sender.clone()
+    }
 }

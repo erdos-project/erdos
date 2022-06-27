@@ -180,22 +180,22 @@ impl Node {
         let mut stream_halves = Vec::new();
 
         // Create channels to the Sender and the Receiver
-        let mut data_receiver_control_rx = HashMap::with_capacity(streams.len());
-        let mut data_sender_control_rx = HashMap::with_capacity(streams.len());
-        {
-            let mut channels_to_receivers = self.channels_to_receivers.lock().await;
-            let mut channels_to_senders = self.channels_to_senders.lock().await;
+        // let mut data_receiver_control_rx = HashMap::with_capacity(streams.len());
+        // let mut data_sender_control_rx = HashMap::with_capacity(streams.len());
+        // {
+        //     let mut channels_to_receivers = self.channels_to_receivers.lock().await;
+        //     let mut channels_to_senders = self.channels_to_senders.lock().await;
 
-            for (node_id, _) in streams.iter() {
-                let (receiver_control_tx, receiver_control_rx) = mpsc::unbounded_channel();
-                channels_to_receivers.add_sender(receiver_control_tx);
-                data_receiver_control_rx.insert(*node_id, receiver_control_rx);
+        //     for (node_id, _) in streams.iter() {
+        //         let (receiver_control_tx, receiver_control_rx) = mpsc::unbounded_channel();
+        //         channels_to_receivers.add_sender(receiver_control_tx);
+        //         data_receiver_control_rx.insert(*node_id, receiver_control_rx);
 
-                let (sender_control_tx, sender_control_rx) = mpsc::unbounded_channel();
-                channels_to_senders.add_sender(*node_id, sender_control_tx);
-                data_sender_control_rx.insert(*node_id, sender_control_rx);
-            }
-        }
+        //         let (sender_control_tx, sender_control_rx) = mpsc::unbounded_channel();
+        //         channels_to_senders.add_sender(*node_id, sender_control_tx);
+        //         data_sender_control_rx.insert(*node_id, sender_control_rx);
+        //     }
+        // }
 
         for (node_id, stream) in streams {
             // Use the message codec to divide the TCP stream data into messages.

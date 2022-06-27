@@ -5,12 +5,12 @@ use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
 };
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{self, UnboundedSender};
 
 use crate::{
     communication::{
-        data_plane::worker_connection::{self, WorkerConnection},
-        CommunicationError, Pusher, PusherT, RecvEndpoint, SendEndpoint,
+        data_plane::worker_connection::WorkerConnection, CommunicationError, InterProcessMessage,
+        Pusher, PusherT, RecvEndpoint, SendEndpoint,
     },
     dataflow::{
         graph::{AbstractStreamT, Job, JobGraph},
@@ -18,12 +18,11 @@ use crate::{
         Data, Message, ReadStream, WriteStream,
     },
     node::NodeId,
-    scheduler::endpoints_manager::{ChannelsToReceivers, ChannelsToSenders},
     OperatorId,
 };
 
 #[async_trait]
-pub trait StreamEndpointsT: Send {
+pub(crate) trait StreamEndpointsT: Send {
     fn as_any(&mut self) -> &mut dyn Any;
 
     fn name(&self) -> String;
@@ -32,20 +31,21 @@ pub trait StreamEndpointsT: Send {
     ///
     /// It creates a `mpsc::Channel` and adds the sender and receiver to the
     /// corresponding endpoints.
-    fn add_inter_thread_channel(&mut self);
+    fn add_inter_thread_channel(&mut self, job: Job);
 
     /// Adds a `SendEndpoint` to the other node.
     ///
     /// Assumes that `channels_to_senders` already stores a `mpsc::Sender` to the
     /// network sender to the other node.
-    async fn add_inter_node_send_endpoint(
+    fn add_inter_worker_send_endpoint(
         &mut self,
-        other_node_id: NodeId,
-        channels_to_senders: Arc<Mutex<ChannelsToSenders>>,
-    ) -> Result<(), String>;
+        job: Job,
+        channel_to_data_sender: UnboundedSender<InterProcessMessage>,
+    );
 
-    fn add_inter_node_recv_endpoint(
+    fn add_inter_worker_recv_endpoint(
         &mut self,
+        job: Job,
         pusher: Arc<Mutex<dyn PusherT>>,
     ) -> Result<(), String>;
 
@@ -61,9 +61,9 @@ where
     /// The name of the stream.
     stream_name: String,
     /// The receive endpoints of the stream.
-    recv_endpoints: Vec<RecvEndpoint<Arc<Message<D>>>>,
+    recv_endpoints: HashMap<Job, RecvEndpoint<Arc<Message<D>>>>,
     /// The send endpoints of the stream.
-    send_endpoints: Vec<SendEndpoint<Arc<Message<D>>>>,
+    send_endpoints: HashMap<Job, SendEndpoint<Arc<Message<D>>>>,
 }
 
 impl<D> StreamEndpoints<D>
@@ -74,32 +74,31 @@ where
         Self {
             stream_id,
             stream_name,
-            recv_endpoints: Vec::new(),
-            send_endpoints: Vec::new(),
+            recv_endpoints: HashMap::new(),
+            send_endpoints: HashMap::new(),
         }
     }
 
     /// Takes a `RecvEndpoint` out of the stream.
     fn take_recv_endpoint(&mut self) -> Result<RecvEndpoint<Arc<Message<D>>>, &'static str> {
-        match self.recv_endpoints.pop() {
-            Some(recv_endpoint) => Ok(recv_endpoint),
+        let key = self.recv_endpoints.keys().cloned().next();
+        match key {
+            Some(job) => Ok(self.recv_endpoints.remove(&job).unwrap()),
             None => Err("No more recv endpoints available"),
         }
     }
 
     /// Returns a cloned list of the `SendEndpoint`s the stream has.
-    fn get_send_endpoints(&mut self) -> Result<Vec<SendEndpoint<Arc<Message<D>>>>, &'static str> {
-        let mut result: Vec<SendEndpoint<Arc<Message<D>>>> = Vec::new();
-        result.append(&mut self.send_endpoints);
-        Ok(result)
+    fn get_send_endpoints(&mut self) -> HashMap<Job, SendEndpoint<Arc<Message<D>>>> {
+        self.send_endpoints.clone()
     }
 
-    fn add_send_endpoint(&mut self, endpoint: SendEndpoint<Arc<Message<D>>>) {
-        self.send_endpoints.push(endpoint);
+    fn add_send_endpoint(&mut self, job: Job, endpoint: SendEndpoint<Arc<Message<D>>>) {
+        self.send_endpoints.insert(job, endpoint);
     }
 
-    fn add_recv_endpoint(&mut self, endpoint: RecvEndpoint<Arc<Message<D>>>) {
-        self.recv_endpoints.push(endpoint);
+    fn add_recv_endpoint(&mut self, job: Job, endpoint: RecvEndpoint<Arc<Message<D>>>) {
+        self.recv_endpoints.insert(job, endpoint);
     }
 }
 
@@ -116,36 +115,33 @@ where
         self.stream_name.clone()
     }
 
-    fn add_inter_thread_channel(&mut self) {
+    fn add_inter_thread_channel(&mut self, job: Job) {
         let (tx, rx) = mpsc::unbounded_channel();
-        self.add_send_endpoint(SendEndpoint::InterThread(tx));
-        self.add_recv_endpoint(RecvEndpoint::InterThread(rx));
+        self.add_send_endpoint(job, SendEndpoint::InterThread(tx));
+        self.add_recv_endpoint(job, RecvEndpoint::InterThread(rx));
     }
 
-    async fn add_inter_node_send_endpoint(
+    fn add_inter_worker_send_endpoint(
         &mut self,
-        other_node_id: NodeId,
-        channels_to_senders: Arc<Mutex<ChannelsToSenders>>,
-    ) -> Result<(), String> {
-        todo!()
-        // let channels_to_senders = channels_to_senders.lock().await;
-        // if let Some(tx) = channels_to_senders.clone_channel(other_node_id) {
-        //     self.add_send_endpoint(SendEndpoint::InterProcess(self.stream_id, tx));
-        //     Ok(())
-        // } else {
-        //     Err(format!("Unable to clone channel to node {}", other_node_id))
-        // }
+        job: Job,
+        channel_to_data_sender: UnboundedSender<InterProcessMessage>,
+    ) {
+        self.add_send_endpoint(
+            job,
+            SendEndpoint::InterProcess(self.stream_id, channel_to_data_sender),
+        );
     }
 
-    fn add_inter_node_recv_endpoint(
+    fn add_inter_worker_recv_endpoint(
         &mut self,
+        job: Job,
         pusher: Arc<Mutex<dyn PusherT>>,
     ) -> Result<(), String> {
         let mut pusher = pusher.lock().unwrap();
         if let Some(pusher) = pusher.as_any().downcast_mut::<Pusher<Arc<Message<D>>>>() {
             let (tx, rx) = mpsc::unbounded_channel();
-            pusher.add_endpoint(SendEndpoint::InterThread(tx));
-            self.add_recv_endpoint(RecvEndpoint::InterThread(rx));
+            pusher.add_endpoint(job, SendEndpoint::InterThread(tx));
+            self.add_recv_endpoint(job, RecvEndpoint::InterThread(rx));
             Ok(())
         } else {
             Err(format!(
@@ -235,7 +231,7 @@ impl ChannelManager {
                 for (destination_node_id, count) in destination_nodes.into_iter() {
                     if destination_node_id == node_id {
                         for _ in 0..count {
-                            stream_endpoint_t.add_inter_thread_channel();
+                            // stream_endpoint_t.add_inter_thread_channel();
                         }
                     } else {
                         todo!()
@@ -288,9 +284,10 @@ impl ChannelManager {
         self.node_id
     }
 
-    pub fn add_inter_node_recv_endpoint(
+    pub fn add_inter_worker_recv_endpoint(
         &mut self,
         stream: &Box<dyn AbstractStreamT>,
+        source_job: Job,
         worker_connection: &WorkerConnection,
     ) -> Result<(), CommunicationError> {
         // If there are no endpoints for this stream, create endpoints and install
@@ -306,10 +303,30 @@ impl ChannelManager {
         // Register for a new endpoint with the Pusher.
         let stream_endpoints = self.stream_entries.get_mut(&stream.id()).unwrap();
         let stream_pusher = self.stream_pushers.get(&stream.id()).unwrap();
-        let _ = stream_endpoints.add_inter_node_recv_endpoint(Arc::clone(stream_pusher));
+        let _ =
+            stream_endpoints.add_inter_worker_recv_endpoint(source_job, Arc::clone(stream_pusher));
         worker_connection.notify_pusher_update(stream.id())?;
 
         Ok(())
+    }
+
+    pub fn add_inter_worker_send_endpoint(
+        &mut self,
+        stream: &Box<dyn AbstractStreamT>,
+        destination_job: Job,
+        worker_connection: &WorkerConnection,
+    ) {
+        // If there are no endpoints for this stream, create endpoints.
+        let stream_endpoints = self
+            .stream_entries
+            .entry(stream.id())
+            .or_insert_with(|| stream.to_stream_endpoints_t());
+
+        // Register for a new endpoint.
+        stream_endpoints.add_inter_worker_send_endpoint(
+            destination_job,
+            worker_connection.get_channel_to_sender(),
+        )
     }
 
     /// Takes a `RecvEnvpoint` from a given stream.
@@ -345,20 +362,14 @@ impl ChannelManager {
     pub fn get_send_endpoints<D>(
         &mut self,
         stream_id: StreamId,
-    ) -> Result<Vec<SendEndpoint<Arc<Message<D>>>>, String>
+    ) -> Result<HashMap<Job, SendEndpoint<Arc<Message<D>>>>, String>
     where
         for<'a> D: Data + Deserialize<'a>,
     {
         if let Some(stream_entry_t) = self.stream_entries.get_mut(&stream_id) {
             if let Some(stream_entry) = stream_entry_t.as_any().downcast_mut::<StreamEndpoints<D>>()
             {
-                match stream_entry.get_send_endpoints() {
-                    Ok(send_endpoints) => Ok(send_endpoints),
-                    Err(msg) => Err(format!(
-                        "Could not get recv endpoint with id {}: {}",
-                        stream_id, msg
-                    )),
-                }
+                Ok(stream_entry.get_send_endpoints())
             } else {
                 Err(format!(
                     "Type mismatch for recv endpoint with ID {}",

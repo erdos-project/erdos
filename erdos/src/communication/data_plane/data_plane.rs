@@ -16,7 +16,10 @@ use crate::{
         control_plane::notifications::WorkerAddress, CommunicationError, EhloMetadata,
         InterProcessMessage, MessageCodec,
     },
-    dataflow::graph::{AbstractStreamT, Job},
+    dataflow::{
+        graph::{AbstractStreamT, Job},
+        stream::StreamId,
+    },
     node::WorkerId,
     scheduler::channel_manager::ChannelManager,
 };
@@ -34,6 +37,11 @@ pub(crate) struct DataPlane {
     channel_from_worker_connections_tx: UnboundedSender<DataPlaneNotification>,
     connections_to_other_workers: HashMap<WorkerId, WorkerConnection>,
     stream_manager: Arc<Mutex<ChannelManager>>,
+    /// Caches the Streams that need to be setup upon connection to a Worker
+    /// with the given ID.
+    worker_to_stream_setup_map: HashMap<WorkerId, StreamId>,
+    /// Bookkeeping to ensure that all channels for a Stream are correctly initialized.
+    stream_to_channel_setup_map: HashMap<StreamId, HashMap<Job, bool>>,
 }
 
 impl DataPlane {
@@ -60,6 +68,8 @@ impl DataPlane {
             channel_from_worker_connections_tx,
             connections_to_other_workers: HashMap::new(),
             stream_manager: Arc::new(Mutex::new(ChannelManager::default())),
+            worker_to_stream_setup_map: HashMap::new(),
+            stream_to_channel_setup_map: HashMap::new(),
         })
     }
 
@@ -107,6 +117,9 @@ impl DataPlane {
                                 }
                             }
                         }
+                        DataPlaneNotification::SetupWriteStream(stream, worker_addresses) => {
+                            tracing::debug!("[DataPlane {}] Requested to setup WriteStream (ID={}) for {:?}.", self.worker_id, stream.id(), worker_addresses);
+                        }
                         _ => unreachable!(),
                     }
                 }
@@ -118,6 +131,7 @@ impl DataPlane {
                             self.connections_to_other_workers.get_mut(&worker_id).unwrap().set_data_receiver_initialized();
                         }
                         DataPlaneNotification::SenderInitialized(worker_id) => {
+                            // Generate the cached channels for this Worker.
                             self.connections_to_other_workers.get_mut(&worker_id).unwrap().set_data_sender_initialized();
                         }
                         _ => unreachable!(),
@@ -223,10 +237,11 @@ impl DataPlane {
         source_address: WorkerAddress,
     ) -> Result<(), CommunicationError> {
         tracing::debug!(
-            "[DataPlane {}] Setting up Stream {} (ID={}).",
+            "[DataPlane {}] Setting up ReadStream {} (ID={}) at address {:?}.",
             self.worker_id,
             stream.name(),
-            stream.id()
+            stream.id(),
+            source_address,
         );
 
         match source_address {
@@ -240,18 +255,68 @@ impl DataPlane {
                         .insert(connection.get_id(), connection);
                 }
 
-                // Request the stream manager to add an inter-node receive endpoint
+                // Request the stream manager to add an inter-Worker receive endpoint
                 // on this Worker connection.
                 let worker_connection = self
                     .connections_to_other_workers
                     .get_mut(&worker_id)
                     .unwrap();
                 let mut stream_manager = self.stream_manager.lock().unwrap();
-                stream_manager.add_inter_node_recv_endpoint(&stream, &worker_connection);
+                stream_manager.add_inter_worker_recv_endpoint(
+                    &stream,
+                    stream.get_source(),
+                    &worker_connection,
+                );
+
+                // Bookkeep the endpoints required to mark this Stream ready.
+                let stream_bookeeping = self
+                    .stream_to_channel_setup_map
+                    .entry(stream.id())
+                    .or_default();
+                stream_bookeeping.insert(stream.get_source(), false);
             }
             WorkerAddress::Local => todo!(),
         }
         Ok(())
+    }
+
+    async fn setup_write_stream(
+        &mut self,
+        stream: Box<dyn AbstractStreamT>,
+        destination_addresses: HashMap<Job, WorkerAddress>,
+    ) {
+        tracing::debug!(
+            "[DataPlane {}] Setting up WriteStream {} (ID={}) for addresses {:?}.",
+            self.worker_id,
+            stream.name(),
+            stream.id(),
+            destination_addresses
+        );
+
+        let mut stream_manager = self.stream_manager.lock().unwrap();
+
+        for destination in stream.get_destinations() {
+            match destination_addresses.get(&destination).unwrap() {
+                WorkerAddress::Remote(worker_id, worker_address) => {
+                    match self.connections_to_other_workers.get(worker_id) {
+                        Some(worker_connection) => {
+                            // There already exists a connection to this Worker, register
+                            // a new SendEndpoint atop this connection.
+                            stream_manager.add_inter_worker_send_endpoint(
+                                &stream,
+                                destination,
+                                worker_connection,
+                            )
+                        }
+                        None => {
+                            // Cache the generation of the endpoints until the connection
+                            // is established by the receiver.
+                        }
+                    }
+                }
+                WorkerAddress::Local => todo!(),
+            }
+        }
     }
 
     pub fn get_address(&self) -> SocketAddr {

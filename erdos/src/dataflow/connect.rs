@@ -14,7 +14,7 @@ use crate::{
     OperatorId,
 };
 
-use super::{stream::OperatorStream, graph::AbstractOperatorType};
+use super::{graph::AbstractOperatorType, stream::OperatorStream};
 
 /// Adds a [`Source`] operator, which has no read streams, but introduces data into the dataflow
 /// graph by interacting with external data sources (e.g., other systems, sensor data).

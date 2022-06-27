@@ -186,7 +186,7 @@ impl WorkerNode {
                             operator_name,
                             operator_id,
                         );
-                        // Ask the Data plane to setup the read streams for this operator.
+                        // Ask the DataPlane to setup the read streams for this operator.
                         for read_stream_id in operator.read_streams {
                             let read_stream = job_graph.get_stream(&read_stream_id).unwrap();
                             let source_job = read_stream.get_source();
@@ -195,6 +195,26 @@ impl WorkerNode {
                                     read_stream,
                                     worker_addresses.get(&source_job).unwrap().clone(),
                                 ));
+                        }
+
+                        // Ask the DataPlane to setup the write streams for this operator.
+                        for write_stream_id in operator.write_streams {
+                            let write_stream = job_graph.get_stream(&write_stream_id).unwrap();
+                            let destination_jobs = write_stream.get_destinations();
+                            let _ = channel_to_data_plane.send(
+                                DataPlaneNotification::SetupWriteStream(
+                                    write_stream,
+                                    destination_jobs
+                                        .iter()
+                                        .map(|job| {
+                                            (
+                                                job.clone(),
+                                                worker_addresses.get(job).unwrap().clone(),
+                                            )
+                                        })
+                                        .collect(),
+                                ),
+                            );
                         }
 
                         // Ask the Data plane to setup the read streams for this operator.

@@ -50,7 +50,7 @@ pub enum ControlMessage {
     RunOperator(OperatorId),
     DataSenderInitialized(NodeId),
     DataReceiverInitialized(NodeId),
-    PusherUpdate(StreamId, Box<dyn PusherT>),
+    PusherUpdate(StreamId),
     PusherUpdated(StreamId),
 }
 
