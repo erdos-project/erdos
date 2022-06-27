@@ -1,4 +1,7 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use futures::{future, stream::SplitStream, StreamExt};
 use tokio::{
@@ -27,7 +30,7 @@ pub(crate) struct DataReceiver {
     data_plane_notification_tx: UnboundedSender<DataPlaneNotification>,
     /// Mapping between stream id to [`PusherT`] trait objects.
     /// [`PusherT`] trait objects are used to deserialize and send messages to operators.
-    stream_id_to_pusher: HashMap<StreamId, Box<dyn PusherT>>,
+    stream_id_to_pusher: HashMap<StreamId, Arc<Mutex<dyn PusherT>>>,
 }
 
 impl DataReceiver {
@@ -66,13 +69,21 @@ impl DataReceiver {
                 Some(notification) = self.data_plane_notification_rx.recv() => {
                     match notification {
                         // Update the StreamID to dyn PusherT mapping if we have an update.
-                        DataPlaneNotification::PusherUpdate(stream_id, stream_pusher) => {
+                        DataPlaneNotification::InstallPusher(stream_id, stream_pusher) => {
+                            {
+                            let pusher = stream_pusher.lock().unwrap();
+                            tracing::debug!("[DataReceiver for Worker {}] Installed Pusher for Stream {} with length {}.", self.worker_id, stream_id, pusher.length());
+                            }
                             self.stream_id_to_pusher.insert(stream_id, stream_pusher);
                             // Inform the Worker that the Pusher has been updated.
                             self.data_plane_notification_tx
                                 .send(DataPlaneNotification::PusherUpdated(stream_id))
                                 .map_err(CommunicationError::from)?;
                         },
+                        DataPlaneNotification::UpdatePusher(stream_id) => {
+                            let pusher = self.stream_id_to_pusher.get(&stream_id).unwrap().lock().unwrap();
+                            tracing::debug!("[DataReceiver for Worker {}] The Pusher for Stream {} now contains {} entries.", self.worker_id, stream_id, pusher.length());
+                        }
                         _ => {},
                     }
                 }
@@ -93,6 +104,7 @@ impl DataReceiver {
                             // Find the corresponding Pusher for the message, and send the bytes.
                             match self.stream_id_to_pusher.get_mut(&metadata.stream_id) {
                                 Some(pusher) => {
+                                    let mut pusher = pusher.lock().unwrap();
                                     if let Err(error) = pusher.send_from_bytes(bytes) {
                                         return Err(error);
                                     }

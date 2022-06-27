@@ -1,12 +1,19 @@
 use async_trait::async_trait;
 use serde::Deserialize;
-use std::{any::Any, collections::HashMap, sync::Arc};
-use tokio::sync::{mpsc, Mutex};
+use std::{
+    any::Any,
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
+use tokio::sync::mpsc;
 
 use crate::{
-    communication::{Pusher, PusherT, RecvEndpoint, SendEndpoint},
+    communication::{
+        data_plane::worker_connection::{self, WorkerConnection},
+        CommunicationError, Pusher, PusherT, RecvEndpoint, SendEndpoint,
+    },
     dataflow::{
-        graph::{Job, JobGraph},
+        graph::{AbstractStreamT, Job, JobGraph},
         stream::StreamId,
         Data, Message, ReadStream, WriteStream,
     },
@@ -36,10 +43,13 @@ pub trait StreamEndpointsT: Send {
         other_node_id: NodeId,
         channels_to_senders: Arc<Mutex<ChannelsToSenders>>,
     ) -> Result<(), String>;
+
     fn add_inter_node_recv_endpoint(
         &mut self,
-        receiver_pushers: &mut HashMap<StreamId, Box<dyn PusherT>>,
+        pusher: Arc<Mutex<dyn PusherT>>,
     ) -> Result<(), String>;
+
+    fn get_pusher(&self) -> Arc<Mutex<dyn PusherT>>;
 }
 
 pub struct StreamEndpoints<D>
@@ -117,22 +127,21 @@ where
         other_node_id: NodeId,
         channels_to_senders: Arc<Mutex<ChannelsToSenders>>,
     ) -> Result<(), String> {
-        let channels_to_senders = channels_to_senders.lock().await;
-        if let Some(tx) = channels_to_senders.clone_channel(other_node_id) {
-            self.add_send_endpoint(SendEndpoint::InterProcess(self.stream_id, tx));
-            Ok(())
-        } else {
-            Err(format!("Unable to clone channel to node {}", other_node_id))
-        }
+        todo!()
+        // let channels_to_senders = channels_to_senders.lock().await;
+        // if let Some(tx) = channels_to_senders.clone_channel(other_node_id) {
+        //     self.add_send_endpoint(SendEndpoint::InterProcess(self.stream_id, tx));
+        //     Ok(())
+        // } else {
+        //     Err(format!("Unable to clone channel to node {}", other_node_id))
+        // }
     }
 
     fn add_inter_node_recv_endpoint(
         &mut self,
-        receiver_pushers: &mut HashMap<StreamId, Box<dyn PusherT>>,
+        pusher: Arc<Mutex<dyn PusherT>>,
     ) -> Result<(), String> {
-        let pusher: &mut Box<dyn PusherT> = receiver_pushers
-            .entry(self.stream_id)
-            .or_insert_with(|| Box::new(Pusher::<Arc<Message<D>>>::new()));
+        let mut pusher = pusher.lock().unwrap();
         if let Some(pusher) = pusher.as_any().downcast_mut::<Pusher<Arc<Message<D>>>>() {
             let (tx, rx) = mpsc::unbounded_channel();
             pusher.add_endpoint(SendEndpoint::InterThread(tx));
@@ -145,6 +154,10 @@ where
             ))
         }
     }
+
+    fn get_pusher(&self) -> Arc<Mutex<dyn PusherT>> {
+        Arc::new(Mutex::new(Pusher::<Arc<Message<D>>>::new()))
+    }
 }
 
 /// Data structure that stores information needed to set up dataflow channels
@@ -154,6 +167,7 @@ pub(crate) struct ChannelManager {
     node_id: NodeId,
     /// Stores a `StreamEndpoints` for each stream id.
     stream_entries: HashMap<StreamId, Box<dyn StreamEndpointsT>>,
+    stream_pushers: HashMap<StreamId, Arc<Mutex<dyn PusherT>>>,
 }
 
 #[allow(dead_code)]
@@ -163,15 +177,11 @@ impl ChannelManager {
     /// channels from TCP receivers to operators that are connected to streams originating on
     /// other nodes.
     #[allow(clippy::needless_collect)]
-    pub async fn new(
-        job_graph: &JobGraph,
-        node_id: NodeId,
-        channels_to_receivers: Arc<Mutex<ChannelsToReceivers>>,
-        channels_to_senders: Arc<Mutex<ChannelsToSenders>>,
-    ) -> Self {
+    pub async fn new(job_graph: &JobGraph, node_id: NodeId) -> Self {
         let mut channel_manager = Self {
             node_id,
             stream_entries: HashMap::new(),
+            stream_pushers: HashMap::new(),
         };
 
         let mut receiver_pushers: HashMap<StreamId, Box<dyn PusherT>> = HashMap::new();
@@ -228,13 +238,14 @@ impl ChannelManager {
                             stream_endpoint_t.add_inter_thread_channel();
                         }
                     } else {
-                        stream_endpoint_t
-                            .add_inter_node_send_endpoint(
-                                destination_node_id,
-                                channels_to_senders.clone(),
-                            )
-                            .await
-                            .unwrap();
+                        todo!()
+                        // stream_endpoint_t
+                        //     .add_inter_node_send_endpoint(
+                        //         destination_node_id,
+                        //         channels_to_senders.clone(),
+                        //     )
+                        //     .await
+                        //     .unwrap();
                     }
                 }
             } else {
@@ -257,9 +268,9 @@ impl ChannelManager {
                         .stream_entries
                         .entry(stream.id())
                         .or_insert_with(|| stream.to_stream_endpoints_t());
-                    stream_endpoint_t
-                        .add_inter_node_recv_endpoint(&mut receiver_pushers)
-                        .unwrap();
+                    // stream_endpoint_t
+                    //     .add_inter_node_recv_endpoint(&mut receiver_pushers)
+                    //     .unwrap();
                 }
             }
         }
@@ -267,13 +278,38 @@ impl ChannelManager {
         // Send pushers to the DataReceiver which publishes received messages from TCP
         // on the proper transport channel.
         for (k, v) in receiver_pushers.into_iter() {
-            channels_to_receivers.lock().await.send(k, v);
+            todo!()
+            // channels_to_receivers.lock().await.send(k, v);
         }
         channel_manager
     }
 
     pub fn node_id(&self) -> NodeId {
         self.node_id
+    }
+
+    pub fn add_inter_node_recv_endpoint(
+        &mut self,
+        stream: &Box<dyn AbstractStreamT>,
+        worker_connection: &WorkerConnection,
+    ) -> Result<(), CommunicationError> {
+        // If there are no endpoints for this stream, create endpoints and install
+        // the pusher to the DataReceiver at this connection.
+        if !self.stream_entries.contains_key(&stream.id()) {
+            let stream_endpoints = stream.to_stream_endpoints_t();
+            let pusher = stream_endpoints.get_pusher();
+            self.stream_entries.insert(stream.id(), stream_endpoints);
+            self.stream_pushers.insert(stream.id(), Arc::clone(&pusher));
+            worker_connection.install_pusher(stream.id(), pusher)?;
+        }
+
+        // Register for a new endpoint with the Pusher.
+        let stream_endpoints = self.stream_entries.get_mut(&stream.id()).unwrap();
+        let stream_pusher = self.stream_pushers.get(&stream.id()).unwrap();
+        let _ = stream_endpoints.add_inter_node_recv_endpoint(Arc::clone(stream_pusher));
+        worker_connection.notify_pusher_update(stream.id())?;
+
+        Ok(())
     }
 
     /// Takes a `RecvEnvpoint` from a given stream.
@@ -362,6 +398,7 @@ impl Default for ChannelManager {
         Self {
             node_id: 0,
             stream_entries: HashMap::new(),
+            stream_pushers: HashMap::new(),
         }
     }
 }

@@ -23,6 +23,7 @@ pub trait PusherT: Send {
     fn box_clone(&self) -> Box<dyn PusherT>;
     /// Creates message from bytes and sends it to endpoints.
     fn send_from_bytes(&mut self, buf: BytesMut) -> Result<(), CommunicationError>;
+    fn length(&self) -> usize;
 }
 
 /// Internal structure used to send data on a collection of [`SendEndpoint`]s.
@@ -83,10 +84,14 @@ where
         }
         Ok(())
     }
+
+    fn length(&self) -> usize {
+        self.endpoints.len()
+    }
 }
 
 impl fmt::Debug for Box<dyn PusherT> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Box<dyn PusheT> {{ }}")
+        write!(f, "Box<dyn PusherT> {{ }}")
     }
 }

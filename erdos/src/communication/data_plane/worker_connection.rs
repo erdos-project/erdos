@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use futures::stream::{SplitSink, SplitStream};
 use tokio::{
     net::TcpStream,
@@ -9,8 +11,9 @@ use tokio_util::codec::Framed;
 use crate::{
     communication::{
         receivers::DataReceiver, senders::DataSender, CommunicationError, InterProcessMessage,
-        MessageCodec,
+        MessageCodec, PusherT,
     },
+    dataflow::stream::StreamId,
     node::WorkerId,
 };
 
@@ -76,5 +79,24 @@ impl WorkerConnection {
 
     pub(crate) fn is_initialized(&mut self) -> bool {
         self.sender_initialized && self.receiver_initialized
+    }
+
+    pub(crate) fn install_pusher(
+        &self,
+        stream_id: StreamId,
+        pusher: Arc<Mutex<dyn PusherT>>,
+    ) -> Result<(), CommunicationError> {
+        self.channel_to_data_receiver
+            .send(DataPlaneNotification::InstallPusher(stream_id, pusher))
+            .map_err(CommunicationError::from)
+    }
+
+    pub(crate) fn notify_pusher_update(
+        &self,
+        stream_id: StreamId,
+    ) -> Result<(), CommunicationError> {
+        self.channel_to_data_receiver
+            .send(DataPlaneNotification::UpdatePusher(stream_id))
+            .map_err(CommunicationError::from)
     }
 }

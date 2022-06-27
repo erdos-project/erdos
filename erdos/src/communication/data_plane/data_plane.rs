@@ -97,12 +97,13 @@ impl DataPlane {
                 // Handle messages from the Worker node.
                 Some(worker_message) = self.channel_from_worker.recv() => {
                     match worker_message {
-                        DataPlaneNotification::SetupStream(stream, worker_addresses) => {
+                        DataPlaneNotification::SetupReadStream(stream, worker_address) => {
                             let stream_id = stream.id();
-                            match self.setup_stream(stream, worker_addresses).await {
+                            let stream_name = stream.name();
+                            match self.setup_read_stream(stream, worker_address).await {
                                 Ok(()) => {}
                                 Err(error) => {
-                                    tracing::error!("[DataPlane {}] Received error when setting up Stream {}: {:?}", self.worker_id, stream_id, error);
+                                    tracing::error!("[DataPlane {}] Received error when setting up Stream {} (ID={}): {:?}", self.worker_id, stream_name, stream_id, error);
                                 }
                             }
                         }
@@ -216,26 +217,37 @@ impl DataPlane {
         }
     }
 
-    async fn setup_stream(
+    async fn setup_read_stream(
         &mut self,
         stream: Box<dyn AbstractStreamT>,
-        worker_addresses: HashMap<Job, WorkerAddress>,
+        source_address: WorkerAddress,
     ) -> Result<(), CommunicationError> {
-        // Retrieve the source operator for the stream, and find the address of the worker
-        // that is executing that operator.
-        let stream_source = stream.get_source();
-        let source_address = worker_addresses.get(&stream_source).unwrap();
+        tracing::debug!(
+            "[DataPlane {}] Setting up Stream {} (ID={}).",
+            self.worker_id,
+            stream.name(),
+            stream.id()
+        );
 
         match source_address {
             WorkerAddress::Remote(worker_id, worker_address) => {
                 // If there is no connection to the Worker, initiate a new connection.
-                if !self.connections_to_other_workers.contains_key(worker_id) {
+                if !self.connections_to_other_workers.contains_key(&worker_id) {
                     let connection = self
-                        .handle_outgoing_worker_connections(*worker_id, *worker_address)
+                        .handle_outgoing_worker_connections(worker_id, worker_address)
                         .await?;
                     self.connections_to_other_workers
                         .insert(connection.get_id(), connection);
                 }
+
+                // Request the stream manager to add an inter-node receive endpoint
+                // on this Worker connection.
+                let worker_connection = self
+                    .connections_to_other_workers
+                    .get_mut(&worker_id)
+                    .unwrap();
+                let mut stream_manager = self.stream_manager.lock().unwrap();
+                stream_manager.add_inter_node_recv_endpoint(&stream, &worker_connection);
             }
             WorkerAddress::Local => todo!(),
         }

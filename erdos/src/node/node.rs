@@ -315,8 +315,6 @@ impl Node {
         let channel_manager = ChannelManager::new(
             job_graph,
             self.id,
-            Arc::clone(&self.channels_to_receivers),
-            Arc::clone(&self.channels_to_senders),
         )
         .await;
         // Execute operators scheduled on the current node.

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::{Mutex, Arc}};
 
 use crate::{
     communication::{control_plane::notifications::WorkerAddress, PusherT},
@@ -16,6 +16,7 @@ pub(crate) enum DataPlaneNotification {
     SetupStream(Box<dyn AbstractStreamT>, HashMap<Job, WorkerAddress>),
     ReceiverInitialized(WorkerId),
     SenderInitialized(WorkerId),
-    PusherUpdate(StreamId, Box<dyn PusherT>),
+    InstallPusher(StreamId, Arc<Mutex<dyn PusherT>>),
+    UpdatePusher(StreamId),
     PusherUpdated(StreamId),
 }
