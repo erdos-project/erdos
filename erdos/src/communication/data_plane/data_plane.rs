@@ -24,7 +24,10 @@ use crate::{
     scheduler::channel_manager::ChannelManager,
 };
 
-use super::{notifications::DataPlaneNotification, worker_connection::WorkerConnection};
+use super::{
+    notifications::{DataPlaneNotification, StreamType},
+    worker_connection::WorkerConnection,
+};
 
 /// [`DataPlane`] manages the connections amongst Workers, and enables
 /// [`Worker`]s to communicate data messages to each other.
@@ -107,18 +110,16 @@ impl DataPlane {
                 // Handle messages from the Worker node.
                 Some(worker_message) = self.channel_from_worker.recv() => {
                     match worker_message {
-                        DataPlaneNotification::SetupReadStream(stream, worker_address) => {
-                            let stream_id = stream.id();
-                            let stream_name = stream.name();
-                            match self.setup_read_stream(stream, worker_address).await {
-                                Ok(()) => {}
-                                Err(error) => {
-                                    tracing::error!("[DataPlane {}] Received error when setting up Stream {} (ID={}): {:?}", self.worker_id, stream_name, stream_id, error);
-                                }
+                        DataPlaneNotification::SetupStreams(job, streams) => {
+                            if let Err(error) = self.setup_streams(streams).await {
+                                tracing::warn!(
+                                    "[DataPlane {}] Received error when setting up streams \
+                                    for the Job {:?}: {:?}",
+                                    self.worker_id,
+                                    job,
+                                    error,
+                                );
                             }
-                        }
-                        DataPlaneNotification::SetupWriteStream(stream, worker_addresses) => {
-                            tracing::debug!("[DataPlane {}] Requested to setup WriteStream (ID={}) for {:?}.", self.worker_id, stream.id(), worker_addresses);
                         }
                         _ => unreachable!(),
                     }
@@ -154,7 +155,7 @@ impl DataPlane {
                         Some(initialized) => {
                             *initialized = true;
 
-                            // TODO (Sukrit): If the status of all Jobs is initialized now, 
+                            // TODO (Sukrit): If the status of all Jobs is initialized now,
                             // tell the Worker that the Stream was successfully initialized.
                         }
                         None => {
@@ -271,6 +272,20 @@ impl DataPlane {
         }
     }
 
+    async fn setup_streams(&mut self, streams: Vec<StreamType>) -> Result<(), CommunicationError> {
+        for stream in streams {
+            match stream {
+                StreamType::ReadStream(stream, source_address) => {
+                    self.setup_read_stream(stream, source_address).await?
+                }
+                StreamType::WriteStream(stream, destination_addresses) => {
+                    self.setup_write_stream(stream, destination_addresses);
+                }
+            }
+        }
+        Ok(())
+    }
+
     async fn setup_read_stream(
         &mut self,
         stream: Box<dyn AbstractStreamT>,
@@ -320,7 +335,7 @@ impl DataPlane {
         Ok(())
     }
 
-    async fn setup_write_stream(
+    fn setup_write_stream(
         &mut self,
         stream: Box<dyn AbstractStreamT>,
         destination_addresses: HashMap<Job, WorkerAddress>,

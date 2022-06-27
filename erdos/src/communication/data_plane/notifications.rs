@@ -12,6 +12,7 @@ use crate::{
     node::WorkerId,
 };
 
+#[derive(Debug, Clone)]
 pub(crate) enum StreamType {
     ReadStream(Box<dyn AbstractStreamT>, WorkerAddress),
     WriteStream(Box<dyn AbstractStreamT>, HashMap<Job, WorkerAddress>),
@@ -19,8 +20,7 @@ pub(crate) enum StreamType {
 
 #[derive(Debug, Clone)]
 pub(crate) enum DataPlaneNotification {
-    SetupReadStream(Box<dyn AbstractStreamT>, WorkerAddress),
-    SetupWriteStream(Box<dyn AbstractStreamT>, HashMap<Job, WorkerAddress>),
+    SetupStreams(Job, Vec<StreamType>),
     ReceiverInitialized(WorkerId),
     SenderInitialized(WorkerId),
     InstallPusher(StreamId, Arc<Mutex<dyn PusherT>>),

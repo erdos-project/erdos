@@ -16,10 +16,13 @@ use crate::{
             notifications::{DriverNotification, LeaderNotification, WorkerNotification},
             ControlPlaneCodec,
         },
-        data_plane::{data_plane::DataPlane, notifications::DataPlaneNotification},
+        data_plane::{
+            data_plane::DataPlane,
+            notifications::{DataPlaneNotification, StreamType},
+        },
         CommunicationError,
     },
-    dataflow::graph::JobGraph,
+    dataflow::graph::{Job, JobGraph},
     node::Resources,
 };
 
@@ -186,34 +189,45 @@ impl WorkerNode {
                             operator_name,
                             operator_id,
                         );
-                        // Ask the DataPlane to setup the read streams for this operator.
+
+                        // Construct a representation of the Streams for this Operator, along with
+                        // the addresses of the Workers executing the sources or destinations.
+                        let mut streams = Vec::new();
                         for read_stream_id in operator.read_streams {
                             let read_stream = job_graph.get_stream(&read_stream_id).unwrap();
-                            let source_job = read_stream.get_source();
-                            let _ =
-                                channel_to_data_plane.send(DataPlaneNotification::SetupReadStream(
-                                    read_stream,
-                                    worker_addresses.get(&source_job).unwrap().clone(),
-                                ));
+                            let source_address =
+                                worker_addresses.get(&read_stream.get_source()).unwrap();
+                            streams
+                                .push(StreamType::ReadStream(read_stream, source_address.clone()));
                         }
 
-                        // Ask the DataPlane to setup the write streams for this operator.
                         for write_stream_id in operator.write_streams {
                             let write_stream = job_graph.get_stream(&write_stream_id).unwrap();
-                            let destination_jobs = write_stream.get_destinations();
-                            let _ = channel_to_data_plane.send(
-                                DataPlaneNotification::SetupWriteStream(
-                                    write_stream,
-                                    destination_jobs
-                                        .iter()
-                                        .map(|job| {
-                                            (
-                                                job.clone(),
-                                                worker_addresses.get(job).unwrap().clone(),
-                                            )
-                                        })
-                                        .collect(),
-                                ),
+                            let destination_addresses = write_stream
+                                .get_destinations()
+                                .iter()
+                                .map(|job| {
+                                    (job.clone(), worker_addresses.get(job).unwrap().clone())
+                                })
+                                .collect();
+                            streams
+                                .push(StreamType::WriteStream(write_stream, destination_addresses));
+                        }
+
+                        // Ask the DataPlane to setup all the streams for this operator.
+                        if let Err(error) =
+                            channel_to_data_plane.send(DataPlaneNotification::SetupStreams(
+                                Job::Operator(operator_id),
+                                streams,
+                            ))
+                        {
+                            tracing::warn!(
+                                "[Worker {}] Received error when requesting the setup of \
+                                                    streams for {} with ID {:?}: {:?}",
+                                self.worker_id,
+                                operator_name,
+                                operator_id,
+                                error
                             );
                         }
 
