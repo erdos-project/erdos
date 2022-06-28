@@ -3,6 +3,7 @@
 use std::{
     collections::{HashMap, HashSet},
     net::SocketAddr,
+    sync::{Arc, Mutex},
 };
 
 use futures::{stream::SplitSink, SinkExt, StreamExt};
@@ -29,7 +30,8 @@ use crate::{
         graph::{Job, JobGraph, JobGraphId},
         stream::StreamId,
     },
-    node::Resources,
+    node::{worker::Worker, Resources},
+    scheduler::channel_manager::ChannelManager,
 };
 
 use super::WorkerId;
@@ -92,6 +94,10 @@ pub(crate) struct WorkerNode {
     pending_stream_setups: HashMap<Job, (JobGraphId, HashSet<StreamId>)>,
     /// A mapping of the `JobGraph` to the state of each scheduled `Job`.
     job_graph_to_job_state: HashMap<JobGraphId, HashMap<Job, JobState>>,
+    /// A handle to the [`StreamManager`] instance shared with the [`DataPlane`].
+    /// The [`DataPlane`] populates the channels on the shared instance upon request,
+    /// which are then retrieved for consumption by each [`Job`].
+    stream_manager: Arc<Mutex<ChannelManager>>,
 }
 
 impl WorkerNode {
@@ -112,6 +118,7 @@ impl WorkerNode {
             job_graphs: HashMap::new(),
             pending_stream_setups: HashMap::new(),
             job_graph_to_job_state: HashMap::new(),
+            stream_manager: Arc::new(Mutex::new(ChannelManager::default())),
         }
     }
 
@@ -145,6 +152,7 @@ impl WorkerNode {
         let mut data_plane = DataPlane::new(
             self.id,
             self.data_plane_address,
+            Arc::clone(&self.stream_manager),
             channel_to_data_plane_rx,
             channel_from_data_plane_tx,
         )
@@ -450,6 +458,22 @@ impl WorkerNode {
                     self.id,
                     self.job_graph_to_job_state
                 );
+
+                // TODO (Sukrit): Fix this code.
+                let mut worker = Worker::new(2);
+                let mut job_executors = Vec::new();
+                for (job, _) in self.job_graph_to_job_state.get(&job_graph_id).unwrap() {
+                    let job_graph = self.job_graphs.get(&job_graph_id).unwrap();
+                    let operator = job_graph.get_job(job).unwrap();
+                    let channel_manager_copy = Arc::clone(&self.stream_manager);
+                    if let Some(operator_runner) = job_graph.get_operator_runner(&operator.id) {
+                        let operator_executor = (operator_runner)(channel_manager_copy);
+                        job_executors.push(operator_executor);
+                    }
+                }
+                worker.spawn_tasks(job_executors).await;
+                std::thread::sleep_ms(1000);
+                worker.execute().await;
             }
             // The shutdown arm is unreachable, because it should be handled in the main loop.
             LeaderNotification::Shutdown => unreachable!(),

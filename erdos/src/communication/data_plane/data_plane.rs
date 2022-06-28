@@ -51,6 +51,7 @@ impl DataPlane {
     pub async fn new(
         worker_id: usize,
         address: SocketAddr,
+        stream_manager: Arc<Mutex<ChannelManager>>,
         channel_from_worker: UnboundedReceiver<DataPlaneNotification>,
         channel_to_worker: UnboundedSender<DataPlaneNotification>,
     ) -> Result<Self, CommunicationError> {
@@ -70,7 +71,7 @@ impl DataPlane {
             channel_from_worker_connections,
             channel_from_worker_connections_tx,
             connections_to_other_workers: HashMap::new(),
-            stream_manager: Arc::new(Mutex::new(ChannelManager::default())),
+            stream_manager,
             worker_to_stream_setup_map: HashMap::new(),
             pending_job_setups: HashMap::new(),
         })
