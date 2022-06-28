@@ -72,19 +72,3 @@ impl DataSender {
         }
     }
 }
-
-/// Sends messages received from operator executors to other nodes.
-/// The function launches a task for each TCP sink. Each task listens
-/// on a mpsc channel for new `InterProcessMessages` messages, which it
-/// forwards on the TCP stream.
-pub(crate) async fn run_senders(senders: Vec<DataSender>) -> Result<(), CommunicationError> {
-    // Waits until all futures complete. This code will only be reached
-    // when all the mpsc channels are closed.
-    future::join_all(
-        senders
-            .into_iter()
-            .map(|mut sender| tokio::spawn(async move { sender.run().await })),
-    )
-    .await;
-    Ok(())
-}

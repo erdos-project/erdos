@@ -175,14 +175,3 @@ impl DataReceiver {
         }
     }
 }
-
-/// Receives TCP messages, and pushes them to operators endpoints.
-/// The function receives a vector of framed TCP receiver halves.
-/// It launches a task that listens for new messages for each TCP connection.
-pub(crate) async fn run_receivers(
-    mut receivers: Vec<DataReceiver>,
-) -> Result<(), CommunicationError> {
-    // Wait for all futures to finish. It will happen only when all streams are closed.
-    future::join_all(receivers.iter_mut().map(|receiver| receiver.run())).await;
-    Ok(())
-}

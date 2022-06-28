@@ -176,7 +176,6 @@ impl WorkerNode {
                                     self.handle_leader_messages(
                                         msg_from_leader,
                                         &mut channel_to_data_plane_tx,
-                                        &mut leader_tx
                                     ).await;
                                 }
                             }
@@ -300,7 +299,6 @@ impl WorkerNode {
         &mut self,
         msg_from_leader: LeaderNotification,
         channel_to_data_plane: &mut UnboundedSender<DataPlaneNotification>,
-        leader_tx: &mut ConnectionToLeader,
     ) {
         match msg_from_leader {
             LeaderNotification::ScheduleJob(job_graph_id, job, worker_addresses) => {
