@@ -67,9 +67,9 @@ where
     id: StreamId,
     // The name of the stream
     name: String,
-    // Use a std mutex because the driver doesn't run on the tokio runtime.
+    // Use a std mutex because the driver doesn't run on the tokio runtime
     write_stream_option: Arc<Mutex<Option<WriteStream<D>>>>,
-    //
+    // The corresponding internal graph for the stream
     graph: Arc<Mutex<InternalGraph>>,
 }
 
@@ -98,7 +98,7 @@ where
 
     /// Returns `true` if a top watermark message was received or the [`IngressStream`] failed to
     /// set up.
-    pub(crate) fn is_closed(&self) -> bool {
+    pub fn is_closed(&self) -> bool {
         self.write_stream_option
             .lock()
             .unwrap()
@@ -111,7 +111,7 @@ where
     ///
     /// # Arguments
     /// * `msg` - The message to be sent on the stream.
-    pub(crate) fn send(&mut self, msg: Message<D>) -> Result<(), SendError> {
+    pub fn send(&mut self, msg: Message<D>) -> Result<(), SendError> {
         if !self.is_closed() {
             loop {
                 {
@@ -143,7 +143,7 @@ where
     fn id(&self) -> StreamId {
         self.id
     }
-    fn get_graph(&self) -> Arc<Mutex<InternalGraph>> {
+    fn graph(&self) -> Arc<Mutex<InternalGraph>> {
         Arc::clone(&self.graph)
     }
 }

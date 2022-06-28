@@ -52,7 +52,7 @@ impl SquareOperator {
 impl OneInOneOut<(), usize, usize> for SquareOperator {
     fn setup(&mut self, ctx: &mut SetupContext<()>) {
         ctx.add_deadline(TimestampDeadline::new(
-            move |_s: &(), _t: &Timestamp| -> Duration { Duration::new(1, 0) },
+            move |_s: &(), _t: &Timestamp| -> Duration { Duration::new(2, 0) },
             |_s: &(), _t: &Timestamp| {
                 tracing::info!("SquareOperator @ {:?}: Missed deadline.", _t);
             },
@@ -60,7 +60,7 @@ impl OneInOneOut<(), usize, usize> for SquareOperator {
     }
 
     fn on_data(&mut self, ctx: &mut OneInOneOutContext<(), usize>, data: &usize) {
-        thread::sleep(Duration::new(1, 0));
+        thread::sleep(Duration::new(2, 0));
         tracing::info!("SquareOperator @ {:?}: received {}", ctx.timestamp(), data);
         let timestamp = ctx.timestamp().clone();
         ctx.write_stream()
@@ -306,14 +306,14 @@ fn main() {
     //     &split_stream_greater_50,
     // );
 
-    // Example use of an ingest stream.
-    let ingest_stream: IngressStream<usize> = graph.add_ingress("Ingest1");
+    // Example use of an ingress stream.
+    let ingress_stream: IngressStream<usize> = graph.add_ingress("Ingest1");
     let sink_config = OperatorConfig::new().name("IngestSinkOperator");
     graph.connect_sink(
         SinkOperator::new,
         TimeVersionedState::new,
         sink_config,
-        &ingest_stream,
+        &ingress_stream,
     );
 
     let join_sum_config = OperatorConfig::new().name("JoinSumOperator");
@@ -332,7 +332,7 @@ fn main() {
     let mut loop_stream: LoopStream<usize> = graph.add_loop_stream();
     loop_stream.connect_loop(&source_stream);
 
-    let _extract_stream: EgressStream<usize> = graph.add_egress(&square_stream);
+    let _egress_stream: EgressStream<usize> = square_stream.to_egress();
 
     node.run(graph);
 }

@@ -131,9 +131,9 @@ where
 
         let write_stream = OperatorStream::new(
             &format!("{}-write-stream", op_name),
-            Arc::clone(&self.get_graph()),
+            Arc::clone(&self.graph()),
         );
-        self.get_graph().lock().unwrap().connect_one_in_one_out(
+        self.graph().lock().unwrap().connect_one_in_one_out(
             move || -> FlatMapOperator<D1, _> {
                 let map_fn = map_fn.clone();
                 FlatMapOperator::new(move |x| std::iter::once(map_fn(x)))
@@ -152,12 +152,12 @@ where
         I: 'static + IntoIterator<Item = D2>,
     {
         let op_name = format!("FlatMapOp_{}", self.id());
-
         let write_stream = OperatorStream::new(
             &format!("{}-write-stream", op_name),
-            Arc::clone(&self.get_graph()),
+            Arc::clone(&self.graph()),
         );
-        self.get_graph().lock().unwrap().connect_one_in_one_out(
+
+        self.graph().lock().unwrap().connect_one_in_one_out(
             move || -> FlatMapOperator<D1, _> { FlatMapOperator::new(flat_map_fn.clone()) },
             || {},
             OperatorConfig::new().name(&op_name),

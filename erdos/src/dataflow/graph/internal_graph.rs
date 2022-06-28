@@ -30,6 +30,7 @@ use super::{
 /// The abstract graph representation of an ERDOS program defined in the driver.
 ///
 /// The abstract graph is compiled into a [`JobGraph`], which ERDOS schedules and executes.
+#[derive(Default)]
 pub struct InternalGraph {
     /// Collection of operators.
     operators: HashMap<OperatorId, AbstractOperator>,
@@ -43,21 +44,9 @@ pub struct InternalGraph {
     loop_streams: HashMap<StreamId, Option<StreamId>>,
 }
 
-impl Default for InternalGraph {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl InternalGraph {
     pub fn new() -> Self {
-        Self {
-            operators: HashMap::new(),
-            streams: HashMap::new(),
-            ingress_streams: HashMap::new(),
-            egress_streams: HashMap::new(),
-            loop_streams: HashMap::new(),
-        }
+        Default::default()
     }
 
     pub(crate) fn add_ingress_stream<D>(&mut self, ingress_stream: &IngressStream<D>)
@@ -117,14 +106,14 @@ impl InternalGraph {
         for<'a> D: Data + Deserialize<'a>,
     {
         self.streams.insert(
-            loop_stream.get_id(),
+            loop_stream.id(),
             Box::new(AbstractStream::<D>::new(
-                loop_stream.get_id(),
-                format!("LoopStream-{}", loop_stream.get_id()),
+                loop_stream.id(),
+                format!("LoopStream-{}", loop_stream.id()),
             )),
         );
 
-        self.loop_streams.insert(loop_stream.get_id(), None);
+        self.loop_streams.insert(loop_stream.id(), None);
     }
 
     /// Connects a [`LoopStream`] to another stream in order to close a loop.
@@ -135,7 +124,7 @@ impl InternalGraph {
     ) where
         for<'a> D: Data + Deserialize<'a>,
     {
-        if let Some(v) = self.loop_streams.get_mut(&loop_stream.get_id()) {
+        if let Some(v) = self.loop_streams.get_mut(&loop_stream.id()) {
             *v = Some(stream.id());
         }
     }

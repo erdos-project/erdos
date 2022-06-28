@@ -1,7 +1,8 @@
 //! Streams are used to send data between [operators](crate::dataflow::operator).
 //!
 //! In the driver, connections between operators are created by passing
-//! [`Stream`]s as arguments to the [connect functions](crate::dataflow::graph::internal_graph).
+//! [`Stream`]s as arguments to the [`Graph`](crate::dataflow::graph::Graph)'s
+//! connect functions.
 //!
 //! During execution, operators can broadcast data to all downstream operators
 //! connected to a stream by invoking [`WriteStreamT::send`].
@@ -61,7 +62,7 @@ pub trait WriteStreamT<D: Data> {
 pub trait Stream<D: Data> {
     fn name(&self) -> String;
     fn id(&self) -> StreamId;
-    fn get_graph(&self) -> Arc<Mutex<InternalGraph>>;
+    fn graph(&self) -> Arc<Mutex<InternalGraph>>;
 }
 
 #[derive(Clone)]
@@ -85,11 +86,19 @@ impl<D: Data> OperatorStream<D> {
         }
     }
 
-    pub(crate) fn to_egress(&self) -> EgressStream<D>
+    /// Adds an [`EgressStream`] to the graph.
+    /// [`EgressStream`]s are automatically named based on the input stream.
+    pub fn to_egress(&self) -> EgressStream<D>
     where
         for<'a> D: Data + Deserialize<'a>,
     {
-        EgressStream::new(self)
+        let egress_stream = EgressStream::new(self);
+        self.graph()
+            .lock()
+            .unwrap()
+            .add_egress_stream(&egress_stream);
+
+        egress_stream
     }
 }
 
@@ -100,7 +109,7 @@ impl<D: Data> Stream<D> for OperatorStream<D> {
     fn id(&self) -> StreamId {
         self.id
     }
-    fn get_graph(&self) -> Arc<Mutex<InternalGraph>> {
+    fn graph(&self) -> Arc<Mutex<InternalGraph>> {
         Arc::clone(&self.graph)
     }
 }

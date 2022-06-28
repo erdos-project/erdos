@@ -70,7 +70,7 @@ where
     id: StreamId,
     /// The name of the stream (copied from the input stream)
     name: String,
-    /// The ReadStream associated with the EgressStream.
+    /// The ReadStream associated with the EgressStream
     read_stream_option: Arc<Mutex<Option<ReadStream<D>>>>,
 }
 
@@ -83,7 +83,7 @@ where
     /// # Arguments
     /// * `stream`: The [`Stream`] returned by an [operator](crate::dataflow::operator)
     /// from which to extract messages.
-    pub fn new(stream: &OperatorStream<D>) -> Self {
+    pub(crate) fn new(stream: &OperatorStream<D>) -> Self {
         tracing::debug!(
             "Initializing an EgressStream with the ReadStream {} (ID: {})",
             stream.name(),

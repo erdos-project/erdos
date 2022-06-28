@@ -93,12 +93,12 @@ where
         F: 'static + Fn(&D) -> bool + Send + Sync + Clone,
     {
         let op_name = format!("FilterOp_{}", self.id());
-
         let write_stream = OperatorStream::new(
             &format!("{}-write-stream", op_name),
-            Arc::clone(&self.get_graph()),
+            Arc::clone(&self.graph()),
         );
-        self.get_graph().lock().unwrap().connect_one_in_one_out(
+
+        self.graph().lock().unwrap().connect_one_in_one_out(
             move || -> FilterOperator<D> { FilterOperator::new(filter_fn.clone()) },
             || {},
             OperatorConfig::new().name(&op_name),

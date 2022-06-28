@@ -210,14 +210,6 @@ impl fmt::Display for Uuid {
     }
 }
 
-/// Resets seed.
-pub fn reset() {
-    // All global variables should be reset here.
-    RNG.with(|rng| {
-        *rng.borrow_mut() = StdRng::from_seed(&[1913, 3, 26]);
-    });
-}
-
 /// Defines command line arguments for running a multi-node ERDOS application.
 pub fn new_app(name: &str) -> clap::App {
     App::new(name)

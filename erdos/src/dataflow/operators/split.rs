@@ -105,14 +105,14 @@ where
         let op_name = format!("SplitOp_{}", self.id());
         let left_write_stream = OperatorStream::new(
             &format!("{}-write-stream", op_name),
-            Arc::clone(&self.get_graph()),
+            Arc::clone(&self.graph()),
         );
         let right_write_stream = OperatorStream::new(
             &format!("{}-write-stream", op_name),
-            Arc::clone(&self.get_graph()),
+            Arc::clone(&self.graph()),
         );
 
-        self.get_graph().lock().unwrap().connect_one_in_two_out(
+        self.graph().lock().unwrap().connect_one_in_two_out(
             move || -> SplitOperator<D1> { SplitOperator::new(split_fn.clone()) },
             || {},
             OperatorConfig::new().name(&op_name),

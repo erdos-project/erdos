@@ -8,7 +8,7 @@ use crate::{
             OneInOneOut, OneInTwoOut, ParallelOneInOneOut, ParallelOneInTwoOut, ParallelSink,
             ParallelTwoInOneOut, Sink, Source, TwoInOneOut,
         },
-        stream::{EgressStream, IngressStream, OperatorStream},
+        stream::{IngressStream, OperatorStream},
         AppendableState, Data, LoopStream, State, Stream,
     },
     OperatorConfig,
@@ -17,14 +17,45 @@ use crate::{
 use super::{InternalGraph, JobGraph};
 
 /// A user defined dataflow graph representation.
+///
+/// When adding various [`stream`](crate::dataflow::stream)s and
+/// [`operators`](crate::dataflow::operators),
+/// a graph is built up internally which manages all the connections between them.
+/// This graph is compiled at runtime and can no longer be modified.
+///
+/// # Example
+/// The below example shows how to create a [`Graph`] and run it.
+/// ```no_run
+/// # use erdos::dataflow::{
+/// #    stream::{IngressStream, EgressStream, Stream},
+/// #    operators::FlatMapOperator,
+/// #    OperatorConfig, Message, Timestamp,
+/// #    Graph,
+/// # };
+/// # use erdos::*;
+/// # use erdos::node::Node;
+/// #
+/// let args = erdos::new_app("ERDOS").get_matches();
+/// let mut node = Node::new(Configuration::from_args(&args));
+/// // Create the Graph
+/// let graph = Graph::new();
+///
+/// // Add streams and operators here
+/// let mut ingress_stream: IngressStream<usize> = graph.add_ingress("ExampleIngressStream");
+///
+/// // Run the graph defined above
+/// node.run_async(graph);
+///
+/// // Send data on the ingress stream
+/// let msg = Message::new_message(Timestamp::Top, usize::MIN);
+/// ingress_stream.send(msg).unwrap();
+/// ```
+///
+/// See [`IngressStream`], [`EgressStream`](crate::dataflow::stream), [`LoopStream`], and the
+/// [`operators`](crate::dataflow::operators) for more examples.
+#[derive(Default)]
 pub struct Graph {
     internal_graph: Arc<Mutex<InternalGraph>>,
-}
-
-impl Default for Graph {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 impl Graph {
@@ -47,21 +78,6 @@ impl Graph {
             .add_ingress_stream(&ingress_stream);
 
         ingress_stream
-    }
-
-    /// Adds an [`EgressStream`] to the graph.
-    /// [`EgressStream`]s are automatically named based on the input stream.
-    pub fn add_egress<D>(&self, stream: &OperatorStream<D>) -> EgressStream<D>
-    where
-        for<'a> D: Data + Deserialize<'a>,
-    {
-        let egress_stream = stream.to_egress();
-        self.internal_graph
-            .lock()
-            .unwrap()
-            .add_egress_stream(&egress_stream);
-
-        egress_stream
     }
 
     /// Adds a [`LoopStream`] to the graph.

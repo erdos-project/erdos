@@ -63,7 +63,7 @@ where
         );
     }
 
-    pub(crate) fn get_id(&self) -> StreamId {
+    pub(crate) fn id(&self) -> StreamId {
         self.id
     }
 }
