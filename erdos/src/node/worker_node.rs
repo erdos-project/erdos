@@ -65,6 +65,14 @@ impl WorkerState {
     }
 }
 
+#[derive(Debug)]
+enum JobState {
+    Scheduled,
+    Ready,
+    Executing,
+    Shutdown,
+}
+
 pub(crate) struct WorkerNode {
     /// The ID of the [`Worker`].
     id: WorkerId,
@@ -82,6 +90,8 @@ pub(crate) struct WorkerNode {
     /// A memo of the stream connections that are remaining to be setup for
     /// each [`Job`] before it can be marked Ready to the [`Leader`].
     pending_stream_setups: HashMap<Job, (JobGraphId, HashSet<StreamId>)>,
+    /// A mapping of the `JobGraph` to the state of each scheduled `Job`.
+    job_graph_to_job_state: HashMap<JobGraphId, HashMap<Job, JobState>>,
 }
 
 impl WorkerNode {
@@ -101,6 +111,7 @@ impl WorkerNode {
             driver_notification_rx,
             job_graphs: HashMap::new(),
             pending_stream_setups: HashMap::new(),
+            job_graph_to_job_state: HashMap::new(),
         }
     }
 
@@ -140,7 +151,7 @@ impl WorkerNode {
         .await?;
         // The DataPlane might be required to bind to a randomly-assigned port,
         // so we retrieve the actual address and communicate it to the Leader.
-        let data_plane_address = data_plane.get_address();
+        let data_plane_address = data_plane.address();
         let data_plane_handle = tokio::spawn(async move { data_plane.run().await });
 
         // Communicate the ID and DataPlane address of the Worker to the Leader.
@@ -264,6 +275,35 @@ impl WorkerNode {
                                         )
                                     }
 
+                                    // Change the state of the Job in the JobGraph.
+                                    match self.job_graph_to_job_state.get_mut(job_graph_id) {
+                                        Some(job_state) => match job_state.get_mut(&job) {
+                                            Some(job_state) => {
+                                                *job_state = JobState::Ready;
+                                            }
+                                            None => {
+                                                tracing::warn!(
+                                                    "[Worker {}] Could not find the state of \
+                                                            the Job {:?} that was supposed to be \
+                                                            scheduled for the JobGraph {:?}.",
+                                                    self.id,
+                                                    job,
+                                                    job_graph_id,
+                                                )
+                                            }
+                                        },
+                                        None => {
+                                            tracing::warn!(
+                                                "[Worker {}] Inconsistency between the state of \
+                                                the pending streams for Job {:?} and the state \
+                                                    of the JobGraph {:?} to which it belongs.",
+                                                self.id,
+                                                job,
+                                                job_graph_id
+                                            );
+                                        }
+                                    }
+
                                     // Remove the mapping from the pending setups.
                                     self.pending_stream_setups.remove(&job);
                                 }
@@ -364,7 +404,12 @@ impl WorkerNode {
                             pending_setups
                         );
                         self.pending_stream_setups
-                            .insert(job, (job_graph_id, pending_setups));
+                            .insert(job, (job_graph_id.clone(), pending_setups));
+
+                        // Add the Job to the set of scheduled Jobs for this JobGraph.
+                        let job_state =
+                            self.job_graph_to_job_state.entry(job_graph_id).or_default();
+                        job_state.insert(job, JobState::Scheduled);
 
                         if let Err(error) = channel_to_data_plane
                             .send(DataPlaneNotification::SetupStreams(job, streams))
@@ -399,6 +444,11 @@ impl WorkerNode {
                     "[Worker {}] Executing JobGraph {:?}.",
                     self.id,
                     job_graph_id
+                );
+                tracing::info!(
+                    "[Worker {}] The state of the JobGraph is {:?}.",
+                    self.id,
+                    self.job_graph_to_job_state
                 );
             }
             // The shutdown arm is unreachable, because it should be handled in the main loop.

@@ -81,7 +81,7 @@ impl DataPlane {
             "[DataPlane {}] Running data plane for Worker {} at address: {}",
             self.worker_id,
             self.worker_id,
-            self.get_address()
+            self.address()
         );
         loop {
             tokio::select! {
@@ -447,7 +447,7 @@ impl DataPlane {
         }
     }
 
-    pub fn get_address(&self) -> SocketAddr {
+    pub fn address(&self) -> SocketAddr {
         self.worker_connection_listener.local_addr().unwrap()
     }
 }
