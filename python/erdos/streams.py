@@ -3,7 +3,7 @@ import pickle
 import uuid
 from abc import ABC
 from itertools import zip_longest
-from typing import Any, Callable, Generic, Sequence, Tuple, Type, TypeVar, Union
+from typing import Callable, Generic, Sequence, Tuple, Type, TypeVar, Union
 
 from erdos.internal import (
     PyExtractStream,
