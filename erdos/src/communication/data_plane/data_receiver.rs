@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use futures::{future, stream::SplitStream, StreamExt};
+use futures::{stream::SplitStream, StreamExt};
 use tokio::{
     net::TcpStream,
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
@@ -11,11 +11,13 @@ use tokio::{
 use tokio_util::codec::Framed;
 
 use crate::{
-    communication::{CommunicationError, InterProcessMessage, MessageCodec, PusherT},
-    dataflow::{stream::StreamId, Data}, node::WorkerId,
+    communication::{
+        data_plane::notifications::DataPlaneNotification, CommunicationError, InterProcessMessage,
+        MessageCodec, PusherT,
+    },
+    dataflow::stream::StreamId,
+    node::WorkerId,
 };
-
-use super::data_plane::notifications::DataPlaneNotification;
 
 /// Listens on a TCP stream, and pushes messages it receives to operator executors.
 #[allow(dead_code)]

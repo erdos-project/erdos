@@ -10,7 +10,8 @@ use tokio_util::codec::Framed;
 
 use crate::{communication::{CommunicationError, InterProcessMessage, MessageCodec}, node::WorkerId};
 
-use super::data_plane::notifications::DataPlaneNotification;
+use super::notifications::DataPlaneNotification;
+
 
 #[allow(dead_code)]
 /// The [`DataSender`] pulls messages from a FIFO inter-thread channel.

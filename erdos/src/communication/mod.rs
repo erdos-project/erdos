@@ -27,8 +27,6 @@ mod serializable;
 pub(crate) mod control_plane;
 pub(crate) mod data_plane;
 pub(crate) mod pusher;
-pub(crate) mod receivers;
-pub(crate) mod senders;
 
 // Private imports
 use serializable::Serializable;

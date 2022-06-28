@@ -18,15 +18,14 @@ use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::format::FmtSpan;
 
-use crate::{dataflow::graph::{default_graph, JobGraph}, communication::data_plane::StreamManager, node::WorkerId};
 use crate::Configuration;
 use crate::{
-    communication::{
-        self,
-        receivers::{self, DataReceiver},
-        senders::{self, DataSender},
-        ControlMessage, ControlMessageHandler, MessageCodec,
-    },
+    communication::data_plane::StreamManager,
+    dataflow::graph::{default_graph, JobGraph},
+    node::WorkerId,
+};
+use crate::{
+    communication::{self, ControlMessage, ControlMessageHandler, MessageCodec},
     dataflow::graph::AbstractGraph,
 };
 
@@ -168,60 +167,60 @@ impl Node {
     }
 
     /// Splits a vector of TCPStreams into `DataSender`s and `DataReceiver`s.
-    async fn split_data_streams(
-        &mut self,
-        streams: Vec<(NodeId, TcpStream)>,
-    ) -> (Vec<DataSender>, Vec<DataReceiver>) {
-        let mut sink_halves = Vec::new();
-        let mut stream_halves = Vec::new();
+    // async fn split_data_streams(
+    //     &mut self,
+    //     streams: Vec<(NodeId, TcpStream)>,
+    // ) -> (Vec<DataSender>, Vec<DataReceiver>) {
+    //     let mut sink_halves = Vec::new();
+    //     let mut stream_halves = Vec::new();
 
-        // Create channels to the Sender and the Receiver
-        // let mut data_receiver_control_rx = HashMap::with_capacity(streams.len());
-        // let mut data_sender_control_rx = HashMap::with_capacity(streams.len());
-        // {
-        //     let mut channels_to_receivers = self.channels_to_receivers.lock().await;
-        //     let mut channels_to_senders = self.channels_to_senders.lock().await;
+    //     // Create channels to the Sender and the Receiver
+    //     // let mut data_receiver_control_rx = HashMap::with_capacity(streams.len());
+    //     // let mut data_sender_control_rx = HashMap::with_capacity(streams.len());
+    //     // {
+    //     //     let mut channels_to_receivers = self.channels_to_receivers.lock().await;
+    //     //     let mut channels_to_senders = self.channels_to_senders.lock().await;
 
-        //     for (node_id, _) in streams.iter() {
-        //         let (receiver_control_tx, receiver_control_rx) = mpsc::unbounded_channel();
-        //         channels_to_receivers.add_sender(receiver_control_tx);
-        //         data_receiver_control_rx.insert(*node_id, receiver_control_rx);
+    //     //     for (node_id, _) in streams.iter() {
+    //     //         let (receiver_control_tx, receiver_control_rx) = mpsc::unbounded_channel();
+    //     //         channels_to_receivers.add_sender(receiver_control_tx);
+    //     //         data_receiver_control_rx.insert(*node_id, receiver_control_rx);
 
-        //         let (sender_control_tx, sender_control_rx) = mpsc::unbounded_channel();
-        //         channels_to_senders.add_sender(*node_id, sender_control_tx);
-        //         data_sender_control_rx.insert(*node_id, sender_control_rx);
-        //     }
-        // }
+    //     //         let (sender_control_tx, sender_control_rx) = mpsc::unbounded_channel();
+    //     //         channels_to_senders.add_sender(*node_id, sender_control_tx);
+    //     //         data_sender_control_rx.insert(*node_id, sender_control_rx);
+    //     //     }
+    //     // }
 
-        for (node_id, stream) in streams {
-            // Use the message codec to divide the TCP stream data into messages.
-            let framed = Framed::new(stream, MessageCodec::new());
-            let (split_sink, split_stream) = framed.split();
+    //     for (node_id, stream) in streams {
+    //         // Use the message codec to divide the TCP stream data into messages.
+    //         let framed = Framed::new(stream, MessageCodec::new());
+    //         let (split_sink, split_stream) = framed.split();
 
-            // Create an ERDOS receiver for the stream half.
-            // stream_halves.push(
-            //     DataReceiver::new(
-            //         node_id,
-            //         split_stream,
-            //         data_receiver_control_rx.remove(&node_id).unwrap(),
-            //         &mut self.control_handler,
-            //     )
-            //     .await,
-            // );
+    //         // Create an ERDOS receiver for the stream half.
+    //         // stream_halves.push(
+    //         //     DataReceiver::new(
+    //         //         node_id,
+    //         //         split_stream,
+    //         //         data_receiver_control_rx.remove(&node_id).unwrap(),
+    //         //         &mut self.control_handler,
+    //         //     )
+    //         //     .await,
+    //         // );
 
-            // Create an ERDOS sender for the sink half.
-            // sink_halves.push(
-            //     DataSender::new(
-            //         node_id,
-            //         split_sink,
-            //         data_sender_control_rx.remove(&node_id).unwrap(),
-            //         &mut self.control_handler,
-            //     )
-            //     .await,
-            // );
-        }
-        (sink_halves, stream_halves)
-    }
+    //         // Create an ERDOS sender for the sink half.
+    //         // sink_halves.push(
+    //         //     DataSender::new(
+    //         //         node_id,
+    //         //         split_sink,
+    //         //         data_sender_control_rx.remove(&node_id).unwrap(),
+    //         //         &mut self.control_handler,
+    //         //     )
+    //         //     .await,
+    //         // );
+    //     }
+    //     (sink_halves, stream_halves)
+    // }
 
     async fn wait_for_communication_layer_initialized(&mut self) -> Result<(), String> {
         // let num_nodes = self.config.data_addresses.len();
@@ -308,9 +307,7 @@ impl Node {
                 .map_err(|e| e.to_string())?;
         }
 
-        let channel_manager = StreamManager::new(
-            WorkerId::nil()
-        );
+        let channel_manager = StreamManager::new(WorkerId::nil());
         // Execute operators scheduled on the current node.
         let channel_manager = Arc::new(std::sync::Mutex::new(channel_manager));
         let num_operators = job_graph.operators().len();

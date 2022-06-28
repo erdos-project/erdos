@@ -9,15 +9,12 @@ use tokio::{
 use tokio_util::codec::Framed;
 
 use crate::{
-    communication::{
-        receivers::DataReceiver, senders::DataSender, CommunicationError, InterProcessMessage,
-        MessageCodec, PusherT,
-    },
+    communication::{CommunicationError, InterProcessMessage, MessageCodec, PusherT},
     dataflow::{graph::Job, stream::StreamId},
     node::WorkerId,
 };
 
-use super::notifications::DataPlaneNotification;
+use super::{notifications::DataPlaneNotification, DataReceiver, DataSender};
 
 pub struct WorkerConnection {
     worker_id: WorkerId,
