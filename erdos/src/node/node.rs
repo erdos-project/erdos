@@ -18,7 +18,7 @@ use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::format::FmtSpan;
 
-use crate::{dataflow::graph::{default_graph, JobGraph}, communication::data_plane::StreamManager};
+use crate::{dataflow::graph::{default_graph, JobGraph}, communication::data_plane::StreamManager, node::WorkerId};
 use crate::Configuration;
 use crate::{
     communication::{
@@ -309,10 +309,8 @@ impl Node {
         }
 
         let channel_manager = StreamManager::new(
-            job_graph,
-            self.id,
-        )
-        .await;
+            WorkerId::nil()
+        );
         // Execute operators scheduled on the current node.
         let channel_manager = Arc::new(std::sync::Mutex::new(channel_manager));
         let num_operators = job_graph.operators().len();

@@ -17,7 +17,7 @@ use crate::{
         stream::StreamId,
         Data, Message, ReadStream, WriteStream,
     },
-    node::NodeId,
+    node::{NodeId, WorkerId},
     OperatorId,
 };
 
@@ -159,8 +159,8 @@ where
 /// Data structure that stores information needed to set up dataflow channels
 /// by constructing individual transport channels.
 pub(crate) struct StreamManager {
-    /// The node to which the [`ChannelManager`] belongs.
-    node_id: NodeId,
+    /// The [`Worker`] to which the [`StreamManager`] belongs.
+    worker_id: WorkerId,
     /// Stores a `StreamEndpoints` for each stream id.
     stream_entries: HashMap<StreamId, Box<dyn StreamEndpointsT>>,
     stream_pushers: HashMap<StreamId, Arc<Mutex<dyn PusherT>>>,
@@ -172,116 +172,16 @@ impl StreamManager {
     /// for operators with streams containing dataflow channels to other nodes, and transport
     /// channels from TCP receivers to operators that are connected to streams originating on
     /// other nodes.
-    #[allow(clippy::needless_collect)]
-    pub async fn new(job_graph: &JobGraph, node_id: NodeId) -> Self {
-        let mut channel_manager = Self {
-            node_id,
+    pub fn new(worker_id: WorkerId) -> Self {
+        Self {
+            worker_id,
             stream_entries: HashMap::new(),
             stream_pushers: HashMap::new(),
-        };
-
-        let mut receiver_pushers: HashMap<StreamId, Box<dyn PusherT>> = HashMap::new();
-
-        let local_operator_ids: Vec<OperatorId> = job_graph
-            .operators()
-            .into_iter()
-            .filter(|o| o.config.node_id == node_id)
-            .map(|o| o.id)
-            .collect();
-
-        let operators: HashMap<_, _> = job_graph
-            .operators()
-            .into_iter()
-            .map(|o| (o.config.id, o))
-            .collect();
-
-        for stream in job_graph.get_streams() {
-            let source = stream.get_source();
-            let destinations = stream.get_destinations();
-
-            // Whether the source is on the current node.
-            let contains_source = match source {
-                Job::Operator(operator_id) => local_operator_ids.contains(&operator_id),
-                // TODO: change this when ERDOS programs are submitted to a cluster.
-                Job::Driver => node_id == 0,
-            };
-
-            if contains_source {
-                // The stream originates on this node.
-                let stream_endpoint_t = channel_manager
-                    .stream_entries
-                    .entry(stream.id())
-                    .or_insert_with(|| stream.to_stream_endpoints_t());
-
-                // Stores the number of jobs on each connected node.
-                let mut destination_nodes: HashMap<NodeId, usize> = HashMap::new();
-                for destination in destinations {
-                    let destination_node_id = match destination {
-                        Job::Operator(operator_id) => {
-                            operators.get(&operator_id).unwrap().config.node_id
-                        }
-                        // TODO: change this when ERDOS programs are submitted to a cluster.
-                        Job::Driver => 0,
-                    };
-
-                    let entry = destination_nodes.entry(destination_node_id).or_default();
-                    *entry += 1;
-                }
-
-                for (destination_node_id, count) in destination_nodes.into_iter() {
-                    if destination_node_id == node_id {
-                        for _ in 0..count {
-                            // stream_endpoint_t.add_inter_thread_channel();
-                        }
-                    } else {
-                        todo!()
-                        // stream_endpoint_t
-                        //     .add_inter_node_send_endpoint(
-                        //         destination_node_id,
-                        //         channels_to_senders.clone(),
-                        //     )
-                        //     .await
-                        //     .unwrap();
-                    }
-                }
-            } else {
-                // The stream originates on another node.
-                let num_local_destinations = destinations
-                    .iter()
-                    .filter(|destination| {
-                        let destination_node_id = match destination {
-                            Job::Operator(operator_id) => {
-                                operators.get(operator_id).unwrap().config.node_id
-                            }
-                            // TODO: change this when ERDOS programs are submitted to a cluster.
-                            Job::Driver => 0,
-                        };
-                        node_id == destination_node_id
-                    })
-                    .count();
-                for _ in 0..num_local_destinations {
-                    let stream_endpoint_t = channel_manager
-                        .stream_entries
-                        .entry(stream.id())
-                        .or_insert_with(|| stream.to_stream_endpoints_t());
-                    // stream_endpoint_t
-                    //     .add_inter_node_recv_endpoint(&mut receiver_pushers)
-                    //     .unwrap();
-                }
-            }
         }
-
-        // Send pushers to the DataReceiver which publishes received messages from TCP
-        // on the proper transport channel.
-        for (k, v) in receiver_pushers.into_iter() {
-            todo!()
-            // channels_to_receivers.lock().await.send(k, v);
-        }
-        channel_manager
     }
 
-    pub fn node_id(&self) -> NodeId {
-        self.node_id
+    pub fn worker_id(&self) -> WorkerId {
+        self.worker_id
     }
 
     pub fn add_inter_worker_recv_endpoint(
@@ -401,15 +301,5 @@ impl StreamManager {
             .name();
         self.get_send_endpoints(stream_id)
             .map(|endpoints| WriteStream::new(stream_id, &name, endpoints))
-    }
-}
-
-impl Default for StreamManager {
-    fn default() -> Self {
-        Self {
-            node_id: 0,
-            stream_entries: HashMap::new(),
-            stream_pushers: HashMap::new(),
-        }
     }
 }

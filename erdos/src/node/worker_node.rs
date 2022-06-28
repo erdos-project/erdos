@@ -22,7 +22,8 @@ use crate::{
         },
         data_plane::{
             data_plane::DataPlane,
-            notifications::{DataPlaneNotification, StreamType}, StreamManager,
+            notifications::{DataPlaneNotification, StreamType},
+            StreamManager,
         },
         CommunicationError,
     },
@@ -117,7 +118,7 @@ impl WorkerNode {
             job_graphs: HashMap::new(),
             pending_stream_setups: HashMap::new(),
             job_graph_to_job_state: HashMap::new(),
-            stream_manager: Arc::new(Mutex::new(StreamManager::default())),
+            stream_manager: Arc::new(Mutex::new(StreamManager::new(id))),
         }
     }
 
