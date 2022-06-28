@@ -42,13 +42,9 @@ pub(crate) trait StreamEndpointsT: Send {
         channel_to_data_sender: UnboundedSender<InterProcessMessage>,
     );
 
-    fn add_inter_worker_recv_endpoint(
-        &mut self,
-        job: Job,
-        pusher: Arc<Mutex<dyn PusherT>>,
-    ) -> Result<(), String>;
+    fn add_inter_worker_recv_endpoint(&mut self, job: Job) -> Result<(), String>;
 
-    fn get_pusher(&self) -> Arc<Mutex<dyn PusherT>>;
+    fn clone_pusher(&self) -> Arc<Mutex<dyn PusherT>>;
 }
 
 pub struct StreamEndpoints<D>
@@ -63,6 +59,9 @@ where
     recv_endpoints: HashMap<Job, RecvEndpoint<Arc<Message<D>>>>,
     /// The send endpoints of the stream.
     send_endpoints: HashMap<Job, SendEndpoint<Arc<Message<D>>>>,
+    /// The [`Pusher`] for this particular stream, shared with the [`DataReceiver`]
+    /// from where the [`Stream`] gets its data.
+    pusher: Arc<Mutex<dyn PusherT>>,
 }
 
 impl<D> StreamEndpoints<D>
@@ -75,6 +74,7 @@ where
             stream_name,
             recv_endpoints: HashMap::new(),
             send_endpoints: HashMap::new(),
+            pusher: Arc::new(Mutex::new(Pusher::<Arc<Message<D>>>::new(stream_id))),
         }
     }
 
@@ -131,27 +131,33 @@ where
         );
     }
 
-    fn add_inter_worker_recv_endpoint(
-        &mut self,
-        job: Job,
-        pusher: Arc<Mutex<dyn PusherT>>,
-    ) -> Result<(), String> {
-        let mut pusher = pusher.lock().unwrap();
-        if let Some(pusher) = pusher.as_any().downcast_mut::<Pusher<Arc<Message<D>>>>() {
-            let (tx, rx) = mpsc::unbounded_channel();
-            pusher.add_endpoint(job, SendEndpoint::InterThread(tx));
-            self.add_recv_endpoint(job, RecvEndpoint::InterThread(rx));
-            Ok(())
-        } else {
-            Err(format!(
+    fn add_inter_worker_recv_endpoint(&mut self, job: Job) -> Result<(), String> {
+        let recv_endpoint_from_pusher = {
+            let mut pusher = self.pusher.lock().unwrap();
+            if let Some(pusher) = pusher.as_any().downcast_mut::<Pusher<Arc<Message<D>>>>() {
+                let (send_endpoint_to_pusher, recv_endpoint_from_pusher) =
+                    mpsc::unbounded_channel();
+                pusher.add_endpoint(job, SendEndpoint::InterThread(send_endpoint_to_pusher));
+                Some(RecvEndpoint::InterThread(recv_endpoint_from_pusher))
+            } else {
+                None
+            }
+        };
+
+        match recv_endpoint_from_pusher {
+            Some(recv_endpoint_from_pusher) => {
+                self.add_recv_endpoint(job, recv_endpoint_from_pusher);
+                Ok(())
+            }
+            None => Err(format!(
                 "Error casting pusher when adding inter node recv endpoint for stream {}",
                 self.stream_id
-            ))
+            )),
         }
     }
 
-    fn get_pusher(&self) -> Arc<Mutex<dyn PusherT>> {
-        Arc::new(Mutex::new(Pusher::<Arc<Message<D>>>::new(self.stream_id)))
+    fn clone_pusher(&self) -> Arc<Mutex<dyn PusherT>> {
+        Arc::clone(&self.pusher)
     }
 }
 
@@ -162,23 +168,19 @@ pub(crate) struct StreamManager {
     worker_id: WorkerId,
     /// Stores a `StreamEndpoints` for each stream id.
     stream_entries: HashMap<StreamId, Box<dyn StreamEndpointsT>>,
-    stream_pushers: HashMap<StreamId, Arc<Mutex<dyn PusherT>>>,
 }
 
 #[allow(dead_code)]
 impl StreamManager {
-    /// Creates transport channels between connected operators on this node, transport channels
-    /// for operators with streams containing dataflow channels to other nodes, and transport
-    /// channels from TCP receivers to operators that are connected to streams originating on
-    /// other nodes.
+    /// Initializes a new [`StreamManager`] for the [`Worker`] with the given ID.
     pub fn new(worker_id: WorkerId) -> Self {
         Self {
             worker_id,
             stream_entries: HashMap::new(),
-            stream_pushers: HashMap::new(),
         }
     }
 
+    /// Retrieves the ID of the [`Worker`] for which this [`StreamManager`] was created.
     pub fn worker_id(&self) -> WorkerId {
         self.worker_id
     }
@@ -193,17 +195,14 @@ impl StreamManager {
         // the pusher to the DataReceiver at this connection.
         if !self.stream_entries.contains_key(&stream.id()) {
             let stream_endpoints = stream.to_stream_endpoints_t();
-            let pusher = stream_endpoints.get_pusher();
+            let pusher = stream_endpoints.clone_pusher();
             self.stream_entries.insert(stream.id(), stream_endpoints);
-            self.stream_pushers.insert(stream.id(), Arc::clone(&pusher));
             worker_connection.install_pusher(stream.id(), pusher)?;
         }
 
         // Register for a new endpoint with the Pusher.
         let stream_endpoints = self.stream_entries.get_mut(&stream.id()).unwrap();
-        let stream_pusher = self.stream_pushers.get(&stream.id()).unwrap();
-        let _ = stream_endpoints
-            .add_inter_worker_recv_endpoint(stream.get_source(), Arc::clone(stream_pusher));
+        let _ = stream_endpoints.add_inter_worker_recv_endpoint(stream.get_source());
         worker_connection.notify_pusher_update(stream.get_source(), stream.id(), receiving_job)?;
 
         Ok(())
