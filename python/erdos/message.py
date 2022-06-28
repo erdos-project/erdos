@@ -1,11 +1,11 @@
 import pickle
-from typing import Any, Generic, TypeVar
+from typing import Generic, TypeVar
 
 from erdos.internal import PyMessage
 from erdos.timestamp import Timestamp
 
+T = TypeVar("T")
 
-T = TypeVar('T')
 
 class Message(Generic[T]):
     """A :py:class:`Message` allows an operator to send timestamped data to
@@ -42,7 +42,7 @@ class Message(Generic[T]):
         be called again to reflect changes in the message.
         """
         self._serialized_data = pickle.dumps(
-            self.data, protocol = pickle.HIGHEST_PROTOCOL
+            self.data, protocol=pickle.HIGHEST_PROTOCOL
         )
 
     def _to_py_message(self) -> PyMessage:
@@ -71,7 +71,7 @@ class WatermarkMessage(Message[None]):
     def __init__(self, timestamp: Timestamp) -> None:
         super(WatermarkMessage, self).__init__(timestamp, None)
 
-    def __str__(self) :
+    def __str__(self):
         return "{{timestamp: {}, watermark: True}}".format(self.timestamp)
 
     def _to_py_message(self) -> PyMessage:

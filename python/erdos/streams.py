@@ -3,7 +3,7 @@ import pickle
 import uuid
 from abc import ABC
 from itertools import zip_longest
-from typing import Any, Callable, Sequence, Tuple, Type, Union, Generic, TypeVar
+from typing import Any, Callable, Generic, Sequence, Tuple, Type, TypeVar, Union
 
 from erdos.internal import (
     PyExtractStream,
@@ -36,8 +36,9 @@ def _parse_message(internal_msg: PyMessage):
     raise Exception("Unable to parse message")
 
 
-T = TypeVar('T')
-U = TypeVar('U')
+T = TypeVar("T")
+U = TypeVar("U")
+
 
 class Stream(ABC, Generic[T]):
     """Base class representing a stream to operators can be connected.
@@ -143,7 +144,7 @@ class Stream(ABC, Generic[T]):
         left_stream, right_stream = self._internal_stream._split(split_fn)
         return (OperatorStream(left_stream), OperatorStream(right_stream))
 
-    def split_by_type(self, *data_type: Type) -> Tuple["OperatorStream[T]", "OperatorStream[U]"]:
+    def split_by_type(self, *data_type: Type) -> Tuple["OperatorStream"]:
         """Returns a stream for each provided type on which each message's data is an
         instance of that provided type.
 
@@ -298,7 +299,7 @@ class WriteStream(Generic[T]):
                 _py_write_stream.name(), _py_write_stream.id
             )
         )
-        self._py_write_stream : PyWriteStream = (
+        self._py_write_stream: PyWriteStream = (
             PyWriteStream() if _py_write_stream is None else _py_write_stream
         )
 
@@ -407,7 +408,7 @@ class IngestStream(Stream[T]):
         self._internal_stream.send(internal_msg)
 
 
-class ExtractStream(Generic[T]): 
+class ExtractStream(Generic[T]):
     """An :py:class:`ExtractStream` enables drivers to read data from a
     running ERDOS applications.
 
@@ -428,7 +429,9 @@ class ExtractStream(Generic[T]):
                 "ExtractStream needs to be initialized with a Stream. "
                 "Received a {}".format(type(stream))
             )
-        self._py_extract_stream: PyExtractStream = PyExtractStream(stream._internal_stream)
+        self._py_extract_stream: PyExtractStream = PyExtractStream(
+            stream._internal_stream
+        )
 
     @property
     def name(self) -> str:
