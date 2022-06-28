@@ -21,12 +21,11 @@ use crate::{
         stream::StreamId,
     },
     node::WorkerId,
-    scheduler::channel_manager::StreamManager,
 };
 
 use super::{
     notifications::{DataPlaneNotification, StreamType},
-    worker_connection::WorkerConnection,
+    worker_connection::WorkerConnection, StreamManager,
 };
 
 /// [`DataPlane`] manages the connections amongst Workers, and enables

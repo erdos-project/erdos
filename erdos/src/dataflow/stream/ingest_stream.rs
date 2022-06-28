@@ -10,8 +10,7 @@ use crate::{
     dataflow::{
         graph::{default_graph, AbstractGraph},
         Data, Message,
-    },
-    scheduler::channel_manager::StreamManager,
+    }, communication::data_plane::StreamManager,
 };
 
 use super::{errors::SendError, Stream, StreamId, WriteStream, WriteStreamT};

@@ -22,7 +22,7 @@ use crate::{
         },
         data_plane::{
             data_plane::DataPlane,
-            notifications::{DataPlaneNotification, StreamType},
+            notifications::{DataPlaneNotification, StreamType}, StreamManager,
         },
         CommunicationError,
     },
@@ -31,7 +31,6 @@ use crate::{
         stream::StreamId,
     },
     node::{worker::Worker, Resources},
-    scheduler::channel_manager::StreamManager,
 };
 
 use super::WorkerId;

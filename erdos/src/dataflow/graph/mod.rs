@@ -6,8 +6,7 @@ use std::{
 
 use crate::{
     node::operator_executors::OperatorExecutorT,
-    scheduler::channel_manager::{StreamManager, StreamEndpoints, StreamEndpointsT},
-    OperatorConfig, OperatorId,
+    OperatorConfig, OperatorId, communication::data_plane::{StreamManager, StreamEndpointsT, StreamEndpoints},
 };
 
 // Private submodules

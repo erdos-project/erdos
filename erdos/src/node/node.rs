@@ -18,10 +18,7 @@ use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::format::FmtSpan;
 
-use crate::dataflow::graph::{default_graph, JobGraph};
-use crate::scheduler::{
-    channel_manager::StreamManager,
-};
+use crate::{dataflow::graph::{default_graph, JobGraph}, communication::data_plane::StreamManager};
 use crate::Configuration;
 use crate::{
     communication::{

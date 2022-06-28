@@ -5,9 +5,6 @@ use crate::{
     node::{WorkerId, WorkerState},
 };
 
-// Public exports
-pub mod channel_manager;
-
 pub(crate) trait JobGraphScheduler {
     fn schedule_graph(
         &mut self,

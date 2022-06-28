@@ -10,8 +10,7 @@ use crate::{
         ParallelSinkMessageProcessor, ParallelTwoInOneOutMessageProcessor, SinkMessageProcessor,
         SourceExecutor, TwoInExecutor, TwoInOneOutMessageProcessor,
     },
-    scheduler::channel_manager::StreamManager,
-    OperatorId,
+    OperatorId, communication::data_plane::StreamManager,
 };
 
 use super::{graph::AbstractOperatorType, stream::OperatorStream};
