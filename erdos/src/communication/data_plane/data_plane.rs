@@ -339,12 +339,41 @@ impl DataPlane {
         streams: Vec<StreamType>,
     ) -> Result<(), CommunicationError> {
         for stream in streams {
-            match stream {
+            let notification = match stream {
                 StreamType::ReadStream(stream, source_address) => {
-                    self.setup_read_stream(stream, job, source_address).await?
+                    if self.setup_read_stream(&stream, job, source_address).await? {
+                        // If the ReadStream setup was successful, i.e., there are no
+                        // remaining [`Pusher`]s to be updated, then notify the Worker
+                        // that the Stream is ready.
+                        Some(DataPlaneNotification::StreamReady(job, stream.id()))
+                    } else {
+                        None
+                    }
                 }
                 StreamType::WriteStream(stream, destination_addresses) => {
-                    self.setup_write_stream(stream, destination_addresses);
+                    if self.setup_write_stream(&stream, destination_addresses) {
+                        // If the WriteStream setup was successful, i.e., there are no
+                        // pending connections to be made to other Workers, then notify
+                        // the Worker that the Stream is ready.
+                        Some(DataPlaneNotification::StreamReady(
+                            stream.get_source(),
+                            stream.id(),
+                        ))
+                    } else {
+                        None
+                    }
+                }
+            };
+
+            if let Some(notification) = notification {
+                if let Err(error) = self.channel_to_worker.send(notification.clone()) {
+                    tracing::warn!(
+                        "[DataPlane {}] Received error when notifying Worker of {:?}: {:?}",
+                        self.worker_id,
+                        notification,
+                        error
+                    );
+                    return Err(error.into());
                 }
             }
         }
@@ -353,10 +382,10 @@ impl DataPlane {
 
     async fn setup_read_stream(
         &mut self,
-        stream: Box<dyn AbstractStreamT>,
+        stream: &Box<dyn AbstractStreamT>,
         destination_job: Job,
         source_address: WorkerAddress,
-    ) -> Result<(), CommunicationError> {
+    ) -> Result<bool, CommunicationError> {
         tracing::debug!(
             "[DataPlane {}] Setting up ReadStream {} (ID={}) at address {:?}.",
             self.worker_id,
@@ -367,8 +396,30 @@ impl DataPlane {
 
         match source_address {
             WorkerAddress::Remote(worker_id, worker_address) => {
+                tracing::trace!(
+                    "[DataPlane {}] Setting up ReadStream {} (ID={}) for Job {:?} \
+                             with its source Job {:?} on the Worker {} ({}).",
+                    self.worker_id,
+                    stream.name(),
+                    stream.id(),
+                    destination_job,
+                    stream.get_source(),
+                    worker_id,
+                    worker_address,
+                );
                 // If there is no connection to the Worker, initiate a new connection.
                 if !self.connections_to_other_workers.contains_key(&worker_id) {
+                    tracing::trace!(
+                        "[DataPlane {}] Initiating a remote connection to Worker {} \
+                        ({}) since the source Job {:?} of the ReadStream {} (ID={}) \
+                                                        is on that Worker.",
+                        self.worker_id,
+                        worker_id,
+                        worker_address,
+                        stream.get_source(),
+                        stream.name(),
+                        stream.id()
+                    );
                     let connection = self
                         .handle_outgoing_worker_connections(worker_id, worker_address)
                         .await?;
@@ -396,17 +447,36 @@ impl DataPlane {
                         error
                     );
                 }
+
+                // We notify the caller that the Stream is not yet ready because we
+                // haven't received a notification from the [`DataReceiver`] that
+                // the [`Pusher`] for this endpoint has been correctly installed.
+                Ok(false)
             }
-            WorkerAddress::Local => todo!(),
+            WorkerAddress::Local => {
+                tracing::trace!(
+                    "[DataPlane {}] Skipping setup of ReadStream {} (ID={}) for Job {:?} \
+                                since its source Job {:?} is on the same Worker.",
+                    self.worker_id,
+                    stream.name(),
+                    stream.id(),
+                    destination_job,
+                    stream.get_source(),
+                );
+
+                // We notify the caller that the Stream is ready because there is nothing
+                // to be done. The [`RecvEndpoint`] for this Stream will be constructed in
+                // the [`setup_write_stream`] method.
+                Ok(true)
+            }
         }
-        Ok(())
     }
 
     fn setup_write_stream(
         &mut self,
-        stream: Box<dyn AbstractStreamT>,
+        stream: &Box<dyn AbstractStreamT>,
         destination_addresses: HashMap<Job, WorkerAddress>,
-    ) {
+    ) -> bool {
         tracing::debug!(
             "[DataPlane {}] Setting up WriteStream {} (ID={}) for addresses {:?}.",
             self.worker_id,
@@ -417,6 +487,7 @@ impl DataPlane {
 
         let mut stream_manager = self.stream_manager.lock().unwrap();
 
+        let mut setup_successful = true;
         for destination in stream.get_destinations() {
             match destination_addresses.get(&destination).unwrap() {
                 WorkerAddress::Remote(worker_id, _worker_address) => {
@@ -443,12 +514,19 @@ impl DataPlane {
                             let pending_job_setups =
                                 self.pending_job_setups.entry(stream.id()).or_default();
                             pending_job_setups.insert(destination);
+
+                            // Notify the caller that the stream setup is pending.
+                            setup_successful = false;
                         }
                     }
                 }
-                WorkerAddress::Local => todo!(),
+                WorkerAddress::Local => {
+                    stream_manager.add_intra_worker_endpoint(&stream, destination);
+                }
             }
         }
+
+        setup_successful
     }
 
     pub fn address(&self) -> SocketAddr {

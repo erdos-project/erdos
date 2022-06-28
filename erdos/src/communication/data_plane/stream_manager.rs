@@ -34,11 +34,14 @@ pub(crate) trait StreamEndpointsT: Send {
     /// provides the endpoints for.
     fn id(&self) -> StreamId;
 
-    /// Creates a new inter-thread channel for the stream.
+    /// Adds a [`SendEndpoint`] and [`RecvEndpoint`] for the Stream for which
+    /// this trait object provides the endpoints for.
     ///
-    /// It creates a `mpsc::Channel` and adds the sender and receiver to the
-    /// corresponding endpoints.
-    fn add_inter_thread_channel(&mut self, job: Job);
+    /// This creates an [`mpsc::unbounded_channel`] whose [`SendEndpoint`] is
+    /// used to form the [`WriteStream`] for the source job, and the
+    /// [`RecvEndpoint`] is used by the specified [`job`] to retrieve the
+    /// messages from.
+    fn add_intra_worker_channel(&mut self, job: Job);
 
     /// Adds a [`SendEndpoint`] for the Stream underlying this trait object to the
     /// specified [`job`].
@@ -136,7 +139,9 @@ where
         self.stream_id
     }
 
-    fn add_inter_thread_channel(&mut self, job: Job) {
+    fn add_intra_worker_channel(&mut self, job: Job) {
+        // Create a new MPSC unbounded channel, and save both the Send
+        // and the Recv endpoints.
         let (tx, rx) = mpsc::unbounded_channel();
         self.add_send_endpoint(job, SendEndpoint::InterThread(tx));
         self.add_recv_endpoint(job, RecvEndpoint::InterThread(rx));
@@ -211,6 +216,24 @@ impl StreamManager {
         self.worker_id
     }
 
+    /// Adds an Intra-Worker send and receive endpoint for a [`WriteStream`].
+    /// The [`receiving_job`] specifies the [`Job`] that will construct a [`ReadStream`]
+    /// from the corresponding [`RecvEndpoint`].
+    pub fn add_intra_worker_endpoint(
+        &mut self,
+        stream: &Box<dyn AbstractStreamT>,
+        receiving_job: Job,
+    ) {
+        // If there are no endpoints for this stream, create endpoints.
+        let stream_endpoints = self
+            .stream_entries
+            .entry(stream.id())
+            .or_insert_with(|| stream.to_stream_endpoints_t());
+
+        // Register for a new intra-worker endpoint.
+        stream_endpoints.add_intra_worker_channel(receiving_job);
+    }
+
     /// Adds an Inter-Worker receipt endpoint for the [`stream`] to the [`receiving_job`]
     /// on the current [`Worker`] on the specified connection to another [`Worker`].
     pub fn add_inter_worker_recv_endpoint(
@@ -248,7 +271,7 @@ impl StreamManager {
             .entry(stream.id())
             .or_insert_with(|| stream.to_stream_endpoints_t());
 
-        // Register for a new endpoint.
+        // Register for a new inter-worker endpoint.
         stream_endpoints.add_inter_worker_send_endpoint(
             destination_job,
             worker_connection.get_channel_to_sender(),
