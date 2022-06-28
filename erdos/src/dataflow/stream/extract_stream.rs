@@ -11,7 +11,7 @@ use crate::{
         graph::{default_graph, AbstractGraph},
         Data, Message,
     },
-    scheduler::channel_manager::ChannelManager,
+    scheduler::channel_manager::StreamManager,
 };
 
 use super::{
@@ -101,7 +101,7 @@ where
         };
 
         let read_stream_option_copy = extract_stream.read_stream_option.clone();
-        let hook = move |graph: &AbstractGraph, channel_manager: &mut ChannelManager| {
+        let hook = move |graph: &AbstractGraph, channel_manager: &mut StreamManager| {
             match channel_manager.take_recv_endpoint(id) {
                 Ok(recv_endpoint) => {
                     let read_stream =

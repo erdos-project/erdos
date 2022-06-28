@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     node::operator_executors::OperatorExecutorT,
-    scheduler::channel_manager::{ChannelManager, StreamEndpoints, StreamEndpointsT},
+    scheduler::channel_manager::{StreamManager, StreamEndpoints, StreamEndpointsT},
     OperatorConfig, OperatorId,
 };
 
@@ -30,14 +30,14 @@ pub struct JobGraphId(String);
 
 /// Trait for functions that set up operator execution.
 pub(crate) trait OperatorRunner:
-    'static + (Fn(Arc<Mutex<ChannelManager>>) -> Box<dyn OperatorExecutorT>) + Sync + Send
+    'static + (Fn(Arc<Mutex<StreamManager>>) -> Box<dyn OperatorExecutorT>) + Sync + Send
 {
     fn box_clone(&self) -> Box<dyn OperatorRunner>;
 }
 
 impl<
         T: 'static
-            + (Fn(Arc<Mutex<ChannelManager>>) -> Box<dyn OperatorExecutorT>)
+            + (Fn(Arc<Mutex<StreamManager>>) -> Box<dyn OperatorExecutorT>)
             + Sync
             + Send
             + Clone,
@@ -56,12 +56,12 @@ impl Clone for Box<dyn OperatorRunner> {
 
 /// Trait for functions used to set up ingest and extract streams.
 pub(crate) trait StreamSetupHook:
-    'static + Fn(&AbstractGraph, &mut ChannelManager) + Sync + Send
+    'static + Fn(&AbstractGraph, &mut StreamManager) + Sync + Send
 {
     fn box_clone(&self) -> Box<dyn StreamSetupHook>;
 }
 
-impl<T: 'static + Fn(&AbstractGraph, &mut ChannelManager) + Sync + Send + Clone> StreamSetupHook
+impl<T: 'static + Fn(&AbstractGraph, &mut StreamManager) + Sync + Send + Clone> StreamSetupHook
     for T
 {
     fn box_clone(&self) -> Box<dyn StreamSetupHook> {

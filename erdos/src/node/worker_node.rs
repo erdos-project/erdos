@@ -31,7 +31,7 @@ use crate::{
         stream::StreamId,
     },
     node::{worker::Worker, Resources},
-    scheduler::channel_manager::ChannelManager,
+    scheduler::channel_manager::StreamManager,
 };
 
 use super::WorkerId;
@@ -97,7 +97,7 @@ pub(crate) struct WorkerNode {
     /// A handle to the [`StreamManager`] instance shared with the [`DataPlane`].
     /// The [`DataPlane`] populates the channels on the shared instance upon request,
     /// which are then retrieved for consumption by each [`Job`].
-    stream_manager: Arc<Mutex<ChannelManager>>,
+    stream_manager: Arc<Mutex<StreamManager>>,
 }
 
 impl WorkerNode {
@@ -118,7 +118,7 @@ impl WorkerNode {
             job_graphs: HashMap::new(),
             pending_stream_setups: HashMap::new(),
             job_graph_to_job_state: HashMap::new(),
-            stream_manager: Arc::new(Mutex::new(ChannelManager::default())),
+            stream_manager: Arc::new(Mutex::new(StreamManager::default())),
         }
     }
 

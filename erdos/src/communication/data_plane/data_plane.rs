@@ -21,7 +21,7 @@ use crate::{
         stream::StreamId,
     },
     node::WorkerId,
-    scheduler::channel_manager::ChannelManager,
+    scheduler::channel_manager::StreamManager,
 };
 
 use super::{
@@ -39,7 +39,7 @@ pub(crate) struct DataPlane {
     channel_from_worker_connections: UnboundedReceiver<DataPlaneNotification>,
     channel_from_worker_connections_tx: UnboundedSender<DataPlaneNotification>,
     connections_to_other_workers: HashMap<WorkerId, WorkerConnection>,
-    stream_manager: Arc<Mutex<ChannelManager>>,
+    stream_manager: Arc<Mutex<StreamManager>>,
     /// Caches the Streams that need to be setup upon connection to a Worker
     /// with the given ID.
     worker_to_stream_setup_map: HashMap<WorkerId, Vec<(Job, Box<dyn AbstractStreamT>)>>,
@@ -51,7 +51,7 @@ impl DataPlane {
     pub async fn new(
         worker_id: WorkerId,
         address: SocketAddr,
-        stream_manager: Arc<Mutex<ChannelManager>>,
+        stream_manager: Arc<Mutex<StreamManager>>,
         channel_from_worker: UnboundedReceiver<DataPlaneNotification>,
         channel_to_worker: UnboundedSender<DataPlaneNotification>,
     ) -> Result<Self, CommunicationError> {

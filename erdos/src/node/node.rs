@@ -20,7 +20,7 @@ use tracing_subscriber::fmt::format::FmtSpan;
 
 use crate::dataflow::graph::{default_graph, JobGraph};
 use crate::scheduler::{
-    channel_manager::ChannelManager,
+    channel_manager::StreamManager,
 };
 use crate::Configuration;
 use crate::{
@@ -311,7 +311,7 @@ impl Node {
                 .map_err(|e| e.to_string())?;
         }
 
-        let channel_manager = ChannelManager::new(
+        let channel_manager = StreamManager::new(
             job_graph,
             self.id,
         )

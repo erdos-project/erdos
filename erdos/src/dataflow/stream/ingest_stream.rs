@@ -11,7 +11,7 @@ use crate::{
         graph::{default_graph, AbstractGraph},
         Data, Message,
     },
-    scheduler::channel_manager::ChannelManager,
+    scheduler::channel_manager::StreamManager,
 };
 
 use super::{errors::SendError, Stream, StreamId, WriteStream, WriteStreamT};
@@ -89,7 +89,7 @@ where
         // A hook to initialize the ingest stream's connections to downstream operators.
         let write_stream_option_copy = Arc::clone(&ingest_stream.write_stream_option);
 
-        let setup_hook = move |graph: &AbstractGraph, channel_manager: &mut ChannelManager| {
+        let setup_hook = move |graph: &AbstractGraph, channel_manager: &mut StreamManager| {
             match channel_manager.get_send_endpoints(id) {
                 Ok(send_endpoints) => {
                     let write_stream =

@@ -158,7 +158,7 @@ where
 
 /// Data structure that stores information needed to set up dataflow channels
 /// by constructing individual transport channels.
-pub(crate) struct ChannelManager {
+pub(crate) struct StreamManager {
     /// The node to which the [`ChannelManager`] belongs.
     node_id: NodeId,
     /// Stores a `StreamEndpoints` for each stream id.
@@ -167,7 +167,7 @@ pub(crate) struct ChannelManager {
 }
 
 #[allow(dead_code)]
-impl ChannelManager {
+impl StreamManager {
     /// Creates transport channels between connected operators on this node, transport channels
     /// for operators with streams containing dataflow channels to other nodes, and transport
     /// channels from TCP receivers to operators that are connected to streams originating on
@@ -404,7 +404,7 @@ impl ChannelManager {
     }
 }
 
-impl Default for ChannelManager {
+impl Default for StreamManager {
     fn default() -> Self {
         Self {
             node_id: 0,

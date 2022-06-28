@@ -10,7 +10,7 @@ use crate::{
         ParallelSinkMessageProcessor, ParallelTwoInOneOutMessageProcessor, SinkMessageProcessor,
         SourceExecutor, TwoInExecutor, TwoInOneOutMessageProcessor,
     },
-    scheduler::channel_manager::ChannelManager,
+    scheduler::channel_manager::StreamManager,
     OperatorId,
 };
 
@@ -32,7 +32,7 @@ where
     let config_copy = config.clone();
     let write_stream_id = write_stream.id();
     let op_runner =
-        move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
+        move |channel_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let write_stream = channel_manager.write_stream(write_stream_id).unwrap();
@@ -75,7 +75,7 @@ pub fn connect_parallel_sink<O, S, T, U>(
     let config_copy = config.clone();
     let read_stream_id = read_stream.id();
     let op_runner =
-        move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
+        move |channel_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let read_stream = channel_manager
@@ -122,7 +122,7 @@ pub fn connect_sink<O, S, T>(
     let config_copy = config.clone();
     let read_stream_id = read_stream.id();
     let op_runner =
-        move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
+        move |channel_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let read_stream = channel_manager
@@ -174,7 +174,7 @@ where
     let read_stream_id = read_stream.id();
     let write_stream_id = write_stream.id();
     let op_runner =
-        move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
+        move |channel_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let read_stream = channel_manager
@@ -228,7 +228,7 @@ where
     let read_stream_id = read_stream.id();
     let write_stream_id = write_stream.id();
     let op_runner =
-        move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
+        move |channel_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let read_stream = channel_manager
@@ -287,7 +287,7 @@ where
     let right_read_stream_id = right_read_stream.id();
     let write_stream_id = write_stream.id();
     let op_runner =
-        move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
+        move |channel_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let left_read_stream = channel_manager
@@ -348,7 +348,7 @@ where
     let right_read_stream_id = right_read_stream.id();
     let write_stream_id = write_stream.id();
     let op_runner =
-        move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
+        move |channel_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let left_read_stream = channel_manager
@@ -411,7 +411,7 @@ where
     let left_write_stream_id = left_write_stream.id();
     let right_write_stream_id = right_write_stream.id();
     let op_runner =
-        move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
+        move |channel_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let read_stream = channel_manager
@@ -470,7 +470,7 @@ where
     let left_write_stream_id = left_write_stream.id();
     let right_write_stream_id = right_write_stream.id();
     let op_runner =
-        move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
+        move |channel_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
             let mut channel_manager = channel_manager.lock().unwrap();
 
             let read_stream = channel_manager
