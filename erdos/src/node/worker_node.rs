@@ -26,14 +26,19 @@ use crate::{
         CommunicationError,
     },
     dataflow::{
-        graph::{Job, JobGraph},
+        graph::{Job, JobGraph, JobGraphId},
         stream::StreamId,
     },
     node::Resources,
-    OperatorId,
 };
 
 use super::WorkerId;
+
+/// An alias for the type of the connection between the [`Leader`] and the [`Worker`].
+type ConnectionToLeader = SplitSink<
+    Framed<TcpStream, ControlPlaneCodec<WorkerNotification, LeaderNotification>>,
+    WorkerNotification,
+>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct WorkerState {
@@ -61,24 +66,37 @@ impl WorkerState {
 }
 
 pub(crate) struct WorkerNode {
-    worker_id: WorkerId,
+    /// The ID of the [`Worker`].
+    id: WorkerId,
+    /// The address of the [`Leader`] that the [`Worker`] will connect to.
     leader_address: SocketAddr,
+    /// The address of the [`DataPlane`] where the [`Worker`] will listen
+    /// for incoming connections from other [`Worker`]s.
+    data_plane_address: SocketAddr,
+    /// The set of [`Resources`] that the [`Worker`] owns.
     resources: Resources,
+    /// A channel where the [`Worker`] receives notifications from the [`Driver`].
     driver_notification_rx: Receiver<DriverNotification>,
-    job_graphs: HashMap<String, JobGraph>,
-    pending_stream_setups: HashMap<Job, (String, HashSet<StreamId>)>,
+    /// A mapping of the [`JobGraph`]s that have been submitted to the [`Worker`].
+    job_graphs: HashMap<JobGraphId, JobGraph>,
+    /// A memo of the stream connections that are remaining to be setup for
+    /// each [`Job`] before it can be marked Ready to the [`Leader`].
+    pending_stream_setups: HashMap<Job, (JobGraphId, HashSet<StreamId>)>,
 }
 
 impl WorkerNode {
+    /// Initializes a new [`Worker`] with the given ID and available [`Resources`].
     pub fn new(
-        worker_id: WorkerId,
+        id: WorkerId,
         leader_address: SocketAddr,
+        data_plane_address: SocketAddr,
         resources: Resources,
         driver_notification_rx: Receiver<DriverNotification>,
     ) -> Self {
         Self {
-            worker_id,
+            id,
             leader_address,
+            data_plane_address,
             resources,
             driver_notification_rx,
             job_graphs: HashMap::new(),
@@ -86,9 +104,17 @@ impl WorkerNode {
         }
     }
 
+    /// Runs the main loop of the [`Worker`].
+    /// A [`Worker`] connects to the [`Leader`], initiates a [`DataPlane`] for other [`Worker`]s
+    /// to be able to connect to it, and then responds to notifications from the [`Leader`], the
+    /// driver and other workers via the [`DataPlane`].
     pub async fn run(&mut self) -> Result<(), CommunicationError> {
-        // Connect to the Leader node.
-        tracing::debug!("[Worker {}] Initialized Worker.", self.worker_id);
+        // Connect to the Leader.
+        tracing::trace!(
+            "[Worker {}] Initializing Worker and connecting to Leader at address {}.",
+            self.id,
+            self.leader_address
+        );
         let leader_connection = TcpStream::connect(self.leader_address).await?;
         let (mut leader_tx, mut leader_rx) = Framed::new(
             leader_connection,
@@ -96,29 +122,42 @@ impl WorkerNode {
         )
         .split();
 
-        // Initialize the Data layer on a randomly-assigned port.
-        // The data layer is used to retrieve the dataflow messages from other operators.
+        // Initialize the DataPlane on the specified address.
+        tracing::trace!(
+            "[Worker {}] Initiating a DataPlane for Worker at address {}.",
+            self.id,
+            self.data_plane_address
+        );
         let (mut channel_to_data_plane_tx, channel_to_data_plane_rx) = mpsc::unbounded_channel();
         let (channel_from_data_plane_tx, mut channel_from_data_plane_rx) =
             mpsc::unbounded_channel();
         let mut data_plane = DataPlane::new(
-            self.worker_id,
-            "0.0.0.0:0".parse().unwrap(),
+            self.id,
+            self.data_plane_address,
             channel_to_data_plane_rx,
             channel_from_data_plane_tx,
         )
         .await?;
+        // The DataPlane might be required to bind to a randomly-assigned port,
+        // so we retrieve the actual address and communicate it to the Leader.
         let data_plane_address = data_plane.get_address();
         let data_plane_handle = tokio::spawn(async move { data_plane.run().await });
 
-        // Communicate the ID and data plane address of the Worker to the Leader.
+        // Communicate the ID and DataPlane address of the Worker to the Leader.
         leader_tx
             .send(WorkerNotification::Initialized(WorkerState::new(
-                self.worker_id,
+                self.id,
                 data_plane_address,
                 self.resources.clone(),
             )))
             .await?;
+        tracing::debug!(
+            "[Worker {}] Successfully Initialized Worker with the DataPlane address {}.",
+            self.id,
+            data_plane_address
+        );
+
+        // Respond to notifications from the Leader, the Driver and other Workers.
         loop {
             tokio::select! {
                 // Handle messages received from the Leader.
@@ -127,9 +166,9 @@ impl WorkerNode {
                         Ok(msg_from_leader) => {
                             match msg_from_leader {
                                 LeaderNotification::Shutdown => {
-                                    tracing::debug!(
-                                        "[Worker {}] Shutting down.",
-                                        self.worker_id
+                                    tracing::info!(
+                                        "[Worker {}] Shutting down upon request from the Leader.",
+                                        self.id
                                     );
                                     return Ok(());
                                 }
@@ -146,7 +185,7 @@ impl WorkerNode {
                             tracing::error!(
                                 "[Worker {}] Received error when retrieving messages \
                                                             from the Leader: {:?}",
-                                self.worker_id,
+                                self.id,
                                 error
                             );
                         },
@@ -157,12 +196,15 @@ impl WorkerNode {
                 Some(driver_notification) = self.driver_notification_rx.recv() => {
                     match driver_notification {
                         DriverNotification::Shutdown => {
-                            tracing::info!("[Worker {}] Shutting down.", self.worker_id);
+                            tracing::info!(
+                                "[Worker {}] Shutting down upon request from the Driver.",
+                                self.id
+                            );
                             if let Err(error) = leader_tx.send(WorkerNotification::Shutdown).await {
                                 tracing::error!(
                                     "[Worker {}] Received an error when sending Shutdown message \
                                                                             to Leader: {:?}",
-                                    self.worker_id,
+                                    self.id,
                                     error
                                 );
                             }
@@ -181,61 +223,60 @@ impl WorkerNode {
         }
     }
 
+    /// Responds to notifications received from the [`DataPlane`].
     async fn handle_data_plane_messages(
         &mut self,
         notification: DataPlaneNotification,
-        leader_tx: &mut SplitSink<
-            Framed<TcpStream, ControlPlaneCodec<WorkerNotification, LeaderNotification>>,
-            WorkerNotification,
-        >,
+        leader_tx: &mut ConnectionToLeader,
     ) {
         match notification {
             DataPlaneNotification::StreamReady(job, stream_id) => {
                 tracing::trace!(
-                    "[Worker {}] Received StreamReady notification for Stream {} at Job {:?}.",
-                    self.worker_id,
+                    "[Worker {}] Received StreamReady notification for Stream {} for Job {:?}.",
+                    self.id,
                     stream_id,
                     job
                 );
 
-                tracing::debug!("The stream setup map is {:?}", self.pending_stream_setups);
+                // Remove the stream from the memo of streams left to finish setting
+                // up for the given Job.
                 match self.pending_stream_setups.get_mut(&job) {
-                    Some((job_name, pending_streams)) => {
+                    Some((job_graph_id, pending_streams)) => {
                         match pending_streams.remove(&stream_id) {
                             true => {
                                 // If the set is empty, notify the Leader of the
-                                // successful initialization of the Operator.
+                                // successful initialization of the Job.
                                 if pending_streams.is_empty() {
-                                    let job_id = if let Job::Operator(id) = job {
-                                        id
-                                    } else {
-                                        OperatorId::nil()
-                                    };
                                     if let Err(error) = leader_tx
-                                        .send(WorkerNotification::OperatorReady(
-                                            job_name.clone(),
-                                            job_id,
+                                        .send(WorkerNotification::JobReady(
+                                            job_graph_id.clone(),
+                                            job,
                                         ))
                                         .await
                                     {
                                         tracing::error!(
-                                            "[Worker {}] Could not communicate the Ready status of Operator \
-                                                    {} from the Job {} to the Leader. Received error {:?}",
-                                            self.worker_id,
-                                            job_id,
-                                            job_name,
+                                            "[Worker {}] Could not communicate the Ready status \
+                                            of Job {:?} from the JobGraph {:?} to the Leader. \
+                                                                    Received error {:?}",
+                                            self.id,
+                                            job,
+                                            job_graph_id,
                                             error,
                                         )
                                     }
+
+                                    // Remove the mapping from the pending setups.
                                     self.pending_stream_setups.remove(&job);
                                 }
                             }
                             false => {
                                 tracing::warn!(
-                                    "[Worker {}] Could not find pending Stream {:?} for Job {:?}.",
-                                    self.worker_id,
+                                    "[Worker {}] Could not find pending Stream {:?} for \
+                                                Job {:?} from the JobGraph {:?}.",
+                                    self.id,
                                     stream_id,
                                     job,
+                                    job_graph_id,
                                 );
                             }
                         }
@@ -244,7 +285,7 @@ impl WorkerNode {
                         tracing::warn!(
                             "[Worker {}] Inconsistency between the state of \
                                 the pending Stream setups for Job {:?}.",
-                            self.worker_id,
+                            self.id,
                             job,
                         );
                     }
@@ -254,28 +295,28 @@ impl WorkerNode {
         }
     }
 
+    /// Responds to notifications received from the [`Leader`].
     async fn handle_leader_messages(
         &mut self,
         msg_from_leader: LeaderNotification,
         channel_to_data_plane: &mut UnboundedSender<DataPlaneNotification>,
-        leader_tx: &mut SplitSink<
-            Framed<TcpStream, ControlPlaneCodec<WorkerNotification, LeaderNotification>>,
-            WorkerNotification,
-        >,
+        leader_tx: &mut ConnectionToLeader,
     ) {
         match msg_from_leader {
-            LeaderNotification::ScheduleOperator(job_name, operator_id, worker_addresses) => {
-                if let Some(job_graph) = self.job_graphs.get(&job_name) {
-                    if let Some(operator) = job_graph.get_operator(&operator_id) {
+            LeaderNotification::ScheduleJob(job_graph_id, job, worker_addresses) => {
+                if let Some(job_graph) = self.job_graphs.get(&job_graph_id) {
+                    if let Some(operator) = job_graph.get_job(&job) {
                         let operator_name = match &operator.config.name {
                             Some(name) => name.clone(),
                             None => "UnnamedOperator".to_string(),
                         };
                         tracing::debug!(
-                            "[Worker {}] Received request to schedule {} with ID: {:?}.",
-                            self.worker_id,
+                            "[Worker {}] Received request to schedule Job {} (ID={:?}) \
+                                                            from JobGraph {:?}.",
+                            self.id,
                             operator_name,
-                            operator_id,
+                            operator.id,
+                            job_graph_id,
                         );
 
                         // Construct a representation of the Streams for this Operator, along with
@@ -283,8 +324,12 @@ impl WorkerNode {
                         let mut streams = Vec::new();
                         for read_stream_id in operator.read_streams {
                             let read_stream = job_graph.get_stream(&read_stream_id).unwrap();
-                            let source_address =
-                                worker_addresses.get(&read_stream.get_source()).unwrap();
+                            let source_address = worker_addresses
+                                .get(&read_stream.get_source())
+                                .expect(&format!(
+                                "Could not find the address for the Worker executing the Job {:?}.",
+                                read_stream.get_source()
+                            ));
                             streams
                                 .push(StreamType::ReadStream(read_stream, source_address.clone()));
                         }
@@ -295,7 +340,17 @@ impl WorkerNode {
                                 .get_destinations()
                                 .iter()
                                 .map(|job| {
-                                    (job.clone(), worker_addresses.get(job).unwrap().clone())
+                                    (
+                                        job.clone(),
+                                        worker_addresses
+                                            .get(job)
+                                            .expect(&format!(
+                                                "Could not find address for the Worker executing \
+                                                    the Job {:?}.",
+                                                job
+                                            ))
+                                            .clone(),
+                                    )
                                 })
                                 .collect();
                             streams
@@ -303,22 +358,15 @@ impl WorkerNode {
                         }
 
                         // Cache the streams that need to be initialized to call this Operator ready.
-                        let job = Job::Operator(operator_id);
-                        let pending_setups = streams
-                            .iter()
-                            .map(|stream_type| match stream_type {
-                                StreamType::ReadStream(stream, _) => stream.id(),
-                                StreamType::WriteStream(stream, _) => stream.id(),
-                            })
-                            .collect();
-                        tracing::debug!(
+                        let pending_setups = streams.iter().map(|stream| stream.id()).collect();
+                        tracing::trace!(
                             "[Worker {}] The Job {:?} is pending setup of {:?} streams.",
-                            self.worker_id,
+                            self.id,
                             job,
                             pending_setups
                         );
                         self.pending_stream_setups
-                            .insert(job, (job_name, pending_setups));
+                            .insert(job, (job_graph_id, pending_setups));
 
                         if let Err(error) = channel_to_data_plane
                             .send(DataPlaneNotification::SetupStreams(job, streams))
@@ -326,33 +374,33 @@ impl WorkerNode {
                             tracing::warn!(
                                 "[Worker {}] Received error when requesting the setup of \
                                                     streams for {} with ID {:?}: {:?}",
-                                self.worker_id,
+                                self.id,
                                 operator_name,
-                                operator_id,
+                                operator.id,
                                 error
                             );
                         }
                     } else {
                         tracing::error!(
-                            "[Worker {}] Operator with ID: {} was not found in JobGraph {}",
-                            self.worker_id,
-                            operator_id,
-                            job_name
+                            "[Worker {}] The Job {:?} was not found in JobGraph {:?}.",
+                            self.id,
+                            job,
+                            job_graph_id,
                         );
                     }
                 } else {
                     tracing::error!(
-                        "[Worker {}] JobGraph {} was not registered on this Worker.",
-                        self.worker_id,
-                        job_name
+                        "[Worker {}] JobGraph {:?} was not registered on this Worker.",
+                        self.id,
+                        job_graph_id,
                     );
                 }
             }
-            LeaderNotification::ExecuteGraph(job_name) => {
+            LeaderNotification::ExecuteGraph(job_graph_id) => {
                 tracing::debug!(
-                    "[Worker {}] Executing JobGraph {}.",
-                    self.worker_id,
-                    job_name,
+                    "[Worker {}] Executing JobGraph {:?}.",
+                    self.id,
+                    job_graph_id
                 );
             }
             // The shutdown arm is unreachable, because it should be handled in the main loop.
@@ -360,33 +408,31 @@ impl WorkerNode {
         }
     }
 
+    /// Responds to the notifications received from the Driver.
     async fn handle_driver_messages(
         &mut self,
         driver_notification: DriverNotification,
-        leader_tx: &mut SplitSink<
-            Framed<TcpStream, ControlPlaneCodec<WorkerNotification, LeaderNotification>>,
-            WorkerNotification,
-        >,
+        leader_tx: &mut ConnectionToLeader,
     ) {
         match driver_notification {
             DriverNotification::RegisterGraph(job_graph) => {
                 // Save the JobGraph.
-                let job_graph_name = job_graph.get_name().clone().to_string();
+                let job_graph_id = job_graph.id();
                 tracing::debug!(
-                    "[Worker {}] Registered the JobGraph {}.",
-                    self.worker_id,
-                    job_graph_name
+                    "[Worker {}] Registered the JobGraph {:?}.",
+                    self.id,
+                    job_graph_id
                 );
-                self.job_graphs.insert(job_graph_name, job_graph);
+                self.job_graphs.insert(job_graph_id, job_graph);
             }
-            DriverNotification::SubmitGraph(job_graph_name) => {
+            DriverNotification::SubmitGraph(job_graph_id) => {
                 // Retrieve the JobGraph and communicate an Abstract version
                 // of the graph to the Leader.
-                if let Some(job_graph) = self.job_graphs.get(&job_graph_name) {
+                if let Some(job_graph) = self.job_graphs.get(&job_graph_id) {
                     let internal_graph = job_graph.clone().into();
                     if let Err(error) = leader_tx
                         .send(WorkerNotification::SubmitGraph(
-                            job_graph_name.clone(),
+                            job_graph_id,
                             internal_graph,
                         ))
                         .await
@@ -394,15 +440,15 @@ impl WorkerNode {
                         tracing::error!(
                             "[Worker {}] Received an error when sending Abstract \
                                                 Graph message to Leader: {:?}",
-                            self.worker_id,
+                            self.id,
                             error
                         );
                     };
                 } else {
                     tracing::error!(
-                        "[Worker {}] Found no JobGraph with name {}.",
-                        self.worker_id,
-                        job_graph_name,
+                        "[Worker {}] Found no JobGraph with ID {:?}.",
+                        self.id,
+                        job_graph_id,
                     )
                 }
             }
@@ -411,7 +457,7 @@ impl WorkerNode {
         }
     }
 
-    pub(crate) fn get_id(&self) -> WorkerId {
-        self.worker_id.clone()
+    pub(crate) fn id(&self) -> WorkerId {
+        self.id.clone()
     }
 }

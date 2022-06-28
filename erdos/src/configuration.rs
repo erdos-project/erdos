@@ -11,10 +11,10 @@ pub struct Configuration {
     pub index: NodeId,
     /// The number of OS threads the node will use.
     pub num_threads: usize,
-    /// Mapping between node indices and control socket addresses.
+    /// The address to be used to connect to the [`Leader`].
     pub leader_address: SocketAddr,
-    /// Mapping between node indices and data socket addresses.
-    pub data_addresses: Vec<SocketAddr>,
+    /// The address to be used to listen for [`DataPlane`] connections from other [`Worker`]s.
+    pub data_plane_address: SocketAddr,
     /// DOT file to export dataflow graph.
     pub graph_filename: Option<String>,
     /// The logging level of the logger initialized by ERDOS.
@@ -32,7 +32,7 @@ impl Configuration {
     pub fn new(
         node_index: NodeId,
         leader_address: SocketAddr,
-        data_addresses: Vec<SocketAddr>,
+        data_plane_address: SocketAddr,
         num_threads: usize,
     ) -> Self {
         let log_level = if cfg!(debug_assertions) {
@@ -44,7 +44,7 @@ impl Configuration {
             index: node_index,
             num_threads,
             leader_address,
-            data_addresses,
+            data_plane_address,
             graph_filename: None,
             logging_level: log_level,
         }
@@ -58,25 +58,23 @@ impl Configuration {
             .parse()
             .expect("Unable to parse number of worker threads");
 
-        let data_addrs = args.value_of("data-addresses").unwrap();
-        let mut data_addresses: Vec<SocketAddr> = Vec::new();
-        for addr in data_addrs.split(',') {
-            data_addresses.push(addr.parse().expect("Unable to parse socket address"));
-        }
+        // Parse the address of the [`Leader`] and the [`DataPlane`].
+        let data_plane_address = args
+            .value_of("data-address")
+            .unwrap()
+            .parse()
+            .expect("Unable to parse the address of the DataPlane.");
         let leader_address: SocketAddr = args
             .value_of("address")
             .unwrap()
             .parse()
-            .expect("Unable to parse the address of the Leader node.");
+            .expect("Unable to parse the address of the Leader.");
+
         let node_index = args
             .value_of("index")
             .unwrap()
             .parse()
             .expect("Unable to parse node index");
-        // assert!(
-        //     node_index < data_addresses.len(),
-        //     "Node index is larger than number of available nodes"
-        // );
         let graph_filename_arg = args.value_of("graph-filename").unwrap();
         let graph_filename = if graph_filename_arg.is_empty() {
             None
@@ -95,7 +93,7 @@ impl Configuration {
             index: node_index,
             num_threads,
             leader_address,
-            data_addresses,
+            data_plane_address,
             graph_filename,
             logging_level: log_level,
         }

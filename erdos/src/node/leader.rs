@@ -21,10 +21,7 @@ use crate::{
         },
         CommunicationError,
     },
-    dataflow::{
-        graph::{InternalGraph, Job},
-        stream::StreamId,
-    },
+    dataflow::graph::{InternalGraph, Job, JobGraphId},
     node::WorkerState,
     scheduler::{JobGraphScheduler, SimpleJobGraphScheduler},
     OperatorId,
@@ -37,16 +34,16 @@ use super::WorkerId;
 #[derive(Debug, Clone)]
 enum InterThreadMessage {
     WorkerInitialized(WorkerState),
-    ScheduleJobGraph(String, InternalGraph),
-    ScheduleOperator(String, OperatorId, WorkerId, HashMap<Job, WorkerAddress>),
-    OperatorReady(String, OperatorId),
-    ExecuteGraph(String),
+    ScheduleJobGraph(JobGraphId, InternalGraph),
+    ScheduleJob(JobGraphId, Job, WorkerId, HashMap<Job, WorkerAddress>),
+    JobReady(JobGraphId, Job),
+    ExecuteGraph(JobGraphId),
     Shutdown(WorkerId),
     ShutdownAllWorkers,
 }
 
 #[derive(PartialEq)]
-enum OperatorState {
+enum JobState {
     Ready,
     NotReady,
 }
@@ -62,8 +59,8 @@ pub(crate) struct LeaderNode {
     worker_id_to_worker_state: HashMap<WorkerId, WorkerState>,
     /// The scheduler to be used for scheduling JobGraphs onto Workers.
     job_graph_scheduler: Box<dyn JobGraphScheduler + Send>,
-    /// A mapping between the name of the Job and the status of its Operators.
-    job_to_operator_state_map: HashMap<String, HashMap<OperatorId, OperatorState>>,
+    /// A mapping between the JobGraph and the status of its Jobs.
+    job_graph_to_job_state: HashMap<JobGraphId, HashMap<Job, JobState>>,
 }
 
 impl LeaderNode {
@@ -75,7 +72,7 @@ impl LeaderNode {
             worker_id_to_worker_state: HashMap::new(),
             // TODO (Sukrit): The type of Scheduler should be chosen by a Configuration.
             job_graph_scheduler: Box::new(SimpleJobGraphScheduler::default()),
-            job_to_operator_state_map: HashMap::new(),
+            job_graph_to_job_state: HashMap::new(),
         }
     }
 
@@ -160,7 +157,7 @@ impl LeaderNode {
                 self.worker_id_to_worker_state
                     .insert(worker_state.get_id(), worker_state);
             }
-            InterThreadMessage::ScheduleJobGraph(job_name, job_graph) => {
+            InterThreadMessage::ScheduleJobGraph(job_graph_id, job_graph) => {
                 // Invoke the Scheduler to retrieve the placements for this JobGraph.
                 let workers = self.worker_id_to_worker_state.values().cloned().collect();
                 let placements = self
@@ -170,15 +167,15 @@ impl LeaderNode {
                 // Broadcast the ScheduleOperator message for the placed operators.
                 // Maintain a flag for each operator that checks if the operator has
                 // been initialized or not.
-                let mut operator_status = HashMap::new();
-                for (operator_id, worker_id) in placements.iter() {
-                    let operator = job_graph.get_operator(operator_id).unwrap();
+                let mut job_status = HashMap::new();
+                for (job, worker_id) in placements.iter() {
+                    let operator = job_graph.get_job(job).unwrap();
                     let mut worker_addresses = HashMap::new();
 
                     // For all the ReadStreams of this operator, let the Worker executing it
                     // know the addresses of the source operator of the stream.
                     for read_stream_id in &operator.read_streams {
-                        match job_graph.get_source_operator(read_stream_id) {
+                        match job_graph.get_source(read_stream_id) {
                             Some(job) => {
                                 if let Some(worker_address) =
                                     self.get_worker_address(*worker_id, &job, &placements)
@@ -204,51 +201,51 @@ impl LeaderNode {
 
                     // Inform the Worker to initiate appropriate connections and schedule
                     // the Operator.
-                    let _ = leader_to_workers_tx.send(InterThreadMessage::ScheduleOperator(
-                        job_name.clone(),
-                        operator_id.clone(),
+                    let _ = leader_to_workers_tx.send(InterThreadMessage::ScheduleJob(
+                        job_graph_id.clone(),
+                        job.clone(),
                         *worker_id,
                         worker_addresses,
                     ));
-                    operator_status.insert(operator_id.clone(), OperatorState::NotReady);
+                    job_status.insert(job.clone(), JobState::NotReady);
                 }
 
                 // Map the flags that check if the Operator is ready to the name of the JobGraph.
-                self.job_to_operator_state_map
-                    .insert(job_name, operator_status);
+                self.job_graph_to_job_state
+                    .insert(job_graph_id, job_status);
             }
-            InterThreadMessage::OperatorReady(job_name, operator_id) => {
-                // Change the status of the Operator for the Job.
-                let mut job_ready_to_execute = false;
-                if let Some(operator_status) = self.job_to_operator_state_map.get_mut(&job_name) {
-                    if let Some(operator_status_value) = operator_status.get_mut(&operator_id) {
-                        *operator_status_value = OperatorState::Ready;
+            InterThreadMessage::JobReady(job_graph_id, job) => {
+                // Change the status of the Job for this JobGraph.
+                let mut job_graph_ready_to_execute = false;
+                if let Some(job_status) = self.job_graph_to_job_state.get_mut(&job_graph_id) {
+                    if let Some(job_status_value) = job_status.get_mut(&job) {
+                        *job_status_value = JobState::Ready;
                     } else {
                         tracing::error!(
-                            "The Operator {} was not found in the Job {}.",
-                            operator_id,
-                            job_name
+                            "The Job {:?} was not found in the JobGraph {:?}.",
+                            job,
+                            job_graph_id
                         );
                     }
 
                     // If all the Operators are ready now, tell the Workers to
                     // begin executing the JobGraph.
-                    if operator_status
+                    if job_status
                         .values()
                         .into_iter()
-                        .all(|status| *status == OperatorState::Ready)
+                        .all(|status| *status == JobState::Ready)
                     {
                         let _ = leader_to_workers_tx
-                            .send(InterThreadMessage::ExecuteGraph(job_name.clone()));
-                        job_ready_to_execute = true;
+                            .send(InterThreadMessage::ExecuteGraph(job_graph_id.clone()));
+                        job_graph_ready_to_execute = true;
                     }
                 } else {
-                    tracing::error!("The Job {} was not submitted to the Leader.", job_name);
+                    tracing::error!("The JobGraph {:?} was not submitted to the Leader.", job_graph_id);
                 }
 
                 // If the Job was executed, remove the state from the Map.
-                if job_ready_to_execute {
-                    self.job_to_operator_state_map.remove(&job_name);
+                if job_graph_ready_to_execute {
+                    self.job_graph_to_job_state.remove(&job_graph_id);
                 }
             }
             InterThreadMessage::Shutdown(worker_id) => {
@@ -291,15 +288,15 @@ impl LeaderNode {
                                 InterThreadMessage::WorkerInitialized(worker_state)
                             );
                         },
-                        WorkerNotification::OperatorReady(job_name, operator_id) => {
+                        WorkerNotification::JobReady(job_graph_id, job) => {
                             tracing::trace!(
-                                "Operator {} from Job {} is ready on Worker {}.",
-                                operator_id,
-                                job_name,
+                                "Job {:?} from JobGraph {:?} is ready on Worker {}.",
+                                job,
+                                job_graph_id,
                                 id_of_this_worker
                             );
                             let _ = channel_to_leader.send(
-                                InterThreadMessage::OperatorReady(job_name, operator_id)
+                                InterThreadMessage::JobReady(job_graph_id, job)
                             );
                         }
                         WorkerNotification::SubmitGraph(job_name, job_graph) => {
@@ -327,36 +324,37 @@ impl LeaderNode {
                 // Communicate messages received from the Leader to the Worker.
                 Ok(msg_from_leader) = channel_from_leader.recv() => {
                     match msg_from_leader {
-                        InterThreadMessage::ScheduleOperator(
-                            job_name,
-                            operator_id,
+                        InterThreadMessage::ScheduleJob(
+                            job_graph_id,
+                            job,
                             worker_id,
                             source_worker_addresses,
                         ) => {
                             // The Leader assigns an operator to a worker.
                             if id_of_this_worker == worker_id {
                                 tracing::debug!(
-                                    "The Operator with ID {} was scheduled on {}.",
-                                    operator_id,
+                                    "The Job {:?} from JobGraph {:?} was scheduled on {}.",
+                                    job,
+                                    job_graph_id,
                                     worker_id,
                                 );
                                 let _ = worker_tx
-                                    .send(LeaderNotification::ScheduleOperator(
-                                        job_name,
-                                        operator_id,
+                                    .send(LeaderNotification::ScheduleJob(
+                                        job_graph_id,
+                                        job,
                                         source_worker_addresses,
                                     ))
                                     .await;
                             }
                         }
-                        InterThreadMessage::ExecuteGraph(job_name) => {
+                        InterThreadMessage::ExecuteGraph(job_graph_id) => {
                             // Tell the Worker to execute the operators for this graph.
                             let _ = worker_tx
-                                .send(LeaderNotification::ExecuteGraph(job_name.clone()))
+                                .send(LeaderNotification::ExecuteGraph(job_graph_id.clone()))
                                 .await;
                             tracing::debug!(
-                                "The JobGraph {} is ready to execute on Worker {}",
-                                job_name,
+                                "The JobGraph {:?} is ready to execute on Worker {}",
+                                job_graph_id,
                                 id_of_this_worker,
                             );
                         }
@@ -379,12 +377,12 @@ impl LeaderNode {
     fn get_worker_address(
         &self,
         worker_id: WorkerId,
-        operator: &Job,
-        placements: &HashMap<OperatorId, WorkerId>,
+        job: &Job,
+        placements: &HashMap<Job, WorkerId>,
     ) -> Option<WorkerAddress> {
-        match operator {
+        match job {
             Job::Operator(operator_id) => {
-                let worker_id_for_operator = match placements.get(operator_id) {
+                let worker_id_for_operator = match placements.get(job) {
                     Some(worker_id) => *worker_id,
                     None => {
                         tracing::error!("No placement found for Operator {}.", operator_id);

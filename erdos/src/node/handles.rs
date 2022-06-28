@@ -7,13 +7,12 @@ use tracing_subscriber::fmt::format::FmtSpan;
 
 use crate::{
     communication::{control_plane::notifications::DriverNotification, CommunicationError},
-    dataflow::graph::default_graph,
+    dataflow::graph::{default_graph, JobGraphId},
     node::{LeaderNode, Resources, WorkerNode},
     Configuration,
 };
 
 use super::WorkerId;
-
 
 /// A [`LeaderHandle`] is used by driver applications to interact
 /// with the Leader node running on their local instance.
@@ -131,6 +130,7 @@ impl WorkerHandle {
         let mut worker_node = WorkerNode::new(
             worker_id,
             config.leader_address,
+            config.data_plane_address,
             worker_resources,
             worker_rx,
         );
@@ -149,42 +149,35 @@ impl WorkerHandle {
     // them needs to submit it to the Leader. This should later be removed if
     // we choose to dynamically link the user applications into the Worker's
     // memory space.
-    pub fn register(&self) -> Result<(), CommunicationError> {
+    pub fn register(&self) -> Result<JobGraphId, CommunicationError> {
         // Compile the JobGraph and register it with the Worker.
         let job_graph = (default_graph::clone()).compile();
+        let job_graph_id = job_graph.id();
         tracing::trace!(
-            "WorkerHandle {} received a notification from the Driver to register JobGraph {}.",
+            "WorkerHandle {} received a notification from the Driver \
+                            to register JobGraph {} (ID={:?}).",
             self.handle_id,
-            job_graph.get_name(),
+            job_graph.name(),
+            job_graph_id,
         );
         self.worker_handle
-            .blocking_send(DriverNotification::RegisterGraph(job_graph))
-            .map_err(|err| CommunicationError::from(err))
+            .blocking_send(DriverNotification::RegisterGraph(job_graph))?;
+
+        Ok(job_graph_id)
     }
 
     // TODO (Sukrit): Take as input a Graph handle that is built by the user.
     // We should expose the `AbstractGraph` structure as a `GraphBuilder` and
     // consume that in the `submit` method to prevent the users from making
     // any further changes to it.
-    pub fn submit(&self) -> Result<(), CommunicationError> {
+    pub fn submit(&self) -> Result<JobGraphId, CommunicationError> {
         // Compile the JobGraph and register it with the Worker.
-        let job_graph = (default_graph::clone()).compile();
-        let graph_name = job_graph.get_name().clone().to_string();
-        tracing::trace!(
-            "WorkerHandle {} received a notification from the Driver to register JobGraph {}.",
-            self.handle_id,
-            job_graph.get_name(),
-        );
-        if let Err(err) = self
-            .worker_handle
-            .blocking_send(DriverNotification::RegisterGraph(job_graph))
-        {
-            return Err(CommunicationError::from(err));
-        }
+        let job_graph_id = self.register()?;
 
         // Submit the JobGraph to the Leader.
         self.worker_handle
-            .blocking_send(DriverNotification::SubmitGraph(graph_name))
-            .map_err(|err| CommunicationError::from(err))
+            .blocking_send(DriverNotification::SubmitGraph(job_graph_id.clone()))?;
+
+        Ok(job_graph_id)
     }
 }

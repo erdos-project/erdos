@@ -228,31 +228,31 @@ impl Node {
     }
 
     async fn wait_for_communication_layer_initialized(&mut self) -> Result<(), String> {
-        let num_nodes = self.config.data_addresses.len();
+        // let num_nodes = self.config.data_addresses.len();
 
-        let mut data_senders_initialized = HashSet::new();
-        data_senders_initialized.insert(self.id);
-        let mut data_receivers_initialized = HashSet::new();
-        data_receivers_initialized.insert(self.id);
+        // let mut data_senders_initialized = HashSet::new();
+        // data_senders_initialized.insert(self.id);
+        // let mut data_receivers_initialized = HashSet::new();
+        // data_receivers_initialized.insert(self.id);
 
-        while data_senders_initialized.len() < num_nodes
-            || data_receivers_initialized.len() < num_nodes
-        {
-            let msg = self
-                .control_handler
-                .read_sender_or_receiver_initialized()
-                .await
-                .map_err(|e| format!("Error receiving control message: {:?}", e))?;
-            match msg {
-                ControlMessage::DataSenderInitialized(node_id) => {
-                    data_senders_initialized.insert(node_id);
-                }
-                ControlMessage::DataReceiverInitialized(node_id) => {
-                    data_receivers_initialized.insert(node_id);
-                }
-                _ => unreachable!(),
-            };
-        }
+        // while data_senders_initialized.len() < num_nodes
+        //     || data_receivers_initialized.len() < num_nodes
+        // {
+        //     let msg = self
+        //         .control_handler
+        //         .read_sender_or_receiver_initialized()
+        //         .await
+        //         .map_err(|e| format!("Error receiving control message: {:?}", e))?;
+        //     match msg {
+        //         ControlMessage::DataSenderInitialized(node_id) => {
+        //             data_senders_initialized.insert(node_id);
+        //         }
+        //         ControlMessage::DataReceiverInitialized(node_id) => {
+        //             data_receivers_initialized.insert(node_id);
+        //         }
+        //         _ => unreachable!(),
+        //     };
+        // }
         Ok(())
     }
 
@@ -278,23 +278,23 @@ impl Node {
     }
 
     async fn wait_for_all_operators_initialized(&mut self) -> Result<(), String> {
-        let num_nodes = self.config.data_addresses.len();
-        let mut initialized_nodes = HashSet::new();
-        initialized_nodes.insert(self.id);
-        while initialized_nodes.len() < num_nodes {
-            match self
-                .control_handler
-                .read_all_operators_initialized_on_node_msg()
-                .await
-            {
-                Ok(node_id) => {
-                    initialized_nodes.insert(node_id);
-                }
-                Err(e) => {
-                    return Err(format!("Error waiting for other nodes to set up: {:?}", e));
-                }
-            }
-        }
+        // let num_nodes = self.config.data_addresses.len();
+        // let mut initialized_nodes = HashSet::new();
+        // initialized_nodes.insert(self.id);
+        // while initialized_nodes.len() < num_nodes {
+        //     match self
+        //         .control_handler
+        //         .read_all_operators_initialized_on_node_msg()
+        //         .await
+        //     {
+        //         Ok(node_id) => {
+        //             initialized_nodes.insert(node_id);
+        //         }
+        //         Err(e) => {
+        //             return Err(format!("Error waiting for other nodes to set up: {:?}", e));
+        //         }
+        //     }
+        // }
         Ok(())
     }
 
@@ -393,29 +393,30 @@ impl Node {
 
     async fn async_run(&mut self) {
         // Assign values used later to avoid lifetime errors.
-        let num_nodes = self.config.data_addresses.len();
+        // let num_nodes = self.config.data_addresses.len();
         // Create TCPStreams between all node pairs.
-        let data_streams =
-            communication::create_tcp_streams(self.config.data_addresses.clone(), self.id).await;
-        let (senders, receivers) = self.split_data_streams(data_streams).await;
+        // let data_streams =
+        //     communication::create_tcp_streams(self.config.data_addresses.clone(), self.id).await;
+        // let (senders, receivers) = self.split_data_streams(data_streams).await;
         // Listen for shutdown message.
         let mut shutdown_rx = self.shutdown_rx.take().unwrap();
         let shutdown_fut = shutdown_rx.recv();
         // Execute threads that send data to other nodes.
-        let senders_fut = senders::run_senders(senders);
+        // let senders_fut = senders::run_senders(senders);
         // Execute threads that receive data from other nodes.
-        let recvs_fut = receivers::run_receivers(receivers);
+        // let recvs_fut = receivers::run_receivers(receivers);
         // Execute operators.
         let ops_fut = self.run_operators();
         // These threads only complete when a failure happens.
-        if num_nodes <= 1 {
+        // if num_nodes <= 1 {
+        if true {
             // Senders and Receivers should return if there's only 1 node.
-            if let Err(e) = tokio::try_join!(senders_fut, recvs_fut,) {
-                tracing::error!(
-                    "Non-fatal network communication error; this should not happen! {:?}",
-                    e
-                );
-            }
+            // if let Err(e) = tokio::try_join!(senders_fut, recvs_fut,) {
+            //     tracing::error!(
+            //         "Non-fatal network communication error; this should not happen! {:?}",
+            //         e
+            //     );
+            // }
             tokio::select! {
                 Err(e) = ops_fut => tracing::error!(
 
@@ -425,8 +426,8 @@ impl Node {
             }
         } else {
             tokio::select! {
-                Err(e) = senders_fut => tracing::error!("Error with data senders: {:?}", e),
-                Err(e) = recvs_fut => tracing::error!("Error with data receivers: {:?}", e),
+                // Err(e) = senders_fut => tracing::error!("Error with data senders: {:?}", e),
+                // Err(e) = recvs_fut => tracing::error!("Error with data receivers: {:?}", e),
                 Err(e) = ops_fut => tracing::error!(
 
                     "Error running operators on node {:?}: {:?}", self.id, e

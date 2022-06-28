@@ -12,7 +12,7 @@ use crate::{
 
 use super::{
     job_graph::JobGraph, AbstractOperator, AbstractOperatorType, AbstractStream, AbstractStreamT,
-    OperatorRunner, StreamSetupHook,
+    Job, OperatorRunner, StreamSetupHook,
 };
 
 /// The abstract graph representation of an ERDOS program defined in the driver.
@@ -227,7 +227,10 @@ impl AbstractGraph {
             self.extract_streams.insert(stream_id, setup_hook);
         }
 
-        let mut operators = self.operators.clone();
+        let mut operators = HashMap::new();
+        for (operator_id, operator) in self.operators.iter() {
+            operators.insert(Job::Operator(*operator_id), operator.clone());
+        }
         let mut operator_runners = HashMap::new();
         for (operator_id, operator_runner) in &self.operator_runners {
             operator_runners.insert(operator_id.clone(), operator_runner.clone());

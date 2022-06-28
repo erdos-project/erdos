@@ -231,18 +231,18 @@ pub fn new_app(name: &str) -> clap::App {
                 .help("Number of worker threads per process"),
         )
         .arg(
-            Arg::with_name("data-addresses")
+            Arg::with_name("data-address")
                 .short("d")
-                .long("data-addresses")
-                .default_value("127.0.0.1:9000")
-                .help("Comma separated list of data socket addresses of all nodes"),
+                .long("data-address")
+                .default_value("0.0.0.0:0")
+                .help("The address of the DataPlane for the Worker."),
         )
         .arg(
             Arg::with_name("address")
                 .short("l")
                 .long("address")
                 .default_value("0.0.0.0:4444")
-                .help("Address of the Leader node."),
+                .help("The address of the Leader."),
         )
         .arg(
             Arg::with_name("index")

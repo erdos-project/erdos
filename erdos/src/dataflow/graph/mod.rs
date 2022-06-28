@@ -25,6 +25,9 @@ use serde::{Deserialize, Serialize};
 
 use super::{stream::StreamId, Data};
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct JobGraphId(String);
+
 /// Trait for functions that set up operator execution.
 pub(crate) trait OperatorRunner:
     'static + (Fn(Arc<Mutex<ChannelManager>>) -> Box<dyn OperatorExecutorT>) + Sync + Send

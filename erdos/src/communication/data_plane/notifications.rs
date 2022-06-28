@@ -18,6 +18,15 @@ pub(crate) enum StreamType {
     WriteStream(Box<dyn AbstractStreamT>, HashMap<Job, WorkerAddress>),
 }
 
+impl StreamType {
+    pub(crate) fn id(&self) -> StreamId {
+        match self {
+            StreamType::ReadStream(stream, _) => stream.id(),
+            StreamType::WriteStream(stream, _) => stream.id(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) enum DataPlaneNotification {
     SetupStreams(Job, Vec<StreamType>),

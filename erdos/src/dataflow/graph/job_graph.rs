@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::{dataflow::stream::StreamId, OperatorId};
 
 use super::{
-    OperatorRunner, StreamSetupHook, {AbstractOperator, AbstractStreamT, Job},
+    OperatorRunner, StreamSetupHook, {AbstractOperator, AbstractStreamT, Job}, JobGraphId,
 };
 
 /// The [`InternalGraph`] is an internal representation of the Graph
@@ -18,7 +18,7 @@ pub(crate) struct InternalGraph {
     name: String,
     /// The mapping of all the operators in the Graph from their ID to
     /// their [`AbstractOperator`] representation.
-    operators: HashMap<OperatorId, AbstractOperator>,
+    operators: HashMap<Job, AbstractOperator>,
     /// A mapping from the ID of the Stream to the ID of the
     /// AbstractOperator that generates data for it.
     stream_sources: HashMap<StreamId, Job>,
@@ -33,17 +33,17 @@ impl InternalGraph {
     }
 
     /// Retrieve the [`AbstractOperator`] for the given ID.
-    pub(crate) fn get_operator(&self, operator_id: &OperatorId) -> Option<AbstractOperator> {
-        self.operators.get(operator_id).cloned()
+    pub(crate) fn get_job(&self, job: &Job) -> Option<AbstractOperator> {
+        self.operators.get(job).cloned()
     }
 
     /// Retrieve the collection of [`AbstractOperator`]s in the Graph.
-    pub(crate) fn get_operators(&self) -> &HashMap<OperatorId, AbstractOperator> {
+    pub(crate) fn get_operators(&self) -> &HashMap<Job, AbstractOperator> {
         &self.operators
     }
 
     /// Retrieve the [`Job`] that publishes the data on the given stream_id.
-    pub(crate) fn get_source_operator(&self, stream_id: &StreamId) -> Option<Job> {
+    pub(crate) fn get_source(&self, stream_id: &StreamId) -> Option<Job> {
         self.stream_sources.get(stream_id).cloned()
     }
 
@@ -75,8 +75,9 @@ impl From<JobGraph> for InternalGraph {
 
 #[derive(Clone)]
 pub(crate) struct JobGraph {
+    id: JobGraphId,
     name: String,
-    operators: HashMap<OperatorId, AbstractOperator>,
+    operators: HashMap<Job, AbstractOperator>,
     operator_runners: HashMap<OperatorId, Box<dyn OperatorRunner>>,
     streams: HashMap<StreamId, Box<dyn AbstractStreamT>>,
     driver_setup_hooks: Vec<Box<dyn StreamSetupHook>>,
@@ -85,7 +86,7 @@ pub(crate) struct JobGraph {
 impl JobGraph {
     pub(crate) fn new(
         name: String,
-        operators: HashMap<OperatorId, AbstractOperator>,
+        operators: HashMap<Job, AbstractOperator>,
         operator_runners: HashMap<OperatorId, Box<dyn OperatorRunner>>,
         streams: Vec<Box<dyn AbstractStreamT>>,
         ingest_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
@@ -97,14 +98,14 @@ impl JobGraph {
 
         // Register the source and destination of each stream.
         // TODO (Sukrit): This should happen at the time of compilation.
-        for operator in operators.values() {
+        for (job, operator) in operators.iter() {
             for read_stream_id in operator.read_streams.iter() {
                 let read_stream = stream_id_to_stream_map.get_mut(read_stream_id).unwrap();
-                read_stream.add_destination(Job::Operator(operator.id));
+                read_stream.add_destination(job.clone());
             }
             for write_stream_id in operator.write_streams.iter() {
                 let write_stream = stream_id_to_stream_map.get_mut(write_stream_id).unwrap();
-                write_stream.register_source(Job::Operator(operator.id));
+                write_stream.register_source(job.clone());
             }
         }
         let mut driver_setup_hooks = Vec::new();
@@ -121,6 +122,7 @@ impl JobGraph {
         }
 
         Self {
+            id: JobGraphId(name.clone()),
             name,
             operators,
             operator_runners,
@@ -130,8 +132,13 @@ impl JobGraph {
     }
 
     /// Retreives the name of the JobGraph.
-    pub(crate) fn get_name(&self) -> &str {
+    pub(crate) fn name(&self) -> &str {
         &self.name
+    }
+
+    /// Retrieves the ID of the JobGraph.
+    pub(crate) fn id(&self) -> JobGraphId {
+        self.id.clone()
     }
 
     /// Returns a copy of the operators in the graph.
@@ -139,9 +146,9 @@ impl JobGraph {
         self.operators.values().cloned().collect()
     }
 
-    /// Retrieve the [`AbstractOperator`] for the given ID.
-    pub(crate) fn get_operator(&self, operator_id: &OperatorId) -> Option<AbstractOperator> {
-        self.operators.get(operator_id).cloned()
+    /// Retrieve the [`AbstractOperator`] for the given [`Job`].
+    pub(crate) fn get_job(&self, job: &Job) -> Option<AbstractOperator> {
+        self.operators.get(job).cloned()
     }
 
     /// Retrieve the execution function for a particular operator in the graph.
@@ -230,7 +237,9 @@ impl fmt::Debug for JobGraph {
                 for dependent_job in write_stream.get_destinations() {
                     match dependent_job {
                         Job::Operator(dependent_job_id) => {
-                            if let Some(dependent_job) = self.operators.get(&dependent_job_id) {
+                            if let Some(dependent_job) =
+                                self.operators.get(&Job::Operator(dependent_job_id))
+                            {
                                 dependents.push(dependent_job.config.get_name())
                             }
                         }

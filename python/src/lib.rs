@@ -301,19 +301,18 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
         py: Python,
         node_id: NodeId,
         leader_address: String,
-        data_addresses: Vec<String>,
+        data_address: String,
         control_addresses: Vec<String>,
         graph_filename: Option<String>,
     ) -> PyResult<()> {
         py.allow_threads(move || {
-            let data_addresses = data_addresses
-                .iter()
-                .map(|s| s.parse().expect("Unable to parse socket address"))
-                .collect();
+            let data_address = data_address
+                .parse()
+                .expect("Unable to parse socket address.");
             let leader_address = leader_address
                 .parse()
                 .expect("Unable to parse socket address.");
-            let mut config = Configuration::new(node_id, leader_address, data_addresses, 7);
+            let mut config = Configuration::new(node_id, leader_address, data_address, 7);
             if let Some(filename) = graph_filename {
                 config = config.export_dataflow_graph(filename.as_str());
             }
@@ -330,18 +329,17 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
         py: Python,
         node_id: NodeId,
         leader_address: String,
-        data_addresses: Vec<String>,
+        data_address: String,
         graph_filename: Option<String>,
     ) -> PyResult<PyNodeHandle> {
         let node_handle = py.allow_threads(move || {
-            let data_addresses = data_addresses
-                .into_iter()
-                .map(|s| s.parse().expect("Unable to parse socket address"))
-                .collect();
+            let data_address = data_address
+                .parse()
+                .expect("Unable to parse socket address.");
             let leader_address = leader_address
                 .parse()
                 .expect("Unable to parse socket address.");
-            let mut config = Configuration::new(node_id, leader_address, data_addresses, 7);
+            let mut config = Configuration::new(node_id, leader_address, data_address, 7);
             if let Some(filename) = graph_filename {
                 config = config.export_dataflow_graph(filename.as_str());
             }
