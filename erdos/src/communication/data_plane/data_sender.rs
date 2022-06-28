@@ -1,4 +1,4 @@
-use futures::{future, stream::SplitSink};
+use futures::stream::SplitSink;
 use futures_util::sink::SinkExt;
 
 use tokio::{
@@ -8,10 +8,12 @@ use tokio::{
 };
 use tokio_util::codec::Framed;
 
-use crate::{communication::{CommunicationError, InterProcessMessage, MessageCodec}, node::WorkerId};
+use crate::{
+    communication::{CommunicationError, InterProcessMessage, MessageCodec},
+    node::WorkerId,
+};
 
 use super::notifications::DataPlaneNotification;
-
 
 #[allow(dead_code)]
 /// The [`DataSender`] pulls messages from a FIFO inter-thread channel.

@@ -25,7 +25,8 @@ use crate::{
 
 use super::{
     notifications::{DataPlaneNotification, StreamType},
-    worker_connection::WorkerConnection, StreamManager,
+    worker_connection::WorkerConnection,
+    StreamManager,
 };
 
 /// [`DataPlane`] manages the connections amongst Workers, and enables
@@ -210,7 +211,7 @@ impl DataPlane {
                     }
                 }
             }
-            DataPlaneNotification::PusherUpdated(sending_job, stream_id, receiving_job) => {
+            DataPlaneNotification::PusherUpdated(_, stream_id, receiving_job) => {
                 // Notify the Worker that the Stream is ready for the given Job.
                 if let Err(error) = self
                     .channel_to_worker
