@@ -21,7 +21,6 @@ use tracing_subscriber::fmt::format::FmtSpan;
 use crate::dataflow::graph::{default_graph, JobGraph};
 use crate::scheduler::{
     channel_manager::ChannelManager,
-    endpoints_manager::{ChannelsToReceivers, ChannelsToSenders},
 };
 use crate::Configuration;
 use crate::{
@@ -53,10 +52,10 @@ pub struct Node {
     abstract_graph: Option<AbstractGraph>,
     /// Dataflow graph which the node will execute.
     job_graph: Option<JobGraph>,
-    /// Structure to be used to send `Sender` updates to receiver threads.
-    channels_to_receivers: Arc<Mutex<ChannelsToReceivers>>,
-    /// Structure to be used to send messages to sender threads.
-    channels_to_senders: Arc<Mutex<ChannelsToSenders>>,
+    // /// Structure to be used to send `Sender` updates to receiver threads.
+    // channels_to_receivers: Arc<Mutex<ChannelsToReceivers>>,
+    // /// Structure to be used to send messages to sender threads.
+    // channels_to_senders: Arc<Mutex<ChannelsToSenders>>,
     /// Structure used to send and receive control messages.
     control_handler: ControlMessageHandler,
     /// Used to block `run_async` until setup is complete for the driver to continue running safely.
@@ -103,8 +102,8 @@ impl Node {
             id,
             abstract_graph: None,
             job_graph: None,
-            channels_to_receivers: Arc::new(Mutex::new(ChannelsToReceivers::new())),
-            channels_to_senders: Arc::new(Mutex::new(ChannelsToSenders::new())),
+            // channels_to_receivers: Arc::new(Mutex::new(ChannelsToReceivers::new())),
+            // channels_to_senders: Arc::new(Mutex::new(ChannelsToSenders::new())),
             control_handler: ControlMessageHandler::new(),
             initialized: Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new())),
             shutdown_tx,
