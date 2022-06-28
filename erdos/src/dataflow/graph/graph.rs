@@ -4,6 +4,7 @@ use serde::Deserialize;
 
 use crate::{
     dataflow::{
+        graph::{InternalGraph, JobGraph},
         operator::{
             OneInOneOut, OneInTwoOut, ParallelOneInOneOut, ParallelOneInTwoOut, ParallelSink,
             ParallelTwoInOneOut, Sink, Source, TwoInOneOut,
@@ -13,8 +14,6 @@ use crate::{
     },
     OperatorConfig,
 };
-
-use super::{InternalGraph, JobGraph};
 
 /// A user defined dataflow graph representation.
 ///

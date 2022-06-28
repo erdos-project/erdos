@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::{
     dataflow::{
+        graph::{AbstractOperator, AbstractStream, AbstractStreamT, JobGraph, StreamSetupHook},
         operator::{
             OneInOneOut, OneInTwoOut, ParallelOneInOneOut, ParallelOneInTwoOut, ParallelSink,
             ParallelTwoInOneOut, Sink, Source, TwoInOneOut,
@@ -21,10 +22,6 @@ use crate::{
     },
     scheduler::channel_manager::ChannelManager,
     OperatorConfig, OperatorId,
-};
-
-use super::{
-    job_graph::JobGraph, AbstractOperator, AbstractStream, AbstractStreamT, StreamSetupHook,
 };
 
 /// The abstract graph representation of an ERDOS program defined in the driver.
