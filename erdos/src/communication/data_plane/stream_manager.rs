@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use serde::Deserialize;
 use std::{
     any::Any,
@@ -20,11 +19,20 @@ use crate::{
     node::WorkerId,
 };
 
-#[async_trait]
 pub(crate) trait StreamEndpointsT: Send {
+    /// Upcasts the [`StreamEndpoints`] object to [`Any`].
+    /// This is used to hide types in the [`StreamManager`] where it is
+    /// downcast to the correct type upon request when retrieving the
+    /// [`ReadStream`] or the [`WriteStream`].
     fn as_any(&mut self) -> &mut dyn Any;
 
+    /// Retrieves the name of the Stream for which this trait object
+    /// provides the endpoints for.
     fn name(&self) -> String;
+
+    /// Retrieves the ID of the Stream for which this trait object
+    /// provides the endpoints for.
+    fn id(&self) -> StreamId;
 
     /// Creates a new inter-thread channel for the stream.
     ///
@@ -32,18 +40,29 @@ pub(crate) trait StreamEndpointsT: Send {
     /// corresponding endpoints.
     fn add_inter_thread_channel(&mut self, job: Job);
 
-    /// Adds a `SendEndpoint` to the other node.
+    /// Adds a [`SendEndpoint`] for the Stream underlying this trait object to the
+    /// specified [`job`].
     ///
-    /// Assumes that `channels_to_senders` already stores a `mpsc::Sender` to the
-    /// network sender to the other node.
+    /// The [`channel_to_data_sender`] provides the channel to the [`DataSender`]
+    /// running for the connection to the other [`Worker`], on which the SendEndpoint
+    /// multiplexes the data messages on.
     fn add_inter_worker_send_endpoint(
         &mut self,
         job: Job,
         channel_to_data_sender: UnboundedSender<InterProcessMessage>,
     );
 
-    fn add_inter_worker_recv_endpoint(&mut self, job: Job) -> Result<(), String>;
+    /// Adds a [`RecvEndpoint`] for the given [`job`] on the Stream for which this
+    /// trait object provides the endpoints for.
+    fn add_inter_worker_recv_endpoint(&mut self, job: Job) -> Result<(), CommunicationError>;
 
+    /// Clones the [`Pusher`] associated with this stream.
+    ///
+    /// Accessing the [`Pusher`] is only valid if there are some [`Job`]s on the current
+    /// [`Worker`] that receive data from the stream underlying this trait object.
+    ///
+    /// The [`Pusher`] allows multiple [`Job`]s on the current [`Worker`] to register their
+    /// receiving endpoints together on the same [`WorkerConnection`].
     fn clone_pusher(&self) -> Arc<Mutex<dyn PusherT>>;
 }
 
@@ -101,7 +120,6 @@ where
     }
 }
 
-#[async_trait]
 impl<D> StreamEndpointsT for StreamEndpoints<D>
 where
     for<'a> D: Data + Deserialize<'a>,
@@ -112,6 +130,10 @@ where
 
     fn name(&self) -> String {
         self.stream_name.clone()
+    }
+
+    fn id(&self) -> StreamId {
+        self.stream_id
     }
 
     fn add_inter_thread_channel(&mut self, job: Job) {
@@ -131,7 +153,7 @@ where
         );
     }
 
-    fn add_inter_worker_recv_endpoint(&mut self, job: Job) -> Result<(), String> {
+    fn add_inter_worker_recv_endpoint(&mut self, job: Job) -> Result<(), CommunicationError> {
         let recv_endpoint_from_pusher = {
             let mut pusher = self.pusher.lock().unwrap();
             if let Some(pusher) = pusher.as_any().downcast_mut::<Pusher<Arc<Message<D>>>>() {
@@ -149,10 +171,11 @@ where
                 self.add_recv_endpoint(job, recv_endpoint_from_pusher);
                 Ok(())
             }
-            None => Err(format!(
-                "Error casting pusher when adding inter node recv endpoint for stream {}",
-                self.stream_id
-            )),
+            None => Err(CommunicationError::ProtocolError(format!(
+                "Error casting Pusher when adding inter-worker \
+                    receive endpoint for Stream {} (ID={}).",
+                self.stream_name, self.stream_id,
+            ))),
         }
     }
 
@@ -161,8 +184,12 @@ where
     }
 }
 
-/// Data structure that stores information needed to set up dataflow channels
-/// by constructing individual transport channels.
+/// A [`StreamManager`] is a data structure that stores the constructed
+/// endpoints for each stream. The [`DataPlane`] uses the [`StreamManager`]
+/// to initiate both Inter-Worker and Intra-Worker connections for all
+/// the [`Job`]s that are scheduled on the current [`Worker`]. Once the
+/// connections are set up, the [`Operator`]s cast the [`StreamEndpoints`]
+/// to the required message type and retrieve or send the data.
 pub(crate) struct StreamManager {
     /// The [`Worker`] to which the [`StreamManager`] belongs.
     worker_id: WorkerId,
@@ -170,7 +197,6 @@ pub(crate) struct StreamManager {
     stream_entries: HashMap<StreamId, Box<dyn StreamEndpointsT>>,
 }
 
-#[allow(dead_code)]
 impl StreamManager {
     /// Initializes a new [`StreamManager`] for the [`Worker`] with the given ID.
     pub fn new(worker_id: WorkerId) -> Self {
@@ -185,6 +211,8 @@ impl StreamManager {
         self.worker_id
     }
 
+    /// Adds an Inter-Worker receipt endpoint for the [`stream`] to the [`receiving_job`]
+    /// on the current [`Worker`] on the specified connection to another [`Worker`].
     pub fn add_inter_worker_recv_endpoint(
         &mut self,
         stream: &Box<dyn AbstractStreamT>,
@@ -202,12 +230,12 @@ impl StreamManager {
 
         // Register for a new endpoint with the Pusher.
         let stream_endpoints = self.stream_entries.get_mut(&stream.id()).unwrap();
-        let _ = stream_endpoints.add_inter_worker_recv_endpoint(stream.get_source());
-        worker_connection.notify_pusher_update(stream.get_source(), stream.id(), receiving_job)?;
-
-        Ok(())
+        stream_endpoints.add_inter_worker_recv_endpoint(stream.get_source())?;
+        worker_connection.notify_pusher_update(stream.get_source(), stream.id(), receiving_job)
     }
 
+    /// Adds an Inter-Worker send endpoint for the [`stream`] to the [`destination_job`]
+    /// from the current [`Worker`] on the specified connection to another [`Worker`].
     pub fn add_inter_worker_send_endpoint(
         &mut self,
         stream: &Box<dyn AbstractStreamT>,

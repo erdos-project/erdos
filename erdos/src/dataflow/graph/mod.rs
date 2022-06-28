@@ -150,7 +150,7 @@ where
     }
 
     fn to_stream_endpoints_t(&self) -> Box<dyn StreamEndpointsT> {
-        Box::new(StreamEndpoints::<D>::new(self.id, self.name()))
+        Box::new(StreamEndpoints::<D>::new(self.id(), self.name()))
     }
 
     fn get_source(&self) -> Job {

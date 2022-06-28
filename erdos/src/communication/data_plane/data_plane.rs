@@ -267,7 +267,10 @@ impl DataPlane {
                             self.worker_id,
                             worker_address,
                         );
-                        return Err(CommunicationError::ProtocolError);
+                        return Err(CommunicationError::ProtocolError(format!(
+                            "EHLO protocol went wrong with the Worker at address {}",
+                            worker_address
+                        )));
                     }
                 }
                 Err(error) => return Err(error.into()),

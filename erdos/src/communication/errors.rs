@@ -21,7 +21,7 @@ pub enum CommunicationError {
     /// Failed to correctly follow protocol.
     /// This can be raised when there are protocol errors between
     /// the Leader and the Worker, or between Workers.
-    ProtocolError,
+    ProtocolError(String),
 }
 
 impl Error for CommunicationError {}

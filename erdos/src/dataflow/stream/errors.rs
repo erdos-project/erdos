@@ -71,7 +71,7 @@ impl From<CommunicationError> for SendError {
                 SendError::IOError
             }
             // Streams should not be exposed to protocol errors.
-            CommunicationError::ProtocolError => unreachable!(),
+            CommunicationError::ProtocolError(_) => unreachable!(),
         }
     }
 }
