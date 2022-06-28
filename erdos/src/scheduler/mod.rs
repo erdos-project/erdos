@@ -38,7 +38,7 @@ impl JobGraphScheduler for SimpleJobGraphScheduler {
 
         for (operator_id, operator) in job_graph.get_operators().iter() {
             let requested_node = operator.config.node_id;
-            placements.insert(operator_id.clone(), requested_node);
+            placements.insert(operator_id.clone(), requested_node.into());
         }
 
         placements

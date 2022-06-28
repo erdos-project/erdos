@@ -155,7 +155,7 @@ impl LeaderNode {
         match worker_handler_msg {
             InterThreadMessage::WorkerInitialized(worker_state) => {
                 self.worker_id_to_worker_state
-                    .insert(worker_state.get_id(), worker_state);
+                    .insert(worker_state.id(), worker_state);
             }
             InterThreadMessage::ScheduleJobGraph(job_graph_id, job_graph) => {
                 // Invoke the Scheduler to retrieve the placements for this JobGraph.
@@ -268,7 +268,7 @@ impl LeaderNode {
         )
         .split();
 
-        let mut id_of_this_worker = 0;
+        let mut id_of_this_worker = WorkerId::nil();
 
         // Handle messages from the Worker and the Leader.
         loop {
@@ -277,12 +277,12 @@ impl LeaderNode {
                 Some(Ok(msg_from_worker)) = worker_rx.next() => {
                     match msg_from_worker {
                         WorkerNotification::Initialized(worker_state) => {
-                            id_of_this_worker = worker_state.get_id();
+                            id_of_this_worker = worker_state.id();
                             // Communicate the Worker ID to the Leader.
                             tracing::debug!(
                                 "Initialized a Worker with the ID {} at {}",
-                                worker_state.get_id(),
-                                worker_state.get_address(),
+                                worker_state.id(),
+                                worker_state.address(),
                             );
                             let _ = channel_to_leader.send(
                                 InterThreadMessage::WorkerInitialized(worker_state)
@@ -397,7 +397,7 @@ impl LeaderNode {
                         .worker_id_to_worker_state
                         .get(&worker_id_for_operator)
                         .unwrap()
-                        .get_address();
+                        .address();
                     WorkerAddress::Remote(worker_id_for_operator, worker_address)
                 };
                 return Some(worker_address);

@@ -58,11 +58,11 @@ impl WorkerState {
         }
     }
 
-    pub(crate) fn get_address(&self) -> SocketAddr {
+    pub(crate) fn address(&self) -> SocketAddr {
         self.address
     }
 
-    pub(crate) fn get_id(&self) -> WorkerId {
+    pub(crate) fn id(&self) -> WorkerId {
         self.id
     }
 }

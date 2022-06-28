@@ -12,7 +12,7 @@ use tokio_util::codec::Framed;
 
 use crate::{
     communication::{CommunicationError, InterProcessMessage, MessageCodec, PusherT},
-    dataflow::{stream::StreamId, Data},
+    dataflow::{stream::StreamId, Data}, node::WorkerId,
 };
 
 use super::data_plane::notifications::DataPlaneNotification;
@@ -21,7 +21,7 @@ use super::data_plane::notifications::DataPlaneNotification;
 #[allow(dead_code)]
 pub(crate) struct DataReceiver {
     /// The id of the [`Worker`] the TCP stream is receiving data from.
-    worker_id: usize,
+    worker_id: WorkerId,
     /// The receiver of the Framed TCP stream for the connection to the other Worker.
     tcp_stream: SplitStream<Framed<TcpStream, MessageCodec>>,
     /// Channel where [`DataPlaneNotification`]s are received.
@@ -35,7 +35,7 @@ pub(crate) struct DataReceiver {
 
 impl DataReceiver {
     pub(crate) fn new(
-        worker_id: usize,
+        worker_id: WorkerId,
         tcp_stream: SplitStream<Framed<TcpStream, MessageCodec>>,
         data_plane_notification_rx: UnboundedReceiver<DataPlaneNotification>,
         data_plane_notification_tx: UnboundedSender<DataPlaneNotification>,

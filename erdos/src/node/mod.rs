@@ -27,14 +27,35 @@ pub(crate) mod worker;
 #[doc(hidden)]
 pub mod operator_executors;
 
+use std::fmt;
+
 // Crate-wide exports.
 pub(crate) use leader::LeaderNode;
 pub(crate) use resources::Resources;
+use serde::{Serialize, Deserialize};
 pub(crate) use worker_node::{WorkerNode, WorkerState};
 
 // Public exports
 pub use handles::{LeaderHandle, WorkerHandle};
 pub use node::{Node, NodeHandle, NodeId};
 
-// TODO (Sukrit): Should we define a Newtype here or leave this as an alias?
-pub type WorkerId = usize;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct WorkerId(usize);
+
+impl WorkerId {
+    pub fn nil() -> Self {
+        Self(usize::MAX)
+    }
+}
+
+impl fmt::Display for WorkerId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<usize> for WorkerId {
+    fn from(worker_id: usize) -> Self {
+        Self(worker_id)
+    }
+}

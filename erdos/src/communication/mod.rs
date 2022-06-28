@@ -15,7 +15,7 @@ use tokio::{
     time::sleep,
 };
 
-use crate::{dataflow::stream::StreamId, node::NodeId, OperatorId};
+use crate::{dataflow::stream::StreamId, node::{NodeId, WorkerId}, OperatorId};
 
 // Private submodules
 mod control_message_handler;
@@ -67,7 +67,7 @@ pub struct MessageMetadata {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EhloMetadata {
-    pub worker_id: usize,
+    pub worker_id: WorkerId,
 }
 
 #[derive(Clone)]

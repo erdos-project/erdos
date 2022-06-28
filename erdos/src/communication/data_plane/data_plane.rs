@@ -32,7 +32,7 @@ use super::{
 /// [`DataPlane`] manages the connections amongst Workers, and enables
 /// [`Worker`]s to communicate data messages to each other.
 pub(crate) struct DataPlane {
-    worker_id: usize,
+    worker_id: WorkerId,
     worker_connection_listener: TcpListener,
     channel_from_worker: UnboundedReceiver<DataPlaneNotification>,
     channel_to_worker: UnboundedSender<DataPlaneNotification>,
@@ -49,7 +49,7 @@ pub(crate) struct DataPlane {
 
 impl DataPlane {
     pub async fn new(
-        worker_id: usize,
+        worker_id: WorkerId,
         address: SocketAddr,
         stream_manager: Arc<Mutex<ChannelManager>>,
         channel_from_worker: UnboundedReceiver<DataPlaneNotification>,
@@ -287,7 +287,7 @@ impl DataPlane {
 
     async fn handle_outgoing_worker_connections(
         &self,
-        other_worker_id: usize,
+        other_worker_id: WorkerId,
         worker_address: SocketAddr,
     ) -> Result<WorkerConnection, CommunicationError> {
         match TcpStream::connect(worker_address).await {

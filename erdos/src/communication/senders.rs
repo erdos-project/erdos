@@ -8,7 +8,7 @@ use tokio::{
 };
 use tokio_util::codec::Framed;
 
-use crate::communication::{CommunicationError, InterProcessMessage, MessageCodec};
+use crate::{communication::{CommunicationError, InterProcessMessage, MessageCodec}, node::WorkerId};
 
 use super::data_plane::notifications::DataPlaneNotification;
 
@@ -18,7 +18,7 @@ use super::data_plane::notifications::DataPlaneNotification;
 /// Worker which may result in congestion.
 pub(crate) struct DataSender {
     /// The ID of the [`Worker`] that the TCP stream is sending data to.
-    worker_id: usize,
+    worker_id: WorkerId,
     /// The sender of the Framed TCP stream for the Worker connection.
     tcp_stream: SplitSink<Framed<TcpStream, MessageCodec>, InterProcessMessage>,
     /// MPSC channel to receive data messages from operators that are to
@@ -30,7 +30,7 @@ pub(crate) struct DataSender {
 
 impl DataSender {
     pub(crate) fn new(
-        worker_id: usize,
+        worker_id: WorkerId,
         tcp_stream: SplitSink<Framed<TcpStream, MessageCodec>, InterProcessMessage>,
         data_message_rx: UnboundedReceiver<InterProcessMessage>,
         data_plane_notification_tx: UnboundedSender<DataPlaneNotification>,

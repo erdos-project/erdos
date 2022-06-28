@@ -126,7 +126,7 @@ impl WorkerHandle {
         // TODO (Sukrit): In the future, the index of the Worker should be generated
         // at runtime, and be of a type alias WorkerId for Uuid.
         let worker_resources = Resources::empty();
-        let worker_id = config.index;
+        let worker_id = WorkerId::from(config.index);
         let mut worker_node = WorkerNode::new(
             worker_id,
             config.leader_address,
