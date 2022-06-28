@@ -257,7 +257,7 @@ fn main() {
         graph.connect_one_in_one_out(SquareOperator::new, || {}, square_config, &source_stream);
 
     // let map_config = OperatorConfig::new().name("FlatMapOperator");
-    // let map_stream = erdos::connect_one_in_one_out(
+    // let map_stream = graph.connect_one_in_one_out(
     //     || -> FlatMapOperator<usize, _> {
     //         FlatMapOperator::new(|x: &usize| std::iter::once(2 * x))
     //     },
@@ -267,7 +267,7 @@ fn main() {
     // );
 
     // let filter_config = OperatorConfig::new().name("FilterOperator");
-    // let filter_stream = erdos::connect_one_in_one_out(
+    // let filter_stream = graph.connect_one_in_one_out(
     //     || -> FilterOperator<usize> { FilterOperator::new(|x: &usize| -> bool { *x > 10 }) },
     //     || {},
     //     filter_config,
@@ -275,7 +275,7 @@ fn main() {
     // );
 
     // let split_config = OperatorConfig::new().name("SplitOperator");
-    // let (split_stream_less_50, split_stream_greater_50) = erdos::connect_one_in_two_out(
+    // let (split_stream_less_50, split_stream_greater_50) = graph.connect_one_in_two_out(
     //     || -> SplitOperator<usize> { SplitOperator::new(|x: &usize| -> bool { *x < 50 }) },
     //     || {},
     //     split_config,
@@ -291,7 +291,7 @@ fn main() {
     );
 
     // let left_sink_config = OperatorConfig::new().name("LeftSinkOperator");
-    // erdos::connect_sink(
+    // graph.connect_sink(
     //     SinkOperator::new,
     //     TimeVersionedState::new,
     //     left_sink_config,
@@ -299,7 +299,7 @@ fn main() {
     // );
 
     // let right_sink_config = OperatorConfig::new().name("RightSinkOperator");
-    // erdos::connect_sink(
+    // graph.connect_sink(
     //     SinkOperator::new,
     //     TimeVersionedState::new,
     //     right_sink_config,

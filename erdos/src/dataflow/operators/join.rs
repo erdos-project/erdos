@@ -28,17 +28,18 @@ use crate::dataflow::{
 ///
 /// ```
 /// # use erdos::dataflow::{
-/// #     stream::IngestStream,
+/// #     stream::IngressStream,
 /// #     operator::OperatorConfig,
 /// #     operators::TimestampJoinOperator,
-/// #     state::TimeVersionedState
+/// #     state::TimeVersionedState.
+/// #     Graph,
 /// # };
-/// #
-/// # let left_stream: IngestStream<String> = IngestStream::new();
-/// # let right_stream: IngestStream<usize> = IngestStream::new();
+/// # let graph = Graph::new();
+/// # let left_stream: IngressStream<String> = graph.add_ingress("LeftIngressStream");
+/// # let right_stream: IngressStream<usize> = graph.add_ingress("RightIngressStream");
 /// #
 /// // Joins two streams of types String and usize
-/// let joined_stream = erdos::connect_two_in_one_out(
+/// let joined_stream = graph.connect_two_in_one_out(
 ///     TimestampJoinOperator::new,
 ///     TimeVersionedState::new,
 ///     OperatorConfig::new().name("TimestampJoinOperator"),
@@ -128,10 +129,10 @@ where
     /// # Example
     ///
     /// ```
-    /// # use erdos::dataflow::{stream::IngestStream, operators::Join};
-    /// #
-    /// # let left_stream: IngestStream<String> = IngestStream::new();
-    /// # let right_stream: IngestStream<usize> = IngestStream::new();
+    /// # use erdos::dataflow::{Graph, stream::IngressStream, operators::Join};
+    /// # let graph = Graph::new();
+    /// # let left_stream: IngressStream<String> = graph.add_ingress("LeftIngressStream");
+    /// # let right_stream: IngressStream<usize> = graph.add_ingress("RightIngressStream");
     /// #
     /// let joined_stream = left_stream.timestamp_join(&right_stream);
     /// ```

@@ -16,6 +16,7 @@ use crate::{
 
 use super::{InternalGraph, JobGraph};
 
+/// A user defined dataflow graph representation.
 pub struct Graph {
     internal_graph: Arc<Mutex<InternalGraph>>,
 }
@@ -27,12 +28,14 @@ impl Default for Graph {
 }
 
 impl Graph {
+    /// Creates a new Graph to which streams and operators can be added.
     pub fn new() -> Self {
         Self {
             internal_graph: Arc::new(Mutex::new(InternalGraph::new())),
         }
     }
 
+    /// Adds an [`IngressStream`] to the graph.
     pub fn add_ingress<D>(&self, name: &str) -> IngressStream<D>
     where
         for<'a> D: Data + Deserialize<'a>,
@@ -46,6 +49,8 @@ impl Graph {
         ingress_stream
     }
 
+    /// Adds an [`EgressStream`] to the graph.
+    /// [`EgressStream`]s are automatically named based on the input stream.
     pub fn add_egress<D>(&self, stream: &OperatorStream<D>) -> EgressStream<D>
     where
         for<'a> D: Data + Deserialize<'a>,
@@ -59,6 +64,7 @@ impl Graph {
         egress_stream
     }
 
+    /// Adds a [`LoopStream`] to the graph.
     pub fn add_loop_stream<D>(&self) -> LoopStream<D>
     where
         for<'a> D: Data + Deserialize<'a>,
@@ -72,6 +78,8 @@ impl Graph {
         loop_stream
     }
 
+    /// Adds a [`Source`] operator, which has no read streams, but introduces data into the dataflow
+    /// graph by interacting with external data sources (e.g., other systems, sensor data).
     pub fn connect_source<O, T>(
         &self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
@@ -93,6 +101,8 @@ impl Graph {
         write_stream
     }
 
+    /// Adds a [`ParallelSink`] operator, which receives data on input read streams and directly
+    /// interacts with external systems.
     pub fn connect_parallel_sink<O, S, T, U>(
         &self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
@@ -114,6 +124,8 @@ impl Graph {
         )
     }
 
+    /// Adds a [`Sink`] operator, which receives data on input read streams and directly interacts
+    /// with external systems.
     pub fn connect_sink<O, S, T>(
         &self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
@@ -132,6 +144,8 @@ impl Graph {
             .connect_sink(operator_fn, state_fn, config, read_stream)
     }
 
+    /// Adds a [`ParallelOneInOneOut`] operator that has one input read stream and one output
+    /// write stream.
     pub fn connect_parallel_one_in_one_out<O, S, T, U, V>(
         &self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
@@ -165,6 +179,7 @@ impl Graph {
         write_stream
     }
 
+    /// Adds a [`OneInOneOut`] operator that has one input read stream and one output write stream.
     pub fn connect_one_in_one_out<O, S, T, U>(
         &self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
@@ -194,6 +209,8 @@ impl Graph {
         write_stream
     }
 
+    /// Adds a [`ParallelTwoInOneOut`] operator that has two input read streams and one output
+    /// write stream.
     pub(crate) fn connect_parallel_two_in_one_out<O, S, T, U, V, W>(
         &self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
@@ -230,6 +247,7 @@ impl Graph {
         write_stream
     }
 
+    /// Adds a [`TwoInOneOut`] operator that has two input read streams and one output write stream.
     pub fn connect_two_in_one_out<O, S, T, U, V>(
         &self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
@@ -262,6 +280,8 @@ impl Graph {
         write_stream
     }
 
+    /// Adds a [`ParallelOneInTwoOut`] operator that has one input read stream and two output
+    /// write streams.
     pub fn connect_parallel_one_in_two_out<O, S, T, U, V, W>(
         &self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
@@ -301,6 +321,7 @@ impl Graph {
         (left_write_stream, right_write_stream)
     }
 
+    /// Adds a [`OneInTwoOut`] operator that has one input read stream and two output write streams.
     pub fn connect_one_in_two_out<O, S, T, U, V>(
         &self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
@@ -336,6 +357,7 @@ impl Graph {
         (left_write_stream, right_write_stream)
     }
 
+    /// Compiles the internal graph representation.
     pub(crate) fn compile(&self) -> JobGraph {
         self.internal_graph.lock().unwrap().compile()
     }

@@ -60,9 +60,6 @@ impl InternalGraph {
         }
     }
 
-    /// Adds an [`IngressStream`] to the graph.
-    /// [`IngressStream`]s are automatically named based on the number of [`IngressStream`]s
-    /// in the graph.
     pub(crate) fn add_ingress_stream<D>(&mut self, ingress_stream: &IngressStream<D>)
     where
         for<'a> D: Data + Deserialize<'a>,
@@ -93,9 +90,6 @@ impl InternalGraph {
             .insert(ingress_stream.id(), Box::new(setup_hook));
     }
 
-    /// Adds an [`EgressStream`] to the graph.
-    /// [`EgressStream`]s are automatically named based on the number of [`EgressStream`]s
-    /// in the graph.
     pub(crate) fn add_egress_stream<D>(&mut self, egress_stream: &EgressStream<D>)
     where
         for<'a> D: Data + Deserialize<'a>,
@@ -118,7 +112,6 @@ impl InternalGraph {
             .insert(egress_stream.id(), Box::new(hook));
     }
 
-    /// Adds a [`LoopStream`] to the graph.
     pub(crate) fn add_loop_stream<D>(&mut self, loop_stream: &LoopStream<D>)
     where
         for<'a> D: Data + Deserialize<'a>,
@@ -147,8 +140,6 @@ impl InternalGraph {
         }
     }
 
-    /// Adds a [`Source`] operator, which has no read streams, but introduces data into the dataflow
-    /// graph by interacting with external data sources (e.g., other systems, sensor data).
     pub(crate) fn connect_source<O, T>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
@@ -190,8 +181,6 @@ impl InternalGraph {
             .insert(abstract_operator.id, abstract_operator);
     }
 
-    /// Adds a [`ParallelSink`] operator, which receives data on input read streams and directly
-    /// interacts with external systems.
     pub(crate) fn connect_parallel_sink<O, S, T, U>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
@@ -239,8 +228,6 @@ impl InternalGraph {
             .insert(abstract_operator.id, abstract_operator);
     }
 
-    /// Adds a [`Sink`] operator, which receives data on input read streams and directly interacts
-    /// with external systems.
     pub(crate) fn connect_sink<O, S, T>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
@@ -287,8 +274,6 @@ impl InternalGraph {
             .insert(abstract_operator.id, abstract_operator);
     }
 
-    /// Adds a [`ParallelOneInOneOut`] operator that has one input read stream and one output
-    /// write stream.
     pub(crate) fn connect_parallel_one_in_one_out<O, S, T, U, V>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
@@ -346,7 +331,6 @@ impl InternalGraph {
             .insert(abstract_operator.id, abstract_operator);
     }
 
-    /// Adds a [`OneInOneOut`] operator that has one input read stream and one output write stream.
     pub(crate) fn connect_one_in_one_out<O, S, T, U>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
@@ -403,8 +387,6 @@ impl InternalGraph {
             .insert(abstract_operator.id, abstract_operator);
     }
 
-    /// Adds a [`ParallelTwoInOneOut`] operator that has two input read streams and one output
-    /// write stream.
     pub(crate) fn connect_parallel_two_in_one_out<O, S, T, U, V, W>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
@@ -468,7 +450,6 @@ impl InternalGraph {
             .insert(abstract_operator.id, abstract_operator);
     }
 
-    /// Adds a [`TwoInOneOut`] operator that has two input read streams and one output write stream.
     pub fn connect_two_in_one_out<O, S, T, U, V>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
@@ -531,8 +512,6 @@ impl InternalGraph {
             .insert(abstract_operator.id, abstract_operator);
     }
 
-    /// Adds a [`ParallelOneInTwoOut`] operator that has one input read stream and two output
-    /// write streams.
     pub fn connect_parallel_one_in_two_out<O, S, T, U, V, W>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
@@ -600,7 +579,6 @@ impl InternalGraph {
             .insert(abstract_operator.id, abstract_operator);
     }
 
-    /// Adds a [`OneInTwoOut`] operator that has one input read stream and two output write streams.
     pub fn connect_one_in_two_out<O, S, T, U, V>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,

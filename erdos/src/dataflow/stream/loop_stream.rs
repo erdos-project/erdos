@@ -13,9 +13,10 @@ use super::{OperatorStream, StreamId};
 ///
 /// # Example
 /// ```
-/// # use erdos::dataflow::{stream::LoopStream, operator::{OperatorConfig}, operators::{FlatMapOperator}};
-/// let loop_stream = LoopStream::new();
-/// let output_stream = erdos::connect_one_in_one_out(
+/// # use erdos::dataflow::{Graph, stream::LoopStream, operator::{OperatorConfig}, operators::{FlatMapOperator}};
+/// let graph = Graph::new();
+/// let loop_stream: LoopStream<usize> = graph.add_loop_stream();
+/// let output_stream = graph.connect_one_in_one_out(
 ///     || FlatMapOperator::new(|x: &usize| { std::iter::once(2 * x) }),
 ///     || {},
 ///     OperatorConfig::new().name("MapOperator"),

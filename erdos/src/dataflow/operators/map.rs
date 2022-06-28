@@ -18,9 +18,10 @@ use crate::dataflow::{
 /// messages, and return them.
 ///
 /// ```
-/// # use erdos::dataflow::{stream::IngestStream, operator::{OperatorConfig}, operators::{FlatMapOperator}};
-/// # let source_stream = IngestStream::new();
-/// let map_stream = erdos::connect_one_in_one_out(
+/// # use erdos::dataflow::{Graph, stream::IngressStream, operator::{OperatorConfig}, operators::{FlatMapOperator}};
+/// # let graph = Graph::new();
+/// # let source_stream = graph.add_ingress("SourceIngressStream");
+/// let map_stream = graph.connect_one_in_one_out(
 ///     || -> FlatMapOperator<usize, _> {
 ///         FlatMapOperator::new(|x: &usize| -> Vec<usize> { vec![2 * x] })
 ///     },
@@ -91,8 +92,9 @@ where
     ///
     /// # Example
     /// ```
-    /// # use erdos::dataflow::{stream::{IngestStream, Stream}, operator::OperatorConfig, operators::Map};
-    /// # let source_stream = IngestStream::new();
+    /// # use erdos::dataflow::{Graph, stream::{IngressStream, Stream}, operator::OperatorConfig, operators::Map};
+    /// # let graph = Graph::new();
+    /// # let source_stream = graph.add_ingress("SourceIngressStream");
     /// let map_stream = source_stream.map(|x: &usize| -> usize { 2 * x });
     /// ```
     fn map<F>(&self, map_fn: F) -> OperatorStream<D2>
@@ -103,8 +105,10 @@ where
     ///
     /// # Example
     /// ```
-    /// # use erdos::dataflow::{stream::{IngestStream, Stream}, operator::OperatorConfig, operators::Map};
-    /// # let source_stream = IngestStream::new();
+    /// # use erdos::dataflow::{stream::{Graph, IngressStream, Stream}, operator::OperatorConfig, operators::Map};
+    /// #
+    /// # let graph = Graph::new();
+    /// # let source_stream = graph.add_ingress("SourceIngressStream");
     /// let map_stream = source_stream.flat_map(|x: &usize| 0..*x );
     /// ```
     fn flat_map<F, I>(&self, flat_map_fn: F) -> OperatorStream<D2>

@@ -20,11 +20,12 @@ use crate::{
 /// the operator sends a watermark with an equivalent timestamp.
 ///
 /// ```
-/// # use erdos::dataflow::{stream::{IngestStream, Stream}, operator::OperatorConfig, operators::ConcatOperator};
-/// # let left_stream: IngestStream<usize> = IngestStream::new();
-/// # let right_stream: IngestStream<usize> = IngestStream::new();
+/// # use erdos::dataflow::{Graph, stream::{IngressStream, Stream}, operator::OperatorConfig, operators::ConcatOperator};
+/// # let graph = Graph::new();
+/// # let left_stream: IngressStream<usize> = graph.add_ingress("LeftIngressStream");
+/// # let right_stream: IngressStream<usize> = graph.add_ingress("RightIngressStream");
 /// #
-/// let merged_stream = erdos::connect_two_in_one_out(
+/// let merged_stream = graph.connect_two_in_one_out(
 ///     ConcatOperator::new,
 ///     || {},
 ///     OperatorConfig::new().name("ConcatOperator"),
@@ -64,9 +65,10 @@ where
 ///
 /// # Example
 /// ```
-/// # use erdos::dataflow::{stream::{IngestStream, Stream}, operator::OperatorConfig, operators::Concat};
-/// # let left_stream: IngestStream<usize> = IngestStream::new();
-/// # let right_stream: IngestStream<usize> = IngestStream::new();
+/// # use erdos::dataflow::{stream::{IngressStream, Stream}, operator::OperatorConfig, operators::Concat};
+/// # let graph = Graph::new();
+/// # let left_stream: IngressStream<usize> = graph.add_ingress("LeftIngressStream");
+/// # let right_stream: IngressStream<usize> = graph.add_ingress("RightIngressStream");
 /// #
 /// let merged_stream = left_stream.concat(&right_stream);
 /// ```

@@ -22,38 +22,40 @@ use super::{errors::SendError, Stream, StreamId, WriteStream, WriteStreamT};
 /// [`EgressStream`](crate::dataflow::stream::EgressStream).
 /// ```no_run
 /// # use erdos::dataflow::{
-/// #    stream::{IngressStream, ExtractStream, Stream},
+/// #    stream::{IngressStream, EgressStream, Stream},
 /// #    operators::FlatMapOperator,
-/// #    OperatorConfig, Message, Timestamp
+/// #    OperatorConfig, Message, Timestamp,
+/// #    Graph,
 /// # };
 /// # use erdos::*;
 /// # use erdos::node::Node;
 /// #
 /// let args = erdos::new_app("ERDOS").get_matches();
 /// let mut node = Node::new(Configuration::from_args(&args));
+/// let graph = Graph::new();
 ///
 /// // Create an IngressStream.
-/// let mut ingest_stream = IngestStream::new();
+/// let mut ingress_stream = graph.add_ingress("MapIngressStream");
 ///
-/// // Create an ExtractStream from the ReadStream of the FlatMapOperator.
-/// let output_stream = erdos::connect_one_in_one_out(
+/// // Create an EgressStream from the ReadStream of the FlatMapOperator.
+/// let output_stream = graph.connect_one_in_one_out(
 ///     || FlatMapOperator::new(|x: &usize| { std::iter::once(2 * x) }),
 ///     || {},
 ///     OperatorConfig::new().name("MapOperator"),
-///     &ingest_stream,
+///     &ingress_stream,
 /// );
-/// let mut extract_stream = ExtractStream::new(&output_stream);
+/// let mut egress_stream = graph.add_egress(&output_stream);
 ///
-/// node.run_async();
+/// node.run_async(graph);
 ///
 /// // Send data on the IngressStream.
 /// for i in 1..10 {
-///     ingest_stream.send(Message::new_message(Timestamp::Time(vec![i as u64]), i)).unwrap();
+///     ingress_stream.send(Message::new_message(Timestamp::Time(vec![i as u64]), i)).unwrap();
 /// }
 ///
-/// // Retrieve mapped values using an ExtractStream.
+/// // Retrieve mapped values using an EgressStream.
 /// for i in 1..10 {
-///     let message = extract_stream.read().unwrap();
+///     let message = egress_stream.read().unwrap();
 ///     assert_eq!(*message.data().unwrap(), 2 * i);
 /// }
 /// ```

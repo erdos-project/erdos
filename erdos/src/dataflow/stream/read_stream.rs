@@ -34,7 +34,7 @@ use super::{
 /// }
 /// ```
 ///
-/// The examples in [`ExtractStream`](crate::dataflow::stream::ExtractStream) show how to
+/// The examples in [`EgressStream`](crate::dataflow::stream::EgressStream) show how to
 /// pull data from a stream in the driver.
 pub struct ReadStream<D: Data> {
     /// The id of the stream.

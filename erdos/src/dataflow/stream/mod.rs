@@ -1,7 +1,7 @@
 //! Streams are used to send data between [operators](crate::dataflow::operator).
 //!
 //! In the driver, connections between operators are created by passing
-//! [`Stream`]s as arguments to the [connect functions](crate::dataflow::connect).
+//! [`Stream`]s as arguments to the [connect functions](crate::dataflow::graph::internal_graph).
 //!
 //! During execution, operators can broadcast data to all downstream operators
 //! connected to a stream by invoking [`WriteStreamT::send`].
@@ -11,7 +11,7 @@
 //! operator's `run` method.
 //!
 //! The driver can interact with an application by sending messages on an
-//! [`IngestStream`] or reading messages from an [`ExtractStream`].
+//! [`IngressStream`] or reading messages from an [`EgressStream`].
 //!
 //! Messages sent on a stream are broadcast to all connected operators,
 //! using zero-copy communication for operators on the same node.
