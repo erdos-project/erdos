@@ -1,32 +1,20 @@
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-    thread,
+use std::{collections::HashSet, sync::Arc, thread};
+
+use tokio::{
+    runtime::Builder,
+    sync::mpsc::{self, Receiver, Sender, UnboundedReceiver},
 };
 
-use futures_util::stream::StreamExt;
-use tokio::{
-    net::TcpStream,
-    runtime::Builder,
-    sync::{
-        mpsc::{self, Receiver, Sender, UnboundedReceiver},
-        Mutex,
-    },
-};
-use tokio_util::codec::Framed;
 use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::format::FmtSpan;
 
+use crate::dataflow::graph::AbstractGraph;
 use crate::Configuration;
 use crate::{
     communication::data_plane::StreamManager,
     dataflow::graph::{default_graph, JobGraph},
     node::WorkerId,
-};
-use crate::{
-    communication::{self, ControlMessage, ControlMessageHandler, MessageCodec},
-    dataflow::graph::AbstractGraph,
 };
 
 use super::worker::Worker;
@@ -52,8 +40,8 @@ pub struct Node {
     // channels_to_receivers: Arc<Mutex<ChannelsToReceivers>>,
     // /// Structure to be used to send messages to sender threads.
     // channels_to_senders: Arc<Mutex<ChannelsToSenders>>,
-    /// Structure used to send and receive control messages.
-    control_handler: ControlMessageHandler,
+    // /// Structure used to send and receive control messages.
+    // control_handler: ControlMessageHandler,
     /// Used to block `run_async` until setup is complete for the driver to continue running safely.
     initialized: Arc<(std::sync::Mutex<bool>, std::sync::Condvar)>,
     /// Channel used to shut down the node.
@@ -100,7 +88,7 @@ impl Node {
             job_graph: None,
             // channels_to_receivers: Arc::new(Mutex::new(ChannelsToReceivers::new())),
             // channels_to_senders: Arc::new(Mutex::new(ChannelsToSenders::new())),
-            control_handler: ControlMessageHandler::new(),
+            // control_handler: ControlMessageHandler::new(),
             initialized: Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new())),
             shutdown_tx,
             shutdown_rx: Some(shutdown_rx),
@@ -251,26 +239,26 @@ impl Node {
         Ok(())
     }
 
-    async fn wait_for_local_operators_initialized(
-        &mut self,
-        mut rx_from_operators: UnboundedReceiver<ControlMessage>,
-        num_local_operators: usize,
-    ) {
-        let mut initialized_operators = HashSet::new();
-        while initialized_operators.len() < num_local_operators {
-            if let Some(ControlMessage::OperatorInitialized(op_id)) = rx_from_operators.recv().await
-            {
-                initialized_operators.insert(op_id);
-            }
-        }
-    }
+    // async fn wait_for_local_operators_initialized(
+    //     &mut self,
+    //     mut rx_from_operators: UnboundedReceiver<ControlMessage>,
+    //     num_local_operators: usize,
+    // ) {
+    //     let mut initialized_operators = HashSet::new();
+    //     while initialized_operators.len() < num_local_operators {
+    //         if let Some(ControlMessage::OperatorInitialized(op_id)) = rx_from_operators.recv().await
+    //         {
+    //             initialized_operators.insert(op_id);
+    //         }
+    //     }
+    // }
 
-    async fn broadcast_local_operators_initialized(&mut self) -> Result<(), String> {
-        tracing::debug!("Node {}: initialized all operators on this node.", self.id);
-        self.control_handler
-            .broadcast_to_nodes(ControlMessage::AllOperatorsInitializedOnNode(self.id))
-            .map_err(|e| format!("Error broadcasting control message: {:?}", e))
-    }
+    // async fn broadcast_local_operators_initialized(&mut self) -> Result<(), String> {
+    //     tracing::debug!("Node {}: initialized all operators on this node.", self.id);
+    //     self.control_handler
+    //         .broadcast_to_nodes(ControlMessage::AllOperatorsInitializedOnNode(self.id))
+    //         .map_err(|e| format!("Error broadcasting control message: {:?}", e))
+    // }
 
     async fn wait_for_all_operators_initialized(&mut self) -> Result<(), String> {
         // let num_nodes = self.config.data_addresses.len();
@@ -371,7 +359,7 @@ impl Node {
             }
         }
         // Broadcast all operators initialized on current node.
-        self.broadcast_local_operators_initialized().await?;
+        // self.broadcast_local_operators_initialized().await?;
         // Wait for all other nodes to finish setting up.
         self.wait_for_all_operators_initialized().await?;
         // Tell driver to run.

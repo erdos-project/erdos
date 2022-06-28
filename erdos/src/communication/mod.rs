@@ -4,14 +4,9 @@ use bytes::BytesMut;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    dataflow::stream::StreamId,
-    node::{NodeId, WorkerId},
-    OperatorId,
-};
+use crate::{dataflow::stream::StreamId, node::WorkerId};
 
 // Private submodules
-mod control_message_handler;
 mod endpoints;
 mod errors;
 mod serializable;
@@ -25,25 +20,12 @@ pub(crate) mod pusher;
 use serializable::Serializable;
 
 // Module-wide exports
-pub(crate) use control_message_handler::ControlMessageHandler;
 pub(crate) use data_plane::codec::MessageCodec;
 pub(crate) use errors::{CodecError, CommunicationError, TryRecvError};
 pub(crate) use pusher::{Pusher, PusherT};
 
 // Crate-wide exports
 pub(crate) use endpoints::{RecvEndpoint, SendEndpoint};
-
-/// Message sent between nodes in order to coordinate node and operator initialization.
-#[derive(Debug, Clone)]
-pub enum ControlMessage {
-    AllOperatorsInitializedOnNode(NodeId),
-    OperatorInitialized(OperatorId),
-    RunOperator(OperatorId),
-    DataSenderInitialized(NodeId),
-    DataReceiverInitialized(NodeId),
-    PusherUpdate(StreamId),
-    PusherUpdated(StreamId),
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Metadata {
