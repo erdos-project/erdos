@@ -13,12 +13,11 @@ use crate::{
         Pusher, PusherT, RecvEndpoint, SendEndpoint,
     },
     dataflow::{
-        graph::{AbstractStreamT, Job, JobGraph},
+        graph::{AbstractStreamT, Job},
         stream::StreamId,
         Data, Message, ReadStream, WriteStream,
     },
-    node::{NodeId, WorkerId},
-    OperatorId,
+    node::WorkerId,
 };
 
 #[async_trait]
