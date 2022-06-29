@@ -1,11 +1,13 @@
 import pickle
-from typing import Any
+from typing import Generic, TypeVar
 
 from erdos.internal import PyMessage
 from erdos.timestamp import Timestamp
 
+T = TypeVar("T")
 
-class Message:
+
+class Message(Generic[T]):
     """A :py:class:`Message` allows an operator to send timestamped data to
     other operators via a :py:class:`WriteStream` or an
     :py:class:`IngestStream`.
@@ -15,7 +17,7 @@ class Message:
         data: The data of the message.
     """
 
-    def __init__(self, timestamp: Timestamp, data: Any):
+    def __init__(self, timestamp: Timestamp, data: T) -> None:
         """Constructs a :py:class:`Message` with the given `data` and
         `timestamp`.
 
@@ -57,7 +59,7 @@ class Message:
         return "{{timestamp: {}, data: {}}}".format(self.timestamp, self.data)
 
 
-class WatermarkMessage(Message):
+class WatermarkMessage(Message[None]):
     """A :py:class:`WatermarkMessage` allows an operator to convey the
     completion of all outgoing data for a given timestamp on a
     :py:class:`WriteStream`.
@@ -66,7 +68,7 @@ class WatermarkMessage(Message):
         timestamp: The timestamp for which this is a watermark.
     """
 
-    def __init__(self, timestamp: Timestamp):
+    def __init__(self, timestamp: Timestamp) -> None:
         super(WatermarkMessage, self).__init__(timestamp, None)
 
     def __str__(self):
