@@ -55,12 +55,12 @@ impl Clone for Box<dyn OperatorRunner> {
 
 /// Trait for functions used to set up ingest and extract streams.
 pub(crate) trait StreamSetupHook:
-    'static + Fn(&AbstractGraph, &mut StreamManager) + Sync + Send
+    'static + Fn(&JobGraph, &mut StreamManager) + Sync + Send
 {
     fn box_clone(&self) -> Box<dyn StreamSetupHook>;
 }
 
-impl<T: 'static + Fn(&AbstractGraph, &mut StreamManager) + Sync + Send + Clone> StreamSetupHook
+impl<T: 'static + Fn(&JobGraph, &mut StreamManager) + Sync + Send + Clone> StreamSetupHook
     for T
 {
     fn box_clone(&self) -> Box<dyn StreamSetupHook> {

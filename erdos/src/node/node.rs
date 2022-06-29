@@ -351,12 +351,12 @@ impl Node {
         // Setup driver on the current node.
         if self.id == 0 {
             let mut channel_manager_mut = channel_manager.lock().unwrap();
-            for setup_hook in job_graph.get_driver_setup_hooks() {
-                (setup_hook)(
-                    self.abstract_graph.as_ref().unwrap(),
-                    &mut channel_manager_mut,
-                );
-            }
+            // for setup_hook in job_graph.get_driver_setup_hooks() {
+            //     (setup_hook)(
+            //         self.abstract_graph.as_ref().unwrap(),
+            //         &mut channel_manager_mut,
+            //     );
+            // }
         }
         // Broadcast all operators initialized on current node.
         // self.broadcast_local_operators_initialized().await?;

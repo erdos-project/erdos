@@ -4,7 +4,7 @@ use erdos::{
     dataflow::{
         context::SinkContext,
         operator::{Sink, Source},
-        stream::WriteStreamT,
+        stream::{ExtractStream, WriteStreamT},
         Message, Timestamp, WriteStream,
     },
     node::WorkerHandle,
@@ -78,8 +78,10 @@ fn main() {
     let source_config = OperatorConfig::new().name("SourceOperator").node(0);
     let source_stream = erdos::connect_source(SourceOperator::new, source_config);
 
-    let sink_config = OperatorConfig::new().name("SinkOperator").node(1);
-    erdos::connect_sink(SinkOperator::new, || {}, sink_config, &source_stream);
+    let mut extract_stream = ExtractStream::new(&source_stream);
+
+    // let sink_config = OperatorConfig::new().name("SinkOperator").node(1);
+    // erdos::connect_sink(SinkOperator::new, || {}, sink_config, &source_stream);
 
     // Submit the Graph.
     println!("The index of the Worker is {}", worker_index);
@@ -90,5 +92,12 @@ fn main() {
         let _ = worker_handle.register();
     }
 
-    loop {}
+    loop {
+        match extract_stream.read() {
+            Ok(message) => {
+                println!("Received {:?} message.", message);
+            }
+            Err(error) => {}
+        }
+    }
 }

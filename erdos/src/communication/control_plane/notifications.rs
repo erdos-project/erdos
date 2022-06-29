@@ -3,7 +3,10 @@ use std::{collections::HashMap, net::SocketAddr};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    dataflow::graph::{InternalGraph, Job, JobGraph, JobGraphId},
+    dataflow::{
+        graph::{InternalGraph, Job, JobGraph, JobGraphId},
+        stream::StreamId,
+    },
     node::{WorkerId, WorkerState},
 };
 
@@ -43,6 +46,12 @@ pub(crate) enum WorkerAddress {
     Local,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) enum DriverStream {
+    IngressStream(StreamId, HashMap<Job, WorkerAddress>),
+    EgressStream(StreamId, WorkerAddress),
+}
+
 /// A [`LeaderNotification`] specifies the notifications that a
 /// [`LeaderNode`](crate::node::LeaderNode) can send to a
 /// [`WorkerNode`](crate::node::WorkerNode).
@@ -52,6 +61,10 @@ pub(crate) enum LeaderNotification {
     /// must be scheduled locally, and provides addresses of other
     /// [`Job`]s that this one needs to communicate with.
     ScheduleJob(JobGraphId, Job, HashMap<Job, WorkerAddress>),
+    /// Informs a [`Worker`] that acts as a [`Driver`] to set up
+    /// the [`IngressStream`]s and [`EgressStream`]s streams at
+    /// the given addresses.
+    ScheduleDriver(JobGraphId, Vec<DriverStream>),
     /// Informs a [`Worker`] that the JobGraph with the given ID
     /// is ready to be executed.
     ExecuteGraph(JobGraphId),

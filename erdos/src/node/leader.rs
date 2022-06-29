@@ -15,7 +15,8 @@ use crate::{
     communication::{
         control_plane::{
             notifications::{
-                DriverNotification, LeaderNotification, WorkerAddress, WorkerNotification,
+                DriverNotification, DriverStream, LeaderNotification, WorkerAddress,
+                WorkerNotification,
             },
             ControlPlaneCodec,
         },
@@ -33,8 +34,9 @@ use super::WorkerId;
 #[derive(Debug, Clone)]
 enum InterThreadMessage {
     WorkerInitialized(WorkerState),
-    ScheduleJobGraph(JobGraphId, InternalGraph),
+    ScheduleJobGraph(WorkerId, JobGraphId, InternalGraph),
     ScheduleJob(JobGraphId, Job, WorkerId, HashMap<Job, WorkerAddress>),
+    ScheduleDriver(JobGraphId, WorkerId, Vec<DriverStream>),
     JobReady(JobGraphId, Job),
     ExecuteGraph(JobGraphId),
     Shutdown(WorkerId),
@@ -156,17 +158,19 @@ impl Leader {
                 self.worker_id_to_worker_state
                     .insert(worker_state.id(), worker_state);
             }
-            InterThreadMessage::ScheduleJobGraph(job_graph_id, job_graph) => {
+            InterThreadMessage::ScheduleJobGraph(driver_id, job_graph_id, job_graph) => {
+                // We consider the Worker scheduling the JobGraph to be the Driver.
                 // Invoke the Scheduler to retrieve the placements for this JobGraph.
                 let workers = self.worker_id_to_worker_state.values().cloned().collect();
                 let placements = self
                     .job_graph_scheduler
                     .schedule_graph(&job_graph, &workers);
 
-                // Broadcast the ScheduleOperator message for the placed operators.
                 // Maintain a flag for each operator that checks if the operator has
                 // been initialized or not.
                 let mut job_status = HashMap::new();
+
+                // Broadcast the ScheduleOperator message for the placed operators.
                 for (job, worker_id) in placements.iter() {
                     let operator = job_graph.get_job(job).unwrap();
                     let mut worker_addresses = HashMap::new();
@@ -176,9 +180,12 @@ impl Leader {
                     for read_stream_id in &operator.read_streams {
                         match job_graph.get_source(read_stream_id) {
                             Some(job) => {
-                                if let Some(worker_address) =
-                                    self.get_worker_address(*worker_id, &job, &placements)
-                                {
+                                if let Some(worker_address) = self.get_worker_address(
+                                    *worker_id,
+                                    driver_id,
+                                    &job,
+                                    &placements,
+                                ) {
                                     worker_addresses.insert(job, worker_address);
                                 }
                             }
@@ -190,9 +197,12 @@ impl Leader {
                     // know the addresses of the destinations of this stream.
                     for write_stream_id in &operator.write_streams {
                         for destination in job_graph.get_destinations(write_stream_id) {
-                            if let Some(worker_address) =
-                                self.get_worker_address(*worker_id, &destination, &placements)
-                            {
+                            if let Some(worker_address) = self.get_worker_address(
+                                *worker_id,
+                                driver_id,
+                                &destination,
+                                &placements,
+                            ) {
                                 worker_addresses.insert(destination, worker_address);
                             }
                         }
@@ -209,9 +219,47 @@ impl Leader {
                     job_status.insert(job.clone(), JobState::NotReady);
                 }
 
+                // Collect the addresses of the [`Worker`]s that retrieve or send
+                // data on the [`IngressStream`] and the [`EgressStream`]s.
+                let mut driver_streams = Vec::new();
+                for ingress_stream_id in job_graph.ingress_streams() {
+                    let mut ingress_stream_destinations = HashMap::new();
+                    for destination in job_graph.get_destinations(&ingress_stream_id) {
+                        if let Some(worker_address) =
+                            self.get_worker_address(driver_id, driver_id, &destination, &placements)
+                        {
+                            ingress_stream_destinations.insert(destination, worker_address);
+                        }
+                    }
+                    driver_streams.push(DriverStream::IngressStream(
+                        ingress_stream_id,
+                        ingress_stream_destinations,
+                    ));
+                }
+                for egress_stream_id in job_graph.egress_streams() {
+                    if let Some(job) = job_graph.get_source(&egress_stream_id) {
+                        if let Some(worker_address) =
+                            self.get_worker_address(driver_id, driver_id, &job, &placements)
+                        {
+                            driver_streams
+                                .push(DriverStream::EgressStream(egress_stream_id, worker_address));
+                        }
+                    }
+                }
+
+                // Inform the Driver to initiate the appropriate connections, if there
+                // were any [`IngressStream`]s or [`EgressStream`]s.
+                if !driver_streams.is_empty() {
+                    let _ = leader_to_workers_tx.send(InterThreadMessage::ScheduleDriver(
+                        job_graph_id.clone(),
+                        driver_id,
+                        driver_streams,
+                    ));
+                    job_status.insert(Job::Driver, JobState::NotReady);
+                }
+
                 // Map the flags that check if the Operator is ready to the name of the JobGraph.
-                self.job_graph_to_job_state
-                    .insert(job_graph_id, job_status);
+                self.job_graph_to_job_state.insert(job_graph_id, job_status);
             }
             InterThreadMessage::JobReady(job_graph_id, job) => {
                 // Change the status of the Job for this JobGraph.
@@ -239,7 +287,10 @@ impl Leader {
                         job_graph_ready_to_execute = true;
                     }
                 } else {
-                    tracing::error!("The JobGraph {:?} was not submitted to the Leader.", job_graph_id);
+                    tracing::error!(
+                        "The JobGraph {:?} was not submitted to the Leader.",
+                        job_graph_id
+                    );
                 }
 
                 // If the Job was executed, remove the state from the Map.
@@ -298,13 +349,13 @@ impl Leader {
                                 InterThreadMessage::JobReady(job_graph_id, job)
                             );
                         }
-                        WorkerNotification::SubmitGraph(job_name, job_graph) => {
+                        WorkerNotification::SubmitGraph(job_graph_id, job_graph) => {
                             tracing::trace!(
                                 "Leader received graph from Worker with ID: {}.",
                                 id_of_this_worker
                             );
                             let _ = channel_to_leader.send(
-                                InterThreadMessage::ScheduleJobGraph(job_name, job_graph)
+                                InterThreadMessage::ScheduleJobGraph(id_of_this_worker, job_graph_id, job_graph)
                             );
                         }
                         WorkerNotification::Shutdown => {
@@ -346,6 +397,25 @@ impl Leader {
                                     .await;
                             }
                         }
+                        InterThreadMessage::ScheduleDriver(
+                            job_graph_id,
+                            driver_id,
+                            driver_streams,
+                        ) => {
+                            if id_of_this_worker == driver_id {
+                                tracing::debug!(
+                                    "The Driver from JobGraph {:?} was scheduled on {}.",
+                                    job_graph_id,
+                                    driver_id
+                                );
+                                let _ = worker_tx
+                                    .send(LeaderNotification::ScheduleDriver(
+                                        job_graph_id,
+                                        driver_streams,
+                                    ))
+                                    .await;
+                            }
+                        }
                         InterThreadMessage::ExecuteGraph(job_graph_id) => {
                             // Tell the Worker to execute the operators for this graph.
                             let _ = worker_tx
@@ -376,32 +446,37 @@ impl Leader {
     fn get_worker_address(
         &self,
         worker_id: WorkerId,
+        driver_id: WorkerId,
         job: &Job,
         placements: &HashMap<Job, WorkerId>,
     ) -> Option<WorkerAddress> {
-        match job {
-            Job::Operator(operator_id) => {
-                let worker_id_for_operator = match placements.get(job) {
-                    Some(worker_id) => *worker_id,
-                    None => {
-                        tracing::error!("No placement found for Operator {}.", operator_id);
-                        return None;
-                    }
-                };
-                let worker_address = if worker_id_for_operator == worker_id {
+        let worker_address = match job {
+            Job::Operator(_) => {
+                let worker_id_for_operator = *placements.get(job)?;
+                if worker_id_for_operator == worker_id {
                     WorkerAddress::Local
                 } else {
                     // Find the address of the Worker node.
                     let worker_address = self
                         .worker_id_to_worker_state
-                        .get(&worker_id_for_operator)
-                        .unwrap()
+                        .get(&worker_id_for_operator)?
                         .address();
                     WorkerAddress::Remote(worker_id_for_operator, worker_address)
-                };
-                return Some(worker_address);
+                }
             }
-            Job::Driver => todo!(),
-        }
+            Job::Driver => {
+                if driver_id == worker_id {
+                    // NOTE: This should never happen since no jobs should be placed by
+                    // the Scheduler on the Driver, but we let this remain to ensure that
+                    // simplistic setups with the placements pre-specified using
+                    // Configurations still work.
+                    WorkerAddress::Local
+                } else {
+                    let driver_address = self.worker_id_to_worker_state.get(&driver_id)?.address();
+                    WorkerAddress::Remote(driver_id, driver_address)
+                }
+            }
+        };
+        Some(worker_address)
     }
 }

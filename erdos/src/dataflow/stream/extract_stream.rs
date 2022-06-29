@@ -7,10 +7,11 @@ use std::{
 use serde::Deserialize;
 
 use crate::{
+    communication::data_plane::StreamManager,
     dataflow::{
-        graph::{default_graph, AbstractGraph},
+        graph::{default_graph, AbstractGraph, JobGraph},
         Data, Message,
-    }, communication::data_plane::StreamManager,
+    },
 };
 
 use super::{
@@ -100,16 +101,17 @@ where
         };
 
         let read_stream_option_copy = extract_stream.read_stream_option.clone();
-        let hook = move |graph: &AbstractGraph, channel_manager: &mut StreamManager| {
-            match channel_manager.take_recv_endpoint(id) {
+        let hook =
+            move |graph: &JobGraph, channel_manager: &mut StreamManager| match channel_manager
+                .take_recv_endpoint(id)
+            {
                 Ok(recv_endpoint) => {
-                    let read_stream =
-                        ReadStream::new(id, &graph.get_stream_name(&id), recv_endpoint);
+                    let abstract_stream = graph.get_stream(&id).unwrap();
+                    let read_stream = ReadStream::new(id, &abstract_stream.name(), recv_endpoint);
                     read_stream_option_copy.lock().unwrap().replace(read_stream);
                 }
                 Err(msg) => panic!("Unable to set up ExtractStream {}: {}", id, msg),
-            }
-        };
+            };
 
         default_graph::add_extract_stream(&extract_stream, hook);
         extract_stream

@@ -17,6 +17,7 @@ use super::pusher::PusherT;
 #[derive(Debug, Clone)]
 pub(crate) enum StreamType {
     ReadStream(Box<dyn AbstractStreamT>, WorkerAddress),
+    EgressStream(Box<dyn AbstractStreamT>, WorkerAddress),
     WriteStream(Box<dyn AbstractStreamT>, HashMap<Job, WorkerAddress>),
 }
 
@@ -25,6 +26,7 @@ impl StreamType {
         match self {
             StreamType::ReadStream(stream, _) => stream.id(),
             StreamType::WriteStream(stream, _) => stream.id(),
+            StreamType::EgressStream(stream, _) => stream.id(),
         }
     }
 }

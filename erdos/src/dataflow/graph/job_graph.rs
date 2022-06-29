@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::{dataflow::stream::StreamId, OperatorId};
 
 use super::{
-    OperatorRunner, StreamSetupHook, {AbstractOperator, AbstractStreamT, Job}, JobGraphId,
+    JobGraphId, OperatorRunner, StreamSetupHook, {AbstractOperator, AbstractStreamT, Job},
 };
 
 /// The [`InternalGraph`] is an internal representation of the Graph
@@ -25,6 +25,10 @@ pub(crate) struct InternalGraph {
     /// A mapping from the ID of the Stream to the IDs of the
     /// AbstractOperators that consume the data from it.
     stream_destinations: HashMap<StreamId, Vec<Job>>,
+    /// A collection of IDs of the IngressStreams.
+    ingress_streams: Vec<StreamId>,
+    /// A collection of IDs of the EgressStreams.
+    egress_streams: Vec<StreamId>,
 }
 
 impl InternalGraph {
@@ -53,6 +57,14 @@ impl InternalGraph {
             None => Vec::new(),
         }
     }
+
+    pub(crate) fn ingress_streams(&self) -> Vec<StreamId> {
+        self.ingress_streams.clone()
+    }
+
+    pub(crate) fn egress_streams(&self) -> Vec<StreamId> {
+        self.egress_streams.clone()
+    }
 }
 
 impl From<JobGraph> for InternalGraph {
@@ -69,6 +81,8 @@ impl From<JobGraph> for InternalGraph {
             operators: job_graph.operators.clone(),
             stream_sources: sources,
             stream_destinations: destinations,
+            ingress_streams: job_graph.ingress_streams.keys().cloned().collect(),
+            egress_streams: job_graph.egress_streams.keys().cloned().collect(),
         }
     }
 }
@@ -80,7 +94,8 @@ pub(crate) struct JobGraph {
     operators: HashMap<Job, AbstractOperator>,
     operator_runners: HashMap<OperatorId, Box<dyn OperatorRunner>>,
     streams: HashMap<StreamId, Box<dyn AbstractStreamT>>,
-    driver_setup_hooks: Vec<Box<dyn StreamSetupHook>>,
+    ingress_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
+    egress_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
 }
 
 impl JobGraph {
@@ -108,17 +123,19 @@ impl JobGraph {
                 write_stream.register_source(job.clone());
             }
         }
-        let mut driver_setup_hooks = Vec::new();
-        for (ingest_stream_id, setup_hook) in ingest_streams {
-            let ingest_stream = stream_id_to_stream_map.get_mut(&ingest_stream_id).unwrap();
+
+        let mut ingress_streams = HashMap::new();
+        for (ingress_stream_id, setup_hook) in ingest_streams {
+            let ingest_stream = stream_id_to_stream_map.get_mut(&ingress_stream_id).unwrap();
             ingest_stream.register_source(Job::Driver);
-            driver_setup_hooks.push(setup_hook);
+            ingress_streams.insert(ingress_stream_id, setup_hook);
         }
 
+        let mut egress_streams = HashMap::new();
         for (extract_stream_id, setup_hook) in extract_streams {
             let extract_stream = stream_id_to_stream_map.get_mut(&extract_stream_id).unwrap();
             extract_stream.add_destination(Job::Driver);
-            driver_setup_hooks.push(setup_hook);
+            egress_streams.insert(extract_stream_id, setup_hook);
         }
 
         Self {
@@ -127,7 +144,8 @@ impl JobGraph {
             operators,
             operator_runners,
             streams: stream_id_to_stream_map,
-            driver_setup_hooks,
+            ingress_streams,
+            egress_streams,
         }
     }
 
@@ -174,8 +192,11 @@ impl JobGraph {
     /// Returns the hooks used to set up ingest and extract streams.
     pub fn get_driver_setup_hooks(&self) -> Vec<Box<dyn StreamSetupHook>> {
         let mut driver_setup_hooks = Vec::new();
-        for i in 0..self.driver_setup_hooks.len() {
-            driver_setup_hooks.push(self.driver_setup_hooks[i].box_clone());
+        for (_, setup_hook) in &self.ingress_streams {
+            driver_setup_hooks.push(setup_hook.box_clone());
+        }
+        for (_, setup_hook) in &self.egress_streams {
+            driver_setup_hooks.push(setup_hook.clone());
         }
         driver_setup_hooks
     }
@@ -186,10 +207,10 @@ impl JobGraph {
         writeln!(file, "digraph erdos_dataflow {{")?;
 
         let driver_id = OperatorId::new_deterministic();
-        if !self.driver_setup_hooks.is_empty() {
-            writeln!(file, "   // Driver")?;
-            writeln!(file, "   \"{}\" [label=\"Driver\"];", driver_id)?;
-        }
+        // if !self.driver_setup_hooks.is_empty() {
+        //     writeln!(file, "   // Driver")?;
+        //     writeln!(file, "   \"{}\" [label=\"Driver\"];", driver_id)?;
+        // }
 
         writeln!(file, "   // Operators")?;
         for operator in self.operators.values() {

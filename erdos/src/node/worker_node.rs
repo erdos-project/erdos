@@ -17,7 +17,9 @@ use tokio_util::codec::Framed;
 use crate::{
     communication::{
         control_plane::{
-            notifications::{DriverNotification, LeaderNotification, WorkerNotification},
+            notifications::{
+                DriverNotification, DriverStream, LeaderNotification, WorkerNotification,
+            },
             ControlPlaneCodec,
         },
         data_plane::{
@@ -280,7 +282,7 @@ impl WorkerNode {
                                             job,
                                             job_graph_id,
                                             error,
-                                        )
+                                        );
                                     }
 
                                     // Change the state of the Job in the JobGraph.
@@ -370,14 +372,21 @@ impl WorkerNode {
                         let mut streams = Vec::new();
                         for read_stream_id in operator.read_streams {
                             let read_stream = job_graph.get_stream(&read_stream_id).unwrap();
-                            let source_address = worker_addresses
-                                .get(&read_stream.get_source())
-                                .expect(&format!(
-                                "Could not find the address for the Worker executing the Job {:?}.",
-                                read_stream.get_source()
-                            ));
-                            streams
-                                .push(StreamType::ReadStream(read_stream, source_address.clone()));
+                            if let Some(source_address) =
+                                worker_addresses.get(&read_stream.get_source())
+                            {
+                                streams.push(StreamType::ReadStream(
+                                    read_stream,
+                                    source_address.clone(),
+                                ));
+                            } else {
+                                tracing::error!(
+                                    "[Worker {}] Could not find the address for the Worker \
+                                                            executing the Job {:?}.",
+                                    self.id,
+                                    read_stream.get_source()
+                                );
+                            }
                         }
 
                         for write_stream_id in operator.write_streams {
@@ -462,18 +471,93 @@ impl WorkerNode {
                 // TODO (Sukrit): Fix this code.
                 let mut worker = Worker::new(2);
                 let mut job_executors = Vec::new();
+                let job_graph = self.job_graphs.get(&job_graph_id).unwrap();
                 for (job, _) in self.job_graph_to_job_state.get(&job_graph_id).unwrap() {
-                    let job_graph = self.job_graphs.get(&job_graph_id).unwrap();
-                    let operator = job_graph.get_job(job).unwrap();
-                    let channel_manager_copy = Arc::clone(&self.stream_manager);
-                    if let Some(operator_runner) = job_graph.get_operator_runner(&operator.id) {
-                        let operator_executor = (operator_runner)(channel_manager_copy);
-                        job_executors.push(operator_executor);
+                    match job {
+                        Job::Driver => {
+                            let mut channel_manager = self.stream_manager.lock().unwrap();
+                            for setup_hook in job_graph.get_driver_setup_hooks() {
+                                (setup_hook)(job_graph, &mut channel_manager);
+                            }
+                        }
+                        Job::Operator(_) => {
+                            let operator = job_graph.get_job(job).unwrap();
+                            let channel_manager_copy = Arc::clone(&self.stream_manager);
+                            if let Some(operator_runner) =
+                                job_graph.get_operator_runner(&operator.id)
+                            {
+                                let operator_executor = (operator_runner)(channel_manager_copy);
+                                job_executors.push(operator_executor);
+                            }
+                        }
                     }
                 }
                 worker.spawn_tasks(job_executors).await;
                 std::thread::sleep_ms(1000);
                 worker.execute().await;
+            }
+            LeaderNotification::ScheduleDriver(job_graph_id, driver_streams) => {
+                if let Some(job_graph) = self.job_graphs.get(&job_graph_id) {
+                    // Construct a representation of the Streams for this Operator, along
+                    // with the addresses of the Workers executing them.
+                    let mut streams = Vec::new();
+                    for driver_stream in driver_streams {
+                        match driver_stream {
+                            DriverStream::EgressStream(stream_id, source_address) => {
+                                if let Some(egress_stream) = job_graph.get_stream(&stream_id) {
+                                    streams.push(StreamType::EgressStream(
+                                        egress_stream,
+                                        source_address,
+                                    ));
+                                } else {
+                                    tracing::error!(
+                                        "[Worker {}] Could not find the EgressStream with \
+                                                    the ID: {} in the JobGraph {:?}.",
+                                        self.id,
+                                        stream_id,
+                                        job_graph_id
+                                    );
+                                }
+                            }
+                            DriverStream::IngressStream(stream_id, destination_addresses) => {
+                                todo!()
+                            }
+                        }
+                    }
+
+                    // Cache the streams that need to be initialized to call the Driver ready.
+                    let job = Job::Driver;
+                    let pending_setups = streams.iter().map(|stream| stream.id()).collect();
+                    tracing::trace!(
+                        "[Worker {}] The Job {:?} is pending setup of {:?} streams.",
+                        self.id,
+                        job,
+                        pending_setups
+                    );
+                    self.pending_stream_setups
+                        .insert(job, (job_graph_id.clone(), pending_setups));
+
+                    // Add the Job to the set of scheduled Jobs for this JobGraph.
+                    let job_state = self.job_graph_to_job_state.entry(job_graph_id).or_default();
+                    job_state.insert(job, JobState::Scheduled);
+
+                    if let Err(error) = channel_to_data_plane
+                        .send(DataPlaneNotification::SetupStreams(job, streams))
+                    {
+                        tracing::warn!(
+                            "[Worker {}] Received error when requesting the setup of \
+                                                        streams for Driver: {:?}",
+                            self.id,
+                            error,
+                        )
+                    }
+                } else {
+                    tracing::error!(
+                        "[Worker {}] JobGraph {:?} was not registered on this Worker.",
+                        self.id,
+                        job_graph_id,
+                    );
+                }
             }
             // The shutdown arm is unreachable, because it should be handled in the main loop.
             LeaderNotification::Shutdown => unreachable!(),

@@ -340,7 +340,8 @@ impl DataPlane {
     ) -> Result<(), CommunicationError> {
         for stream in streams {
             let notification = match stream {
-                StreamType::ReadStream(stream, source_address) => {
+                StreamType::ReadStream(stream, source_address)
+                | StreamType::EgressStream(stream, source_address) => {
                     if self.setup_read_stream(&stream, job, source_address).await? {
                         // If the ReadStream setup was successful, i.e., there are no
                         // remaining [`Pusher`]s to be updated, then notify the Worker

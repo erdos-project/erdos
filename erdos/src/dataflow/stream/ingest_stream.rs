@@ -7,10 +7,11 @@ use std::{
 use serde::Deserialize;
 
 use crate::{
+    communication::data_plane::StreamManager,
     dataflow::{
-        graph::{default_graph, AbstractGraph},
+        graph::{default_graph, AbstractGraph, JobGraph},
         Data, Message,
-    }, communication::data_plane::StreamManager,
+    },
 };
 
 use super::{errors::SendError, Stream, StreamId, WriteStream, WriteStreamT};
@@ -88,19 +89,21 @@ where
         // A hook to initialize the ingest stream's connections to downstream operators.
         let write_stream_option_copy = Arc::clone(&ingest_stream.write_stream_option);
 
-        let setup_hook = move |graph: &AbstractGraph, channel_manager: &mut StreamManager| {
-            match channel_manager.get_send_endpoints(id) {
+        let setup_hook =
+            move |graph: &JobGraph, channel_manager: &mut StreamManager| match channel_manager
+                .get_send_endpoints(id)
+            {
                 Ok(send_endpoints) => {
+                    let abstract_stream = graph.get_stream(&id).unwrap();
                     let write_stream =
-                        WriteStream::new(id, &graph.get_stream_name(&id), send_endpoints);
+                        WriteStream::new(id, &abstract_stream.name(), send_endpoints);
                     write_stream_option_copy
                         .lock()
                         .unwrap()
                         .replace(write_stream);
                 }
                 Err(msg) => panic!("Unable to set up IngestStream {}: {}", id, msg),
-            }
-        };
+            };
 
         default_graph::add_ingest_stream(&ingest_stream, setup_hook);
         default_graph::set_stream_name(&id, &format!("ingest_stream_{}", id));
