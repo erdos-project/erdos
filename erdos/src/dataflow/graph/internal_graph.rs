@@ -27,6 +27,7 @@ use crate::{
 /// The abstract graph representation of an ERDOS program defined in the driver.
 ///
 /// The abstract graph is compiled into a [`JobGraph`], which ERDOS schedules and executes.
+/// TODO: Make this struct private.
 #[derive(Default)]
 pub struct InternalGraph {
     /// Collection of operators.
@@ -42,7 +43,7 @@ pub struct InternalGraph {
 }
 
 impl InternalGraph {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Default::default()
     }
 
@@ -436,7 +437,7 @@ impl InternalGraph {
             .insert(abstract_operator.id, abstract_operator);
     }
 
-    pub fn connect_two_in_one_out<O, S, T, U, V>(
+    pub(crate) fn connect_two_in_one_out<O, S, T, U, V>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
         // Add state as an explicit argument to support future features such as state sharing.
@@ -498,7 +499,7 @@ impl InternalGraph {
             .insert(abstract_operator.id, abstract_operator);
     }
 
-    pub fn connect_parallel_one_in_two_out<O, S, T, U, V, W>(
+    pub(crate) fn connect_parallel_one_in_two_out<O, S, T, U, V, W>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
         // Add state as an explicit argument to support future features such as state sharing.
@@ -565,7 +566,7 @@ impl InternalGraph {
             .insert(abstract_operator.id, abstract_operator);
     }
 
-    pub fn connect_one_in_two_out<O, S, T, U, V>(
+    pub(crate) fn connect_one_in_two_out<O, S, T, U, V>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
         // Add state as an explicit argument to support future features such as state sharing.

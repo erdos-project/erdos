@@ -29,4 +29,7 @@ impl Stream<Vec<u8>> for PyLoopStream {
     fn id(&self) -> StreamId {
         self.loop_stream.id()
     }
+    fn name(&self) -> String {
+        
+    }
 }

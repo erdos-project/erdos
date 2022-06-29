@@ -1,4 +1,4 @@
-use erdos::dataflow::stream::{errors::TryReadError, ExtractStream};
+use erdos::dataflow::stream::{errors::TryReadError, EgressStream};
 use pyo3::{exceptions, prelude::*};
 
 use crate::{py_stream::PyOperatorStream, PyMessage};

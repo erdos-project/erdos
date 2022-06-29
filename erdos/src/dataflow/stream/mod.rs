@@ -62,6 +62,8 @@ pub trait WriteStreamT<D: Data> {
 pub trait Stream<D: Data> {
     fn name(&self) -> String;
     fn id(&self) -> StreamId;
+    // TODO: Replace with a context/information data structure that contains the 
+    // abstract graph and potentially information about the parent operator.
     fn graph(&self) -> Arc<Mutex<InternalGraph>>;
 }
 

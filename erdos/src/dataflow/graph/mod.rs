@@ -19,7 +19,7 @@ pub(crate) mod internal_graph;
 
 // Crate-wide exports
 pub use graph::Graph;
-pub(crate) use internal_graph::InternalGraph;
+pub use internal_graph::InternalGraph;
 pub(crate) use job_graph::JobGraph;
 use serde::Deserialize;
 

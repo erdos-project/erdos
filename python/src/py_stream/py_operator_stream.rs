@@ -1,4 +1,9 @@
-use erdos::dataflow::stream::{OperatorStream, Stream, StreamId};
+use std::sync::{Arc, Mutex};
+
+use erdos::dataflow::{
+    graph::InternalGraph,
+    stream::{OperatorStream, Stream, StreamId},
+};
 use pyo3::prelude::*;
 
 use super::PyStream;
@@ -9,16 +14,13 @@ use super::PyStream;
 #[pyclass(extends=PyStream)]
 pub struct PyOperatorStream {
     pub stream: OperatorStream<Vec<u8>>,
+    graph: Arc<Mutex<InternalGraph>>,
 }
 
 #[pymethods]
 impl PyOperatorStream {
     fn name(&self) -> String {
-        self.stream.name()
-    }
-
-    fn set_name(&mut self, name: String) {
-        self.stream.set_name(&name)
+        self.name()
     }
 
     fn id(&self) -> String {
@@ -33,6 +35,8 @@ impl PyOperatorStream {
     pub(crate) fn new(py: Python, operator_stream: OperatorStream<Vec<u8>>) -> PyResult<Py<Self>> {
         let base_class = PyStream {
             id: operator_stream.id(),
+            name: operator_stream.name(),
+            graph: operator_stream.graph(),
         };
         let initializer =
             PyClassInitializer::from(base_class).add_subclass(Self::from(operator_stream));
@@ -41,14 +45,20 @@ impl PyOperatorStream {
 }
 
 impl Stream<Vec<u8>> for PyOperatorStream {
+    fn name(&self) -> String {
+        self.stream.name()
+    }
     fn id(&self) -> StreamId {
         self.stream.id()
+    }
+    fn graph(&self) -> Arc<Mutex<InternalGraph>> {
+        Arc::clone(&self.graph)
     }
 }
 
 impl From<OperatorStream<Vec<u8>>> for PyOperatorStream {
     fn from(stream: OperatorStream<Vec<u8>>) -> Self {
-        Self { stream }
+        Self { stream, graph: stream.graph() }
     }
 }
 

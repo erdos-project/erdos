@@ -290,12 +290,6 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
     }
 
     #[pyfn(m)]
-    #[pyo3(name = "reset")]
-    fn reset_py() {
-        erdos::reset();
-    }
-
-    #[pyfn(m)]
     #[pyo3(name = "run")]
     fn run_py(
         py: Python,

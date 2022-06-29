@@ -1,4 +1,4 @@
-use erdos::dataflow::{stream::IngestStream, Message, Stream};
+use erdos::dataflow::{stream::IngressStream, Message, Stream};
 use pyo3::{exceptions, prelude::*};
 
 use crate::{PyMessage, PyStream};

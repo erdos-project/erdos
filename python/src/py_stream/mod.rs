@@ -1,6 +1,9 @@
+use std::sync::{Arc, Mutex};
+
 use erdos::dataflow::{
     operators::{Concat, Filter, Join, Map, Split},
     stream::{Stream, StreamId},
+    graph::InternalGraph,
 };
 use pyo3::{prelude::*, types::PyBytes};
 
@@ -24,16 +27,14 @@ pub use py_write_stream::PyWriteStream;
 #[pyclass(subclass)]
 pub struct PyStream {
     pub id: StreamId,
+    pub name: String,
+    pub graph: Arc<Mutex<InternalGraph>>,
 }
 
 #[pymethods]
 impl PyStream {
     fn name(&self) -> String {
-        Stream::name(self)
-    }
-
-    fn set_name(&mut self, name: &str) {
-        Stream::set_name(self, name)
+        self.name()
     }
 
     fn id(&self) -> String {
@@ -130,7 +131,13 @@ impl PyStream {
 }
 
 impl Stream<Vec<u8>> for PyStream {
+    fn name(&self) -> String {
+        self.name.clone()
+    }
     fn id(&self) -> StreamId {
         self.id
+    }
+    fn graph(&self) -> Arc<Mutex<InternalGraph>> {
+        Arc::clone(&self.graph)
     }
 }
