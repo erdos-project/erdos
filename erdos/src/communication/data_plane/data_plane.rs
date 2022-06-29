@@ -351,7 +351,8 @@ impl DataPlane {
                         None
                     }
                 }
-                StreamType::WriteStream(stream, destination_addresses) => {
+                StreamType::WriteStream(stream, destination_addresses)
+                | StreamType::IngressStream(stream, destination_addresses) => {
                     if self.setup_write_stream(&stream, destination_addresses) {
                         // If the WriteStream setup was successful, i.e., there are no
                         // pending connections to be made to other Workers, then notify

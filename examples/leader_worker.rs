@@ -4,7 +4,7 @@ use erdos::{
     dataflow::{
         context::SinkContext,
         operator::{Sink, Source},
-        stream::{ExtractStream, WriteStreamT},
+        stream::{ExtractStream, IngestStream, WriteStreamT},
         Message, Timestamp, WriteStream,
     },
     node::WorkerHandle,
@@ -75,13 +75,15 @@ fn main() {
     let worker_handle = WorkerHandle::new(configuration);
 
     // Construct the Graph.
-    let source_config = OperatorConfig::new().name("SourceOperator").node(0);
-    let source_stream = erdos::connect_source(SourceOperator::new, source_config);
+    // let source_config = OperatorConfig::new().name("SourceOperator").node(0);
+    // let source_stream = erdos::connect_source(SourceOperator::new, source_config);
 
-    let mut extract_stream = ExtractStream::new(&source_stream);
+    // let mut extract_stream = ExtractStream::new(&source_stream);
 
-    // let sink_config = OperatorConfig::new().name("SinkOperator").node(1);
-    // erdos::connect_sink(SinkOperator::new, || {}, sink_config, &source_stream);
+    let mut ingest_stream = IngestStream::new();
+
+    let sink_config = OperatorConfig::new().name("SinkOperator").node(1);
+    erdos::connect_sink(SinkOperator::new, || {}, sink_config, &ingest_stream);
 
     // Submit the Graph.
     println!("The index of the Worker is {}", worker_index);
@@ -92,12 +94,21 @@ fn main() {
         let _ = worker_handle.register();
     }
 
-    loop {
-        match extract_stream.read() {
-            Ok(message) => {
-                println!("Received {:?} message.", message);
-            }
-            Err(error) => {}
+    // loop {
+    //     match extract_stream.read() {
+    //         Ok(message) => {
+    //             println!("Received {:?} message.", message);
+    //         }
+    //         Err(error) => {}
+    //     }
+    // }
+
+    let mut counter: usize = 0;
+    while counter < 10 {
+        if !ingest_stream.is_closed() {
+            let timestamp = Timestamp::Time(vec![counter as u64]);
+            let _ = ingest_stream.send(Message::new_message(timestamp, counter));
+            counter += 1;
         }
     }
 }

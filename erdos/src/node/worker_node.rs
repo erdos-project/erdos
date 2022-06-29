@@ -520,7 +520,25 @@ impl WorkerNode {
                                 }
                             }
                             DriverStream::IngressStream(stream_id, destination_addresses) => {
-                                todo!()
+                                if let Some(ingress_stream) = job_graph.get_stream(&stream_id) {
+                                    let mut worker_addresses = HashMap::new();
+                                    for destination in ingress_stream.get_destinations() {
+                                        if let Some(destination_address) =
+                                            destination_addresses.get(&destination)
+                                        {
+                                            worker_addresses
+                                                .insert(destination, destination_address.clone());
+                                        } else {
+                                            tracing::error!(
+                                                "[Worker {}] Could not find the address for the Worker \
+                                                                    executing the Job {:?}.",
+                                                self.id,
+                                                destination,
+                                            );
+                                        }
+                                    }
+                                    streams.push(StreamType::IngressStream(ingress_stream, worker_addresses));
+                                }
                             }
                         }
                     }

@@ -19,6 +19,7 @@ pub(crate) enum StreamType {
     ReadStream(Box<dyn AbstractStreamT>, WorkerAddress),
     EgressStream(Box<dyn AbstractStreamT>, WorkerAddress),
     WriteStream(Box<dyn AbstractStreamT>, HashMap<Job, WorkerAddress>),
+    IngressStream(Box<dyn AbstractStreamT>, HashMap<Job, WorkerAddress>),
 }
 
 impl StreamType {
@@ -27,6 +28,7 @@ impl StreamType {
             StreamType::ReadStream(stream, _) => stream.id(),
             StreamType::WriteStream(stream, _) => stream.id(),
             StreamType::EgressStream(stream, _) => stream.id(),
+            StreamType::IngressStream(stream, _) => stream.id(),
         }
     }
 }
