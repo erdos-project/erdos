@@ -114,10 +114,12 @@ where
         self.send_endpoints.clone()
     }
 
+    /// Adds a [`SendEndpoint`] corresponding to the [`job`].
     fn add_send_endpoint(&mut self, job: Job, endpoint: SendEndpoint<Arc<Message<D>>>) {
         self.send_endpoints.insert(job, endpoint);
     }
 
+    /// Adds a [`RecvEndpoint`] corresponding to the [`job`].
     fn add_recv_endpoint(&mut self, job: Job, endpoint: RecvEndpoint<Arc<Message<D>>>) {
         self.recv_endpoints.insert(job, endpoint);
     }
@@ -199,7 +201,7 @@ pub(crate) struct StreamManager {
     /// The [`Worker`] to which the [`StreamManager`] belongs.
     worker_id: WorkerId,
     /// Stores a `StreamEndpoints` for each stream id.
-    stream_entries: HashMap<StreamId, Box<dyn StreamEndpointsT>>,
+    stream_endpoints: HashMap<StreamId, Box<dyn StreamEndpointsT>>,
 }
 
 impl StreamManager {
@@ -207,7 +209,7 @@ impl StreamManager {
     pub fn new(worker_id: WorkerId) -> Self {
         Self {
             worker_id,
-            stream_entries: HashMap::new(),
+            stream_endpoints: HashMap::new(),
         }
     }
 
@@ -226,7 +228,7 @@ impl StreamManager {
     ) {
         // If there are no endpoints for this stream, create endpoints.
         let stream_endpoints = self
-            .stream_entries
+            .stream_endpoints
             .entry(stream.id())
             .or_insert_with(|| stream.to_stream_endpoints_t());
 
@@ -244,15 +246,15 @@ impl StreamManager {
     ) -> Result<(), CommunicationError> {
         // If there are no endpoints for this stream, create endpoints and install
         // the pusher to the DataReceiver at this connection.
-        if !self.stream_entries.contains_key(&stream.id()) {
+        if !self.stream_endpoints.contains_key(&stream.id()) {
             let stream_endpoints = stream.to_stream_endpoints_t();
             let pusher = stream_endpoints.clone_pusher();
-            self.stream_entries.insert(stream.id(), stream_endpoints);
+            self.stream_endpoints.insert(stream.id(), stream_endpoints);
             worker_connection.install_pusher(stream.id(), pusher)?;
         }
 
         // Register for a new endpoint with the Pusher.
-        let stream_endpoints = self.stream_entries.get_mut(&stream.id()).unwrap();
+        let stream_endpoints = self.stream_endpoints.get_mut(&stream.id()).unwrap();
         stream_endpoints.add_inter_worker_recv_endpoint(stream.get_source())?;
         worker_connection.notify_pusher_update(stream.get_source(), stream.id(), receiving_job)
     }
@@ -267,7 +269,7 @@ impl StreamManager {
     ) {
         // If there are no endpoints for this stream, create endpoints.
         let stream_endpoints = self
-            .stream_entries
+            .stream_endpoints
             .entry(stream.id())
             .or_insert_with(|| stream.to_stream_endpoints_t());
 
@@ -286,7 +288,7 @@ impl StreamManager {
     where
         for<'a> D: Data + Deserialize<'a>,
     {
-        if let Some(stream_entry_t) = self.stream_entries.get_mut(&stream_id) {
+        if let Some(stream_entry_t) = self.stream_endpoints.get_mut(&stream_id) {
             if let Some(stream_entry) = stream_entry_t.as_any().downcast_mut::<StreamEndpoints<D>>()
             {
                 match stream_entry.take_recv_endpoint() {
@@ -315,7 +317,7 @@ impl StreamManager {
     where
         for<'a> D: Data + Deserialize<'a>,
     {
-        if let Some(stream_entry_t) = self.stream_entries.get_mut(&stream_id) {
+        if let Some(stream_entry_t) = self.stream_endpoints.get_mut(&stream_id) {
             if let Some(stream_entry) = stream_entry_t.as_any().downcast_mut::<StreamEndpoints<D>>()
             {
                 Ok(stream_entry.get_send_endpoints())
@@ -344,7 +346,7 @@ impl StreamManager {
         D: Data + for<'a> Deserialize<'a>,
     {
         let name = self
-            .stream_entries
+            .stream_endpoints
             .get(&stream_id)
             .ok_or_else(|| format!("Could not find stream with ID {}", stream_id))?
             .name();
