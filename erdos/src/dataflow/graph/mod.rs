@@ -10,6 +10,7 @@ use crate::{
 };
 
 // Private submodules
+#[allow(clippy::module_inception)]
 mod graph;
 mod job_graph;
 

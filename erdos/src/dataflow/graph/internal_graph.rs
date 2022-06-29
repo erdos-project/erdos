@@ -695,6 +695,7 @@ impl InternalGraph {
     }
 
     // TODO: implement this using the Clone trait.
+    #[allow(dead_code)]
     pub(crate) fn clone(&mut self) -> Self {
         let streams: HashMap<_, _> = self
             .streams

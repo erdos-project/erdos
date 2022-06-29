@@ -57,6 +57,7 @@ pub struct Graph {
     internal_graph: Arc<Mutex<InternalGraph>>,
 }
 
+#[allow(dead_code)]
 impl Graph {
     /// Creates a new Graph to which streams and operators can be added.
     pub fn new() -> Self {
