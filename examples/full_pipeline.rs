@@ -5,6 +5,9 @@ use std::{thread, time::Duration};
 use erdos::dataflow::context::*;
 use erdos::dataflow::deadlines::*;
 use erdos::dataflow::operator::*;
+use erdos::dataflow::operators::FilterOperator;
+use erdos::dataflow::operators::FlatMapOperator;
+use erdos::dataflow::operators::SplitOperator;
 use erdos::dataflow::state::TimeVersionedState;
 use erdos::dataflow::stream::*;
 use erdos::dataflow::Graph;
@@ -256,31 +259,31 @@ fn main() {
     let square_stream =
         graph.connect_one_in_one_out(SquareOperator::new, || {}, square_config, &source_stream);
 
-    // let map_config = OperatorConfig::new().name("FlatMapOperator");
-    // let map_stream = graph.connect_one_in_one_out(
-    //     || -> FlatMapOperator<usize, _> {
-    //         FlatMapOperator::new(|x: &usize| std::iter::once(2 * x))
-    //     },
-    //     || {},
-    //     map_config,
-    //     &square_stream,
-    // );
+    let map_config = OperatorConfig::new().name("FlatMapOperator");
+    let map_stream = graph.connect_one_in_one_out(
+        || -> FlatMapOperator<usize, _> {
+            FlatMapOperator::new(|x: &usize| std::iter::once(2 * x))
+        },
+        || {},
+        map_config,
+        &square_stream,
+    );
 
-    // let filter_config = OperatorConfig::new().name("FilterOperator");
-    // let filter_stream = graph.connect_one_in_one_out(
-    //     || -> FilterOperator<usize> { FilterOperator::new(|x: &usize| -> bool { *x > 10 }) },
-    //     || {},
-    //     filter_config,
-    //     &map_stream,
-    // );
+    let filter_config = OperatorConfig::new().name("FilterOperator");
+    let filter_stream = graph.connect_one_in_one_out(
+        || -> FilterOperator<usize> { FilterOperator::new(|x: &usize| -> bool { *x > 10 }) },
+        || {},
+        filter_config,
+        &map_stream,
+    );
 
-    // let split_config = OperatorConfig::new().name("SplitOperator");
-    // let (split_stream_less_50, split_stream_greater_50) = graph.connect_one_in_two_out(
-    //     || -> SplitOperator<usize> { SplitOperator::new(|x: &usize| -> bool { *x < 50 }) },
-    //     || {},
-    //     split_config,
-    //     &filter_stream,
-    // );
+    let split_config = OperatorConfig::new().name("SplitOperator");
+    let (split_stream_less_50, split_stream_greater_50) = graph.connect_one_in_two_out(
+        || -> SplitOperator<usize> { SplitOperator::new(|x: &usize| -> bool { *x < 50 }) },
+        || {},
+        split_config,
+        &filter_stream,
+    );
 
     let sum_config = OperatorConfig::new().name("SumOperator");
     let sum_stream = graph.connect_one_in_one_out(
@@ -290,21 +293,21 @@ fn main() {
         &square_stream,
     );
 
-    // let left_sink_config = OperatorConfig::new().name("LeftSinkOperator");
-    // graph.connect_sink(
-    //     SinkOperator::new,
-    //     TimeVersionedState::new,
-    //     left_sink_config,
-    //     &split_stream_less_50,
-    // );
+    let left_sink_config = OperatorConfig::new().name("LeftSinkOperator");
+    graph.connect_sink(
+        SinkOperator::new,
+        TimeVersionedState::new,
+        left_sink_config,
+        &split_stream_less_50,
+    );
 
-    // let right_sink_config = OperatorConfig::new().name("RightSinkOperator");
-    // graph.connect_sink(
-    //     SinkOperator::new,
-    //     TimeVersionedState::new,
-    //     right_sink_config,
-    //     &split_stream_greater_50,
-    // );
+    let right_sink_config = OperatorConfig::new().name("RightSinkOperator");
+    graph.connect_sink(
+        SinkOperator::new,
+        TimeVersionedState::new,
+        right_sink_config,
+        &split_stream_greater_50,
+    );
 
     // Example use of an ingress stream.
     let ingress_stream: IngressStream<usize> = graph.add_ingress("Ingest1");
