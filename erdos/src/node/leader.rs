@@ -48,7 +48,7 @@ enum JobState {
     NotReady,
 }
 
-pub(crate) struct LeaderNode {
+pub(crate) struct Leader {
     /// The address that the LeaderNode binds to.
     address: SocketAddr,
     /// A Receiver corresponding to a channel between the Driver and the Leader.
@@ -63,7 +63,7 @@ pub(crate) struct LeaderNode {
     job_graph_to_job_state: HashMap<JobGraphId, HashMap<Job, JobState>>,
 }
 
-impl LeaderNode {
+impl Leader {
     pub fn new(address: SocketAddr, driver_notification_rx: Receiver<DriverNotification>) -> Self {
         Self {
             address,
@@ -95,7 +95,7 @@ impl LeaderNode {
                             );
                             let leader_to_worker_broadcast_channel =
                                 leader_to_workers_tx.subscribe();
-                            let worker_handler = tokio::spawn(LeaderNode::handle_worker(
+                            let worker_handler = tokio::spawn(Leader::handle_worker(
                                 worker_stream,
                                 workers_to_leader_tx.clone(),
                                 leader_to_worker_broadcast_channel,

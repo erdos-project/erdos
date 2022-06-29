@@ -30,7 +30,7 @@ pub mod operator_executors;
 use std::fmt;
 
 // Crate-wide exports.
-pub(crate) use leader::LeaderNode;
+pub(crate) use leader::Leader;
 pub(crate) use resources::Resources;
 use serde::{Serialize, Deserialize};
 pub(crate) use worker_node::{WorkerNode, WorkerState};

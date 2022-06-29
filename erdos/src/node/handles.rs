@@ -8,7 +8,7 @@ use tracing_subscriber::fmt::format::FmtSpan;
 use crate::{
     communication::{control_plane::notifications::DriverNotification, CommunicationError},
     dataflow::graph::{default_graph, JobGraphId},
-    node::{LeaderNode, Resources, WorkerNode},
+    node::{Leader, Resources, WorkerNode},
     Configuration,
 };
 
@@ -55,7 +55,7 @@ impl LeaderHandle {
         let (leader_tx, leader_rx) = mpsc::channel(100);
 
         // Initialize a Leader.
-        let mut leader_node = LeaderNode::new(leader_address, leader_rx);
+        let mut leader_node = Leader::new(leader_address, leader_rx);
         let leader_task = tokio::spawn(async move { leader_node.run().await });
         Self {
             leader_handle: leader_tx,
