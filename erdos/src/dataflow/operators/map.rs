@@ -128,11 +128,11 @@ where
         F: 'static + Fn(&D1) -> D2 + Send + Sync + Clone,
     {
         let op_name = format!("MapOp_{}", self.id());
-
         let write_stream = OperatorStream::new(
             &format!("{}-write-stream", op_name),
             Arc::clone(&self.graph()),
         );
+
         self.graph().lock().unwrap().connect_one_in_one_out(
             move || -> FlatMapOperator<D1, _> {
                 let map_fn = map_fn.clone();
