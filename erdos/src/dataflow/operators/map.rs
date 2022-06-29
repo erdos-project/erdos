@@ -18,9 +18,10 @@ use crate::dataflow::{
 /// messages, and return them.
 ///
 /// ```
-/// # use erdos::dataflow::{stream::IngestStream, operator::{OperatorConfig}, operators::{FlatMapOperator}};
-/// # let source_stream = IngestStream::new();
-/// let map_stream = erdos::connect_one_in_one_out(
+/// # use erdos::dataflow::{Graph, stream::IngressStream, operator::{OperatorConfig}, operators::{FlatMapOperator}};
+/// # let graph = Graph::new();
+/// # let source_stream = graph.add_ingress("SourceIngressStream");
+/// let map_stream = graph.connect_one_in_one_out(
 ///     || -> FlatMapOperator<usize, _> {
 ///         FlatMapOperator::new(|x: &usize| -> Vec<usize> { vec![2 * x] })
 ///     },
@@ -91,8 +92,9 @@ where
     ///
     /// # Example
     /// ```
-    /// # use erdos::dataflow::{stream::{IngestStream, Stream}, operator::OperatorConfig, operators::Map};
-    /// # let source_stream = IngestStream::new();
+    /// # use erdos::dataflow::{Graph, stream::{IngressStream, Stream}, operator::OperatorConfig, operators::Map};
+    /// # let graph = Graph::new();
+    /// # let source_stream = graph.add_ingress("SourceIngressStream");
     /// let map_stream = source_stream.map(|x: &usize| -> usize { 2 * x });
     /// ```
     fn map<F>(&self, map_fn: F) -> OperatorStream<D2>
@@ -103,8 +105,10 @@ where
     ///
     /// # Example
     /// ```
-    /// # use erdos::dataflow::{stream::{IngestStream, Stream}, operator::OperatorConfig, operators::Map};
-    /// # let source_stream = IngestStream::new();
+    /// # use erdos::dataflow::{stream::{Graph, IngressStream, Stream}, operator::OperatorConfig, operators::Map};
+    /// #
+    /// # let graph = Graph::new();
+    /// # let source_stream = graph.add_ingress("SourceIngressStream");
     /// let map_stream = source_stream.flat_map(|x: &usize| 0..*x );
     /// ```
     fn flat_map<F, I>(&self, flat_map_fn: F) -> OperatorStream<D2>
@@ -124,8 +128,12 @@ where
         F: 'static + Fn(&D1) -> D2 + Send + Sync + Clone,
     {
         let op_name = format!("MapOp_{}", self.id());
+        let write_stream = OperatorStream::new(
+            &format!("{}-write-stream", op_name),
+            Arc::clone(&self.graph()),
+        );
 
-        crate::connect_one_in_one_out(
+        self.graph().lock().unwrap().connect_one_in_one_out(
             move || -> FlatMapOperator<D1, _> {
                 let map_fn = map_fn.clone();
                 FlatMapOperator::new(move |x| std::iter::once(map_fn(x)))
@@ -133,7 +141,9 @@ where
             || {},
             OperatorConfig::new().name(&op_name),
             self,
-        )
+            &write_stream,
+        );
+        write_stream
     }
 
     fn flat_map<F, I>(&self, flat_map_fn: F) -> OperatorStream<D2>
@@ -142,12 +152,18 @@ where
         I: 'static + IntoIterator<Item = D2>,
     {
         let op_name = format!("FlatMapOp_{}", self.id());
+        let write_stream = OperatorStream::new(
+            &format!("{}-write-stream", op_name),
+            Arc::clone(&self.graph()),
+        );
 
-        crate::connect_one_in_one_out(
+        self.graph().lock().unwrap().connect_one_in_one_out(
             move || -> FlatMapOperator<D1, _> { FlatMapOperator::new(flat_map_fn.clone()) },
             || {},
             OperatorConfig::new().name(&op_name),
             self,
-        )
+            &write_stream,
+        );
+        write_stream
     }
 }

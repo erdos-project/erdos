@@ -10,18 +10,20 @@ use crate::{
 };
 
 // Private submodules
-mod abstract_graph;
+#[allow(clippy::module_inception)]
+mod graph;
 mod job_graph;
 
-// Public submodules
-pub(crate) mod default_graph;
+// Crate-wide submodules
+pub(crate) mod internal_graph;
 
 // Crate-wide exports
-pub(crate) use abstract_graph::AbstractGraph;
+pub use graph::Graph;
+pub(crate) use internal_graph::InternalGraph;
 pub(crate) use job_graph::JobGraph;
 use serde::Deserialize;
 
-use super::{stream::StreamId, Data};
+use super::{stream::StreamId, Data, Stream};
 
 /// Trait for functions that set up operator execution.
 pub(crate) trait OperatorRunner:
@@ -43,16 +45,12 @@ impl<
     }
 }
 
-/// Trait for functions used to set up ingest and extract streams.
-pub(crate) trait StreamSetupHook:
-    'static + Fn(&AbstractGraph, &mut ChannelManager) + Sync + Send
-{
+/// Trait for functions used to set up ingress and egress streams.
+pub(crate) trait StreamSetupHook: 'static + Fn(&mut ChannelManager) + Sync + Send {
     fn box_clone(&self) -> Box<dyn StreamSetupHook>;
 }
 
-impl<T: 'static + Fn(&AbstractGraph, &mut ChannelManager) + Sync + Send + Clone> StreamSetupHook
-    for T
-{
+impl<T: 'static + Fn(&mut ChannelManager) + Sync + Send + Clone> StreamSetupHook for T {
     fn box_clone(&self) -> Box<dyn StreamSetupHook> {
         Box::new(self.clone())
     }
@@ -87,6 +85,20 @@ where
         Self {
             id,
             name,
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<T, D> From<&T> for AbstractStream<D>
+where
+    T: Stream<D>,
+    for<'a> D: Data + Deserialize<'a>,
+{
+    fn from(stream: &T) -> Self {
+        Self {
+            id: stream.id(),
+            name: stream.name(),
             phantom: PhantomData,
         }
     }

@@ -5,9 +5,12 @@ use std::{thread, time::Duration};
 use erdos::dataflow::context::*;
 use erdos::dataflow::deadlines::*;
 use erdos::dataflow::operator::*;
-use erdos::dataflow::operators::*;
+use erdos::dataflow::operators::FilterOperator;
+use erdos::dataflow::operators::FlatMapOperator;
+use erdos::dataflow::operators::SplitOperator;
 use erdos::dataflow::state::TimeVersionedState;
 use erdos::dataflow::stream::*;
+use erdos::dataflow::Graph;
 use erdos::dataflow::*;
 use erdos::node::Node;
 use erdos::Configuration;
@@ -247,16 +250,17 @@ fn main() {
     //println!("The s value is {}", s.s);
     let args = erdos::new_app("ERDOS").get_matches();
     let mut node = Node::new(Configuration::from_args(&args));
+    let graph = Graph::new();
 
     let source_config = OperatorConfig::new().name("SourceOperator");
-    let source_stream = erdos::connect_source(SourceOperator::new, source_config);
+    let source_stream = graph.connect_source(SourceOperator::new, source_config);
 
     let square_config = OperatorConfig::new().name("SquareOperator");
     let square_stream =
-        erdos::connect_one_in_one_out(SquareOperator::new, || {}, square_config, &source_stream);
+        graph.connect_one_in_one_out(SquareOperator::new, || {}, square_config, &source_stream);
 
     let map_config = OperatorConfig::new().name("FlatMapOperator");
-    let map_stream = erdos::connect_one_in_one_out(
+    let map_stream = graph.connect_one_in_one_out(
         || -> FlatMapOperator<usize, _> {
             FlatMapOperator::new(|x: &usize| std::iter::once(2 * x))
         },
@@ -266,7 +270,7 @@ fn main() {
     );
 
     let filter_config = OperatorConfig::new().name("FilterOperator");
-    let filter_stream = erdos::connect_one_in_one_out(
+    let filter_stream = graph.connect_one_in_one_out(
         || -> FilterOperator<usize> { FilterOperator::new(|x: &usize| -> bool { *x > 10 }) },
         || {},
         filter_config,
@@ -274,23 +278,23 @@ fn main() {
     );
 
     let split_config = OperatorConfig::new().name("SplitOperator");
-    let (split_stream_less_50, split_stream_greater_50) = erdos::connect_one_in_two_out(
+    let (split_stream_less_50, split_stream_greater_50) = graph.connect_one_in_two_out(
         || -> SplitOperator<usize> { SplitOperator::new(|x: &usize| -> bool { *x < 50 }) },
         || {},
         split_config,
         &filter_stream,
     );
 
-    //let sum_config = OperatorConfig::new().name("SumOperator");
-    //let sum_stream = erdos::connect_one_in_one_out(
-    //    SumOperator::new,
-    //    TimeVersionedState::new,
-    //    sum_config,
-    //    &square_stream,
-    //);
+    let sum_config = OperatorConfig::new().name("SumOperator");
+    let sum_stream = graph.connect_one_in_one_out(
+        SumOperator::new,
+        TimeVersionedState::new,
+        sum_config,
+        &square_stream,
+    );
 
     let left_sink_config = OperatorConfig::new().name("LeftSinkOperator");
-    erdos::connect_sink(
+    graph.connect_sink(
         SinkOperator::new,
         TimeVersionedState::new,
         left_sink_config,
@@ -298,35 +302,40 @@ fn main() {
     );
 
     let right_sink_config = OperatorConfig::new().name("RightSinkOperator");
-    erdos::connect_sink(
+    graph.connect_sink(
         SinkOperator::new,
         TimeVersionedState::new,
         right_sink_config,
         &split_stream_greater_50,
     );
 
-    // Example use of an ingest stream.
-    // let ingest_stream = IngestStream::new();
-    // let sink_config = OperatorConfig::new().name("IngestSinkOperator");
-    // erdos::connect_sink(
-    //     SinkOperator::new,
-    //     TimeVersionedState::new,
-    //     sink_config,
-    //     &ingest_stream,
-    // );
+    // Example use of an ingress stream.
+    let ingress_stream: IngressStream<usize> = graph.add_ingress("Ingest1");
+    let sink_config = OperatorConfig::new().name("IngestSinkOperator");
+    graph.connect_sink(
+        SinkOperator::new,
+        TimeVersionedState::new,
+        sink_config,
+        &ingress_stream,
+    );
 
-    // let join_sum_config = OperatorConfig::new().name("JoinSumOperator");
-    // let join_stream = erdos::connect_two_in_one_out(
-    //    JoinSumOperator::new,
-    //    TimeVersionedState::new,
-    //    join_sum_config,
-    //    &source_stream,
-    //    &sum_stream,
-    // );
+    let join_sum_config = OperatorConfig::new().name("JoinSumOperator");
+    let _join_stream = graph.connect_two_in_one_out(
+        JoinSumOperator::new,
+        TimeVersionedState::new,
+        join_sum_config,
+        &source_stream,
+        &sum_stream,
+    );
 
-    //let even_odd_config = OperatorConfig::new().name("EvenOddOperator");
-    //let (even_stream, odd_stream) =
-    //    erdos::connect_one_in_two_out(EvenOddOperator::new, || {}, even_odd_config, &source_stream);
+    let even_odd_config = OperatorConfig::new().name("EvenOddOperator");
+    let (_even_stream, _odd_stream) =
+        graph.connect_one_in_two_out(EvenOddOperator::new, || {}, even_odd_config, &source_stream);
 
-    node.run();
+    let mut loop_stream: LoopStream<usize> = graph.add_loop_stream();
+    loop_stream.connect_loop(&source_stream);
+
+    let _egress_stream: EgressStream<usize> = square_stream.to_egress();
+
+    node.run(graph);
 }

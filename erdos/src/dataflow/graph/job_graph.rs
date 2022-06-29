@@ -18,8 +18,8 @@ impl JobGraph {
     pub(crate) fn new(
         operators: Vec<AbstractOperator>,
         streams: Vec<Box<dyn AbstractStreamT>>,
-        ingest_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
-        extract_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
+        ingress_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
+        egress_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
     ) -> Self {
         let mut stream_sources = HashMap::new();
         let mut stream_destinations: HashMap<StreamId, Vec<Job>> = HashMap::new();
@@ -44,14 +44,14 @@ impl JobGraph {
         }
 
         let mut driver_setup_hooks = Vec::new();
-        for (ingest_stream_id, setup_hook) in ingest_streams {
-            stream_sources.insert(ingest_stream_id, Job::Driver);
+        for (ingress_stream_id, setup_hook) in ingress_streams {
+            stream_sources.insert(ingress_stream_id, Job::Driver);
             driver_setup_hooks.push(setup_hook);
         }
 
-        for (extract_stream_id, setup_hook) in extract_streams {
+        for (egress_stream_id, setup_hook) in egress_streams {
             stream_destinations
-                .entry(extract_stream_id)
+                .entry(egress_stream_id)
                 .or_default()
                 .push(Job::Driver);
             driver_setup_hooks.push(setup_hook);
@@ -100,7 +100,7 @@ impl JobGraph {
             .collect()
     }
 
-    /// Returns the hooks used to set up ingest and extract streams.
+    /// Returns the hooks used to set up ingress and egress streams.
     pub fn get_driver_setup_hooks(&self) -> Vec<Box<dyn StreamSetupHook>> {
         let mut driver_setup_hooks = Vec::new();
         for i in 0..self.driver_setup_hooks.len() {

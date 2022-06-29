@@ -1,18 +1,22 @@
-use std::marker::PhantomData;
+use std::{
+    marker::PhantomData,
+    sync::{Arc, Mutex},
+};
 
 use serde::Deserialize;
 
-use crate::dataflow::{graph::default_graph, Data};
+use crate::dataflow::{graph::InternalGraph, Data};
 
-use super::{OperatorStream, Stream, StreamId};
+use super::{OperatorStream, StreamId};
 
 /// Enables loops in the dataflow.
 ///
 /// # Example
 /// ```
-/// # use erdos::dataflow::{stream::LoopStream, operator::{OperatorConfig}, operators::{FlatMapOperator}};
-/// let loop_stream = LoopStream::new();
-/// let output_stream = erdos::connect_one_in_one_out(
+/// # use erdos::dataflow::{Graph, stream::LoopStream, operator::{OperatorConfig}, operators::{FlatMapOperator}};
+/// let graph = Graph::new();
+/// let loop_stream: LoopStream<usize> = graph.add_loop_stream();
+/// let output_stream = graph.connect_one_in_one_out(
 ///     || FlatMapOperator::new(|x: &usize| { std::iter::once(2 * x) }),
 ///     || {},
 ///     OperatorConfig::new().name("MapOperator"),
@@ -27,41 +31,39 @@ where
 {
     id: StreamId,
     phantom: PhantomData<D>,
+    graph: Arc<Mutex<InternalGraph>>,
 }
 
 impl<D> LoopStream<D>
 where
     for<'a> D: Data + Deserialize<'a>,
 {
-    pub fn new() -> Self {
+    pub(crate) fn new(graph: Arc<Mutex<InternalGraph>>) -> Self {
         let id = StreamId::new_deterministic();
-        let loop_stream = Self {
+
+        tracing::debug!("Initializing a LoopStream with ID: {}", id,);
+
+        Self {
             id,
             phantom: PhantomData,
-        };
-        default_graph::add_loop_stream(&loop_stream);
-        loop_stream
+            graph: Arc::clone(&graph),
+        }
     }
 
-    pub fn connect_loop(&self, stream: &OperatorStream<D>) {
-        default_graph::connect_loop(self, stream);
-    }
-}
+    pub fn connect_loop(&mut self, stream: &OperatorStream<D>) {
+        Arc::clone(&self.graph)
+            .lock()
+            .unwrap()
+            .connect_loop(self, stream);
 
-impl<D> Default for LoopStream<D>
-where
-    for<'a> D: Data + Deserialize<'a>,
-{
-    fn default() -> Self {
-        Self::new()
+        tracing::debug!(
+            "Connected LoopStream with ID: {} to stream named: {}",
+            self.id,
+            stream.name,
+        );
     }
-}
 
-impl<D> Stream<D> for LoopStream<D>
-where
-    for<'a> D: Data + Deserialize<'a>,
-{
-    fn id(&self) -> StreamId {
+    pub(crate) fn id(&self) -> StreamId {
         self.id
     }
 }

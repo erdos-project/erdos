@@ -20,11 +20,12 @@ use crate::dataflow::{
 /// messages <= 10 (right stream), and send them.
 ///
 /// ```
-/// # use erdos::dataflow::{stream::IngestStream, operator::{OperatorConfig}, operators::{SplitOperator}};
-/// # let source_stream = IngestStream::new();
+/// # use erdos::dataflow::{Graph, stream::IngressStream, operator::{OperatorConfig}, operators::{SplitOperator}};
+/// # let graph = Graph::new();
+/// # let source_stream = graph.add_ingress("SourceIngressStream");
 /// // Add the mapping function as an argument to the operator via the OperatorConfig.
 /// let split_config = OperatorConfig::new().name("SplitOperator");
-/// let (left_stream, right_stream) = erdos::connect_one_in_two_out(
+/// let (left_stream, right_stream) = graph.connect_one_in_two_out(
 ///     || -> SplitOperator<usize> { SplitOperator::new(|a: &usize| -> bool { a > &10 }) },
 ///     || {},
 ///     split_config,
@@ -102,12 +103,23 @@ where
         F: 'static + Fn(&D1) -> bool + Send + Sync + Clone,
     {
         let op_name = format!("SplitOp_{}", self.id());
+        let left_write_stream = OperatorStream::new(
+            &format!("{}-write-stream", op_name),
+            Arc::clone(&self.graph()),
+        );
+        let right_write_stream = OperatorStream::new(
+            &format!("{}-write-stream", op_name),
+            Arc::clone(&self.graph()),
+        );
 
-        crate::connect_one_in_two_out(
+        self.graph().lock().unwrap().connect_one_in_two_out(
             move || -> SplitOperator<D1> { SplitOperator::new(split_fn.clone()) },
             || {},
             OperatorConfig::new().name(&op_name),
             self,
-        )
+            &left_write_stream,
+            &right_write_stream,
+        );
+        (left_write_stream, right_write_stream)
     }
 }
