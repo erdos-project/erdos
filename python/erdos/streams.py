@@ -318,7 +318,7 @@ class WriteStream(Generic[T]):
         """Whether a top watermark message has been sent."""
         return self._py_write_stream.is_closed()
 
-    def send(self, msg: Message) -> None:
+    def send(self, msg: Message[T]) -> None:
         """Sends a message on the stream.
 
         Args:
@@ -362,7 +362,7 @@ class LoopStream(Stream[T]):
     def __init__(self) -> None:
         super().__init__(PyLoopStream())
 
-    def connect_loop(self, stream: OperatorStream) -> None:
+    def connect_loop(self, stream: OperatorStream[T]) -> None:
         if not isinstance(stream, OperatorStream):
             raise TypeError("Loop must be connected to an `OperatorStream`")
         self._internal_stream.connect_loop(stream._internal_stream)
@@ -423,7 +423,7 @@ class ExtractStream(Generic[T]):
         stream: The stream from which to read messages.
     """
 
-    def __init__(self, stream: OperatorStream) -> None:
+    def __init__(self, stream: OperatorStream[T]) -> None:
         if not isinstance(stream, OperatorStream):
             raise ValueError(
                 "ExtractStream needs to be initialized with a Stream. "
