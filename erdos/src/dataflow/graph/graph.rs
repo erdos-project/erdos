@@ -378,3 +378,11 @@ impl Graph {
         self.internal_graph.lock().unwrap().compile()
     }
 }
+
+impl Clone for Graph {
+    fn clone(&self) -> Self {
+        Self {
+            internal_graph: Arc::new(Mutex::new(self.internal_graph.lock().unwrap().clone())),
+        }
+    }
+}

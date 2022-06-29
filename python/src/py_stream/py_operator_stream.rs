@@ -6,7 +6,7 @@ use erdos::dataflow::{
 };
 use pyo3::prelude::*;
 
-use super::PyStream;
+use super::{PyEgressStream, PyStream};
 
 /// The internal Python abstraction over a [`Stream`].
 ///
@@ -20,11 +20,15 @@ pub struct PyOperatorStream {
 #[pymethods]
 impl PyOperatorStream {
     fn name(&self) -> String {
-        self.name()
+        self.stream.name()
     }
 
     fn id(&self) -> String {
         format!("{}", self.stream.id())
+    }
+
+    fn to_egress(&self, py: Python) -> Py<PyEgressStream> {
+        PyEgressStream::new(py, self.stream.to_egress()).unwrap()
     }
 }
 
@@ -58,7 +62,10 @@ impl Stream<Vec<u8>> for PyOperatorStream {
 
 impl From<OperatorStream<Vec<u8>>> for PyOperatorStream {
     fn from(stream: OperatorStream<Vec<u8>>) -> Self {
-        Self { stream, graph: stream.graph() }
+        Self {
+            stream: stream.clone(),
+            graph: stream.graph(),
+        }
     }
 }
 

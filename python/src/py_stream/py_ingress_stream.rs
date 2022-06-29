@@ -3,50 +3,56 @@ use pyo3::{exceptions, prelude::*};
 
 use crate::{PyMessage, PyStream};
 
-/// The internal Python abstraction over an `IngestStream`.
+/// The internal Python abstraction over an `IngressStream`.
 ///
-/// This class is exposed on the Python interface as `erdos.streams.IngestStream`.
+/// This class is exposed on the Python interface as `erdos.streams.IngressStream`.
 #[pyclass(extends=PyStream)]
-pub struct PyIngestStream {
-    ingest_stream: IngestStream<Vec<u8>>,
+pub struct PyIngressStream {
+    ingress_stream: IngressStream<Vec<u8>>,
 }
 
 #[pymethods]
-impl PyIngestStream {
-    #[new]
-    fn new(name: Option<String>) -> (Self, PyStream) {
-        let mut ingest_stream = IngestStream::new();
-        if let Some(name_str) = name {
-            ingest_stream.set_name(&name_str);
-        }
-
-        let id = ingest_stream.id();
-        (Self { ingest_stream }, PyStream { id })
-    }
-
+impl PyIngressStream {
     fn is_closed(&self) -> bool {
-        self.ingest_stream.is_closed()
+        self.ingress_stream.is_closed()
     }
 
     fn send(&mut self, msg: &PyMessage) -> PyResult<()> {
-        self.ingest_stream.send(Message::from(msg)).map_err(|e| {
+        self.ingress_stream.send(Message::from(msg)).map_err(|e| {
             exceptions::PyException::new_err(format!(
-                "Error sending message on ingest stream {}: {:?}",
-                self.ingest_stream.id(),
+                "Error sending message on ingress stream {}: {:?}",
+                self.ingress_stream.id(),
                 e
             ))
         })
     }
 
+    #[getter(name)]
     fn name(&self) -> String {
-        self.ingest_stream.name()
+        self.ingress_stream.name()
     }
 
-    fn set_name(&mut self, name: String) {
-        self.ingest_stream.set_name(&name)
-    }
-
+    #[getter(id)]
     fn id(&self) -> String {
-        format!("{}", self.ingest_stream.id())
+        format!("{}", self.ingress_stream.id())
+    }
+}
+
+impl PyIngressStream {
+    pub(crate) fn new(py: Python, ingress_stream: IngressStream<Vec<u8>>) -> PyResult<Py<Self>> {
+        let base_class = PyStream {
+            id: ingress_stream.id(),
+            name: ingress_stream.name(),
+            graph: ingress_stream.graph(),
+        };
+        let initializer =
+            PyClassInitializer::from(base_class).add_subclass(Self::from(ingress_stream));
+        Py::new(py, initializer)
+    }
+}
+
+impl From<IngressStream<Vec<u8>>> for PyIngressStream {
+    fn from(ingress_stream: IngressStream<Vec<u8>>) -> Self {
+        Self { ingress_stream }
     }
 }

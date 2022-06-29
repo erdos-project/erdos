@@ -1,23 +1,23 @@
 use std::sync::{Arc, Mutex};
 
 use erdos::dataflow::{
+    graph::InternalGraph,
     operators::{Concat, Filter, Join, Map, Split},
     stream::{Stream, StreamId},
-    graph::InternalGraph,
 };
 use pyo3::{prelude::*, types::PyBytes};
 
 // Private submodules
-mod py_extract_stream;
-mod py_ingest_stream;
+mod py_egress_stream;
+mod py_ingress_stream;
 mod py_loop_stream;
 mod py_operator_stream;
 mod py_read_stream;
 mod py_write_stream;
 
 // Public exports
-pub use py_extract_stream::PyExtractStream;
-pub use py_ingest_stream::PyIngestStream;
+pub use py_egress_stream::PyEgressStream;
+pub use py_ingress_stream::PyIngressStream;
 pub use py_loop_stream::PyLoopStream;
 pub use py_operator_stream::PyOperatorStream;
 pub use py_read_stream::PyReadStream;
@@ -34,7 +34,7 @@ pub struct PyStream {
 #[pymethods]
 impl PyStream {
     fn name(&self) -> String {
-        self.name()
+        self.name.clone()
     }
 
     fn id(&self) -> String {
