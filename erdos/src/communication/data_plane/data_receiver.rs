@@ -13,11 +13,13 @@ use tokio_util::codec::Framed;
 use crate::{
     communication::{
         data_plane::notifications::DataPlaneNotification, CommunicationError, InterProcessMessage,
-        MessageCodec, PusherT,
+        MessageCodec, 
     },
     dataflow::stream::StreamId,
     node::WorkerId,
 };
+
+use super::pusher::PusherT;
 
 /// Listens on a TCP stream, and pushes messages it receives to operator executors.
 #[allow(dead_code)]

@@ -4,13 +4,15 @@ use std::{
 };
 
 use crate::{
-    communication::{control_plane::notifications::WorkerAddress, PusherT},
+    communication::control_plane::notifications::WorkerAddress,
     dataflow::{
         graph::{AbstractStreamT, Job},
         stream::StreamId,
     },
     node::WorkerId,
 };
+
+use super::pusher::PusherT;
 
 #[derive(Debug, Clone)]
 pub(crate) enum StreamType {

@@ -9,7 +9,7 @@ use tokio::sync::mpsc::{self, UnboundedSender};
 use crate::{
     communication::{
         data_plane::worker_connection::WorkerConnection, CommunicationError, InterProcessMessage,
-        Pusher, PusherT, RecvEndpoint, SendEndpoint,
+        Pusher, RecvEndpoint, SendEndpoint,
     },
     dataflow::{
         graph::{AbstractStreamT, Job},
@@ -18,6 +18,8 @@ use crate::{
     },
     node::WorkerId,
 };
+
+use super::pusher::PusherT;
 
 pub(crate) trait StreamEndpointsT: Send {
     /// Upcasts the [`StreamEndpoints`] object to [`Any`].

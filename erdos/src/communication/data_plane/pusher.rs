@@ -28,6 +28,8 @@ pub(crate) trait PusherT: Send {
     /// Checks if an endpoint exists for the given Job inside this Pusher.
     fn contains_endpoint(&self, job: &Job) -> bool;
 
+    /// Upcasts the trait object, so that it can be later downcasted to the
+    /// correct message type when retrieving the [`Endpoint`]s.
     fn as_any(&mut self) -> &mut dyn Any;
 
     /// Creates message from bytes and sends it to endpoints.

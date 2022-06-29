@@ -7,25 +7,22 @@ use serde::{Deserialize, Serialize};
 use crate::{dataflow::stream::StreamId, node::WorkerId};
 
 // Private submodules
-mod endpoints;
 mod errors;
 mod serializable;
 
 // Crate-wide visible submodules
 pub(crate) mod control_plane;
 pub(crate) mod data_plane;
-pub(crate) mod pusher;
 
 // Private imports
 use serializable::Serializable;
 
 // Module-wide exports
-pub(crate) use data_plane::codec::MessageCodec;
+pub(crate) use data_plane::{
+    endpoints::{RecvEndpoint, SendEndpoint},
+    MessageCodec, Pusher,
+};
 pub(crate) use errors::{CodecError, CommunicationError, TryRecvError};
-pub(crate) use pusher::{Pusher, PusherT};
-
-// Crate-wide exports
-pub(crate) use endpoints::{RecvEndpoint, SendEndpoint};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Metadata {
