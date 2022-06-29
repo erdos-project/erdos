@@ -9,6 +9,7 @@ use tokio::{
     sync::mpsc::{self, Receiver},
     task::JoinHandle,
 };
+use tracing::Level;
 
 #[derive(Debug)]
 enum CLINotifications {
@@ -84,6 +85,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .long("num_cpus")
                         .default_value("0")
                         .help("The number of CPUs on this Worker node."),
+                )
+                .arg(
+                    Arg::with_name("verbose")
+                        .short("v")
+                        .long("verbose")
+                        .multiple(true)
+                        .takes_value(false)
+                        .help("Sets the level of verbosity."),
                 ),
         )
         .get_matches();
@@ -95,7 +104,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(matches) = matches.subcommand_matches("start") {
         let leader_address: SocketAddr = matches.value_of("address").unwrap().parse()?;
         if matches.is_present("leader") {
-            let leader_handle = LeaderHandle::new(leader_address, None);
+            let logging_level = match matches.occurrences_of("verbose") {
+                0 => None,
+                1 => Some(Level::WARN),
+                2 => Some(Level::INFO),
+                3 => Some(Level::DEBUG),
+                _ => Some(Level::TRACE),
+            };
+            let leader_handle = LeaderHandle::new(leader_address, logging_level);
             loop {
                 if let Some(notification) = driver_notification_rx_channel.recv().await {
                     match notification {

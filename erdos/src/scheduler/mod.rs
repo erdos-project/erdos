@@ -29,7 +29,7 @@ impl JobGraphScheduler for SimpleJobGraphScheduler {
     fn schedule_graph(
         &mut self,
         job_graph: &InternalGraph,
-        workers: &Vec<WorkerState>,
+        _workers: &Vec<WorkerState>,
     ) -> HashMap<Job, WorkerId> {
         let mut placements = HashMap::new();
 

@@ -24,7 +24,6 @@ use crate::{
     dataflow::graph::{InternalGraph, Job, JobGraphId},
     node::WorkerState,
     scheduler::{JobGraphScheduler, SimpleJobGraphScheduler},
-    OperatorId,
 };
 
 use super::WorkerId;
