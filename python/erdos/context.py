@@ -52,7 +52,9 @@ class OneInOneOutContext:
 
     def __str__(self):
         return "OneInOneOutContext(Timestamp={}, Config={}, WriteStream={})".format(
-            self.timestamp, self.config, self.write_stream.name()
+            self.timestamp,
+            self.config,
+            self.write_stream.name()
         )
 
 
