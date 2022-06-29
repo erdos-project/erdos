@@ -80,6 +80,7 @@ nitpick_ignore = [
     ("py:data", "typing.Optional"),
     ("py:data", "typing.Tuple"),
     ("py:data", "typing.Callable"),
+    ("py:obj", "erdos.streams.T"),
 ]
 
 # Add any paths that contain templates here, relative to this directory.
