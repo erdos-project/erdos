@@ -18,11 +18,12 @@ use crate::dataflow::{
 /// stream of usize messages, and send them.
 ///
 /// ```
-/// # use erdos::dataflow::{stream::IngestStream, operator::{OperatorConfig}, operators::{FilterOperator}};
-/// # let source_stream = IngestStream::new();
+/// # use erdos::dataflow::{Graph, stream::IngressStream, operator::{OperatorConfig}, operators::{FilterOperator}};
+/// # let graph = Graph::new();
+/// # let source_stream: IngressStream<usize> = graph.add_ingress("SourceIngressStream");
 /// // Add the mapping function as an argument to the operator via the OperatorConfig.
 /// let filter_config = OperatorConfig::new().name("FilterOperator");
-/// let filter_stream = erdos::connect_one_in_one_out(
+/// let filter_stream = graph.connect_one_in_one_out(
 ///     || -> FilterOperator<usize> { FilterOperator::new(|a: &usize| -> bool { a > &10 }) },
 ///     || {},
 ///     filter_config,
@@ -92,12 +93,18 @@ where
         F: 'static + Fn(&D) -> bool + Send + Sync + Clone,
     {
         let op_name = format!("FilterOp_{}", self.id());
+        let write_stream = OperatorStream::new(
+            &format!("{}-write-stream", op_name),
+            Arc::clone(&self.graph()),
+        );
 
-        crate::connect_one_in_one_out(
+        self.graph().lock().unwrap().connect_one_in_one_out(
             move || -> FilterOperator<D> { FilterOperator::new(filter_fn.clone()) },
             || {},
             OperatorConfig::new().name(&op_name),
             self,
-        )
+            &write_stream,
+        );
+        write_stream
     }
 }

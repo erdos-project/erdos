@@ -94,7 +94,7 @@ impl<D: Data> WriteStream<D> {
     }
 
     /// Returns `true` if a top watermark message was received or the
-    /// [`IngestStream`](crate::dataflow::stream::IngestStream) failed to set up.
+    /// [`IngressStream`](crate::dataflow::stream::IngressStream) failed to set up.
     pub fn is_closed(&self) -> bool {
         self.stats.lock().unwrap().is_stream_closed()
     }

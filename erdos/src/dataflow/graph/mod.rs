@@ -10,19 +10,20 @@ use crate::{
 };
 
 // Private submodules
-mod abstract_graph;
+#[allow(clippy::module_inception)]
+mod graph;
 mod job_graph;
 
-// Public submodules
-pub(crate) mod default_graph;
+// Crate-wide submodules
+pub(crate) mod internal_graph;
 
 // Crate-wide exports
-pub(crate) use abstract_graph::AbstractGraph;
-pub(crate) use job_graph::InternalGraph;
+pub use graph::Graph;
+pub(crate) use internal_graph::InternalGraph;
 pub(crate) use job_graph::JobGraph;
 use serde::{Deserialize, Serialize};
 
-use super::{stream::StreamId, Data};
+use super::{stream::StreamId, Data, Stream};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct JobGraphId(String);
@@ -105,6 +106,22 @@ where
         Self {
             id,
             name,
+            phantom: PhantomData,
+            source: None,
+            destinations: Vec::new(),
+        }
+    }
+}
+
+impl<T, D> From<&T> for AbstractStream<D>
+where
+    T: Stream<D>,
+    for<'a> D: Data + Deserialize<'a>,
+{
+    fn from(stream: &T) -> Self {
+        Self {
+            id: stream.id(),
+            name: stream.name(),
             phantom: PhantomData,
             source: None,
             destinations: Vec::new(),

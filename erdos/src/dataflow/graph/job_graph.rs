@@ -107,8 +107,8 @@ impl JobGraph {
         operators: HashMap<Job, AbstractOperator>,
         operator_runners: HashMap<OperatorId, Box<dyn OperatorRunner>>,
         streams: Vec<Box<dyn AbstractStreamT>>,
-        ingest_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
-        extract_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
+        ingress_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
+        egress_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
     ) -> Self {
         // Initialize a HashMap of streams.
         let mut stream_id_to_stream_map: HashMap<StreamId, Box<dyn AbstractStreamT>> =
@@ -216,7 +216,7 @@ impl JobGraph {
         egress_streams
     }
 
-    /// Returns the hooks used to set up ingest and extract streams.
+    /// Returns the hooks used to set up ingress and egress streams.
     pub fn get_driver_setup_hooks(&self) -> Vec<Box<dyn StreamSetupHook>> {
         let mut driver_setup_hooks = Vec::new();
         for (_, setup_hook) in &self.ingress_streams {

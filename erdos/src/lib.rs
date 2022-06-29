@@ -21,21 +21,22 @@
 //! let args = erdos::new_app("ObjectCounter");
 //! // Create an ERDOS node which runs the application.
 //! let mut node = Node::new(Configuration::from_args(&args));
-//!
+//! // Create a dataflow graph
+//! let graph = Graph::new();
 //! // Stream of RGB images from a camera.
-//! let camera_frames = erdos::connect_source(
+//! let camera_frames = graph.connect_source(
 //!     CameraOperator::new,
 //!     OperatorConfig::new().name("Camera")
 //! );
 //! // Stream of labeled bounding boxes for each RGB image.
-//! let detected_objects = erdos::connect_one_in_one_out(
+//! let detected_objects = graph.connect_one_in_one_out(
 //!     ObjectDetector::new,
 //!     || {},
 //!     OperatorConfig::new().name("Detector"),
 //!     &camera_frames
 //! );
 //! // Stream of detected object count for each RGB image.
-//! let num_detected = erdos::connect_one_in_one_out(
+//! let num_detected = graph.connect_one_in_one_out(
 //!     || { MapOperator::new(|bboxes: &Vec<BBox>| -> usize { bboxes.len() }) },
 //!     || {},
 //!     OperatorConfig::new().name("Counter"),
@@ -43,7 +44,7 @@
 //! );
 //!
 //! // Run the application
-//! node.run();
+//! node.run(graph);
 //! ```
 //!
 //! ## Operators
@@ -155,7 +156,7 @@ pub mod scheduler;
 
 // Public exports
 pub use configuration::Configuration;
-pub use dataflow::{connect::*, OperatorConfig};
+pub use dataflow::OperatorConfig;
 
 /// A unique identifier for an operator.
 pub type OperatorId = Uuid;
@@ -206,17 +207,6 @@ impl fmt::Display for Uuid {
         let id = uuid::Uuid::from_bytes(bytes);
         fmt::Display::fmt(&id, f)
     }
-}
-
-/// Resets seed and creates a new dataflow graph.
-pub fn reset() {
-    // All global variables should be reset here.
-    RNG.with(|rng| {
-        *rng.borrow_mut() = StdRng::from_seed(&[1913, 3, 26]);
-    });
-    dataflow::graph::default_graph::set(dataflow::graph::AbstractGraph::new(
-        "DefaultGraph".to_string(),
-    ));
 }
 
 /// Defines command line arguments for running a multi-node ERDOS application.
