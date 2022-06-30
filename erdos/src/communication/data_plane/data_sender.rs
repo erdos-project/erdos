@@ -15,7 +15,6 @@ use crate::{
 
 use super::notifications::DataPlaneNotification;
 
-#[allow(dead_code)]
 /// The [`DataSender`] pulls messages from a FIFO inter-thread channel.
 /// The [`DataSender`] services all operators sending messages to a particular
 /// Worker which may result in congestion.

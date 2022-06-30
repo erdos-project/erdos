@@ -71,7 +71,6 @@ pub struct OperatorStream<D: Data> {
     phantom: PhantomData<D>,
 }
 
-#[allow(dead_code)]
 impl<D: Data> OperatorStream<D> {
     /// Creates a new stream.
     pub(crate) fn new() -> Self {

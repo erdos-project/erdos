@@ -22,7 +22,6 @@ use crate::{
 use super::pusher::PusherT;
 
 /// Listens on a TCP stream, and pushes messages it receives to operator executors.
-#[allow(dead_code)]
 pub(crate) struct DataReceiver {
     /// The id of the [`Worker`] the TCP stream is receiving data from.
     worker_id: WorkerId,
