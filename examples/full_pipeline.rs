@@ -250,7 +250,7 @@ fn main() {
     let args = erdos::new_app("ERDOS").get_matches();
 
     // let mut node = Node::new(Configuration::from_args(&args));
-    let graph = Graph::new();
+    let graph = Graph::new("FullPipeline");
 
     let source_config = OperatorConfig::new().name("SourceOperator");
     let source_stream = graph.connect_source(SourceOperator::new, source_config);

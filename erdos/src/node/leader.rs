@@ -36,6 +36,8 @@ enum InterThreadMessage {
     ScheduleJobGraph(WorkerId, JobGraphId, AbstractJobGraph),
     ScheduleJob(JobGraphId, Job, WorkerId, HashMap<Job, WorkerAddress>),
     JobReady(JobGraphId, Job),
+    // TODO (Sukrit): Bookkeep that if the graph was not placed on a Worker,
+    // then it should not be asked to be executed on that worker.
     ExecuteGraph(JobGraphId),
     Shutdown(WorkerId),
     ShutdownAllWorkers,

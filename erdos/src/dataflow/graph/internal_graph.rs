@@ -24,13 +24,15 @@ use crate::{
     OperatorConfig, OperatorId,
 };
 
-use super::{AbstractOperatorType, Job, JobGraphId, OperatorRunner};
+use super::{AbstractOperatorType, Job, OperatorRunner};
 
 /// The abstract graph representation of an ERDOS program defined in the driver.
 ///
 /// The abstract graph is compiled into a [`JobGraph`], which ERDOS schedules and executes.
 #[derive(Default)]
 pub struct InternalGraph {
+    /// The name of the Graph.
+    name: String,
     /// Collection of operators.
     operators: HashMap<OperatorId, AbstractOperator>,
     /// A mapping from the OperatorId to the OperatorRunner.
@@ -46,8 +48,11 @@ pub struct InternalGraph {
 }
 
 impl InternalGraph {
-    pub fn new() -> Self {
-        Default::default()
+    pub fn new(name: String) -> Self {
+        Self {
+            name,
+            ..Default::default()
+        }
     }
 
     pub(crate) fn add_ingress_stream<D>(&mut self, ingress_stream: &IngressStream<D>)
@@ -727,31 +732,12 @@ impl InternalGraph {
         }
 
         JobGraph::new(
-            "Test".to_string(),
+            self.name.clone(),
             operators,
             self.operator_runners.clone(),
             streams,
             ingress_streams,
             egress_streams,
         )
-    }
-}
-
-impl Clone for InternalGraph {
-    fn clone(&self) -> Self {
-        let streams: HashMap<_, _> = self
-            .streams
-            .iter()
-            .map(|(&k, v)| (k, v.box_clone()))
-            .collect();
-
-        Self {
-            operators: self.operators.clone(),
-            operator_runners: self.operator_runners.clone(),
-            streams,
-            ingress_streams: self.ingress_streams.clone(),
-            egress_streams: self.egress_streams.clone(),
-            loop_streams: self.loop_streams.clone(),
-        }
     }
 }

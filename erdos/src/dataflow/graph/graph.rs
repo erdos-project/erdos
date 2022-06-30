@@ -52,7 +52,6 @@ use crate::{
 ///
 /// See [`IngressStream`], [`EgressStream`](crate::dataflow::stream), [`LoopStream`], and the
 /// [`operators`](crate::dataflow::operators) for more examples.
-#[derive(Default)]
 pub struct Graph {
     internal_graph: Arc<Mutex<InternalGraph>>,
 }
@@ -60,9 +59,9 @@ pub struct Graph {
 #[allow(dead_code)]
 impl Graph {
     /// Creates a new Graph to which streams and operators can be added.
-    pub fn new() -> Self {
+    pub fn new(name: &str) -> Self {
         Self {
-            internal_graph: Arc::new(Mutex::new(InternalGraph::new())),
+            internal_graph: Arc::new(Mutex::new(InternalGraph::new(name.to_string()))),
         }
     }
 

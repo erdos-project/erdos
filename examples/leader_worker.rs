@@ -74,7 +74,7 @@ fn main() {
     let worker_handle = WorkerHandle::new(configuration);
 
     // Construct the Graph.
-    let graph = Graph::new();
+    let graph = Graph::new("LeaderWorkerExample");
     // let source_config = OperatorConfig::new().name("SourceOperator").node(0);
     // let source_stream = erdos::connect_source(SourceOperator::new, source_config);
 
