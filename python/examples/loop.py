@@ -13,6 +13,7 @@ import erdos
 from erdos.context import OneInOneOutContext
 from erdos.operator import OneInOneOut
 from erdos.streams import ReadStream, WriteStream
+from erdos.graph import Graph
 
 
 class LoopOp(OneInOneOut):
@@ -39,13 +40,15 @@ class LoopOp(OneInOneOut):
 
 def main():
     """Creates and runs the dataflow graph."""
-    loop_stream = erdos.streams.LoopStream()
-    stream = erdos.connect_one_in_one_out(
+    graph = Graph()
+
+    loop_stream = graph.add_loop_stream()
+    stream = graph.connect_one_in_one_out(
         LoopOp, erdos.operator.OperatorConfig(), loop_stream
     )
     loop_stream.connect_loop(stream)
 
-    erdos.run()
+    graph.run()
 
 
 if __name__ == "__main__":

@@ -70,6 +70,8 @@ def main():
     graph.connect_sink(TryPullOp, erdos.operator.OperatorConfig(),
                        count_stream)
 
+    count_stream.to_egress()
+
     graph.run()
 
 

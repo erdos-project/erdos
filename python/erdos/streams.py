@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import pickle
 import uuid
@@ -32,7 +33,8 @@ def _parse_message(internal_msg: PyMessage):
         data = pickle.loads(internal_msg.data)
         return Message(timestamp, data)
     if internal_msg.is_watermark():
-        return WatermarkMessage(Timestamp(_py_timestamp=internal_msg.timestamp))
+        return WatermarkMessage(
+            Timestamp(_py_timestamp=internal_msg.timestamp))
     raise Exception("Unable to parse message")
 
 
@@ -48,7 +50,6 @@ class Stream(ABC, Generic[T]):
     Note:
         This class should never be initialized manually.
     """
-
     def __init__(self, internal_stream: PyStream) -> None:
         self._internal_stream: PyStream = internal_stream
 
@@ -62,10 +63,6 @@ class Stream(ABC, Generic[T]):
         """The name of the stream. The stream ID if none was given."""
         return self._internal_stream.name()
 
-    @name.setter
-    def name(self, name: str) -> None:
-        self._internal_stream.set_name(name)
-
     def map(self, function: Callable[[T], U]) -> "OperatorStream[U]":
         """Applies the given function to each value sent on the stream, and outputs the
         results on the returned stream.
@@ -76,14 +73,14 @@ class Stream(ABC, Generic[T]):
         Returns:
             A stream that carries the results of the applied function.
         """
-
         def map_fn(serialized_data: bytes) -> bytes:
             result = function(pickle.loads(serialized_data))
             return pickle.dumps(result)
 
         return OperatorStream(self._internal_stream._map(map_fn))
 
-    def flat_map(self, function: Callable[[T], Sequence[U]]) -> "OperatorStream[U]":
+    def flat_map(self, function: Callable[[T],
+                                          Sequence[U]]) -> "OperatorStream[U]":
         """Applies the given function to each value sent on the stream, and outputs the
         sequence of received outputs as individual messages.
 
@@ -117,7 +114,6 @@ class Stream(ABC, Generic[T]):
         Returns:
             An stream that carries the filtered results from the applied function.
         """
-
         def filter_fn(serialized_data: bytes) -> bool:
             return function(pickle.loads(serialized_data))
 
@@ -137,7 +133,6 @@ class Stream(ABC, Generic[T]):
             The left and the right stream respectively, containing the values output
             according to the split function.
         """
-
         def split_fn(serialized_data: bytes) -> bool:
             return function(pickle.loads(serialized_data))
 
@@ -167,14 +162,15 @@ class Stream(ABC, Generic[T]):
         streams = ()
         for t in data_type[:-1]:
             s, last_stream = last_stream.split(lambda x: isinstance(x, t))
-            streams += (s,)
+            streams += (s, )
 
         last_type = data_type[-1]
         last_stream = last_stream.filter(lambda x: isinstance(x, last_type))
 
-        return streams + (last_stream,)
+        return streams + (last_stream, )
 
-    def timestamp_join(self, other: "Stream[U]") -> "OperatorStream[Tuple[T,U]]":
+    def timestamp_join(self,
+                       other: "Stream[U]") -> "OperatorStream[Tuple[T,U]]":
         """Joins the data with matching timestamps from the two different streams.
 
         Args:
@@ -184,15 +180,15 @@ class Stream(ABC, Generic[T]):
             A stream that carries the joined results from the two
             streams.
         """
-
-        def join_fn(serialized_data_left: bytes, serialized_data_right: bytes) -> bytes:
+        def join_fn(serialized_data_left: bytes,
+                    serialized_data_right: bytes) -> bytes:
             left_data = pickle.loads(serialized_data_left)
             right_data = pickle.loads(serialized_data_right)
             return pickle.dumps((left_data, right_data))
 
         return OperatorStream(
-            self._internal_stream._timestamp_join(other._internal_stream, join_fn)
-        )
+            self._internal_stream._timestamp_join(other._internal_stream,
+                                                  join_fn))
 
     def concat(self, *other: "Stream[T]") -> "OperatorStream[T]":
         """Merges the data messages from the given streams into a single stream and
@@ -211,18 +207,14 @@ class Stream(ABC, Generic[T]):
         streams_to_be_merged = list(other) + [self]
         while len(streams_to_be_merged) != 1:
             merged_streams = []
-            paired_streams = zip_longest(
-                streams_to_be_merged[::2], streams_to_be_merged[1::2]
-            )
+            paired_streams = zip_longest(streams_to_be_merged[::2],
+                                         streams_to_be_merged[1::2])
             for left_stream, right_stream in paired_streams:
                 if right_stream is not None:
                     merged_streams.append(
                         OperatorStream(
                             left_stream._internal_stream._concat(
-                                right_stream._internal_stream
-                            )
-                        )
-                    )
+                                right_stream._internal_stream)))
                 else:
                     merged_streams.append(left_stream)
             streams_to_be_merged = merged_streams
@@ -230,7 +222,6 @@ class Stream(ABC, Generic[T]):
 
 
 class ReadStream(Generic[T]):
-
     """A :py:class:`ReadStream` allows an operator to read and do work on
     data sent by other operators on a corresponding :py:class:`WriteStream`.
 
@@ -244,13 +235,10 @@ class ReadStream(Generic[T]):
         No callbacks are invoked if an operator takes control of the execution
         in :code:`run`.
     """
-
     def __init__(self, _py_read_stream: PyReadStream) -> None:
         logger.debug(
             "Initializing ReadStream with the name: {}, and ID: {}.".format(
-                _py_read_stream.name(), _py_read_stream.id
-            )
-        )
+                _py_read_stream.name(), _py_read_stream.id))
         self._py_read_stream: PyReadStream = _py_read_stream
 
     @property
@@ -292,16 +280,12 @@ class WriteStream(Generic[T]):
         This class is created automatically when ERDOS initializes an operator,
         and should never be initialized manually.
     """
-
     def __init__(self, _py_write_stream: PyWriteStream) -> None:
         logger.debug(
             "Initializing WriteStream with the name: {}, and ID: {}.".format(
-                _py_write_stream.name(), _py_write_stream.id
-            )
-        )
+                _py_write_stream.name(), _py_write_stream.id))
         self._py_write_stream: PyWriteStream = (
-            PyWriteStream() if _py_write_stream is None else _py_write_stream
-        )
+            PyWriteStream() if _py_write_stream is None else _py_write_stream)
 
     @property
     def name(self) -> str:
@@ -328,15 +312,15 @@ class WriteStream(Generic[T]):
             raise TypeError("msg must inherent from erdos.Message!")
 
         internal_msg = msg._to_py_message()
-        logger.debug("Sending message {} on the stream {}".format(msg, self.name))
+        logger.debug("Sending message {} on the stream {}".format(
+            msg, self.name))
 
         # Raise exception with the name.
         try:
             return self._py_write_stream.send(internal_msg)
         except Exception as e:
-            raise Exception(
-                "Exception on stream {} ({}): {}".format(self.name, self.id, e)
-            ) from e
+            raise Exception("Exception on stream {} ({}): {}".format(
+                self.name, self.id, e)) from e
 
 
 class OperatorStream(Stream[T]):
@@ -346,9 +330,11 @@ class OperatorStream(Stream[T]):
         This class is created automatically by the `connect` functions, and
         should never be initialized manually.
     """
-
     def __init__(self, operator_stream: PyOperatorStream) -> None:
         super().__init__(operator_stream)
+
+    def to_egress(self) -> EgressStream:
+        return EgressStream(self._internal_stream.to_egress())
 
 
 class LoopStream(Stream[T]):
@@ -357,10 +343,12 @@ class LoopStream(Stream[T]):
     Note:
         Must call `connect_loop` with a valid :py:class:`OperatorStream` to
         complete the loop.
+    
+    Note:
+        This class should not be initialized by the users.
     """
-
-    def __init__(self) -> None:
-        super().__init__(PyLoopStream())
+    def __init__(self, loop_stream: PyLoopStream) -> None:
+        super().__init__(loop_stream)
 
     def connect_loop(self, stream: OperatorStream[T]) -> None:
         if not isinstance(stream, OperatorStream):
@@ -377,10 +365,12 @@ class IngressStream(Stream[T]):
     :py:class:`WriteStream`, an :py:class:`IngestStream` provides a
     :py:func:`IngestStream.send` to enable the driver to send data to the
     operator to which it was connected.
-    """
 
-    def __init__(self, name: Union[str, None] = None) -> None:
-        super().__init__(PyIngressStream(name))
+    Note:
+        This class should not be initialized by the users.
+    """
+    def __init__(self, py_ingress_stream: PyIngressStream) -> None:
+        super().__init__(py_ingress_stream)
 
     def is_closed(self) -> bool:
         """Whether the stream is closed.
@@ -400,9 +390,8 @@ class IngressStream(Stream[T]):
         if not isinstance(msg, Message):
             raise TypeError("msg must inherent from erdos.Message!")
 
-        logger.debug(
-            "Sending message {} on the Ingest stream {}".format(msg, self.name)
-        )
+        logger.debug("Sending message {} on the Ingest stream {}".format(
+            msg, self.name))
 
         internal_msg = msg._to_py_message()
         self._internal_stream.send(internal_msg)
@@ -421,27 +410,22 @@ class EgressStream(Stream[T]):
 
     Args:
         stream: The stream from which to read messages.
-    """
 
-    def __init__(self, stream: OperatorStream[T]) -> None:
-        if not isinstance(stream, OperatorStream):
-            raise ValueError(
-                "ExtractStream needs to be initialized with a Stream. "
-                "Received a {}".format(type(stream))
-            )
-        self._py_extract_stream: PyEgressStream = PyEgressStream(
-            stream._internal_stream
-        )
+    Note:
+        This class should not be initialized by the users.
+    """
+    def __init__(self, py_egress_stream: PyEgressStream) -> None:
+        self._py_egress_stream = py_egress_stream
 
     @property
     def name(self) -> str:
         """The name of the stream. The stream ID if no name was given."""
-        return self._py_extract_stream.name()
+        return self._py_egress_stream.name()
 
     @property
     def id(self) -> str:
         """The id of the ExtractStream."""
-        return uuid.UUID(self._py_extract_stream.id())
+        return uuid.UUID(self._py_egress_stream.id())
 
     def is_closed(self) -> bool:
         """Whether the stream is closed.
@@ -449,18 +433,18 @@ class EgressStream(Stream[T]):
         Returns True if the a top watermark message was sent or the
         :py:class:`ExtractStream` was unable to successfully set up.
         """
-        return self._py_extract_stream.is_closed()
+        return self._py_egress_stream.is_closed()
 
     def read(self) -> Message[T]:
         """Blocks until a message is read from the stream."""
-        return _parse_message(self._py_extract_stream.read())
+        return _parse_message(self._py_egress_stream.read())
 
     def try_read(self) -> Union[Message[T], None]:
         """Tries to read a mesage from the stream.
 
         Returns :code:`None` if no messages are available at the moment.
         """
-        internal_msg = self._py_extract_stream.try_read()
+        internal_msg = self._py_egress_stream.try_read()
         if internal_msg is None:
             return None
         return _parse_message(internal_msg)

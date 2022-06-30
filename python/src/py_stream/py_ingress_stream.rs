@@ -26,16 +26,6 @@ impl PyIngressStream {
             ))
         })
     }
-
-    #[getter(name)]
-    fn name(&self) -> String {
-        self.ingress_stream.name()
-    }
-
-    #[getter(id)]
-    fn id(&self) -> String {
-        format!("{}", self.ingress_stream.id())
-    }
 }
 
 impl PyIngressStream {

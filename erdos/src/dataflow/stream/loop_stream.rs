@@ -63,7 +63,11 @@ where
         );
     }
 
-    pub(crate) fn id(&self) -> StreamId {
+    pub fn id(&self) -> StreamId {
         self.id
+    }
+
+    pub fn graph(&self) -> Arc<Mutex<InternalGraph>> {
+        Arc::clone(&self.graph)
     }
 }

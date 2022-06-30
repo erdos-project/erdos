@@ -53,10 +53,10 @@ class Graph:
         self._num_py_operators = 0
 
     def add_ingress(self, name: str) -> IngressStream:
-        return self._py_graph.add_ingress(name)
+        return IngressStream(self._py_graph.add_ingress(name))
 
     def add_loop_stream(self) -> LoopStream:
-        return self._py_graph.add_loop_stream()
+        return LoopStream(self._py_graph.add_loop_stream())
 
     def connect_source(
         self,

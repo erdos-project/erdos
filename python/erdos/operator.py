@@ -19,7 +19,6 @@ class BaseOperator:
     """A :py:class:`BaseOperator` is an internal class that provides the
     methods common to the individual operators.
     """
-
     @property
     def id(self):
         """Returns the operator's ID."""
@@ -72,7 +71,6 @@ class Source(BaseOperator):
     :py:func:`Source.destroy` in order to take control of the execution and the
     teardown of the operator respectively.
     """
-
     def __new__(cls, *args, **kwargs):
         """Set up variables before call to `__init__` on the python end.
 
@@ -112,7 +110,6 @@ class Sink(BaseOperator):
     :py:func:`on_data` and :py:func:`on_watermark` methods to request a
     callback upon receipt of messages and watermarks.
     """
-
     def __new__(cls, *args, **kwargs):
         """Set up variables before call to `__init__` on the python end.
 
@@ -175,7 +172,6 @@ class OneInOneOut(BaseOperator):
     :py:func:`on_watermark` methods to request a callback upon receipt of
     messages and watermarks.
     """
-
     def __new__(cls, *args, **kwargs):
         """Set up variables before call to `__init__` on the python end.
 
@@ -240,7 +236,6 @@ class TwoInOneOut(BaseOperator):
     :py:func:`on_right_data` and :py:func:`on_watermark` methods to request a
     callback upon receipt of messages and watermarks.
     """
-
     def __new__(cls, *args, **kwargs):
         """Set up variables before call to `__init__` on the python end.
 
@@ -324,7 +319,6 @@ class OneInTwoOut(BaseOperator):
     :py:func:`on_data` and :py:func:`on_watermark` methods to request a
     callback upon receipt of messages and watermarks.
     """
-
     def __new__(cls, *args, **kwargs):
         """Set up variables before call to `__init__` on the python end.
 
@@ -401,7 +395,6 @@ class OperatorConfig:
                 _log = self.config.log_file_name
                 self.logger = erdos.utils.setup_logging(self.config.name, _log)
     """
-
     def __init__(
         self,
         name: str = None,
@@ -443,8 +436,7 @@ class OperatorConfig:
 
     def __str__(self):
         return "OperatorConfig(name={}, flow_watermarks={})".format(
-            self.name, self.flow_watermarks
-        )
+            self.name, self.flow_watermarks)
 
     def __repr__(self):
         return str(self)
