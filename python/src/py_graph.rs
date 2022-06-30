@@ -33,8 +33,7 @@ impl PyGraph {
         PyLoopStream::new(py, self.graph.add_loop_stream()).unwrap()
     }
 
-    #[pyo3(name = "connect_source")]
-    fn connect_source_py(
+    fn connect_source(
         &self,
         py: Python,
         py_type: PyObject,
@@ -80,8 +79,7 @@ impl PyGraph {
         PyOperatorStream::new(py, write_stream)
     }
 
-    #[pyo3(name = "connect_sink")]
-    fn connect_sink_py(
+    fn connect_sink(
         &self,
         py: Python,
         py_type: PyObject,
@@ -129,8 +127,7 @@ impl PyGraph {
         Ok(())
     }
 
-    #[pyo3(name = "connect_one_in_one_out")]
-    fn connect_one_in_one_out_py(
+    fn connect_one_in_one_out(
         &self,
         py: Python,
         py_type: PyObject,
@@ -179,8 +176,7 @@ impl PyGraph {
         PyOperatorStream::new(py, write_stream)
     }
 
-    #[pyo3(name = "connect_one_in_two_out")]
-    fn connect_one_in_two_out_py(
+    fn connect_one_in_two_out(
         &self,
         py: Python,
         py_type: PyObject,
@@ -232,9 +228,8 @@ impl PyGraph {
         Ok((py_left_write_stream, py_right_write_stream))
     }
 
-    #[pyo3(name = "connect_two_in_one_out")]
     #[allow(clippy::too_many_arguments)]
-    fn connect_two_in_one_out_py(
+    fn connect_two_in_one_out(
         &self,
         py: Python,
         py_type: PyObject,
@@ -285,8 +280,7 @@ impl PyGraph {
         PyOperatorStream::new(py, write_stream)
     }
 
-    #[pyo3(name = "run")]
-    fn run_py(
+    fn run(
         &self,
         py: Python,
         node_id: NodeId,
@@ -314,8 +308,7 @@ impl PyGraph {
         Ok(())
     }
 
-    #[pyo3(name = "run_async")]
-    fn run_async_py(
+    fn run_async(
         &self,
         py: Python,
         node_id: NodeId,

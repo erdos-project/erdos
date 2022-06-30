@@ -29,7 +29,7 @@ impl PyIngressStream {
 }
 
 impl PyIngressStream {
-    pub(crate) fn new(py: Python, ingress_stream: IngressStream<Vec<u8>>) -> PyResult<Py<Self>> {
+    pub fn new(py: Python, ingress_stream: IngressStream<Vec<u8>>) -> PyResult<Py<Self>> {
         let base_class = PyStream {
             id: ingress_stream.id(),
             name: ingress_stream.name(),

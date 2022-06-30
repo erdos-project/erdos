@@ -21,7 +21,7 @@ impl PyLoopStream {
 }
 
 impl PyLoopStream {
-    pub(crate) fn new(py: Python, loop_stream: LoopStream<Vec<u8>>) -> PyResult<Py<Self>> {
+    pub fn new(py: Python, loop_stream: LoopStream<Vec<u8>>) -> PyResult<Py<Self>> {
         let base_class = PyStream {
             id: loop_stream.id(),
             name: format!("LoopStream-{}", loop_stream.id()),
