@@ -189,6 +189,30 @@ impl JobGraph {
         self.streams.get(stream_id).cloned()
     }
 
+    /// Returns the [`AbstractStream`] representations of the [`IngressStream`]s
+    /// registered in the [`JobGraph`].
+    pub fn ingress_streams(&self) -> Vec<Box<dyn AbstractStreamT>> {
+        let mut ingress_streams = Vec::new();
+        for (ingress_stream_id, _) in &self.ingress_streams {
+            if let Some(ingress_stream) = self.get_stream(&ingress_stream_id) {
+                ingress_streams.push(ingress_stream);
+            }
+        }
+        ingress_streams
+    }
+
+    /// Returns the [`AbstractStream`] representations of the [`EgressStream`]s
+    /// registered in the [`JobGraph`].
+    pub fn egress_streams(&self) -> Vec<Box<dyn AbstractStreamT>> {
+        let mut egress_streams = Vec::new();
+        for (egress_stream_id, _) in &self.egress_streams {
+            if let Some(egress_stream) = self.get_stream(&egress_stream_id) {
+                egress_streams.push(egress_stream);
+            }
+        }
+        egress_streams
+    }
+
     /// Returns the hooks used to set up ingest and extract streams.
     pub fn get_driver_setup_hooks(&self) -> Vec<Box<dyn StreamSetupHook>> {
         let mut driver_setup_hooks = Vec::new();

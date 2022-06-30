@@ -15,8 +15,7 @@ use crate::{
     communication::{
         control_plane::{
             notifications::{
-                DriverNotification, DriverStream, LeaderNotification, WorkerAddress,
-                WorkerNotification,
+                DriverNotification, LeaderNotification, WorkerAddress, WorkerNotification,
             },
             ControlPlaneCodec,
         },
@@ -36,7 +35,6 @@ enum InterThreadMessage {
     WorkerInitialized(WorkerState),
     ScheduleJobGraph(WorkerId, JobGraphId, InternalGraph),
     ScheduleJob(JobGraphId, Job, WorkerId, HashMap<Job, WorkerAddress>),
-    ScheduleDriver(JobGraphId, WorkerId, Vec<DriverStream>),
     JobReady(JobGraphId, Job),
     ExecuteGraph(JobGraphId),
     Shutdown(WorkerId),
@@ -221,39 +219,34 @@ impl Leader {
 
                 // Collect the addresses of the [`Worker`]s that retrieve or send
                 // data on the [`IngressStream`] and the [`EgressStream`]s.
-                let mut driver_streams = Vec::new();
+                let mut worker_addresses_for_driver = HashMap::new();
                 for ingress_stream_id in job_graph.ingress_streams() {
-                    let mut ingress_stream_destinations = HashMap::new();
                     for destination in job_graph.get_destinations(&ingress_stream_id) {
                         if let Some(worker_address) =
                             self.get_worker_address(driver_id, driver_id, &destination, &placements)
                         {
-                            ingress_stream_destinations.insert(destination, worker_address);
+                            worker_addresses_for_driver.insert(destination, worker_address);
                         }
                     }
-                    driver_streams.push(DriverStream::IngressStream(
-                        ingress_stream_id,
-                        ingress_stream_destinations,
-                    ));
                 }
                 for egress_stream_id in job_graph.egress_streams() {
                     if let Some(job) = job_graph.get_source(&egress_stream_id) {
                         if let Some(worker_address) =
                             self.get_worker_address(driver_id, driver_id, &job, &placements)
                         {
-                            driver_streams
-                                .push(DriverStream::EgressStream(egress_stream_id, worker_address));
+                            worker_addresses_for_driver.insert(job, worker_address);
                         }
                     }
                 }
 
                 // Inform the Driver to initiate the appropriate connections, if there
                 // were any [`IngressStream`]s or [`EgressStream`]s.
-                if !driver_streams.is_empty() {
-                    let _ = leader_to_workers_tx.send(InterThreadMessage::ScheduleDriver(
+                if !worker_addresses_for_driver.is_empty() {
+                    let _ = leader_to_workers_tx.send(InterThreadMessage::ScheduleJob(
                         job_graph_id.clone(),
+                        Job::Driver,
                         driver_id,
-                        driver_streams,
+                        worker_addresses_for_driver,
                     ));
                     job_status.insert(Job::Driver, JobState::NotReady);
                 }
@@ -378,7 +371,7 @@ impl Leader {
                             job_graph_id,
                             job,
                             worker_id,
-                            source_worker_addresses,
+                            worker_addresses,
                         ) => {
                             // The Leader assigns an operator to a worker.
                             if id_of_this_worker == worker_id {
@@ -392,26 +385,7 @@ impl Leader {
                                     .send(LeaderNotification::ScheduleJob(
                                         job_graph_id,
                                         job,
-                                        source_worker_addresses,
-                                    ))
-                                    .await;
-                            }
-                        }
-                        InterThreadMessage::ScheduleDriver(
-                            job_graph_id,
-                            driver_id,
-                            driver_streams,
-                        ) => {
-                            if id_of_this_worker == driver_id {
-                                tracing::debug!(
-                                    "The Driver from JobGraph {:?} was scheduled on {}.",
-                                    job_graph_id,
-                                    driver_id
-                                );
-                                let _ = worker_tx
-                                    .send(LeaderNotification::ScheduleDriver(
-                                        job_graph_id,
-                                        driver_streams,
+                                        worker_addresses,
                                     ))
                                     .await;
                             }

@@ -18,7 +18,7 @@ use crate::{
     communication::{
         control_plane::{
             notifications::{
-                DriverNotification, DriverStream, LeaderNotification, WorkerNotification,
+                DriverNotification, LeaderNotification, WorkerAddress, WorkerNotification,
             },
             ControlPlaneCodec,
         },
@@ -30,7 +30,7 @@ use crate::{
         CommunicationError,
     },
     dataflow::{
-        graph::{Job, JobGraph, JobGraphId},
+        graph::{AbstractStreamT, Job, JobGraph, JobGraphId},
         stream::StreamId,
     },
     node::{worker::Worker, Resources},
@@ -352,109 +352,7 @@ impl WorkerNode {
     ) {
         match msg_from_leader {
             LeaderNotification::ScheduleJob(job_graph_id, job, worker_addresses) => {
-                if let Some(job_graph) = self.job_graphs.get(&job_graph_id) {
-                    if let Some(operator) = job_graph.get_job(&job) {
-                        let operator_name = match &operator.config.name {
-                            Some(name) => name.clone(),
-                            None => "UnnamedOperator".to_string(),
-                        };
-                        tracing::debug!(
-                            "[Worker {}] Received request to schedule Job {} (ID={:?}) \
-                                                            from JobGraph {:?}.",
-                            self.id,
-                            operator_name,
-                            operator.id,
-                            job_graph_id,
-                        );
-
-                        // Construct a representation of the Streams for this Operator, along with
-                        // the addresses of the Workers executing the sources or destinations.
-                        let mut streams = Vec::new();
-                        for read_stream_id in operator.read_streams {
-                            let read_stream = job_graph.get_stream(&read_stream_id).unwrap();
-                            if let Some(source_address) =
-                                worker_addresses.get(&read_stream.get_source())
-                            {
-                                streams.push(StreamType::ReadStream(
-                                    read_stream,
-                                    source_address.clone(),
-                                ));
-                            } else {
-                                tracing::error!(
-                                    "[Worker {}] Could not find the address for the Worker \
-                                                            executing the Job {:?}.",
-                                    self.id,
-                                    read_stream.get_source()
-                                );
-                            }
-                        }
-
-                        for write_stream_id in operator.write_streams {
-                            let write_stream = job_graph.get_stream(&write_stream_id).unwrap();
-                            let destination_addresses = write_stream
-                                .get_destinations()
-                                .iter()
-                                .map(|job| {
-                                    (
-                                        job.clone(),
-                                        worker_addresses
-                                            .get(job)
-                                            .expect(&format!(
-                                                "Could not find address for the Worker executing \
-                                                    the Job {:?}.",
-                                                job
-                                            ))
-                                            .clone(),
-                                    )
-                                })
-                                .collect();
-                            streams
-                                .push(StreamType::WriteStream(write_stream, destination_addresses));
-                        }
-
-                        // Cache the streams that need to be initialized to call this Operator ready.
-                        let pending_setups = streams.iter().map(|stream| stream.id()).collect();
-                        tracing::trace!(
-                            "[Worker {}] The Job {:?} is pending setup of {:?} streams.",
-                            self.id,
-                            job,
-                            pending_setups
-                        );
-                        self.pending_stream_setups
-                            .insert(job, (job_graph_id.clone(), pending_setups));
-
-                        // Add the Job to the set of scheduled Jobs for this JobGraph.
-                        let job_state =
-                            self.job_graph_to_job_state.entry(job_graph_id).or_default();
-                        job_state.insert(job, JobState::Scheduled);
-
-                        if let Err(error) = channel_to_data_plane
-                            .send(DataPlaneNotification::SetupStreams(job, streams))
-                        {
-                            tracing::warn!(
-                                "[Worker {}] Received error when requesting the setup of \
-                                                    streams for {} with ID {:?}: {:?}",
-                                self.id,
-                                operator_name,
-                                operator.id,
-                                error
-                            );
-                        }
-                    } else {
-                        tracing::error!(
-                            "[Worker {}] The Job {:?} was not found in JobGraph {:?}.",
-                            self.id,
-                            job,
-                            job_graph_id,
-                        );
-                    }
-                } else {
-                    tracing::error!(
-                        "[Worker {}] JobGraph {:?} was not registered on this Worker.",
-                        self.id,
-                        job_graph_id,
-                    );
-                }
+                self.schedule_job(job_graph_id, job, &worker_addresses, channel_to_data_plane);
             }
             LeaderNotification::ExecuteGraph(job_graph_id) => {
                 tracing::debug!(
@@ -495,87 +393,6 @@ impl WorkerNode {
                 worker.spawn_tasks(job_executors).await;
                 std::thread::sleep_ms(1000);
                 worker.execute().await;
-            }
-            LeaderNotification::ScheduleDriver(job_graph_id, driver_streams) => {
-                if let Some(job_graph) = self.job_graphs.get(&job_graph_id) {
-                    // Construct a representation of the Streams for this Operator, along
-                    // with the addresses of the Workers executing them.
-                    let mut streams = Vec::new();
-                    for driver_stream in driver_streams {
-                        match driver_stream {
-                            DriverStream::EgressStream(stream_id, source_address) => {
-                                if let Some(egress_stream) = job_graph.get_stream(&stream_id) {
-                                    streams.push(StreamType::EgressStream(
-                                        egress_stream,
-                                        source_address,
-                                    ));
-                                } else {
-                                    tracing::error!(
-                                        "[Worker {}] Could not find the EgressStream with \
-                                                    the ID: {} in the JobGraph {:?}.",
-                                        self.id,
-                                        stream_id,
-                                        job_graph_id
-                                    );
-                                }
-                            }
-                            DriverStream::IngressStream(stream_id, destination_addresses) => {
-                                if let Some(ingress_stream) = job_graph.get_stream(&stream_id) {
-                                    let mut worker_addresses = HashMap::new();
-                                    for destination in ingress_stream.get_destinations() {
-                                        if let Some(destination_address) =
-                                            destination_addresses.get(&destination)
-                                        {
-                                            worker_addresses
-                                                .insert(destination, destination_address.clone());
-                                        } else {
-                                            tracing::error!(
-                                                "[Worker {}] Could not find the address for the Worker \
-                                                                    executing the Job {:?}.",
-                                                self.id,
-                                                destination,
-                                            );
-                                        }
-                                    }
-                                    streams.push(StreamType::IngressStream(ingress_stream, worker_addresses));
-                                }
-                            }
-                        }
-                    }
-
-                    // Cache the streams that need to be initialized to call the Driver ready.
-                    let job = Job::Driver;
-                    let pending_setups = streams.iter().map(|stream| stream.id()).collect();
-                    tracing::trace!(
-                        "[Worker {}] The Job {:?} is pending setup of {:?} streams.",
-                        self.id,
-                        job,
-                        pending_setups
-                    );
-                    self.pending_stream_setups
-                        .insert(job, (job_graph_id.clone(), pending_setups));
-
-                    // Add the Job to the set of scheduled Jobs for this JobGraph.
-                    let job_state = self.job_graph_to_job_state.entry(job_graph_id).or_default();
-                    job_state.insert(job, JobState::Scheduled);
-
-                    if let Err(error) = channel_to_data_plane
-                        .send(DataPlaneNotification::SetupStreams(job, streams))
-                    {
-                        tracing::warn!(
-                            "[Worker {}] Received error when requesting the setup of \
-                                                        streams for Driver: {:?}",
-                            self.id,
-                            error,
-                        )
-                    }
-                } else {
-                    tracing::error!(
-                        "[Worker {}] JobGraph {:?} was not registered on this Worker.",
-                        self.id,
-                        job_graph_id,
-                    );
-                }
             }
             // The shutdown arm is unreachable, because it should be handled in the main loop.
             LeaderNotification::Shutdown => unreachable!(),
@@ -629,6 +446,167 @@ impl WorkerNode {
             // The shutdown arm is unreachable, because it should be handled in the main loop.
             DriverNotification::Shutdown => unreachable!(),
         }
+    }
+
+    fn schedule_job(
+        &mut self,
+        job_graph_id: JobGraphId,
+        job: Job,
+        worker_addresses: &HashMap<Job, WorkerAddress>,
+        channel_to_data_plane: &mut UnboundedSender<DataPlaneNotification>,
+    ) {
+        let job_graph = match self.job_graphs.get(&job_graph_id) {
+            Some(job_graph) => job_graph,
+            None => {
+                tracing::error!(
+                    "[Worker {}] JobGraph {:?} was not registered on this Worker.",
+                    self.id,
+                    job_graph_id,
+                );
+                return;
+            }
+        };
+
+        // Construct the Streams to setup for the scheduled Job.
+        let mut streams_to_setup = Vec::new();
+        match job {
+            Job::Operator(_) => {
+                if let Some(operator) = job_graph.get_job(&job) {
+                    let operator_name = match &operator.config.name {
+                        Some(name) => name.clone(),
+                        None => "UnnamedOperator".to_string(),
+                    };
+                    tracing::debug!(
+                        "[Worker {}] Scheduling Operator {} (ID={:?}) from JobGraph {:?}.",
+                        self.id,
+                        operator_name,
+                        operator.id,
+                        job_graph.id(),
+                    );
+
+                    // Request the DataPlane to setup the WriteStreams.
+                    streams_to_setup.extend(operator.write_streams.iter().filter_map(
+                        |stream_id| {
+                            let stream = job_graph.get_stream(stream_id)?;
+                            let worker_addresses =
+                                self.get_write_stream_addresses(&stream, worker_addresses);
+                            Some(StreamType::WriteStream(stream, worker_addresses))
+                        },
+                    ));
+
+                    // Request the DataPlane to setup the ReadStreams.
+                    streams_to_setup.extend(operator.read_streams.iter().filter_map(|stream_id| {
+                        let stream = job_graph.get_stream(stream_id)?;
+                        let worker_addresses =
+                            self.get_read_stream_address(&stream, worker_addresses)?;
+                        Some(StreamType::ReadStream(stream, worker_addresses))
+                    }));
+                } else {
+                    tracing::error!(
+                        "[Worker {}] The Job {:?} was not found in JobGraph {:?}.",
+                        self.id,
+                        job,
+                        job_graph.id(),
+                    );
+                }
+            }
+            Job::Driver => {
+                // Request the DataPlane to setup the IngressStreams.
+                streams_to_setup.extend(job_graph.ingress_streams().into_iter().map(|stream| {
+                    let worker_addresses =
+                        self.get_write_stream_addresses(&stream, worker_addresses);
+                    StreamType::IngressStream(stream, worker_addresses)
+                }));
+
+                // Request the DataPlane to setup the EgressStreams.
+                streams_to_setup.extend(job_graph.egress_streams().into_iter().filter_map(
+                    |stream| {
+                        let worker_addresses =
+                            self.get_read_stream_address(&stream, worker_addresses)?;
+                        Some(StreamType::EgressStream(stream, worker_addresses))
+                    },
+                ));
+            }
+        }
+
+        // Cache the streams that need to be initialized to call this Job ready.
+        let pending_setups = streams_to_setup.iter().map(|stream| stream.id()).collect();
+        tracing::trace!(
+            "[Worker {}] The Job {:?} is pending setup of {:?} streams.",
+            self.id,
+            job,
+            pending_setups
+        );
+        self.pending_stream_setups
+            .insert(job, (job_graph.id(), pending_setups));
+
+        // Add the Job to the set of scheduled Jobs for this JobGraph.
+        let job_state = self
+            .job_graph_to_job_state
+            .entry(job_graph.id())
+            .or_default();
+        job_state.insert(job, JobState::Scheduled);
+
+        // Ask the DataPlane to setup the Streams.
+        if let Err(error) =
+            channel_to_data_plane.send(DataPlaneNotification::SetupStreams(job, streams_to_setup))
+        {
+            tracing::warn!(
+                "[Worker {}] Received error when requesting the setup of \
+                                                                streams for Job {:?}: {:?}",
+                self.id,
+                job,
+                error,
+            )
+        }
+    }
+
+    fn get_read_stream_address(
+        &self,
+        stream: &Box<dyn AbstractStreamT>,
+        worker_addresses: &HashMap<Job, WorkerAddress>,
+    ) -> Option<WorkerAddress> {
+        let source_job = stream.get_source();
+        match worker_addresses.get(&source_job) {
+            Some(source_address) => Some(source_address.clone()),
+            None => {
+                tracing::warn!(
+                    "[Worker {}] Could not find address of the source Job {:?} for
+                    the Stream {} (ID={}) in the addresses provided by the Leader.",
+                    self.id,
+                    source_job,
+                    stream.name(),
+                    stream.id(),
+                );
+                None
+            }
+        }
+    }
+
+    fn get_write_stream_addresses(
+        &self,
+        stream: &Box<dyn AbstractStreamT>,
+        worker_addresses: &HashMap<Job, WorkerAddress>,
+    ) -> HashMap<Job, WorkerAddress> {
+        let mut destination_addresses = HashMap::new();
+        for destination_job in stream.get_destinations() {
+            match worker_addresses.get(&destination_job) {
+                Some(destination_address) => {
+                    destination_addresses.insert(destination_job, destination_address.clone());
+                }
+                None => {
+                    tracing::warn!(
+                        "[Worker {}] Could not find address of the destination Job {:?} \
+                        for the Stream {} (ID={}) in the addresses provided by the Leader.",
+                        self.id,
+                        destination_job,
+                        stream.name(),
+                        stream.id(),
+                    );
+                }
+            }
+        }
+        destination_addresses
     }
 
     pub(crate) fn id(&self) -> WorkerId {
