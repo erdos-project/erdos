@@ -58,14 +58,14 @@ pub struct Graph {
 
 #[allow(dead_code)]
 impl Graph {
-    /// Creates a new Graph to which streams and operators can be added.
+    /// Creates a new `Graph` with the given `name` to which streams and operators can be added.
     pub fn new(name: &str) -> Self {
         Self {
             internal_graph: Arc::new(Mutex::new(InternalGraph::new(name.to_string()))),
         }
     }
 
-    /// Adds an [`IngressStream`] to the graph.
+    /// Adds an [`IngressStream`] with the given `name` to the `Graph`.
     pub fn add_ingress<D>(&self, name: &str) -> IngressStream<D>
     where
         for<'a> D: Data + Deserialize<'a>,
@@ -79,7 +79,7 @@ impl Graph {
         ingress_stream
     }
 
-    /// Adds a [`LoopStream`] to the graph.
+    /// Adds a [`LoopStream`] to the `Graph`.
     pub fn add_loop_stream<D>(&self) -> LoopStream<D>
     where
         for<'a> D: Data + Deserialize<'a>,

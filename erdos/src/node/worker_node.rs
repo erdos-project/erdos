@@ -370,6 +370,7 @@ impl WorkerNode {
                 let mut worker = Worker::new(2);
                 let mut job_executors = Vec::new();
                 let job_graph = self.job_graphs.get(&job_graph_id).unwrap();
+                // TODO (Sukrit): If there was no state, then maybe the graph was not scheduled on this node.
                 for (job, _) in self.job_graph_to_job_state.get(&job_graph_id).unwrap() {
                     match job {
                         Job::Driver => {
