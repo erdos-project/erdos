@@ -1,4 +1,7 @@
-use erdos::dataflow::{stream::IngressStream, Message, Stream};
+use erdos::dataflow::{
+    stream::IngressStream,
+    Message, Stream,
+};
 use pyo3::{exceptions, prelude::*};
 
 use crate::{PyMessage, PyStream};
@@ -8,7 +11,7 @@ use crate::{PyMessage, PyStream};
 /// This class is exposed on the Python interface as `erdos.streams.IngressStream`.
 #[pyclass(extends=PyStream)]
 pub struct PyIngressStream {
-    ingress_stream: IngressStream<Vec<u8>>,
+    pub ingress_stream: IngressStream<Vec<u8>>,
 }
 
 #[pymethods]

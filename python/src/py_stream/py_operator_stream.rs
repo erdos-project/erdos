@@ -1,9 +1,4 @@
-use std::sync::{Arc, Mutex};
-
-use erdos::dataflow::{
-    graph::InternalGraph,
-    stream::{OperatorStream, Stream, StreamId},
-};
+use erdos::dataflow::stream::{OperatorStream, Stream};
 use pyo3::prelude::*;
 
 use super::{PyEgressStream, PyStream};
@@ -14,7 +9,6 @@ use super::{PyEgressStream, PyStream};
 #[pyclass(extends=PyStream)]
 pub struct PyOperatorStream {
     pub stream: OperatorStream<Vec<u8>>,
-    graph: Arc<Mutex<InternalGraph>>,
 }
 
 #[pymethods]
@@ -48,23 +42,10 @@ impl PyOperatorStream {
     }
 }
 
-impl Stream<Vec<u8>> for PyOperatorStream {
-    fn name(&self) -> String {
-        self.stream.name()
-    }
-    fn id(&self) -> StreamId {
-        self.stream.id()
-    }
-    fn graph(&self) -> Arc<Mutex<InternalGraph>> {
-        Arc::clone(&self.graph)
-    }
-}
-
 impl From<OperatorStream<Vec<u8>>> for PyOperatorStream {
     fn from(stream: OperatorStream<Vec<u8>>) -> Self {
         Self {
             stream: stream.clone(),
-            graph: stream.graph(),
         }
     }
 }

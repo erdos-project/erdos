@@ -29,7 +29,7 @@ impl PyGraph {
         PyIngressStream::new(py, self.graph.add_ingress(name)).unwrap()
     }
 
-    fn add_loop(&self, py: Python) -> Py<PyLoopStream> {
+    fn add_loop_stream(&self, py: Python) -> Py<PyLoopStream> {
         PyLoopStream::new(py, self.graph.add_loop_stream()).unwrap()
     }
 

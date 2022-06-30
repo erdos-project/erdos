@@ -8,6 +8,7 @@ import time
 from typing import Any
 
 import erdos
+from erdos.graph import Graph
 from erdos.context import SinkContext
 from erdos.operator import Sink, Source
 from erdos.streams import ReadStream, WriteStream
@@ -59,12 +60,17 @@ class TryPullOp(Sink):
 
 def main():
     """Creates and runs the dataflow graph."""
-    count_stream = erdos.connect_source(SendOp, erdos.operator.OperatorConfig())
-    erdos.connect_sink(CallbackOp, erdos.operator.OperatorConfig(), count_stream)
-    erdos.connect_sink(PullOp, erdos.operator.OperatorConfig(), count_stream)
-    erdos.connect_sink(TryPullOp, erdos.operator.OperatorConfig(), count_stream)
+    graph = Graph()
 
-    erdos.run()
+    count_stream = graph.connect_source(SendOp,
+                                        erdos.operator.OperatorConfig())
+    graph.connect_sink(CallbackOp, erdos.operator.OperatorConfig(),
+                       count_stream)
+    graph.connect_sink(PullOp, erdos.operator.OperatorConfig(), count_stream)
+    graph.connect_sink(TryPullOp, erdos.operator.OperatorConfig(),
+                       count_stream)
+
+    graph.run()
 
 
 if __name__ == "__main__":
