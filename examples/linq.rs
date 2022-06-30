@@ -7,7 +7,7 @@ use erdos::{
         operators::{Filter, Join, Map, Split},
         state::TimeVersionedState,
         stream::{WriteStream, WriteStreamT},
-        Message, OperatorConfig, Timestamp,
+        Graph, Message, OperatorConfig, Timestamp,
     },
     node::Node,
     Configuration,
@@ -77,10 +77,11 @@ impl Sink<TimeVersionedState<usize>, usize> for SinkOperator {
 fn main() {
     let args = erdos::new_app("ERDOS").get_matches();
     let mut node = Node::new(Configuration::from_args(&args));
+    let graph = Graph::new();
 
     let source_config = OperatorConfig::new().name("SourceOperator");
     // Streams data 0, 1, 2, ..., 9 with timestamps 0, 1, 2, ..., 9.
-    let source_stream = erdos::connect_source(SourceOperator::new, source_config);
+    let source_stream = graph.connect_source(SourceOperator::new, source_config);
 
     // Given x, generates a sequence of messages 0, ..., x for the current timestamp.
     let sequence = source_stream.flat_map(|x| (1..=*x));
@@ -95,7 +96,7 @@ fn main() {
 
     // Print received even messages.
     let evens_sink_config = OperatorConfig::new().name("EvensSinkOperator");
-    erdos::connect_sink(
+    graph.connect_sink(
         SinkOperator::new,
         TimeVersionedState::new,
         evens_sink_config,
@@ -104,12 +105,12 @@ fn main() {
 
     // Print received odd messages.
     let odds_sink_config = OperatorConfig::new().name("OddsSinkOperator");
-    erdos::connect_sink(
+    graph.connect_sink(
         SinkOperator::new,
         TimeVersionedState::new,
         odds_sink_config,
         &odds,
     );
 
-    node.run();
+    node.run(graph);
 }

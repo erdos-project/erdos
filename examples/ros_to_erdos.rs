@@ -42,11 +42,12 @@ fn ros_to_erdos(input: &rosrust_msg::std_msgs::String) -> Vec<Message<String>> {
 fn main() {
     let args = erdos::new_app("ERDOS").get_matches();
     let mut node = Node::new(Configuration::from_args(&args));
+    let graph = Graph::new();
 
     // Creates FromRosOperator which subscribes to topic "chatter" and converts ROS messages
     // to ERDOS messages.
     let ros_source_config = OperatorConfig::new().name("FromRosOperator");
-    let ros_source = erdos::connect_source(
+    let ros_source = graph.connect_source(
         move || -> FromRosOperator<rosrust_msg::std_msgs::String, String> {
             FromRosOperator::new("chatter", ros_to_erdos)
         },
@@ -55,7 +56,7 @@ fn main() {
 
     // Connects SinkOperator to ERDOS pipeline.
     let erdos_sink_from_ros = OperatorConfig::new().name("SinkOperator");
-    erdos::connect_sink(SinkOperator::new, || {}, erdos_sink_from_ros, &ros_source);
+    graph.connect_sink(SinkOperator::new, || {}, erdos_sink_from_ros, &ros_source);
 
-    node.run();
+    node.run(graph);
 }
