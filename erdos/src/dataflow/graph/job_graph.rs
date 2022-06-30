@@ -13,7 +13,7 @@ use super::{
 // TODO (Sukrit): This should be renamed as AbstractGraph once the
 // Graph abstraction is exposed to the developers as GraphBuilder.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct InternalGraph {
+pub(crate) struct AbstractJobGraph {
     /// The name of the JobGraph that this graph is a representation of.
     name: String,
     /// The mapping of all the operators in the Graph from their ID to
@@ -31,13 +31,13 @@ pub(crate) struct InternalGraph {
     egress_streams: Vec<StreamId>,
 }
 
-impl InternalGraph {
+impl AbstractJobGraph {
     pub(crate) fn name(&self) -> &str {
         &self.name
     }
 
     /// Retrieve the [`AbstractOperator`] underlying the given [`Job`]
-    /// 
+    ///
     /// Returns None if the Job was of variant [`Driver`] or the job was
     /// not found in the graph.
     pub(crate) fn operator(&self, job: &Job) -> Option<AbstractOperator> {
@@ -70,7 +70,7 @@ impl InternalGraph {
     }
 }
 
-impl From<JobGraph> for InternalGraph {
+impl From<JobGraph> for AbstractJobGraph {
     fn from(job_graph: JobGraph) -> Self {
         let mut sources = HashMap::new();
         let mut destinations = HashMap::new();
@@ -127,18 +127,18 @@ impl JobGraph {
             }
         }
 
-        let mut ingress_streams = HashMap::new();
-        for (ingress_stream_id, setup_hook) in ingest_streams {
-            let ingest_stream = stream_id_to_stream_map.get_mut(&ingress_stream_id).unwrap();
-            ingest_stream.register_source(Job::Driver);
-            ingress_streams.insert(ingress_stream_id, setup_hook);
+        let mut ingress_streams_for_jobgraph = HashMap::new();
+        for (ingress_stream_id, setup_hook) in ingress_streams {
+            let ingress_stream = stream_id_to_stream_map.get_mut(&ingress_stream_id).unwrap();
+            ingress_stream.register_source(Job::Driver);
+            ingress_streams_for_jobgraph.insert(ingress_stream_id, setup_hook);
         }
 
-        let mut egress_streams = HashMap::new();
-        for (extract_stream_id, setup_hook) in extract_streams {
-            let extract_stream = stream_id_to_stream_map.get_mut(&extract_stream_id).unwrap();
-            extract_stream.add_destination(Job::Driver);
-            egress_streams.insert(extract_stream_id, setup_hook);
+        let mut egress_streams_for_jobgraph = HashMap::new();
+        for (extract_stream_id, setup_hook) in egress_streams {
+            let egress_stream = stream_id_to_stream_map.get_mut(&extract_stream_id).unwrap();
+            egress_stream.add_destination(Job::Driver);
+            egress_streams_for_jobgraph.insert(extract_stream_id, setup_hook);
         }
 
         Self {
@@ -147,8 +147,8 @@ impl JobGraph {
             operators,
             operator_runners,
             streams: stream_id_to_stream_map,
-            ingress_streams,
-            egress_streams,
+            ingress_streams: ingress_streams_for_jobgraph,
+            egress_streams: egress_streams_for_jobgraph,
         }
     }
 

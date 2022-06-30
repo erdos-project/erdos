@@ -3,10 +3,7 @@ use std::{collections::HashMap, net::SocketAddr};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    dataflow::{
-        graph::{InternalGraph, Job, JobGraph, JobGraphId},
-        stream::StreamId,
-    },
+    dataflow::graph::{AbstractJobGraph, Job, JobGraph, JobGraphId},
     node::{WorkerId, WorkerState},
 };
 
@@ -30,7 +27,7 @@ pub(crate) enum WorkerNotification {
     JobReady(JobGraphId, Job),
     /// Submits a representation of the JobGraph with the given ID for
     /// scheduling by the Leader.
-    SubmitGraph(JobGraphId, InternalGraph),
+    SubmitGraph(JobGraphId, AbstractJobGraph),
     /// Informs the Leader that the Worker is shutting down.
     Shutdown,
 }

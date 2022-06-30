@@ -4,8 +4,8 @@ use erdos::{
     dataflow::{
         context::SinkContext,
         operator::{Sink, Source},
-        stream::{ExtractStream, IngestStream, WriteStreamT},
-        Message, Timestamp, WriteStream,
+        stream::WriteStreamT,
+        Graph, Message, Timestamp, WriteStream,
     },
     node::{WorkerHandle, WorkerId},
     Configuration, OperatorConfig,
@@ -74,21 +74,24 @@ fn main() {
     let worker_handle = WorkerHandle::new(configuration);
 
     // Construct the Graph.
+    let graph = Graph::new();
     // let source_config = OperatorConfig::new().name("SourceOperator").node(0);
     // let source_stream = erdos::connect_source(SourceOperator::new, source_config);
 
     // let mut extract_stream = ExtractStream::new(&source_stream);
 
-    let mut ingest_stream = IngestStream::new();
+    let mut ingress_stream = graph.add_ingress("IngressStream");
 
-    let sink_config = OperatorConfig::new().name("SinkOperator").worker(WorkerId::from(0));
-    erdos::connect_sink(SinkOperator::new, || {}, sink_config, &ingest_stream);
+    let sink_config = OperatorConfig::new()
+        .name("SinkOperator")
+        .worker(WorkerId::from(0));
+    graph.connect_sink(SinkOperator::new, || {}, sink_config, &ingress_stream);
 
     // Submit the Graph.
     if worker_handle.id() == WorkerId::from(0) {
-        let _ = worker_handle.submit();
+        let _ = worker_handle.submit(&graph);
     } else {
-        let _ = worker_handle.register();
+        let _ = worker_handle.register(&graph);
     }
 
     // loop {
@@ -102,10 +105,12 @@ fn main() {
 
     let mut counter: usize = 0;
     while counter < 10 {
-        if !ingest_stream.is_closed() {
+        if !ingress_stream.is_closed() {
             let timestamp = Timestamp::Time(vec![counter as u64]);
-            let _ = ingest_stream.send(Message::new_message(timestamp, counter));
+            let _ = ingress_stream.send(Message::new_message(timestamp, counter));
             counter += 1;
         }
     }
+
+    loop {}
 }

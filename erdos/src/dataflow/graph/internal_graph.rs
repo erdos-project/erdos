@@ -1,10 +1,11 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, hash::Hash};
 
 use serde::Deserialize;
 
 use std::sync::{Arc, Mutex};
 
 use crate::{
+    communication::data_plane::StreamManager,
     dataflow::{
         graph::{AbstractOperator, AbstractStream, AbstractStreamT, JobGraph, StreamSetupHook},
         operator::{
@@ -20,9 +21,10 @@ use crate::{
         ParallelSinkMessageProcessor, ParallelTwoInOneOutMessageProcessor, SinkMessageProcessor,
         SourceExecutor, TwoInExecutor, TwoInOneOutMessageProcessor,
     },
-    scheduler::channel_manager::ChannelManager,
     OperatorConfig, OperatorId,
 };
+
+use super::{AbstractOperatorType, Job, JobGraphId, OperatorRunner};
 
 /// The abstract graph representation of an ERDOS program defined in the driver.
 ///
@@ -31,6 +33,8 @@ use crate::{
 pub struct InternalGraph {
     /// Collection of operators.
     operators: HashMap<OperatorId, AbstractOperator>,
+    /// A mapping from the OperatorId to the OperatorRunner.
+    operator_runners: HashMap<OperatorId, Box<dyn OperatorRunner>>,
     /// Collection of all streams in the graph.
     streams: HashMap<StreamId, Box<dyn AbstractStreamT>>,
     /// Collection of ingress streams and the corresponding functions to execute for setup.
@@ -54,7 +58,7 @@ impl InternalGraph {
         let write_stream_option_copy = ingress_stream.get_write_stream();
         let name_copy = ingress_stream.name();
         let id_copy = ingress_stream.id();
-        let setup_hook = move |channel_manager: &mut ChannelManager| match channel_manager
+        let setup_hook = move |stream_manager: &mut StreamManager| match stream_manager
             .get_send_endpoints(id_copy)
         {
             Ok(send_endpoints) => {
@@ -84,7 +88,7 @@ impl InternalGraph {
         let name_copy = egress_stream.name();
         let id_copy = egress_stream.id();
 
-        let hook = move |channel_manager: &mut ChannelManager| match channel_manager
+        let hook = move |stream_manager: &mut StreamManager| match stream_manager
             .take_recv_endpoint(id_copy)
         {
             Ok(recv_endpoint) => {
@@ -140,10 +144,10 @@ impl InternalGraph {
         let config_copy = config.clone();
         let write_stream_id = write_stream.id();
         let op_runner =
-            move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
-                let mut channel_manager = channel_manager.lock().unwrap();
+            move |stream_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
+                let mut stream_manager = stream_manager.lock().unwrap();
 
-                let write_stream = channel_manager.write_stream(write_stream_id).unwrap();
+                let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
 
                 let executor =
                     SourceExecutor::new(config_copy.clone(), operator_fn.clone(), write_stream);
@@ -156,15 +160,18 @@ impl InternalGraph {
             Box::new(AbstractStream::from(write_stream)),
         );
 
+        let abstract_operator_id = config.id;
         let abstract_operator = AbstractOperator {
-            id: config.id,
-            runner: Box::new(op_runner),
+            id: abstract_operator_id,
             config,
             read_streams: vec![],
             write_streams: vec![write_stream_id],
+            operator_type: AbstractOperatorType::Source,
         };
         self.operators
-            .insert(abstract_operator.id, abstract_operator);
+            .insert(abstract_operator_id, abstract_operator);
+        self.operator_runners
+            .insert(abstract_operator_id, Box::new(op_runner));
     }
 
     pub(crate) fn connect_parallel_sink<O, S, T, U>(
@@ -187,10 +194,10 @@ impl InternalGraph {
         let stream_id = self.resolve_stream_id(&read_stream_id).unwrap();
 
         let op_runner =
-            move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
-                let mut channel_manager = channel_manager.lock().unwrap();
+            move |stream_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
+                let mut stream_manager = stream_manager.lock().unwrap();
 
-                let read_stream = channel_manager.take_read_stream(stream_id).unwrap();
+                let read_stream = stream_manager.take_read_stream(stream_id).unwrap();
 
                 Box::new(OneInExecutor::new(
                     config_copy.clone(),
@@ -203,15 +210,18 @@ impl InternalGraph {
                 ))
             };
 
+        let abstract_operator_id = config.id;
         let abstract_operator = AbstractOperator {
-            id: config.id,
-            runner: Box::new(op_runner),
+            id: abstract_operator_id,
             config,
             read_streams: vec![read_stream_id],
             write_streams: vec![],
+            operator_type: AbstractOperatorType::ParallelSink,
         };
         self.operators
-            .insert(abstract_operator.id, abstract_operator);
+            .insert(abstract_operator_id, abstract_operator);
+        self.operator_runners
+            .insert(abstract_operator_id, Box::new(op_runner));
     }
 
     pub(crate) fn connect_sink<O, S, T>(
@@ -233,10 +243,10 @@ impl InternalGraph {
         let stream_id = self.resolve_stream_id(&read_stream_id).unwrap();
 
         let op_runner =
-            move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
-                let mut channel_manager = channel_manager.lock().unwrap();
+            move |stream_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
+                let mut stream_manager = stream_manager.lock().unwrap();
 
-                let read_stream = channel_manager.take_read_stream(stream_id).unwrap();
+                let read_stream = stream_manager.take_read_stream(stream_id).unwrap();
 
                 Box::new(OneInExecutor::new(
                     config_copy.clone(),
@@ -249,15 +259,18 @@ impl InternalGraph {
                 ))
             };
 
+        let abstract_operator_id = config.id;
         let abstract_operator = AbstractOperator {
-            id: config.id,
-            runner: Box::new(op_runner),
+            id: abstract_operator_id,
             config,
             read_streams: vec![read_stream_id],
             write_streams: vec![],
+            operator_type: AbstractOperatorType::Sink,
         };
         self.operators
-            .insert(abstract_operator.id, abstract_operator);
+            .insert(abstract_operator_id, abstract_operator);
+        self.operator_runners
+            .insert(abstract_operator_id, Box::new(op_runner));
     }
 
     pub(crate) fn connect_parallel_one_in_one_out<O, S, T, U, V>(
@@ -283,11 +296,11 @@ impl InternalGraph {
         let stream_id = self.resolve_stream_id(&read_stream_id).unwrap();
 
         let op_runner =
-            move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
-                let mut channel_manager = channel_manager.lock().unwrap();
+            move |stream_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
+                let mut stream_manager = stream_manager.lock().unwrap();
 
-                let read_stream = channel_manager.take_read_stream(stream_id).unwrap();
-                let write_stream = channel_manager.write_stream(write_stream_id).unwrap();
+                let read_stream = stream_manager.take_read_stream(stream_id).unwrap();
+                let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
 
                 Box::new(OneInExecutor::new(
                     config_copy.clone(),
@@ -306,15 +319,18 @@ impl InternalGraph {
             Box::new(AbstractStream::from(write_stream)),
         );
 
+        let abstract_operator_id = config.id;
         let abstract_operator = AbstractOperator {
-            id: config.id,
-            runner: Box::new(op_runner),
+            id: abstract_operator_id,
             config,
             read_streams: vec![read_stream_id],
             write_streams: vec![write_stream_id],
+            operator_type: AbstractOperatorType::ParallelOneInOneOut,
         };
         self.operators
-            .insert(abstract_operator.id, abstract_operator);
+            .insert(abstract_operator_id, abstract_operator);
+        self.operator_runners
+            .insert(abstract_operator_id, Box::new(op_runner));
     }
 
     pub(crate) fn connect_one_in_one_out<O, S, T, U>(
@@ -339,11 +355,11 @@ impl InternalGraph {
         let stream_id = self.resolve_stream_id(&read_stream_id).unwrap();
 
         let op_runner =
-            move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
-                let mut channel_manager = channel_manager.lock().unwrap();
+            move |stream_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
+                let mut stream_manager = stream_manager.lock().unwrap();
 
-                let read_stream = channel_manager.take_read_stream(stream_id).unwrap();
-                let write_stream = channel_manager.write_stream(write_stream_id).unwrap();
+                let read_stream = stream_manager.take_read_stream(stream_id).unwrap();
+                let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
 
                 Box::new(OneInExecutor::new(
                     config_copy.clone(),
@@ -362,15 +378,18 @@ impl InternalGraph {
             Box::new(AbstractStream::from(write_stream)),
         );
 
+        let abstract_operator_id = config.id;
         let abstract_operator = AbstractOperator {
-            id: config.id,
-            runner: Box::new(op_runner),
+            id: abstract_operator_id,
             config,
             read_streams: vec![read_stream_id],
             write_streams: vec![write_stream_id],
+            operator_type: AbstractOperatorType::OneInOneOut,
         };
         self.operators
-            .insert(abstract_operator.id, abstract_operator);
+            .insert(abstract_operator_id, abstract_operator);
+        self.operator_runners
+            .insert(abstract_operator_id, Box::new(op_runner));
     }
 
     pub(crate) fn connect_parallel_two_in_one_out<O, S, T, U, V, W>(
@@ -400,12 +419,12 @@ impl InternalGraph {
         let right_stream_id = self.resolve_stream_id(&right_read_stream_id).unwrap();
 
         let op_runner =
-            move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
-                let mut channel_manager = channel_manager.lock().unwrap();
+            move |stream_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
+                let mut stream_manager = stream_manager.lock().unwrap();
 
-                let left_read_stream = channel_manager.take_read_stream(left_stream_id).unwrap();
-                let right_read_stream = channel_manager.take_read_stream(right_stream_id).unwrap();
-                let write_stream = channel_manager.write_stream(write_stream_id).unwrap();
+                let left_read_stream = stream_manager.take_read_stream(left_stream_id).unwrap();
+                let right_read_stream = stream_manager.take_read_stream(right_stream_id).unwrap();
+                let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
 
                 Box::new(TwoInExecutor::new(
                     config_copy.clone(),
@@ -425,15 +444,18 @@ impl InternalGraph {
             Box::new(AbstractStream::from(write_stream)),
         );
 
+        let abstract_operator_id = config.id;
         let abstract_operator = AbstractOperator {
-            id: config.id,
-            runner: Box::new(op_runner),
+            id: abstract_operator_id,
             config,
             read_streams: vec![left_read_stream_id, right_read_stream_id],
             write_streams: vec![write_stream_id],
+            operator_type: AbstractOperatorType::ParallelTwoInOneOut,
         };
         self.operators
-            .insert(abstract_operator.id, abstract_operator);
+            .insert(abstract_operator_id, abstract_operator);
+        self.operator_runners
+            .insert(abstract_operator_id, Box::new(op_runner));
     }
 
     pub fn connect_two_in_one_out<O, S, T, U, V>(
@@ -462,12 +484,12 @@ impl InternalGraph {
         let right_stream_id = self.resolve_stream_id(&right_read_stream_id).unwrap();
 
         let op_runner =
-            move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
-                let mut channel_manager = channel_manager.lock().unwrap();
+            move |stream_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
+                let mut stream_manager = stream_manager.lock().unwrap();
 
-                let left_read_stream = channel_manager.take_read_stream(left_stream_id).unwrap();
-                let right_read_stream = channel_manager.take_read_stream(right_stream_id).unwrap();
-                let write_stream = channel_manager.write_stream(write_stream_id).unwrap();
+                let left_read_stream = stream_manager.take_read_stream(left_stream_id).unwrap();
+                let right_read_stream = stream_manager.take_read_stream(right_stream_id).unwrap();
+                let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
 
                 Box::new(TwoInExecutor::new(
                     config_copy.clone(),
@@ -487,15 +509,18 @@ impl InternalGraph {
             Box::new(AbstractStream::from(write_stream)),
         );
 
+        let abstract_operator_id = config.id;
         let abstract_operator = AbstractOperator {
-            id: config.id,
-            runner: Box::new(op_runner),
+            id: abstract_operator_id,
             config,
             read_streams: vec![left_read_stream_id, right_read_stream_id],
             write_streams: vec![write_stream_id],
+            operator_type: AbstractOperatorType::TwoInOneOut,
         };
         self.operators
-            .insert(abstract_operator.id, abstract_operator);
+            .insert(abstract_operator_id, abstract_operator);
+        self.operator_runners
+            .insert(abstract_operator_id, Box::new(op_runner));
     }
 
     pub fn connect_parallel_one_in_two_out<O, S, T, U, V, W>(
@@ -524,13 +549,13 @@ impl InternalGraph {
         let stream_id = self.resolve_stream_id(&read_stream_id).unwrap();
 
         let op_runner =
-            move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
-                let mut channel_manager = channel_manager.lock().unwrap();
+            move |stream_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
+                let mut stream_manager = stream_manager.lock().unwrap();
 
-                let read_stream = channel_manager.take_read_stream(stream_id).unwrap();
-                let left_write_stream = channel_manager.write_stream(left_write_stream_id).unwrap();
+                let read_stream = stream_manager.take_read_stream(stream_id).unwrap();
+                let left_write_stream = stream_manager.write_stream(left_write_stream_id).unwrap();
                 let right_write_stream =
-                    channel_manager.write_stream(right_write_stream_id).unwrap();
+                    stream_manager.write_stream(right_write_stream_id).unwrap();
 
                 Box::new(OneInExecutor::new(
                     config_copy.clone(),
@@ -554,15 +579,18 @@ impl InternalGraph {
             Box::new(AbstractStream::from(right_write_stream)),
         );
 
+        let abstract_operator_id = config.id;
         let abstract_operator = AbstractOperator {
-            id: config.id,
-            runner: Box::new(op_runner),
+            id: abstract_operator_id,
             config,
             read_streams: vec![read_stream_id],
             write_streams: vec![left_write_stream_id, right_write_stream_id],
+            operator_type: AbstractOperatorType::ParallelOneInTwoOut,
         };
         self.operators
-            .insert(abstract_operator.id, abstract_operator);
+            .insert(abstract_operator_id, abstract_operator);
+        self.operator_runners
+            .insert(abstract_operator_id, Box::new(op_runner));
     }
 
     pub fn connect_one_in_two_out<O, S, T, U, V>(
@@ -590,13 +618,13 @@ impl InternalGraph {
         let stream_id = self.resolve_stream_id(&read_stream_id).unwrap();
 
         let op_runner =
-            move |channel_manager: Arc<Mutex<ChannelManager>>| -> Box<dyn OperatorExecutorT> {
-                let mut channel_manager = channel_manager.lock().unwrap();
+            move |stream_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
+                let mut stream_manager = stream_manager.lock().unwrap();
 
-                let read_stream = channel_manager.take_read_stream(stream_id).unwrap();
-                let left_write_stream = channel_manager.write_stream(left_write_stream_id).unwrap();
+                let read_stream = stream_manager.take_read_stream(stream_id).unwrap();
+                let left_write_stream = stream_manager.write_stream(left_write_stream_id).unwrap();
                 let right_write_stream =
-                    channel_manager.write_stream(right_write_stream_id).unwrap();
+                    stream_manager.write_stream(right_write_stream_id).unwrap();
 
                 Box::new(OneInExecutor::new(
                     config_copy.clone(),
@@ -620,15 +648,18 @@ impl InternalGraph {
             Box::new(AbstractStream::from(right_write_stream)),
         );
 
+        let abstract_operator_id = config.id;
         let abstract_operator = AbstractOperator {
             id: config.id,
-            runner: Box::new(op_runner),
             config,
             read_streams: vec![read_stream_id],
             write_streams: vec![left_write_stream_id, right_write_stream_id],
+            operator_type: AbstractOperatorType::OneInTwoOut,
         };
         self.operators
-            .insert(abstract_operator.id, abstract_operator);
+            .insert(abstract_operator_id, abstract_operator);
+        self.operator_runners
+            .insert(abstract_operator_id, Box::new(op_runner));
     }
 
     /// If `stream_id` corresponds to a [`LoopStream`], returns the [`StreamId`] of the
@@ -679,10 +710,14 @@ impl InternalGraph {
             self.egress_streams.insert(stream_id, setup_hook);
         }
 
-        let mut operators: Vec<_> = self.operators.values().cloned().collect();
+        let mut operators: HashMap<_, _> = self
+            .operators
+            .iter()
+            .map(|(operator_id, operator)| (Job::Operator(*operator_id), operator.clone()))
+            .collect();
 
         // Replace loop stream IDs with connected stream IDs.
-        for o in operators.iter_mut() {
+        for o in operators.values_mut() {
             for i in 0..o.read_streams.len() {
                 if self.loop_streams.contains_key(&o.read_streams[i]) {
                     let resolved_id = self.resolve_stream_id(&o.read_streams[i]).unwrap();
@@ -691,41 +726,31 @@ impl InternalGraph {
             }
         }
 
-        JobGraph::new(operators, streams, ingress_streams, egress_streams)
+        JobGraph::new(
+            "Test".to_string(),
+            operators,
+            self.operator_runners.clone(),
+            streams,
+            ingress_streams,
+            egress_streams,
+        )
     }
+}
 
-    // TODO: implement this using the Clone trait.
-    #[allow(dead_code)]
-    pub(crate) fn clone(&mut self) -> Self {
+impl Clone for InternalGraph {
+    fn clone(&self) -> Self {
         let streams: HashMap<_, _> = self
             .streams
             .iter()
             .map(|(&k, v)| (k, v.box_clone()))
             .collect();
 
-        let mut ingress_streams = HashMap::new();
-        let ingress_stream_ids: Vec<_> = self.ingress_streams.keys().cloned().collect();
-        for stream_id in ingress_stream_ids {
-            // Remove and re-insert setup hook to satisfy static lifetimes.
-            let setup_hook = self.ingress_streams.remove(&stream_id).unwrap();
-            ingress_streams.insert(stream_id, setup_hook.box_clone());
-            self.ingress_streams.insert(stream_id, setup_hook);
-        }
-
-        let mut egress_streams = HashMap::new();
-        let egress_stream_ids: Vec<_> = self.egress_streams.keys().cloned().collect();
-        for stream_id in egress_stream_ids {
-            // Remove and re-insert setup hook to satisfy static lifetimes.
-            let setup_hook = self.egress_streams.remove(&stream_id).unwrap();
-            egress_streams.insert(stream_id, setup_hook.box_clone());
-            self.egress_streams.insert(stream_id, setup_hook);
-        }
-
         Self {
             operators: self.operators.clone(),
+            operator_runners: self.operator_runners.clone(),
             streams,
-            ingress_streams,
-            egress_streams,
+            ingress_streams: self.ingress_streams.clone(),
+            egress_streams: self.egress_streams.clone(),
             loop_streams: self.loop_streams.clone(),
         }
     }

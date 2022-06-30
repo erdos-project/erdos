@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
 use crate::{
-    dataflow::graph::{InternalGraph, Job},
+    dataflow::graph::{AbstractJobGraph, Job},
     node::{WorkerId, WorkerState},
 };
 
 pub(crate) trait JobGraphScheduler {
     fn schedule_graph(
         &mut self,
-        job_graph: &InternalGraph,
+        job_graph: &AbstractJobGraph,
         workers: &Vec<WorkerState>,
     ) -> HashMap<Job, WorkerId>;
 }
@@ -28,7 +28,7 @@ impl Default for SimpleJobGraphScheduler {
 impl JobGraphScheduler for SimpleJobGraphScheduler {
     fn schedule_graph(
         &mut self,
-        job_graph: &InternalGraph,
+        job_graph: &AbstractJobGraph,
         _workers: &Vec<WorkerState>,
     ) -> HashMap<Job, WorkerId> {
         let mut placements = HashMap::new();

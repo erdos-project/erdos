@@ -7,7 +7,7 @@ use tracing_subscriber::fmt::format::FmtSpan;
 
 use crate::{
     communication::{control_plane::notifications::DriverNotification, CommunicationError},
-    dataflow::graph::{default_graph, JobGraphId},
+    dataflow::{graph::JobGraphId, Graph},
     node::{Leader, Resources, WorkerNode},
     Configuration,
 };
@@ -146,9 +146,9 @@ impl WorkerHandle {
     // them needs to submit it to the Leader. This should later be removed if
     // we choose to dynamically link the user applications into the Worker's
     // memory space.
-    pub fn register(&self) -> Result<JobGraphId, CommunicationError> {
+    pub fn register(&self, graph: &Graph) -> Result<JobGraphId, CommunicationError> {
         // Compile the JobGraph and register it with the Worker.
-        let job_graph = (default_graph::clone()).compile();
+        let job_graph = graph.compile();
         let job_graph_id = job_graph.id();
         tracing::trace!(
             "WorkerHandle {} received a notification from the Driver \
@@ -167,9 +167,9 @@ impl WorkerHandle {
     // We should expose the `AbstractGraph` structure as a `GraphBuilder` and
     // consume that in the `submit` method to prevent the users from making
     // any further changes to it.
-    pub fn submit(&self) -> Result<JobGraphId, CommunicationError> {
+    pub fn submit(&self, graph: &Graph) -> Result<JobGraphId, CommunicationError> {
         // Compile the JobGraph and register it with the Worker.
-        let job_graph_id = self.register()?;
+        let job_graph_id = self.register(graph)?;
 
         // Submit the JobGraph to the Leader.
         self.worker_handle

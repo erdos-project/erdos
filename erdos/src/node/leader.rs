@@ -21,7 +21,7 @@ use crate::{
         },
         CommunicationError,
     },
-    dataflow::graph::{InternalGraph, Job, JobGraphId},
+    dataflow::graph::{Job, JobGraphId, AbstractJobGraph},
     node::WorkerState,
     scheduler::{JobGraphScheduler, SimpleJobGraphScheduler},
 };
@@ -33,7 +33,7 @@ use super::WorkerId;
 #[derive(Debug, Clone)]
 enum InterThreadMessage {
     WorkerInitialized(WorkerState),
-    ScheduleJobGraph(WorkerId, JobGraphId, InternalGraph),
+    ScheduleJobGraph(WorkerId, JobGraphId, AbstractJobGraph),
     ScheduleJob(JobGraphId, Job, WorkerId, HashMap<Job, WorkerAddress>),
     JobReady(JobGraphId, Job),
     ExecuteGraph(JobGraphId),

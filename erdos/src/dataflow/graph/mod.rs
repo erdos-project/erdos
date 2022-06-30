@@ -5,8 +5,9 @@ use std::{
 };
 
 use crate::{
+    communication::data_plane::{StreamEndpoints, StreamEndpointsT, StreamManager},
     node::operator_executors::OperatorExecutorT,
-    OperatorConfig, OperatorId, communication::data_plane::{StreamManager, StreamEndpointsT, StreamEndpoints},
+    OperatorConfig, OperatorId,
 };
 
 // Private submodules
@@ -20,7 +21,7 @@ pub(crate) mod internal_graph;
 // Crate-wide exports
 pub use graph::Graph;
 pub(crate) use internal_graph::InternalGraph;
-pub(crate) use job_graph::JobGraph;
+pub(crate) use job_graph::{AbstractJobGraph, JobGraph};
 use serde::{Deserialize, Serialize};
 
 use super::{stream::StreamId, Data, Stream};
@@ -55,15 +56,11 @@ impl Clone for Box<dyn OperatorRunner> {
 }
 
 /// Trait for functions used to set up ingest and extract streams.
-pub(crate) trait StreamSetupHook:
-    'static + Fn(&JobGraph, &mut StreamManager) + Sync + Send
-{
+pub(crate) trait StreamSetupHook: 'static + Fn(&mut StreamManager) + Sync + Send {
     fn box_clone(&self) -> Box<dyn StreamSetupHook>;
 }
 
-impl<T: 'static + Fn(&JobGraph, &mut StreamManager) + Sync + Send + Clone> StreamSetupHook
-    for T
-{
+impl<T: 'static + Fn(&mut StreamManager) + Sync + Send + Clone> StreamSetupHook for T {
     fn box_clone(&self) -> Box<dyn StreamSetupHook> {
         Box::new(self.clone())
     }

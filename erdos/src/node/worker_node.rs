@@ -375,7 +375,7 @@ impl WorkerNode {
                         Job::Driver => {
                             let mut channel_manager = self.stream_manager.lock().unwrap();
                             for setup_hook in job_graph.get_driver_setup_hooks() {
-                                (setup_hook)(job_graph, &mut channel_manager);
+                                (setup_hook)(&mut channel_manager);
                             }
                         }
                         Job::Operator(_) => {
