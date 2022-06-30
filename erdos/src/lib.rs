@@ -147,7 +147,6 @@ use serde::{Deserialize, Serialize};
 mod configuration;
 
 // Public submodules
-#[doc(hidden)]
 pub mod communication;
 pub mod dataflow;
 pub mod node;

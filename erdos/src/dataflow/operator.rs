@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     dataflow::{context::*, AppendableState, Data, ReadStream, State, WriteStream},
-    node::NodeId,
+    node::WorkerId,
     OperatorId,
 };
 
@@ -337,8 +337,9 @@ pub struct OperatorConfig {
     /// less than `t` complete. Watermarks flow after `run` completes.
     /// Defaults to `true`.
     pub flow_watermarks: bool,
-    /// The ID of the node on which the operator should run. Defaults to `0`.
-    pub node_id: NodeId,
+    /// The ID of the [`Worker`](crate::node::WorkerHandle) on which the
+    /// operator should run. Defaults to `0`.
+    pub worker_id: WorkerId,
 }
 
 impl OperatorConfig {
@@ -347,7 +348,7 @@ impl OperatorConfig {
             id: OperatorId::nil(),
             name: None,
             flow_watermarks: true,
-            node_id: 0,
+            worker_id: WorkerId::from(0),
         }
     }
 
@@ -364,8 +365,8 @@ impl OperatorConfig {
     }
 
     /// Set the node on which the [operator](self) runs.
-    pub fn node(mut self, node_id: NodeId) -> Self {
-        self.node_id = node_id;
+    pub fn worker(mut self, worker_id: WorkerId) -> Self {
+        self.worker_id = worker_id;
         self
     }
 

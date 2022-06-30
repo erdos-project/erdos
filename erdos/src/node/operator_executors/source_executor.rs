@@ -58,8 +58,8 @@ where
         self.helper.synchronize().await;
 
         tracing::debug!(
-            "Node {}: running operator {}",
-            self.config.node_id,
+            "Worker {}: running operator {}",
+            self.config.worker_id,
             self.config.get_name()
         );
 

@@ -9,7 +9,6 @@ use erdos::dataflow::operators::*;
 use erdos::dataflow::state::TimeVersionedState;
 use erdos::dataflow::stream::*;
 use erdos::dataflow::*;
-use erdos::node::Node;
 use erdos::Configuration;
 
 struct SourceOperator {}
@@ -246,7 +245,7 @@ fn main() {
     //let mut s = TimestampDeadline::new().with_start_condition(45);
     //println!("The s value is {}", s.s);
     let args = erdos::new_app("ERDOS").get_matches();
-    let mut node = Node::new(Configuration::from_args(&args));
+    // let mut node = Node::new(Configuration::from_args(&args));
 
     let source_config = OperatorConfig::new().name("SourceOperator");
     let source_stream = erdos::connect_source(SourceOperator::new, source_config);
@@ -328,5 +327,5 @@ fn main() {
     //let (even_stream, odd_stream) =
     //    erdos::connect_one_in_two_out(EvenOddOperator::new, || {}, even_odd_config, &source_stream);
 
-    node.run();
+    // node.run();
 }

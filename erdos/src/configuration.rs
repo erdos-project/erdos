@@ -2,18 +2,19 @@ use std::net::SocketAddr;
 
 use tracing::Level;
 
-use crate::node::NodeId;
+use crate::node::WorkerId;
 
-/// Stores the configuration parameters of a [`node`](crate::node::Node).
+/// The configuration parameters of an ERDOS [`Worker`](crate::node::WorkerHandle).
 #[derive(Clone)]
 pub struct Configuration {
-    /// The index of the node.
-    pub index: NodeId,
-    /// The number of OS threads the node will use.
+    /// The ID of the Worker.
+    pub id: WorkerId,
+    /// The number of OS threads the [`Worker`](crate::node::WorkerHandle) will use.
     pub num_threads: usize,
-    /// The address to be used to connect to the [`Leader`].
+    /// The address to be used to connect to the [`Leader`](crate::node::LeaderHandle).
     pub leader_address: SocketAddr,
-    /// The address to be used to listen for [`DataPlane`] connections from other [`Worker`]s.
+    /// The address to be used to listen for [data plane](crate::communication::data_plane)
+    /// connections from other [`Worker`]s.
     pub data_plane_address: SocketAddr,
     /// DOT file to export dataflow graph.
     pub graph_filename: Option<String>,
@@ -28,9 +29,9 @@ pub struct Configuration {
 }
 
 impl Configuration {
-    /// Creates a new node configuration.
+    /// Creates a new [`Worker`](crate::node::WorkerHandle) configuration.
     pub fn new(
-        node_index: NodeId,
+        id: WorkerId,
         leader_address: SocketAddr,
         data_plane_address: SocketAddr,
         num_threads: usize,
@@ -41,7 +42,7 @@ impl Configuration {
             Some(Level::INFO)
         };
         Self {
-            index: node_index,
+            id,
             num_threads,
             leader_address,
             data_plane_address,
@@ -50,7 +51,7 @@ impl Configuration {
         }
     }
 
-    /// Creates a node configuration from command line arguments.
+    /// Creates a [`Worker`](crate::node::WorkerHandle) configuration from command line arguments.
     pub fn from_args(args: &clap::ArgMatches) -> Self {
         let num_threads = args
             .value_of("threads")
@@ -58,7 +59,7 @@ impl Configuration {
             .parse()
             .expect("Unable to parse number of worker threads");
 
-        // Parse the address of the [`Leader`] and the [`DataPlane`].
+        // Parse the address of the Leader and the DataPlane.
         let data_plane_address = args
             .value_of("data-address")
             .unwrap()
@@ -70,7 +71,7 @@ impl Configuration {
             .parse()
             .expect("Unable to parse the address of the Leader.");
 
-        let node_index = args
+        let worker_id: usize = args
             .value_of("index")
             .unwrap()
             .parse()
@@ -90,7 +91,7 @@ impl Configuration {
         };
 
         Self {
-            index: node_index,
+            id: WorkerId::from(worker_id),
             num_threads,
             leader_address,
             data_plane_address,

@@ -243,7 +243,7 @@ impl JobGraph {
                 "   \"{}\" [label=\"{}\n(Node {})\"];",
                 operator.id,
                 operator.config.get_name(),
-                operator.config.node_id,
+                operator.config.worker_id,
             )?;
         }
 

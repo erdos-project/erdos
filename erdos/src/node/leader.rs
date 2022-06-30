@@ -311,7 +311,7 @@ impl Leader {
         )
         .split();
 
-        let mut id_of_this_worker = WorkerId::nil();
+        let mut id_of_this_worker = WorkerId::default();
 
         // Handle messages from the Worker and the Leader.
         loop {

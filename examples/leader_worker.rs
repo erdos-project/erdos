@@ -7,7 +7,7 @@ use erdos::{
         stream::{ExtractStream, IngestStream, WriteStreamT},
         Message, Timestamp, WriteStream,
     },
-    node::WorkerHandle,
+    node::{WorkerHandle, WorkerId},
     Configuration, OperatorConfig,
 };
 
@@ -71,7 +71,6 @@ impl Sink<(), usize> for SinkOperator {
 fn main() {
     let args = erdos::new_app("ERDOS").get_matches();
     let configuration = Configuration::from_args(&args);
-    let worker_index = configuration.index;
     let worker_handle = WorkerHandle::new(configuration);
 
     // Construct the Graph.
@@ -82,13 +81,11 @@ fn main() {
 
     let mut ingest_stream = IngestStream::new();
 
-    let sink_config = OperatorConfig::new().name("SinkOperator").node(1);
+    let sink_config = OperatorConfig::new().name("SinkOperator").worker(WorkerId::from(0));
     erdos::connect_sink(SinkOperator::new, || {}, sink_config, &ingest_stream);
 
     // Submit the Graph.
-    println!("The index of the Worker is {}", worker_index);
-    if worker_index == 0 {
-        println!("Submitting the JobGraph.");
+    if worker_handle.id() == 0 {
         let _ = worker_handle.submit();
     } else {
         let _ = worker_handle.register();

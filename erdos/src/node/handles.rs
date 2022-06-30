@@ -111,7 +111,7 @@ impl WorkerHandle {
         // Build a Tokio runtime.
         let worker_runtime = Builder::new_multi_thread()
             .worker_threads(config.num_threads)
-            .thread_name(format!("Worker-{}", config.index))
+            .thread_name(format!("Worker-{}", config.id))
             .enable_all()
             .build()
             .unwrap();
@@ -124,17 +124,16 @@ impl WorkerHandle {
         // TODO (Sukrit): In the future, the index of the Worker should be generated
         // at runtime, and be of a type alias WorkerId for Uuid.
         let worker_resources = Resources::empty();
-        let worker_id = WorkerId::from(config.index);
-        let mut worker_node = WorkerNode::new(
-            worker_id,
+        let mut worker = WorkerNode::new(
+            config.id,
             config.leader_address,
             config.data_plane_address,
             worker_resources,
             worker_rx,
         );
-        let worker_task = worker_runtime.spawn(async move { worker_node.run().await });
+        let worker_task = worker_runtime.spawn(async move { worker.run().await });
         Self {
-            handle_id: worker_id,
+            handle_id: config.id,
             worker_handle: worker_tx,
             worker_task,
             worker_runtime,
@@ -177,5 +176,10 @@ impl WorkerHandle {
             .blocking_send(DriverNotification::SubmitGraph(job_graph_id.clone()))?;
 
         Ok(job_graph_id)
+    }
+
+    /// Retrieve the ID of the Worker underlying this handle.
+    pub fn id(&self) -> WorkerId {
+        self.handle_id
     }
 }

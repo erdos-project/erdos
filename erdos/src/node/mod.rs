@@ -13,8 +13,6 @@
 // Private submodules
 mod handles;
 mod leader;
-#[allow(clippy::module_inception)]
-mod node;
 mod worker_node;
 
 // Crate-wide visible submodules
@@ -32,18 +30,17 @@ use std::fmt;
 // Crate-wide exports.
 pub(crate) use leader::Leader;
 pub(crate) use resources::Resources;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 pub(crate) use worker_node::{WorkerNode, WorkerState};
 
 // Public exports
 pub use handles::{LeaderHandle, WorkerHandle};
-pub use node::{Node, NodeHandle, NodeId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct WorkerId(usize);
 
-impl WorkerId {
-    pub fn nil() -> Self {
+impl Default for WorkerId {
+    fn default() -> Self {
         Self(usize::MAX)
     }
 }
