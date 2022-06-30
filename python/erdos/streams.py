@@ -6,8 +6,8 @@ from itertools import zip_longest
 from typing import Callable, Generic, Sequence, Tuple, Type, TypeVar, Union
 
 from erdos.internal import (
-    PyExtractStream,
-    PyIngestStream,
+    PyEgressStream,
+    PyIngressStream,
     PyLoopStream,
     PyMessage,
     PyOperatorStream,
@@ -368,7 +368,7 @@ class LoopStream(Stream[T]):
         self._internal_stream.connect_loop(stream._internal_stream)
 
 
-class IngestStream(Stream[T]):
+class IngressStream(Stream[T]):
     """An :py:class:`IngestStream` enables drivers to inject data into a
     running ERDOS application.
 
@@ -380,7 +380,7 @@ class IngestStream(Stream[T]):
     """
 
     def __init__(self, name: Union[str, None] = None) -> None:
-        super().__init__(PyIngestStream(name))
+        super().__init__(PyIngressStream(name))
 
     def is_closed(self) -> bool:
         """Whether the stream is closed.
@@ -408,7 +408,7 @@ class IngestStream(Stream[T]):
         self._internal_stream.send(internal_msg)
 
 
-class ExtractStream(Stream[T]):
+class EgressStream(Stream[T]):
     """An :py:class:`ExtractStream` enables drivers to read data from a
     running ERDOS applications.
 
@@ -429,7 +429,7 @@ class ExtractStream(Stream[T]):
                 "ExtractStream needs to be initialized with a Stream. "
                 "Received a {}".format(type(stream))
             )
-        self._py_extract_stream: PyExtractStream = PyExtractStream(
+        self._py_extract_stream: PyEgressStream = PyEgressStream(
             stream._internal_stream
         )
 

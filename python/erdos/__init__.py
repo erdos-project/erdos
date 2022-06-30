@@ -12,8 +12,8 @@ import erdos.utils
 from erdos.message import Message, WatermarkMessage
 from erdos.profile import Profile
 from erdos.streams import (
-    ExtractStream,
-    IngestStream,
+    EgressStream,
+    IngressStream,
     LoopStream,
     OperatorStream,
     ReadStream,
@@ -21,6 +21,7 @@ from erdos.streams import (
     WriteStream,
 )
 from erdos.timestamp import Timestamp
+from erdos.graph import Graph
 
 _num_py_operators = 0
 
@@ -512,8 +513,8 @@ __all__ = [
     "ReadStream",
     "WriteStream",
     "LoopStream",
-    "IngestStream",
-    "ExtractStream",
+    "IngressStream",
+    "EgressStream",
     "Profile",
     "Message",
     "WatermarkMessage",
