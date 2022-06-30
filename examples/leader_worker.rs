@@ -85,7 +85,7 @@ fn main() {
     erdos::connect_sink(SinkOperator::new, || {}, sink_config, &ingest_stream);
 
     // Submit the Graph.
-    if worker_handle.id() == 0 {
+    if worker_handle.id() == WorkerId::from(0) {
         let _ = worker_handle.submit();
     } else {
         let _ = worker_handle.register();

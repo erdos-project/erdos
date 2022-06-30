@@ -170,13 +170,13 @@ impl Leader {
 
                 // Broadcast the ScheduleOperator message for the placed operators.
                 for (job, worker_id) in placements.iter() {
-                    let operator = job_graph.get_job(job).unwrap();
+                    let operator = job_graph.operator(job).unwrap();
                     let mut worker_addresses = HashMap::new();
 
                     // For all the ReadStreams of this operator, let the Worker executing it
                     // know the addresses of the source operator of the stream.
                     for read_stream_id in &operator.read_streams {
-                        match job_graph.get_source(read_stream_id) {
+                        match job_graph.source(read_stream_id) {
                             Some(job) => {
                                 if let Some(worker_address) = self.get_worker_address(
                                     *worker_id,
@@ -194,7 +194,7 @@ impl Leader {
                     // For all the WriteStreams of this operator, let the Worker executing it
                     // know the addresses of the destinations of this stream.
                     for write_stream_id in &operator.write_streams {
-                        for destination in job_graph.get_destinations(write_stream_id) {
+                        for destination in job_graph.destinations(write_stream_id) {
                             if let Some(worker_address) = self.get_worker_address(
                                 *worker_id,
                                 driver_id,
@@ -221,7 +221,7 @@ impl Leader {
                 // data on the [`IngressStream`] and the [`EgressStream`]s.
                 let mut worker_addresses_for_driver = HashMap::new();
                 for ingress_stream_id in job_graph.ingress_streams() {
-                    for destination in job_graph.get_destinations(&ingress_stream_id) {
+                    for destination in job_graph.destinations(&ingress_stream_id) {
                         if let Some(worker_address) =
                             self.get_worker_address(driver_id, driver_id, &destination, &placements)
                         {
@@ -230,7 +230,7 @@ impl Leader {
                     }
                 }
                 for egress_stream_id in job_graph.egress_streams() {
-                    if let Some(job) = job_graph.get_source(&egress_stream_id) {
+                    if let Some(job) = job_graph.source(&egress_stream_id) {
                         if let Some(worker_address) =
                             self.get_worker_address(driver_id, driver_id, &job, &placements)
                         {

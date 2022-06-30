@@ -32,26 +32,29 @@ pub(crate) struct InternalGraph {
 }
 
 impl InternalGraph {
-    pub(crate) fn get_name(&self) -> &str {
+    pub(crate) fn name(&self) -> &str {
         &self.name
     }
 
-    /// Retrieve the [`AbstractOperator`] for the given ID.
-    pub(crate) fn get_job(&self, job: &Job) -> Option<AbstractOperator> {
+    /// Retrieve the [`AbstractOperator`] underlying the given [`Job`]
+    /// 
+    /// Returns None if the Job was of variant [`Driver`] or the job was
+    /// not found in the graph.
+    pub(crate) fn operator(&self, job: &Job) -> Option<AbstractOperator> {
         self.operators.get(job).cloned()
     }
 
     /// Retrieve the collection of [`AbstractOperator`]s in the Graph.
-    pub(crate) fn get_operators(&self) -> &HashMap<Job, AbstractOperator> {
+    pub(crate) fn operators(&self) -> &HashMap<Job, AbstractOperator> {
         &self.operators
     }
 
     /// Retrieve the [`Job`] that publishes the data on the given stream_id.
-    pub(crate) fn get_source(&self, stream_id: &StreamId) -> Option<Job> {
+    pub(crate) fn source(&self, stream_id: &StreamId) -> Option<Job> {
         self.stream_sources.get(stream_id).cloned()
     }
 
-    pub(crate) fn get_destinations(&self, stream_id: &StreamId) -> Vec<Job> {
+    pub(crate) fn destinations(&self, stream_id: &StreamId) -> Vec<Job> {
         match self.stream_destinations.get(stream_id) {
             Some(destinations) => destinations.clone(),
             None => Vec::new(),
