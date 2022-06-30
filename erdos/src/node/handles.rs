@@ -48,8 +48,6 @@ impl LeaderHandle {
             None
         };
 
-        tracing::debug!("Initialized a LeaderHandle!");
-
         // Initialize a channel between the Handle and the Leader.
         // This channel is used by the Handle to submit requests to the Leader.
         let (leader_tx, leader_rx) = mpsc::channel(100);
