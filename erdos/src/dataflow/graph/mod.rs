@@ -42,27 +42,27 @@ impl fmt::Display for GraphCompilationError {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct JobGraphId(String);
 
-/// Trait for functions that set up operator execution.
-pub(crate) trait OperatorRunner:
-    'static + (Fn(Arc<Mutex<StreamManager>>) -> Box<dyn OperatorExecutorT>) + Sync + Send
+/// Trait for functions that set up the execution of a [`Job`].
+pub(crate) trait JobRunner:
+    'static + (Fn(Arc<Mutex<StreamManager>>) -> Option<Box<dyn OperatorExecutorT>>) + Sync + Send
 {
-    fn box_clone(&self) -> Box<dyn OperatorRunner>;
+    fn box_clone(&self) -> Box<dyn JobRunner>;
 }
 
 impl<
         T: 'static
-            + (Fn(Arc<Mutex<StreamManager>>) -> Box<dyn OperatorExecutorT>)
+            + (Fn(Arc<Mutex<StreamManager>>) -> Option<Box<dyn OperatorExecutorT>>)
             + Sync
             + Send
             + Clone,
-    > OperatorRunner for T
+    > JobRunner for T
 {
-    fn box_clone(&self) -> Box<dyn OperatorRunner> {
+    fn box_clone(&self) -> Box<dyn JobRunner> {
         Box::new(self.clone())
     }
 }
 
-impl Clone for Box<dyn OperatorRunner> {
+impl Clone for Box<dyn JobRunner> {
     fn clone(&self) -> Self {
         (**self).box_clone()
     }

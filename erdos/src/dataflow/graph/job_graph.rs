@@ -1,11 +1,16 @@
-use std::{collections::HashMap, fmt, fs::File, io::prelude::*};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+    fs::File,
+    io::prelude::*,
+};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{dataflow::stream::StreamId, OperatorId};
 
 use super::{
-    JobGraphId, OperatorRunner, StreamSetupHook, {AbstractOperator, AbstractStreamT, Job},
+    JobGraphId, JobRunner, StreamSetupHook, {AbstractOperator, AbstractStreamT, Job},
 };
 
 /// The [`InternalGraph`] is an internal representation of the Graph
@@ -26,9 +31,9 @@ pub(crate) struct AbstractJobGraph {
     /// AbstractOperators that consume the data from it.
     stream_destinations: HashMap<StreamId, Vec<Job>>,
     /// A collection of IDs of the IngressStreams.
-    ingress_streams: Vec<StreamId>,
+    ingress_streams: HashSet<StreamId>,
     /// A collection of IDs of the EgressStreams.
-    egress_streams: Vec<StreamId>,
+    egress_streams: HashSet<StreamId>,
 }
 
 impl AbstractJobGraph {
@@ -61,11 +66,11 @@ impl AbstractJobGraph {
         }
     }
 
-    pub(crate) fn ingress_streams(&self) -> Vec<StreamId> {
+    pub(crate) fn ingress_streams(&self) -> HashSet<StreamId> {
         self.ingress_streams.clone()
     }
 
-    pub(crate) fn egress_streams(&self) -> Vec<StreamId> {
+    pub(crate) fn egress_streams(&self) -> HashSet<StreamId> {
         self.egress_streams.clone()
     }
 }
@@ -84,8 +89,8 @@ impl From<JobGraph> for AbstractJobGraph {
             operators: job_graph.operators.clone(),
             stream_sources: sources,
             stream_destinations: destinations,
-            ingress_streams: job_graph.ingress_streams.keys().cloned().collect(),
-            egress_streams: job_graph.egress_streams.keys().cloned().collect(),
+            ingress_streams: job_graph.ingress_streams.clone(),
+            egress_streams: job_graph.egress_streams.clone(),
         }
     }
 }
@@ -95,26 +100,26 @@ pub(crate) struct JobGraph {
     id: JobGraphId,
     name: String,
     operators: HashMap<Job, AbstractOperator>,
-    operator_runners: HashMap<OperatorId, Box<dyn OperatorRunner>>,
+    job_runners: HashMap<Job, Box<dyn JobRunner>>,
     streams: HashMap<StreamId, Box<dyn AbstractStreamT>>,
-    ingress_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
-    egress_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
+    ingress_streams: HashSet<StreamId>,
+    egress_streams: HashSet<StreamId>,
 }
 
 impl JobGraph {
     pub(crate) fn new(
         name: String,
         operators: HashMap<Job, AbstractOperator>,
-        operator_runners: HashMap<OperatorId, Box<dyn OperatorRunner>>,
+        job_runners: HashMap<Job, Box<dyn JobRunner>>,
         streams: HashMap<StreamId, Box<dyn AbstractStreamT>>,
-        ingress_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
-        egress_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
+        ingress_streams: HashSet<StreamId>,
+        egress_streams: HashSet<StreamId>,
     ) -> Self {
         Self {
             id: JobGraphId(name.clone()),
             name,
             operators,
-            operator_runners,
+            job_runners,
             streams,
             ingress_streams,
             egress_streams,
@@ -137,11 +142,8 @@ impl JobGraph {
     }
 
     /// Retrieve the execution function for a particular operator in the graph.
-    pub(crate) fn operator_runner(
-        &self,
-        operator_id: &OperatorId,
-    ) -> Option<Box<dyn OperatorRunner>> {
-        match self.operator_runners.get(operator_id) {
+    pub(crate) fn job_runner(&self, job: &Job) -> Option<Box<dyn JobRunner>> {
+        match self.job_runners.get(job) {
             Some(operator_runner) => Some(operator_runner.clone()),
             None => None,
         }
@@ -155,7 +157,7 @@ impl JobGraph {
     /// registered in the [`JobGraph`].
     pub fn ingress_streams(&self) -> Vec<Box<dyn AbstractStreamT>> {
         let mut ingress_streams = Vec::new();
-        for (ingress_stream_id, _) in &self.ingress_streams {
+        for ingress_stream_id in &self.ingress_streams {
             if let Some(ingress_stream) = self.stream(&ingress_stream_id) {
                 ingress_streams.push(ingress_stream);
             }
@@ -167,24 +169,12 @@ impl JobGraph {
     /// registered in the [`JobGraph`].
     pub fn egress_streams(&self) -> Vec<Box<dyn AbstractStreamT>> {
         let mut egress_streams = Vec::new();
-        for (egress_stream_id, _) in &self.egress_streams {
+        for egress_stream_id in &self.egress_streams {
             if let Some(egress_stream) = self.stream(&egress_stream_id) {
                 egress_streams.push(egress_stream);
             }
         }
         egress_streams
-    }
-
-    /// Returns the hooks used to set up ingress and egress streams.
-    pub fn driver_setup_hooks(&self) -> Vec<Box<dyn StreamSetupHook>> {
-        let mut driver_setup_hooks = Vec::new();
-        for (_, setup_hook) in &self.ingress_streams {
-            driver_setup_hooks.push(setup_hook.box_clone());
-        }
-        for (_, setup_hook) in &self.egress_streams {
-            driver_setup_hooks.push(setup_hook.clone());
-        }
-        driver_setup_hooks
     }
 
     /// Exports the job graph to a Graphviz file (*.gv, *.dot).

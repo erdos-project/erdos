@@ -1,6 +1,5 @@
-use std::{collections::HashMap, hash::Hash};
+use std::collections::{HashMap, HashSet};
 
-use petgraph::Graph;
 use serde::Deserialize;
 
 use std::sync::{Arc, Mutex};
@@ -25,7 +24,7 @@ use crate::{
     OperatorConfig, OperatorId,
 };
 
-use super::{AbstractOperatorType, GraphCompilationError, Job, OperatorRunner};
+use super::{AbstractOperatorType, GraphCompilationError, Job, JobRunner};
 
 /// The abstract graph representation of an ERDOS program defined in the driver.
 ///
@@ -37,7 +36,7 @@ pub struct InternalGraph {
     /// Collection of operators.
     operators: HashMap<OperatorId, AbstractOperator>,
     /// A mapping from the OperatorId to the OperatorRunner.
-    operator_runners: HashMap<OperatorId, Box<dyn OperatorRunner>>,
+    operator_runners: HashMap<OperatorId, Box<dyn JobRunner>>,
     /// Collection of all streams in the graph.
     streams: HashMap<StreamId, Box<dyn AbstractStreamT>>,
     /// Collection of ingress streams and the corresponding functions to execute for setup.
@@ -150,7 +149,7 @@ impl InternalGraph {
         let config_copy = config.clone();
         let write_stream_id = write_stream.id();
         let op_runner =
-            move |stream_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
+            move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
                 let mut stream_manager = stream_manager.lock().unwrap();
 
                 let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
@@ -158,7 +157,7 @@ impl InternalGraph {
                 let executor =
                     SourceExecutor::new(config_copy.clone(), operator_fn.clone(), write_stream);
 
-                Box::new(executor)
+                Some(Box::new(executor))
             };
 
         self.streams.insert(
@@ -200,12 +199,12 @@ impl InternalGraph {
         let stream_id = self.resolve_stream_id(&read_stream_id).unwrap();
 
         let op_runner =
-            move |stream_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
+            move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
                 let mut stream_manager = stream_manager.lock().unwrap();
 
                 let read_stream = stream_manager.take_read_stream(stream_id).unwrap();
 
-                Box::new(OneInExecutor::new(
+                Some(Box::new(OneInExecutor::new(
                     config_copy.clone(),
                     Box::new(ParallelSinkMessageProcessor::new(
                         config_copy.clone(),
@@ -213,7 +212,7 @@ impl InternalGraph {
                         state_fn.clone(),
                     )),
                     read_stream,
-                ))
+                )))
             };
 
         let abstract_operator_id = config.id;
@@ -249,12 +248,12 @@ impl InternalGraph {
         let stream_id = self.resolve_stream_id(&read_stream_id).unwrap();
 
         let op_runner =
-            move |stream_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
+            move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
                 let mut stream_manager = stream_manager.lock().unwrap();
 
                 let read_stream = stream_manager.take_read_stream(stream_id).unwrap();
 
-                Box::new(OneInExecutor::new(
+                Some(Box::new(OneInExecutor::new(
                     config_copy.clone(),
                     Box::new(SinkMessageProcessor::new(
                         config_copy.clone(),
@@ -262,7 +261,7 @@ impl InternalGraph {
                         state_fn.clone(),
                     )),
                     read_stream,
-                ))
+                )))
             };
 
         let abstract_operator_id = config.id;
@@ -302,13 +301,13 @@ impl InternalGraph {
         let stream_id = self.resolve_stream_id(&read_stream_id).unwrap();
 
         let op_runner =
-            move |stream_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
+            move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
                 let mut stream_manager = stream_manager.lock().unwrap();
 
                 let read_stream = stream_manager.take_read_stream(stream_id).unwrap();
                 let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
 
-                Box::new(OneInExecutor::new(
+                Some(Box::new(OneInExecutor::new(
                     config_copy.clone(),
                     Box::new(ParallelOneInOneOutMessageProcessor::new(
                         config_copy.clone(),
@@ -317,7 +316,7 @@ impl InternalGraph {
                         write_stream,
                     )),
                     read_stream,
-                ))
+                )))
             };
 
         self.streams.insert(
@@ -361,13 +360,13 @@ impl InternalGraph {
         let stream_id = self.resolve_stream_id(&read_stream_id).unwrap();
 
         let op_runner =
-            move |stream_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
+            move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
                 let mut stream_manager = stream_manager.lock().unwrap();
 
                 let read_stream = stream_manager.take_read_stream(stream_id).unwrap();
                 let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
 
-                Box::new(OneInExecutor::new(
+                Some(Box::new(OneInExecutor::new(
                     config_copy.clone(),
                     Box::new(OneInOneOutMessageProcessor::new(
                         config_copy.clone(),
@@ -376,7 +375,7 @@ impl InternalGraph {
                         write_stream,
                     )),
                     read_stream,
-                ))
+                )))
             };
 
         self.streams.insert(
@@ -425,14 +424,14 @@ impl InternalGraph {
         let right_stream_id = self.resolve_stream_id(&right_read_stream_id).unwrap();
 
         let op_runner =
-            move |stream_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
+            move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
                 let mut stream_manager = stream_manager.lock().unwrap();
 
                 let left_read_stream = stream_manager.take_read_stream(left_stream_id).unwrap();
                 let right_read_stream = stream_manager.take_read_stream(right_stream_id).unwrap();
                 let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
 
-                Box::new(TwoInExecutor::new(
+                Some(Box::new(TwoInExecutor::new(
                     config_copy.clone(),
                     Box::new(ParallelTwoInOneOutMessageProcessor::new(
                         config_copy.clone(),
@@ -442,7 +441,7 @@ impl InternalGraph {
                     )),
                     left_read_stream,
                     right_read_stream,
-                ))
+                )))
             };
 
         self.streams.insert(
@@ -490,14 +489,14 @@ impl InternalGraph {
         let right_stream_id = self.resolve_stream_id(&right_read_stream_id).unwrap();
 
         let op_runner =
-            move |stream_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
+            move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
                 let mut stream_manager = stream_manager.lock().unwrap();
 
                 let left_read_stream = stream_manager.take_read_stream(left_stream_id).unwrap();
                 let right_read_stream = stream_manager.take_read_stream(right_stream_id).unwrap();
                 let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
 
-                Box::new(TwoInExecutor::new(
+                Some(Box::new(TwoInExecutor::new(
                     config_copy.clone(),
                     Box::new(TwoInOneOutMessageProcessor::new(
                         config_copy.clone(),
@@ -507,7 +506,7 @@ impl InternalGraph {
                     )),
                     left_read_stream,
                     right_read_stream,
-                ))
+                )))
             };
 
         self.streams.insert(
@@ -555,7 +554,7 @@ impl InternalGraph {
         let stream_id = self.resolve_stream_id(&read_stream_id).unwrap();
 
         let op_runner =
-            move |stream_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
+            move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
                 let mut stream_manager = stream_manager.lock().unwrap();
 
                 let read_stream = stream_manager.take_read_stream(stream_id).unwrap();
@@ -563,7 +562,7 @@ impl InternalGraph {
                 let right_write_stream =
                     stream_manager.write_stream(right_write_stream_id).unwrap();
 
-                Box::new(OneInExecutor::new(
+                Some(Box::new(OneInExecutor::new(
                     config_copy.clone(),
                     Box::new(ParallelOneInTwoOutMessageProcessor::new(
                         config_copy.clone(),
@@ -573,7 +572,7 @@ impl InternalGraph {
                         right_write_stream,
                     )),
                     read_stream,
-                ))
+                )))
             };
 
         self.streams.insert(
@@ -624,7 +623,7 @@ impl InternalGraph {
         let stream_id = self.resolve_stream_id(&read_stream_id).unwrap();
 
         let op_runner =
-            move |stream_manager: Arc<Mutex<StreamManager>>| -> Box<dyn OperatorExecutorT> {
+            move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
                 let mut stream_manager = stream_manager.lock().unwrap();
 
                 let read_stream = stream_manager.take_read_stream(stream_id).unwrap();
@@ -632,7 +631,7 @@ impl InternalGraph {
                 let right_write_stream =
                     stream_manager.write_stream(right_write_stream_id).unwrap();
 
-                Box::new(OneInExecutor::new(
+                Some(Box::new(OneInExecutor::new(
                     config_copy.clone(),
                     Box::new(OneInTwoOutMessageProcessor::new(
                         config_copy.clone(),
@@ -642,7 +641,7 @@ impl InternalGraph {
                         right_write_stream,
                     )),
                     read_stream,
-                ))
+                )))
             };
 
         self.streams.insert(
@@ -694,8 +693,12 @@ impl InternalGraph {
             }
         }
 
-        // Move the IngressStreams to the JobGraph while marking its source as the Driver.
-        let mut ingress_streams = HashMap::with_capacity(self.ingress_streams.len());
+        // Merge all the SetupHooks for the streams of the Driver job.
+        let mut driver_setup_hooks = Vec::new();
+
+        // Move the IngressStreams to the JobGraph while marking its source as the Driver,
+        // and adding the setup hook to the set of driver setup hooks.
+        let mut ingress_streams = HashSet::with_capacity(self.ingress_streams.len());
         for (ingress_stream_id, setup_hook) in self.ingress_streams.drain() {
             let ingress_stream = self.streams.get_mut(&ingress_stream_id).ok_or_else(|| {
                 GraphCompilationError(format!(
@@ -704,11 +707,12 @@ impl InternalGraph {
                 ))
             })?;
             ingress_stream.register_source(Job::Driver);
-            ingress_streams.insert(ingress_stream_id, setup_hook);
+            ingress_streams.insert(ingress_stream_id);
+            driver_setup_hooks.push(setup_hook);
         }
 
         // Move the EgressStreams to the JobGraph while adding the Driver as a destination.
-        let mut egress_streams = HashMap::with_capacity(self.egress_streams.len());
+        let mut egress_streams = HashSet::with_capacity(self.egress_streams.len());
         for (egress_stream_id, setup_hook) in self.egress_streams.drain() {
             let egress_stream = self.streams.get_mut(&egress_stream_id).ok_or_else(|| {
                 GraphCompilationError(format!(
@@ -717,8 +721,25 @@ impl InternalGraph {
                 ))
             })?;
             egress_stream.add_destination(Job::Driver);
-            egress_streams.insert(egress_stream_id, setup_hook);
+            egress_streams.insert(egress_stream_id);
+            driver_setup_hooks.push(setup_hook);
         }
+
+        // Move all the JobRunners into the JobGraph and add a runner for the Driver.
+        let mut job_runners: HashMap<_, _> = self
+            .operator_runners
+            .drain()
+            .map(|(operator_id, operator_runner)| (Job::Operator(operator_id), operator_runner))
+            .collect();
+        let driver_runner =
+            move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
+                let mut stream_manager = stream_manager.lock().unwrap();
+                for driver_setup_hook in driver_setup_hooks.clone() {
+                    (driver_setup_hook)(&mut stream_manager);
+                }
+                None
+            };
+        job_runners.insert(Job::Driver, Box::new(driver_runner));
 
         // Move all the non-loop Streams into the JobGraph.
         let mut streams: HashMap<_, _> = self.streams.drain().collect();
@@ -781,7 +802,7 @@ impl InternalGraph {
         Ok(JobGraph::new(
             self.name.clone(),
             operators,
-            self.operator_runners.clone(),
+            job_runners,
             streams,
             ingress_streams,
             egress_streams,

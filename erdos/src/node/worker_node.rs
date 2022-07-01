@@ -368,30 +368,24 @@ impl WorkerNode {
 
                 // TODO (Sukrit): Fix this code.
                 let mut worker = Worker::new(2);
-                let mut job_executors = Vec::new();
+                let mut operator_executors = Vec::new();
                 let job_graph = self.job_graphs.get(&job_graph_id).unwrap();
                 // TODO (Sukrit): If there was no state, then maybe the graph was not scheduled on this node.
                 for (job, _) in self.job_graph_to_job_state.get(&job_graph_id).unwrap() {
-                    match job {
-                        Job::Driver => {
-                            let mut channel_manager = self.stream_manager.lock().unwrap();
-                            for setup_hook in job_graph.driver_setup_hooks() {
-                                (setup_hook)(&mut channel_manager);
-                            }
+                    if let Some(job_runner) = job_graph.job_runner(job) {
+                        let stream_manager_copy = Arc::clone(&self.stream_manager);
+                        if let Some(operator_executor) = (job_runner)(stream_manager_copy) {
+                            operator_executors.push(operator_executor);
                         }
-                        Job::Operator(_) => {
-                            let operator = job_graph.operator(job).unwrap();
-                            let channel_manager_copy = Arc::clone(&self.stream_manager);
-                            if let Some(operator_runner) =
-                                job_graph.operator_runner(&operator.id)
-                            {
-                                let operator_executor = (operator_runner)(channel_manager_copy);
-                                job_executors.push(operator_executor);
-                            }
-                        }
+                    } else {
+                        tracing::warn!(
+                            "[Worker {}] Could not find a Runner for Job {:?}",
+                            self.id,
+                            job
+                        );
                     }
                 }
-                worker.spawn_tasks(job_executors).await;
+                worker.spawn_tasks(operator_executors).await;
                 std::thread::sleep_ms(1000);
                 worker.execute().await;
             }
