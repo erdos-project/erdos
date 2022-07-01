@@ -172,6 +172,7 @@ impl WorkerHandle {
     // them needs to submit it to the Leader. This should later be removed if
     // we choose to dynamically link the user applications into the Worker's
     // memory space.
+    /// Registers the [`Graph`] for execution with the [`Worker`]s.
     pub fn register(&self, graph: Graph) -> Result<JobGraphId, HandleError> {
         // Compile the JobGraph and register it with the Worker.
         let job_graph = graph
@@ -196,6 +197,9 @@ impl WorkerHandle {
         Ok(job_graph_id)
     }
 
+    /// Submits the [`Graph`] to the `Leader` for execution.
+    /// 
+    /// This method automatically invokes the [`register`] method.
     pub fn submit(&self, graph: Graph) -> Result<JobGraphId, HandleError> {
         // Compile the JobGraph and register it with the Worker.
         let job_graph_id = self.register(graph)?;

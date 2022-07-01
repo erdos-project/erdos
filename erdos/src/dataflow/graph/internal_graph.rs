@@ -13,7 +13,7 @@ use crate::{
             ParallelTwoInOneOut, Sink, Source, TwoInOneOut,
         },
         stream::{EgressStream, IngressStream, OperatorStream, Stream, StreamId},
-        AppendableState, Data, LoopStream, ReadStream, State, WriteStream,
+        AppendableState, Data, LoopStream, State,
     },
     node::operator_executors::{
         OneInExecutor, OneInOneOutMessageProcessor, OneInTwoOutMessageProcessor, OperatorExecutorT,
@@ -182,16 +182,17 @@ impl InternalGraph {
         // A hook to initialize the ingress stream's connections to downstream operators.
         let write_stream_option_copy = ingress_stream.get_write_stream();
         let id_copy = ingress_stream.id();
-        let setup_hook =
-            move |stream_manager: &mut StreamManager| match stream_manager.take_write_stream(id_copy) {
-                Ok(write_stream) => {
-                    write_stream_option_copy
-                        .lock()
-                        .unwrap()
-                        .replace(write_stream);
-                }
-                Err(err) => panic!("Unable to setup IngressStream {}: {}", id_copy, err),
-            };
+        let setup_hook = move |stream_manager: &mut StreamManager| match stream_manager
+            .take_write_stream(id_copy)
+        {
+            Ok(write_stream) => {
+                write_stream_option_copy
+                    .lock()
+                    .unwrap()
+                    .replace(write_stream);
+            }
+            Err(err) => panic!("Unable to setup IngressStream {}: {}", id_copy, err),
+        };
 
         self.streams.insert(
             ingress_stream.id(),
@@ -670,8 +671,12 @@ impl InternalGraph {
             let read_stream = stream_manager
                 .take_read_stream(read_stream_id.unwrap(), Job::Operator(config_copy.id))
                 .unwrap();
-            let left_write_stream = stream_manager.take_write_stream(left_write_stream_id).unwrap();
-            let right_write_stream = stream_manager.take_write_stream(right_write_stream_id).unwrap();
+            let left_write_stream = stream_manager
+                .take_write_stream(left_write_stream_id)
+                .unwrap();
+            let right_write_stream = stream_manager
+                .take_write_stream(right_write_stream_id)
+                .unwrap();
 
             Box::new(OneInExecutor::new(
                 config_copy.clone(),
@@ -738,8 +743,12 @@ impl InternalGraph {
             let read_stream = stream_manager
                 .take_read_stream(read_stream_id.unwrap(), Job::Operator(config_copy.id))
                 .unwrap();
-            let left_write_stream = stream_manager.take_write_stream(left_write_stream_id).unwrap();
-            let right_write_stream = stream_manager.take_write_stream(right_write_stream_id).unwrap();
+            let left_write_stream = stream_manager
+                .take_write_stream(left_write_stream_id)
+                .unwrap();
+            let right_write_stream = stream_manager
+                .take_write_stream(right_write_stream_id)
+                .unwrap();
 
             Box::new(OneInExecutor::new(
                 config_copy.clone(),
