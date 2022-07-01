@@ -68,22 +68,6 @@ impl Clone for Box<dyn JobRunner> {
     }
 }
 
-/// Trait for functions used to set up ingest and extract streams.
-pub(crate) trait StreamSetupHook: 'static + Fn(&mut StreamManager) + Sync + Send {
-    fn box_clone(&self) -> Box<dyn StreamSetupHook>;
-}
-
-impl<T: 'static + Fn(&mut StreamManager) + Sync + Send + Clone> StreamSetupHook for T {
-    fn box_clone(&self) -> Box<dyn StreamSetupHook> {
-        Box::new(self.clone())
-    }
-}
-
-impl Clone for Box<dyn StreamSetupHook> {
-    fn clone(&self) -> Self {
-        (**self).box_clone()
-    }
-}
 
 /// Specifies the type of job.
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, PartialEq, Hash, Eq)]

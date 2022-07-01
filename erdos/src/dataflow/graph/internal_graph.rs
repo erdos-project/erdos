@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use crate::{
     communication::data_plane::StreamManager,
     dataflow::{
-        graph::{AbstractOperator, AbstractStream, AbstractStreamT, JobGraph, StreamSetupHook},
+        graph::{AbstractOperator, AbstractStream, AbstractStreamT, JobGraph},
         operator::{
             OneInOneOut, OneInTwoOut, ParallelOneInOneOut, ParallelOneInTwoOut, ParallelSink,
             ParallelTwoInOneOut, Sink, Source, TwoInOneOut,
@@ -26,7 +26,7 @@ use crate::{
 
 use super::{AbstractOperatorType, GraphCompilationError, Job, JobRunner};
 
-/// The [`OperatorRunner`] trait holds a function that sets up an `Operator` pending the resolution
+/// A trait that holds a partial function that sets up an `Operator` pending the resolution
 /// of the IDs of its [`ReadStream`]s.
 trait OperatorRunner:
     'static
@@ -126,6 +126,26 @@ impl Clone for Box<dyn OperatorRunner> {
     }
 }
 
+/// A trait that holds a partial function that sets up an [`IngressStream`] or an [`EgressStream`]
+/// and is merged into a [`JobRunner`] for the [`Driver`](crate::dataflow::graph::Job) upon
+/// compilation.
+trait DriverStreamSetupHook: 'static + Fn(&mut StreamManager) + Sync + Send {
+    // Clone the function into a Boxed object.
+    fn box_clone(&self) -> Box<dyn DriverStreamSetupHook>;
+}
+
+impl<T: 'static + Fn(&mut StreamManager) + Sync + Send + Clone> DriverStreamSetupHook for T {
+    fn box_clone(&self) -> Box<dyn DriverStreamSetupHook> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn DriverStreamSetupHook> {
+    fn clone(&self) -> Self {
+        (**self).box_clone()
+    }
+}
+
 /// The abstract graph representation of an ERDOS program defined in the driver.
 ///
 /// The abstract graph is compiled into a [`JobGraph`], which ERDOS schedules and executes.
@@ -140,9 +160,9 @@ pub struct InternalGraph {
     /// Collection of all streams in the graph.
     streams: HashMap<StreamId, Box<dyn AbstractStreamT>>,
     /// Collection of ingress streams and the corresponding functions to execute for setup.
-    ingress_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
+    ingress_streams: HashMap<StreamId, Box<dyn DriverStreamSetupHook>>,
     /// Collection of egress streams and the corresponding functions to execute for setup.
-    egress_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
+    egress_streams: HashMap<StreamId, Box<dyn DriverStreamSetupHook>>,
     /// Collection of loop streams and the streams to which they connect.
     loop_streams: HashMap<StreamId, Option<StreamId>>,
 }
