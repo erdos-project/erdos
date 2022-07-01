@@ -4,12 +4,8 @@ from typing import Any
 
 import numpy as np
 
-from erdos.context import (
-    OneInOneOutContext,
-    OneInTwoOutContext,
-    SinkContext,
-    TwoInOneOutContext,
-)
+from erdos.context import (OneInOneOutContext, OneInTwoOutContext, SinkContext,
+                           TwoInOneOutContext)
 from erdos.streams import ReadStream, WriteStream
 
 MAX_NUM_RUNTIME_SAMPLES = 1000

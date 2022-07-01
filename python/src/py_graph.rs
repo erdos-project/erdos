@@ -33,6 +33,7 @@ impl PyGraph {
         PyLoopStream::new(py, self.graph.add_loop_stream()).unwrap()
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn connect_source(
         &self,
         py: Python,
@@ -79,6 +80,7 @@ impl PyGraph {
         PyOperatorStream::new(py, write_stream)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn connect_sink(
         &self,
         py: Python,
@@ -127,6 +129,7 @@ impl PyGraph {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn connect_one_in_one_out(
         &self,
         py: Python,
@@ -176,6 +179,7 @@ impl PyGraph {
         PyOperatorStream::new(py, write_stream)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn connect_one_in_two_out(
         &self,
         py: Python,

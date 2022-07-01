@@ -6,19 +6,12 @@ import erdos.context
 import erdos.internal as _internal
 import erdos.operator
 import erdos.utils
+from erdos.graph import Graph
 from erdos.message import Message, WatermarkMessage
 from erdos.profile import Profile
-from erdos.streams import (
-    EgressStream,
-    IngressStream,
-    LoopStream,
-    OperatorStream,
-    ReadStream,
-    Stream,
-    WriteStream,
-)
+from erdos.streams import (EgressStream, IngressStream, LoopStream,
+                           OperatorStream, ReadStream, Stream, WriteStream)
 from erdos.timestamp import Timestamp
-from erdos.graph import Graph
 
 # Set the top-level logger for ERDOS logging.
 # Users can change the logging level to the required level by calling setLevel

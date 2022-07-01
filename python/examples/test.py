@@ -1,9 +1,8 @@
 import time
 
 import erdos
-
-from erdos.graph import Graph
 from erdos.context import SinkContext
+from erdos.graph import Graph
 from erdos.operator import Sink, Source
 from erdos.streams import ReadStream, WriteStream
 

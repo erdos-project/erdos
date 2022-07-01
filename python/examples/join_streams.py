@@ -6,9 +6,9 @@ from typing import Any
 
 import erdos
 from erdos.context import TwoInOneOutContext
+from erdos.graph import Graph
 from erdos.operator import Source, TwoInOneOut
 from erdos.streams import WriteStream
-from erdos.graph import Graph
 
 
 class SendOp(Source):

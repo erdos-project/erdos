@@ -2,11 +2,11 @@ import logging
 import multiprocessing as mp
 import signal
 import sys
-from typing import Type, Tuple, Optional
+from typing import Optional, Tuple, Type
 
 import erdos
-from erdos.streams import IngressStream, LoopStream, OperatorStream, Stream
 from erdos.internal import PyGraph
+from erdos.streams import IngressStream, LoopStream, OperatorStream, Stream
 
 logger = logging.getLogger(__name__)
 

@@ -11,9 +11,9 @@ import time
 
 import erdos
 from erdos.context import OneInOneOutContext
+from erdos.graph import Graph
 from erdos.operator import OneInOneOut
 from erdos.streams import ReadStream, WriteStream
-from erdos.graph import Graph
 
 
 class LoopOp(OneInOneOut):

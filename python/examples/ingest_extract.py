@@ -6,7 +6,6 @@
 import time
 
 import erdos
-
 from erdos.graph import Graph
 
 

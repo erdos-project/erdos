@@ -3,9 +3,9 @@ from typing import Any
 
 import erdos
 from erdos.context import SinkContext
+from erdos.graph import Graph
 from erdos.operator import OperatorConfig, Sink, Source
 from erdos.streams import WriteStream
-from erdos.graph import Graph
 
 
 class SendOp(Source):

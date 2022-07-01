@@ -2,8 +2,8 @@
 """
 
 import erdos
-from erdos.operator import OneInOneOut
 from erdos.graph import Graph
+from erdos.operator import OneInOneOut
 
 
 class NoopOp(OneInOneOut):

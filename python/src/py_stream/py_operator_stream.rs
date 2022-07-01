@@ -44,9 +44,7 @@ impl PyOperatorStream {
 
 impl From<OperatorStream<Vec<u8>>> for PyOperatorStream {
     fn from(stream: OperatorStream<Vec<u8>>) -> Self {
-        Self {
-            stream: stream.clone(),
-        }
+        Self { stream }
     }
 }
 
