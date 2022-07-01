@@ -103,12 +103,17 @@ where
     }
 
     /// Takes a `RecvEndpoint` out of the stream.
-    fn take_recv_endpoint(&mut self) -> Result<RecvEndpoint<Arc<Message<D>>>, &'static str> {
-        let key = self.recv_endpoints.keys().cloned().next();
-        match key {
-            Some(job) => Ok(self.recv_endpoints.remove(&job).unwrap()),
-            None => Err("No more recv endpoints available"),
+    fn take_recv_endpoint(&mut self, job: Job) -> Result<RecvEndpoint<Arc<Message<D>>>, String> {
+        if !self.recv_endpoints.contains_key(&job) {
+            // There was no RecvEndpoint for this Job.
+            return Err(format!(
+                "A RecvEndpoint for the Job {:?} on the Stream {} (ID={}) was not found.",
+                job,
+                self.name(),
+                self.id()
+            ));
         }
+        Ok(self.recv_endpoints.remove(&job).unwrap())
     }
 
     /// Returns a cloned list of the `SendEndpoint`s the stream has.
@@ -257,8 +262,8 @@ impl StreamManager {
 
         // Register for a new endpoint with the Pusher.
         let stream_endpoints = self.stream_endpoints.get_mut(&stream.id()).unwrap();
-        stream_endpoints.add_inter_worker_recv_endpoint(stream.source().unwrap())?;
-        worker_connection.notify_pusher_update(stream.source().unwrap(), stream.id(), receiving_job)
+        stream_endpoints.add_inter_worker_recv_endpoint(receiving_job)?;
+        worker_connection.notify_pusher_update(stream.id(), receiving_job)
     }
 
     /// Adds an Inter-Worker send endpoint for the [`stream`] to the [`destination_job`]
@@ -286,6 +291,7 @@ impl StreamManager {
     pub fn take_recv_endpoint<D>(
         &mut self,
         stream_id: StreamId,
+        job: Job,
     ) -> Result<RecvEndpoint<Arc<Message<D>>>, String>
     where
         for<'a> D: Data + Deserialize<'a>,
@@ -293,7 +299,7 @@ impl StreamManager {
         if let Some(stream_entry_t) = self.stream_endpoints.get_mut(&stream_id) {
             if let Some(stream_entry) = stream_entry_t.as_any().downcast_mut::<StreamEndpoints<D>>()
             {
-                match stream_entry.take_recv_endpoint() {
+                match stream_entry.take_recv_endpoint(job) {
                     Ok(recv_endpoint) => Ok(recv_endpoint),
                     Err(msg) => Err(format!(
                         "Could not get recv endpoint with id {}: {}",
@@ -335,11 +341,15 @@ impl StreamManager {
     }
 
     /// This function can only be called once successfully.
-    pub fn take_read_stream<D>(&mut self, stream_id: StreamId) -> Result<ReadStream<D>, String>
+    pub fn take_read_stream<D>(
+        &mut self,
+        stream_id: StreamId,
+        job: Job,
+    ) -> Result<ReadStream<D>, String>
     where
         D: Data + for<'a> Deserialize<'a>,
     {
-        self.take_recv_endpoint(stream_id)
+        self.take_recv_endpoint(stream_id, job)
             .map(|endpoint| ReadStream::new(stream_id, &stream_id.to_string(), endpoint))
     }
 

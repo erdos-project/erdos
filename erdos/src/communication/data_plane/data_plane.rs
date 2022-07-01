@@ -211,7 +211,7 @@ impl DataPlane {
                     }
                 }
             }
-            DataPlaneNotification::PusherUpdated(_, stream_id, receiving_job) => {
+            DataPlaneNotification::PusherUpdated(stream_id, receiving_job) => {
                 // Notify the Worker that the Stream is ready for the given Job.
                 if let Err(error) = self
                     .channel_to_worker

@@ -40,6 +40,6 @@ pub(crate) enum DataPlaneNotification {
     ReceiverInitialized(WorkerId),
     SenderInitialized(WorkerId),
     InstallPusher(StreamId, Arc<Mutex<dyn PusherT>>),
-    UpdatePusher(Job, StreamId, Job),
-    PusherUpdated(Job, StreamId, Job),
+    UpdatePusher(StreamId, Job),
+    PusherUpdated(StreamId, Job),
 }

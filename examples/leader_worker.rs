@@ -75,17 +75,17 @@ fn main() {
 
     // Construct the Graph.
     let graph = Graph::new("LeaderWorkerExample");
-    // let source_config = OperatorConfig::new().name("SourceOperator").node(0);
-    // let source_stream = erdos::connect_source(SourceOperator::new, source_config);
+    let source_config = OperatorConfig::new().name("SourceOperator").worker(WorkerId::from(0));
+    let source_stream = graph.connect_source(SourceOperator::new, source_config);
 
     // let mut extract_stream = ExtractStream::new(&source_stream);
 
-    let mut ingress_stream = graph.add_ingress("IngressStream");
+    // let mut ingress_stream = graph.add_ingress("IngressStream");
 
     let sink_config = OperatorConfig::new()
         .name("SinkOperator")
-        .worker(WorkerId::from(0));
-    graph.connect_sink(SinkOperator::new, || {}, sink_config, &ingress_stream);
+        .worker(WorkerId::from(1));
+    graph.connect_sink(SinkOperator::new, || {}, sink_config, &source_stream);
 
     // Submit the Graph.
     if worker_handle.id() == WorkerId::from(0) {
@@ -103,14 +103,14 @@ fn main() {
     //     }
     // }
 
-    let mut counter: usize = 0;
-    while counter < 10 {
-        if !ingress_stream.is_closed() {
-            let timestamp = Timestamp::Time(vec![counter as u64]);
-            let _ = ingress_stream.send(Message::new_message(timestamp, counter));
-            counter += 1;
-        }
-    }
+    // let mut counter: usize = 0;
+    // while counter < 10 {
+    //     if !ingress_stream.is_closed() {
+    //         let timestamp = Timestamp::Time(vec![counter as u64]);
+    //         let _ = ingress_stream.send(Message::new_message(timestamp, counter));
+    //         counter += 1;
+    //     }
+    // }
 
     loop {}
 }

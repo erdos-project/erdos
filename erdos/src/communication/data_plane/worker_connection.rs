@@ -14,7 +14,7 @@ use crate::{
     node::WorkerId,
 };
 
-use super::{notifications::DataPlaneNotification, DataReceiver, DataSender, pusher::PusherT};
+use super::{notifications::DataPlaneNotification, pusher::PusherT, DataReceiver, DataSender};
 
 pub struct WorkerConnection {
     worker_id: WorkerId,
@@ -90,13 +90,11 @@ impl WorkerConnection {
 
     pub(crate) fn notify_pusher_update(
         &self,
-        sending_job: Job,
         stream_id: StreamId,
         receiving_job: Job,
     ) -> Result<(), CommunicationError> {
         self.channel_to_data_receiver
             .send(DataPlaneNotification::UpdatePusher(
-                sending_job,
                 stream_id,
                 receiving_job,
             ))

@@ -214,7 +214,7 @@ impl InternalGraph {
         let id_copy = egress_stream.id();
 
         let hook = move |stream_manager: &mut StreamManager| match stream_manager
-            .take_recv_endpoint(id_copy)
+            .take_recv_endpoint(id_copy, Job::Driver)
         {
             Ok(recv_endpoint) => {
                 let read_stream = ReadStream::new(id_copy, &name_copy, recv_endpoint);
@@ -318,7 +318,7 @@ impl InternalGraph {
                               stream_manager: &mut StreamManager|
               -> Box<dyn OperatorExecutorT> {
             let read_stream = stream_manager
-                .take_read_stream(read_stream_id.unwrap())
+                .take_read_stream(read_stream_id.unwrap(), Job::Operator(config_copy.id))
                 .unwrap();
 
             Box::new(OneInExecutor::new(
@@ -367,7 +367,7 @@ impl InternalGraph {
                               stream_manager: &mut StreamManager|
               -> Box<dyn OperatorExecutorT> {
             let read_stream = stream_manager
-                .take_read_stream(read_stream_id.unwrap())
+                .take_read_stream(read_stream_id.unwrap(), Job::Operator(config_copy.id))
                 .unwrap();
 
             Box::new(OneInExecutor::new(
@@ -420,7 +420,7 @@ impl InternalGraph {
                               stream_manager: &mut StreamManager|
               -> Box<dyn OperatorExecutorT> {
             let read_stream = stream_manager
-                .take_read_stream(read_stream_id.unwrap())
+                .take_read_stream(read_stream_id.unwrap(), Job::Operator(config_copy.id))
                 .unwrap();
             let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
 
@@ -479,7 +479,7 @@ impl InternalGraph {
                               stream_manager: &mut StreamManager|
               -> Box<dyn OperatorExecutorT> {
             let read_stream = stream_manager
-                .take_read_stream(read_stream_id.unwrap())
+                .take_read_stream(read_stream_id.unwrap(), Job::Operator(config_copy.id))
                 .unwrap();
             let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
 
@@ -541,10 +541,10 @@ impl InternalGraph {
                               stream_manager: &mut StreamManager|
               -> Box<dyn OperatorExecutorT> {
             let left_read_stream = stream_manager
-                .take_read_stream(left_read_stream_id.unwrap())
+                .take_read_stream(left_read_stream_id.unwrap(), Job::Operator(config_copy.id))
                 .unwrap();
             let right_read_stream = stream_manager
-                .take_read_stream(right_read_stream_id.unwrap())
+                .take_read_stream(right_read_stream_id.unwrap(), Job::Operator(config_copy.id))
                 .unwrap();
             let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
 
@@ -606,10 +606,10 @@ impl InternalGraph {
                               stream_manager: &mut StreamManager|
               -> Box<dyn OperatorExecutorT> {
             let left_read_stream = stream_manager
-                .take_read_stream(left_read_stream_id.unwrap())
+                .take_read_stream(left_read_stream_id.unwrap(), Job::Operator(config_copy.id))
                 .unwrap();
             let right_read_stream = stream_manager
-                .take_read_stream(right_read_stream_id.unwrap())
+                .take_read_stream(right_read_stream_id.unwrap(), Job::Operator(config_copy.id))
                 .unwrap();
             let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
 
@@ -673,7 +673,7 @@ impl InternalGraph {
                               stream_manager: &mut StreamManager|
               -> Box<dyn OperatorExecutorT> {
             let read_stream = stream_manager
-                .take_read_stream(read_stream_id.unwrap())
+                .take_read_stream(read_stream_id.unwrap(), Job::Operator(config_copy.id))
                 .unwrap();
             let left_write_stream = stream_manager.write_stream(left_write_stream_id).unwrap();
             let right_write_stream = stream_manager.write_stream(right_write_stream_id).unwrap();
@@ -741,7 +741,7 @@ impl InternalGraph {
                               stream_manager: &mut StreamManager|
               -> Box<dyn OperatorExecutorT> {
             let read_stream = stream_manager
-                .take_read_stream(read_stream_id.unwrap())
+                .take_read_stream(read_stream_id.unwrap(), Job::Operator(config_copy.id))
                 .unwrap();
             let left_write_stream = stream_manager.write_stream(left_write_stream_id).unwrap();
             let right_write_stream = stream_manager.write_stream(right_write_stream_id).unwrap();

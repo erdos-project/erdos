@@ -13,7 +13,7 @@ use tokio_util::codec::Framed;
 use crate::{
     communication::{
         data_plane::notifications::DataPlaneNotification, CommunicationError, InterProcessMessage,
-        MessageCodec, 
+        MessageCodec,
     },
     dataflow::stream::StreamId,
     node::WorkerId,
@@ -123,7 +123,7 @@ impl DataReceiver {
                 }
                 self.stream_id_to_pusher.insert(stream_id, stream_pusher);
             }
-            DataPlaneNotification::UpdatePusher(sending_job, stream_id, receiving_job) => {
+            DataPlaneNotification::UpdatePusher(stream_id, receiving_job) => {
                 let pusher = self
                     .stream_id_to_pusher
                     .get(&stream_id)
@@ -132,29 +132,22 @@ impl DataReceiver {
                     .unwrap();
                 tracing::debug!(
                     "[DataReceiver for Worker {}] Received a Pusher update \
-                                    notification from Job {:?} for {:?} to Job {:?}.",
+                                notification for {:?} to Job {:?}.",
                     self.worker_id,
-                    sending_job,
                     pusher,
                     receiving_job
                 );
 
                 // Notify the DataPlane of the successful installation.
-                match pusher.contains_endpoint(&sending_job) {
+                match pusher.contains_endpoint(&receiving_job) {
                     true => {
                         if let Err(error) = self.data_plane_notification_tx.send(
-                            DataPlaneNotification::PusherUpdated(
-                                sending_job,
-                                stream_id,
-                                receiving_job,
-                            ),
+                            DataPlaneNotification::PusherUpdated(stream_id, receiving_job),
                         ) {
                             tracing::error!(
-                                "[DataReceiver for Worker {}] Error sending the \
-                                            PusherUpdated notification to the DataPlane for \
-                                            Job {:?} with Stream {:?} to Job {:?}: {:?}",
+                                "[DataReceiver for Worker {}] Error sending the PusherUpdated \
+                                notification to the DataPlane for Stream {:?} to Job {:?}: {:?}",
                                 self.worker_id,
-                                sending_job,
                                 stream_id,
                                 receiving_job,
                                 error,
@@ -164,10 +157,9 @@ impl DataReceiver {
                     false => {
                         tracing::warn!(
                             "[DataReceiver for Worker {}] The DataReceiver was notified of the \
-                            update of the Pusher for Job {:?} with Stream {} and an endpoint \
-                            for Job {:?}, but none was found.",
+                            update of the Pusher for Stream {} and an endpoint for Job {:?}, \
+                            but none was found.",
                             self.worker_id,
-                            sending_job,
                             stream_id,
                             receiving_job,
                         );
