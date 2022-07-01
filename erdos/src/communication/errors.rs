@@ -22,6 +22,8 @@ pub enum CommunicationError {
     /// This can be raised when there are protocol errors between
     /// the Leader and the Worker, or between Workers.
     ProtocolError(String),
+    /// Failed to setup the Stream.
+    StreamManagerError(String),
 }
 
 impl Error for CommunicationError {}

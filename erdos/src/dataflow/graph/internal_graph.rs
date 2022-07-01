@@ -181,20 +181,17 @@ impl InternalGraph {
     {
         // A hook to initialize the ingress stream's connections to downstream operators.
         let write_stream_option_copy = ingress_stream.get_write_stream();
-        let name_copy = ingress_stream.name();
         let id_copy = ingress_stream.id();
-        let setup_hook = move |stream_manager: &mut StreamManager| match stream_manager
-            .get_send_endpoints(id_copy)
-        {
-            Ok(send_endpoints) => {
-                let write_stream = WriteStream::new(id_copy, &name_copy, send_endpoints);
-                write_stream_option_copy
-                    .lock()
-                    .unwrap()
-                    .replace(write_stream);
-            }
-            Err(msg) => panic!("Unable to set up IngressStream {}: {}", id_copy, msg),
-        };
+        let setup_hook =
+            move |stream_manager: &mut StreamManager| match stream_manager.write_stream(id_copy) {
+                Ok(write_stream) => {
+                    write_stream_option_copy
+                        .lock()
+                        .unwrap()
+                        .replace(write_stream);
+                }
+                Err(err) => panic!("Unable to setup IngressStream {}: {}", id_copy, err),
+            };
 
         self.streams.insert(
             ingress_stream.id(),
@@ -210,17 +207,15 @@ impl InternalGraph {
         for<'a> D: Data + Deserialize<'a>,
     {
         let read_stream_option_copy = egress_stream.get_read_stream();
-        let name_copy = egress_stream.name();
         let id_copy = egress_stream.id();
 
         let hook = move |stream_manager: &mut StreamManager| match stream_manager
-            .take_recv_endpoint(id_copy, Job::Driver)
+            .take_read_stream(id_copy, Job::Driver)
         {
-            Ok(recv_endpoint) => {
-                let read_stream = ReadStream::new(id_copy, &name_copy, recv_endpoint);
+            Ok(read_stream) => {
                 read_stream_option_copy.lock().unwrap().replace(read_stream);
             }
-            Err(msg) => panic!("Unable to set up EgressStream {}: {}", id_copy, msg),
+            Err(err) => panic!("Unable to setup EgressStream {}: {}", id_copy, err),
         };
 
         self.egress_streams

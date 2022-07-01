@@ -103,15 +103,18 @@ where
     }
 
     /// Takes a `RecvEndpoint` out of the stream.
-    fn take_recv_endpoint(&mut self, job: Job) -> Result<RecvEndpoint<Arc<Message<D>>>, String> {
+    fn take_recv_endpoint(
+        &mut self,
+        job: Job,
+    ) -> Result<RecvEndpoint<Arc<Message<D>>>, CommunicationError> {
         if !self.recv_endpoints.contains_key(&job) {
             // There was no RecvEndpoint for this Job.
-            return Err(format!(
+            return Err(CommunicationError::StreamManagerError(format!(
                 "A RecvEndpoint for the Job {:?} on the Stream {} (ID={}) was not found.",
                 job,
                 self.name(),
                 self.id()
-            ));
+            )));
         }
         Ok(self.recv_endpoints.remove(&job).unwrap())
     }
@@ -185,7 +188,7 @@ where
                 self.add_recv_endpoint(job, recv_endpoint_from_pusher);
                 Ok(())
             }
-            None => Err(CommunicationError::ProtocolError(format!(
+            None => Err(CommunicationError::StreamManagerError(format!(
                 "Error casting Pusher when adding inter-worker \
                     receive endpoint for Stream {} (ID={}).",
                 self.stream_name, self.stream_id,
@@ -287,82 +290,73 @@ impl StreamManager {
         )
     }
 
-    /// Takes a `RecvEnvpoint` from a given stream.
-    pub fn take_recv_endpoint<D>(
-        &mut self,
-        stream_id: StreamId,
-        job: Job,
-    ) -> Result<RecvEndpoint<Arc<Message<D>>>, String>
-    where
-        for<'a> D: Data + Deserialize<'a>,
-    {
-        if let Some(stream_entry_t) = self.stream_endpoints.get_mut(&stream_id) {
-            if let Some(stream_entry) = stream_entry_t.as_any().downcast_mut::<StreamEndpoints<D>>()
-            {
-                match stream_entry.take_recv_endpoint(job) {
-                    Ok(recv_endpoint) => Ok(recv_endpoint),
-                    Err(msg) => Err(format!(
-                        "Could not get recv endpoint with id {}: {}",
-                        stream_id, msg
-                    )),
-                }
-            } else {
-                Err(format!(
-                    "Type mismatch for recv endpoint with ID {}",
-                    stream_id
-                ))
-            }
-        } else {
-            Err(format!("No recv endpoints found with ID {}", stream_id))
-        }
-    }
-
-    /// Returns a cloned vector of the `SendEndpoint`s for a given stream.
-    pub fn get_send_endpoints<D>(
-        &mut self,
-        stream_id: StreamId,
-    ) -> Result<HashMap<Job, SendEndpoint<Arc<Message<D>>>>, String>
-    where
-        for<'a> D: Data + Deserialize<'a>,
-    {
-        if let Some(stream_entry_t) = self.stream_endpoints.get_mut(&stream_id) {
-            if let Some(stream_entry) = stream_entry_t.as_any().downcast_mut::<StreamEndpoints<D>>()
-            {
-                Ok(stream_entry.get_send_endpoints())
-            } else {
-                Err(format!(
-                    "Type mismatch for recv endpoint with ID {}",
-                    stream_id
-                ))
-            }
-        } else {
-            Err(format!("No recv endpoints found with ID {}", stream_id))
-        }
-    }
-
     /// This function can only be called once successfully.
     pub fn take_read_stream<D>(
         &mut self,
-        stream_id: StreamId,
-        job: Job,
-    ) -> Result<ReadStream<D>, String>
+        read_stream_id: StreamId,
+        receiving_job: Job,
+    ) -> Result<ReadStream<D>, CommunicationError>
     where
         D: Data + for<'a> Deserialize<'a>,
     {
-        self.take_recv_endpoint(stream_id, job)
-            .map(|endpoint| ReadStream::new(stream_id, &stream_id.to_string(), endpoint))
+        if let Some(stream_endpoints) = self.stream_endpoints.get_mut(&read_stream_id) {
+            if let Some(stream_endpoints) = stream_endpoints
+                .as_any()
+                .downcast_mut::<StreamEndpoints<D>>()
+            {
+                let recv_endpoint = stream_endpoints.take_recv_endpoint(receiving_job)?;
+                Ok(ReadStream::new(
+                    stream_endpoints.id(),
+                    &stream_endpoints.name(),
+                    recv_endpoint,
+                ))
+            } else {
+                Err(CommunicationError::StreamManagerError(format!(
+                    "Could not downcast the StreamEndpoints for \
+                    Stream {} (ID={}) to the required type.",
+                    stream_endpoints.name(),
+                    stream_endpoints.id()
+                )))
+            }
+        } else {
+            Err(CommunicationError::StreamManagerError(format!(
+                "Could not find a registered StreamEndpoints for Stream {}.",
+                read_stream_id
+            )))
+        }
     }
 
-    pub fn write_stream<D>(&mut self, stream_id: StreamId) -> Result<WriteStream<D>, String>
+    pub fn write_stream<D>(
+        &mut self,
+        write_stream_id: StreamId,
+    ) -> Result<WriteStream<D>, CommunicationError>
     where
         D: Data + for<'a> Deserialize<'a>,
     {
-        let name = self
-            .stream_endpoints
-            .get(&stream_id)
-            .ok_or_else(|| format!("Could not find stream with ID {}", stream_id))?
-            .name();
-        self.get_send_endpoints(stream_id)
-            .map(|endpoints| WriteStream::new(stream_id, &name, endpoints))
+        if let Some(stream_endpoints) = self.stream_endpoints.get_mut(&write_stream_id) {
+            if let Some(stream_endpoints) = stream_endpoints
+                .as_any()
+                .downcast_mut::<StreamEndpoints<D>>()
+            {
+                let send_endpoints = stream_endpoints.get_send_endpoints();
+                Ok(WriteStream::new(
+                    stream_endpoints.id(),
+                    &stream_endpoints.name(),
+                    send_endpoints,
+                ))
+            } else {
+                Err(CommunicationError::StreamManagerError(format!(
+                    "Could not downcast teh StreamEndpoints for \
+                    Stream {} (ID={}) to the required type.",
+                    stream_endpoints.name(),
+                    stream_endpoints.id()
+                )))
+            }
+        } else {
+            Err(CommunicationError::StreamManagerError(format!(
+                "Could not find a registered StreamEndpoints for Stream {}",
+                write_stream_id
+            )))
+        }
     }
 }
