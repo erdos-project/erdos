@@ -1,4 +1,7 @@
-use std::{collections::HashMap, net::SocketAddr};
+use std::{
+    collections::{HashMap, HashSet},
+    net::SocketAddr,
+};
 
 use futures::{future, SinkExt, StreamExt};
 use tokio::{
@@ -36,9 +39,7 @@ enum InterThreadMessage {
     ScheduleJobGraph(WorkerId, JobGraphId, AbstractJobGraph),
     ScheduleJob(JobGraphId, Job, WorkerId, HashMap<Job, WorkerAddress>),
     JobReady(JobGraphId, Job),
-    // TODO (Sukrit): Bookkeep that if the graph was not placed on a Worker,
-    // then it should not be asked to be executed on that worker.
-    ExecuteGraph(JobGraphId),
+    ExecuteGraph(JobGraphId, HashSet<WorkerId>),
     Shutdown(WorkerId),
     ShutdownAllWorkers,
 }
@@ -217,6 +218,12 @@ impl Leader {
                         worker_addresses,
                     ));
                     job_status.insert(job.clone(), JobState::NotReady);
+
+                    // Update the `WorkerState` to include the JobGraphID.
+                    self.worker_id_to_worker_state
+                        .get_mut(worker_id)
+                        .unwrap()
+                        .schedule_graph(job_graph_id.clone());
                 }
 
                 // Collect the addresses of the [`Worker`]s that retrieve or send
@@ -270,15 +277,28 @@ impl Leader {
                         );
                     }
 
-                    // If all the Operators are ready now, tell the Workers to
-                    // begin executing the JobGraph.
+                    // If all the Operators are ready now, tell the Workers on whome the graph
+                    // was scheduled to begin executing the JobGraph.
                     if job_status
                         .values()
                         .into_iter()
                         .all(|status| *status == JobState::Ready)
                     {
-                        let _ = leader_to_workers_tx
-                            .send(InterThreadMessage::ExecuteGraph(job_graph_id.clone()));
+                        let assigned_workers: HashSet<_> = self
+                            .worker_id_to_worker_state
+                            .iter()
+                            .filter_map(|(worker_id, worker_state)| {
+                                if worker_state.is_graph_scheduled(&job_graph_id) {
+                                    Some(worker_id.clone())
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+                        let _ = leader_to_workers_tx.send(InterThreadMessage::ExecuteGraph(
+                            job_graph_id.clone(),
+                            assigned_workers,
+                        ));
                         job_graph_ready_to_execute = true;
                     }
                 } else {
@@ -392,16 +412,18 @@ impl Leader {
                                     .await;
                             }
                         }
-                        InterThreadMessage::ExecuteGraph(job_graph_id) => {
+                        InterThreadMessage::ExecuteGraph(job_graph_id, worker_addresses) => {
                             // Tell the Worker to execute the operators for this graph.
-                            let _ = worker_tx
-                                .send(LeaderNotification::ExecuteGraph(job_graph_id.clone()))
-                                .await;
-                            tracing::debug!(
-                                "The JobGraph {:?} is ready to execute on Worker {}",
-                                job_graph_id,
-                                id_of_this_worker,
-                            );
+                            if worker_addresses.contains(&id_of_this_worker) {
+                                let _ = worker_tx
+                                    .send(LeaderNotification::ExecuteGraph(job_graph_id.clone()))
+                                    .await;
+                                tracing::debug!(
+                                    "The JobGraph {:?} is ready to execute on Worker {}",
+                                    job_graph_id,
+                                    id_of_this_worker,
+                                );
+                            }
                         }
                         InterThreadMessage::ShutdownAllWorkers => {
                             // The Leader requested all nodes to shutdown.

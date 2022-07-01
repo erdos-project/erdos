@@ -48,6 +48,7 @@ pub(crate) struct WorkerState {
     id: WorkerId,
     address: SocketAddr,
     resources: Resources,
+    scheduled_job_graphs: HashSet<JobGraphId>,
 }
 
 impl WorkerState {
@@ -56,6 +57,7 @@ impl WorkerState {
             id,
             address,
             resources,
+            scheduled_job_graphs: HashSet::new(),
         }
     }
 
@@ -65,6 +67,14 @@ impl WorkerState {
 
     pub(crate) fn id(&self) -> WorkerId {
         self.id
+    }
+
+    pub(crate) fn schedule_graph(&mut self, job_graph_id: JobGraphId) {
+        self.scheduled_job_graphs.insert(job_graph_id);
+    }
+
+    pub(crate) fn is_graph_scheduled(&self, job_graph_id: &JobGraphId) -> bool {
+        self.scheduled_job_graphs.contains(job_graph_id)
     }
 }
 

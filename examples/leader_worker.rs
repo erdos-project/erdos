@@ -85,7 +85,7 @@ fn main() {
 
     let sink_config = OperatorConfig::new()
         .name("SinkOperator")
-        .worker(WorkerId::from(1));
+        .worker(WorkerId::from(0));
     graph.connect_sink(SinkOperator::new, || {}, sink_config, &source_stream);
 
     // Submit the Graph.
