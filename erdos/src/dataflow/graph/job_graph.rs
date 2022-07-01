@@ -131,18 +131,13 @@ impl JobGraph {
         self.id.clone()
     }
 
-    /// Returns a copy of the operators in the graph.
-    pub fn operators(&self) -> Vec<AbstractOperator> {
-        self.operators.values().cloned().collect()
-    }
-
     /// Retrieve the [`AbstractOperator`] for the given [`Job`].
-    pub(crate) fn get_job(&self, job: &Job) -> Option<AbstractOperator> {
+    pub(crate) fn operator(&self, job: &Job) -> Option<AbstractOperator> {
         self.operators.get(job).cloned()
     }
 
     /// Retrieve the execution function for a particular operator in the graph.
-    pub(crate) fn get_operator_runner(
+    pub(crate) fn operator_runner(
         &self,
         operator_id: &OperatorId,
     ) -> Option<Box<dyn OperatorRunner>> {
@@ -152,12 +147,7 @@ impl JobGraph {
         }
     }
 
-    /// Returns the streams of this JobGraph.
-    pub fn get_streams(&self) -> Vec<Box<dyn AbstractStreamT>> {
-        self.streams.values().into_iter().cloned().collect()
-    }
-
-    pub fn get_stream(&self, stream_id: &StreamId) -> Option<Box<dyn AbstractStreamT>> {
+    pub fn stream(&self, stream_id: &StreamId) -> Option<Box<dyn AbstractStreamT>> {
         self.streams.get(stream_id).cloned()
     }
 
@@ -166,7 +156,7 @@ impl JobGraph {
     pub fn ingress_streams(&self) -> Vec<Box<dyn AbstractStreamT>> {
         let mut ingress_streams = Vec::new();
         for (ingress_stream_id, _) in &self.ingress_streams {
-            if let Some(ingress_stream) = self.get_stream(&ingress_stream_id) {
+            if let Some(ingress_stream) = self.stream(&ingress_stream_id) {
                 ingress_streams.push(ingress_stream);
             }
         }
@@ -178,7 +168,7 @@ impl JobGraph {
     pub fn egress_streams(&self) -> Vec<Box<dyn AbstractStreamT>> {
         let mut egress_streams = Vec::new();
         for (egress_stream_id, _) in &self.egress_streams {
-            if let Some(egress_stream) = self.get_stream(&egress_stream_id) {
+            if let Some(egress_stream) = self.stream(&egress_stream_id) {
                 egress_streams.push(egress_stream);
             }
         }
@@ -186,7 +176,7 @@ impl JobGraph {
     }
 
     /// Returns the hooks used to set up ingress and egress streams.
-    pub fn get_driver_setup_hooks(&self) -> Vec<Box<dyn StreamSetupHook>> {
+    pub fn driver_setup_hooks(&self) -> Vec<Box<dyn StreamSetupHook>> {
         let mut driver_setup_hooks = Vec::new();
         for (_, setup_hook) in &self.ingress_streams {
             driver_setup_hooks.push(setup_hook.box_clone());

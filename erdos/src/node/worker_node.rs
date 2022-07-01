@@ -375,15 +375,15 @@ impl WorkerNode {
                     match job {
                         Job::Driver => {
                             let mut channel_manager = self.stream_manager.lock().unwrap();
-                            for setup_hook in job_graph.get_driver_setup_hooks() {
+                            for setup_hook in job_graph.driver_setup_hooks() {
                                 (setup_hook)(&mut channel_manager);
                             }
                         }
                         Job::Operator(_) => {
-                            let operator = job_graph.get_job(job).unwrap();
+                            let operator = job_graph.operator(job).unwrap();
                             let channel_manager_copy = Arc::clone(&self.stream_manager);
                             if let Some(operator_runner) =
-                                job_graph.get_operator_runner(&operator.id)
+                                job_graph.operator_runner(&operator.id)
                             {
                                 let operator_executor = (operator_runner)(channel_manager_copy);
                                 job_executors.push(operator_executor);
@@ -472,7 +472,7 @@ impl WorkerNode {
         let mut streams_to_setup = Vec::new();
         match job {
             Job::Operator(_) => {
-                if let Some(operator) = job_graph.get_job(&job) {
+                if let Some(operator) = job_graph.operator(&job) {
                     let operator_name = match &operator.config.name {
                         Some(name) => name.clone(),
                         None => "UnnamedOperator".to_string(),
@@ -488,7 +488,7 @@ impl WorkerNode {
                     // Request the DataPlane to setup the WriteStreams.
                     streams_to_setup.extend(operator.write_streams.iter().filter_map(
                         |stream_id| {
-                            let stream = job_graph.get_stream(stream_id)?;
+                            let stream = job_graph.stream(stream_id)?;
                             let worker_addresses =
                                 self.get_write_stream_addresses(&stream, worker_addresses);
                             Some(StreamType::WriteStream(stream, worker_addresses))
@@ -497,7 +497,7 @@ impl WorkerNode {
 
                     // Request the DataPlane to setup the ReadStreams.
                     streams_to_setup.extend(operator.read_streams.iter().filter_map(|stream_id| {
-                        let stream = job_graph.get_stream(stream_id)?;
+                        let stream = job_graph.stream(stream_id)?;
                         let worker_addresses =
                             self.get_read_stream_address(&stream, worker_addresses)?;
                         Some(StreamType::ReadStream(stream, worker_addresses))
