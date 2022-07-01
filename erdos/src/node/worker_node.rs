@@ -35,56 +35,13 @@ use crate::{
     node::{worker::Worker, Resources},
 };
 
-use super::WorkerId;
+use super::{JobState, WorkerId};
 
 /// An alias for the type of the connection between the [`Leader`] and the [`Worker`].
 type ConnectionToLeader = SplitSink<
     Framed<TcpStream, ControlPlaneCodec<WorkerNotification, LeaderNotification>>,
     WorkerNotification,
 >;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct WorkerState {
-    id: WorkerId,
-    address: SocketAddr,
-    resources: Resources,
-    scheduled_job_graphs: HashSet<JobGraphId>,
-}
-
-impl WorkerState {
-    fn new(id: WorkerId, address: SocketAddr, resources: Resources) -> Self {
-        Self {
-            id,
-            address,
-            resources,
-            scheduled_job_graphs: HashSet::new(),
-        }
-    }
-
-    pub(crate) fn address(&self) -> SocketAddr {
-        self.address
-    }
-
-    pub(crate) fn id(&self) -> WorkerId {
-        self.id
-    }
-
-    pub(crate) fn schedule_graph(&mut self, job_graph_id: JobGraphId) {
-        self.scheduled_job_graphs.insert(job_graph_id);
-    }
-
-    pub(crate) fn is_graph_scheduled(&self, job_graph_id: &JobGraphId) -> bool {
-        self.scheduled_job_graphs.contains(job_graph_id)
-    }
-}
-
-#[derive(Debug)]
-enum JobState {
-    Scheduled,
-    Ready,
-    Executing,
-    Shutdown,
-}
 
 pub(crate) struct WorkerNode {
     /// The ID of the [`Worker`].
@@ -175,11 +132,11 @@ impl WorkerNode {
 
         // Communicate the ID and DataPlane address of the Worker to the Leader.
         leader_tx
-            .send(WorkerNotification::Initialized(WorkerState::new(
+            .send(WorkerNotification::Initialized(
                 self.id,
                 data_plane_address,
                 self.resources.clone(),
-            )))
+            ))
             .await?;
         tracing::debug!(
             "[Worker {}] Successfully Initialized Worker with the DataPlane address {}.",

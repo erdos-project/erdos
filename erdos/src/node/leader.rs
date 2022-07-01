@@ -25,14 +25,13 @@ use crate::{
         errors::CommunicationError,
     },
     dataflow::graph::{AbstractJobGraph, Job, JobGraphId},
-    node::WorkerState,
     scheduler::{JobGraphScheduler, SimpleJobGraphScheduler},
 };
 
-use super::WorkerId;
+use super::{JobState, WorkerId, WorkerState};
 
-/// The [`InterThreadMessage`] enum defines the messages that the different
-/// spawned tasks may communicate back to the main loop of the [`LeaderNode`].
+/// The notifications that are communicated between the main `Leader` thread
+/// and the individual tasks spawned for handling each of the attached `Worker`s.
 #[derive(Debug, Clone)]
 enum InterThreadMessage {
     WorkerInitialized(WorkerState),
@@ -42,12 +41,6 @@ enum InterThreadMessage {
     ExecuteGraph(JobGraphId, HashSet<WorkerId>),
     Shutdown(WorkerId),
     ShutdownAllWorkers,
-}
-
-#[derive(PartialEq)]
-enum JobState {
-    Ready,
-    NotReady,
 }
 
 pub(crate) struct Leader {
@@ -217,7 +210,7 @@ impl Leader {
                         *worker_id,
                         worker_addresses,
                     ));
-                    job_status.insert(job.clone(), JobState::NotReady);
+                    job_status.insert(job.clone(), JobState::Scheduled);
 
                     // Update the `WorkerState` to include the JobGraphID.
                     self.worker_id_to_worker_state
@@ -257,7 +250,7 @@ impl Leader {
                         driver_id,
                         worker_addresses_for_driver,
                     ));
-                    job_status.insert(Job::Driver, JobState::NotReady);
+                    job_status.insert(Job::Driver, JobState::Scheduled);
                 }
 
                 // Map the flags that check if the Operator is ready to the name of the JobGraph.
@@ -341,16 +334,22 @@ impl Leader {
                 // Communicate messages received from the Worker to the Leader.
                 Some(Ok(msg_from_worker)) = worker_rx.next() => {
                     match msg_from_worker {
-                        WorkerNotification::Initialized(worker_state) => {
-                            id_of_this_worker = worker_state.id();
+                        WorkerNotification::Initialized(worker_id, worker_address, resources) => {
+                            id_of_this_worker = worker_id;
                             // Communicate the Worker ID to the Leader.
                             tracing::debug!(
                                 "Initialized a Worker with the ID {} at {}",
-                                worker_state.id(),
-                                worker_state.address(),
+                                id_of_this_worker,
+                                worker_address,
                             );
                             let _ = channel_to_leader.send(
-                                InterThreadMessage::WorkerInitialized(worker_state)
+                                InterThreadMessage::WorkerInitialized(
+                                    WorkerState::new(
+                                        id_of_this_worker.clone(),
+                                        worker_address,
+                                        resources,
+                                    )
+                                )
                             );
                         },
                         WorkerNotification::JobReady(job_graph_id, job) => {

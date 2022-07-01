@@ -1,4 +1,4 @@
-//! A collection of enums that specify the communication patterns between 
+//! A collection of enums that specify the communication patterns between
 //! [`Leader`](crate::node::Leader), [`Worker`](crate::node::WorkerNode)
 //! and [`Driver`](crate::dataflow::graph::Job::Driver)s.
 use std::{collections::HashMap, net::SocketAddr};
@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     dataflow::graph::{AbstractJobGraph, Job, JobGraph, JobGraphId},
-    node::{WorkerId, WorkerState},
+    node::{Resources, WorkerId},
 };
 
 /// An enum specifying the notifications that a [`Driver`](crate::dataflow::graph::Job::Driver)
@@ -22,15 +22,15 @@ pub(crate) enum DriverNotification {
     Shutdown,
 }
 
-/// An enum specifying the notifications that a [`Worker`](crate::node::WorkerNode) 
+/// An enum specifying the notifications that a [`Worker`](crate::node::WorkerNode)
 /// can send to a [`Leader`](crate::node::Leader).
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum WorkerNotification {
     /// Informs the `Leader` that a new `Worker` has been initialized and provides
     /// information about the ID, Address and Resources of the Worker.
-    Initialized(WorkerState),
-    /// Informs the `Leader` that the [`Job`](crate::dataflow::graph::Job) from the 
-    /// [`Graph`](crate::dataflow::graph::Graph) with the provided ID is ready for 
+    Initialized(WorkerId, SocketAddr, Resources),
+    /// Informs the `Leader` that the [`Job`](crate::dataflow::graph::Job) from the
+    /// [`Graph`](crate::dataflow::graph::Graph) with the provided ID is ready for
     /// execution.
     JobReady(JobGraphId, Job),
     /// Submits a representation of the JobGraph with the given ID for
