@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 # TODO (Sukrit) : Should this be called a GraphHandle?
 # What is the significance of the "Node" here?
 class NodeHandle:
-    """A handle to the dataflow graph returned by the :py:func:`run_async`
+    """A handle to the dataflow graph returned by the :py:func:`graph.run_async`
     function.
 
     The handle exposes functions to :py:func:`shutdown` the dataflow, or

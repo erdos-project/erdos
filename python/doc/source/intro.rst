@@ -97,7 +97,7 @@ View the `codebase on GitHub <https://github.com/erdos-project/erdos>`_.
 
 You can export the dataflow graph as a 
 `DOT file <https://en.wikipedia.org/wiki/DOT_(graph_description_language)>`_
-by setting the ``graph_filename`` argument in :py:func:`.run`.
+by setting the ``graph_filename`` argument in :py:meth:`erdos.Graph.run`.
 
 
 More Information

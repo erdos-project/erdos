@@ -22,6 +22,7 @@ use py_timestamp::PyTimestamp;
 
 #[pymodule]
 fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
+    m.add_class::<PyGraph>()?;
     m.add_class::<PyStream>()?;
     m.add_class::<PyOperatorStream>()?;
     m.add_class::<PyLoopStream>()?;
@@ -31,7 +32,6 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyEgressStream>()?;
     m.add_class::<PyMessage>()?;
     m.add_class::<PyTimestamp>()?;
-    m.add_class::<PyGraph>()?;
 
     Ok(())
 }
