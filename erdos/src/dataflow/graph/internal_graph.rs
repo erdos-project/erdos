@@ -26,6 +26,42 @@ use crate::{
 
 use super::{AbstractOperatorType, GraphCompilationError, Job, JobRunner};
 
+trait OperatorRunner:
+    'static
+    + Fn(
+        Option<StreamId>, // ID of the Left ReadStream
+        Option<StreamId>, // ID of the Right ReadStream
+        &mut StreamManager,
+    ) -> Box<dyn OperatorExecutorT>
+    + Sync
+    + Send
+{
+    fn box_clone(&self) -> Box<dyn OperatorRunner>;
+}
+
+impl<
+        T: 'static
+            + Fn(
+                Option<StreamId>,
+                Option<StreamId>,
+                &mut StreamManager,
+            ) -> Box<dyn OperatorExecutorT>
+            + Sync
+            + Send
+            + Clone,
+    > OperatorRunner for T
+{
+    fn box_clone(&self) -> Box<dyn OperatorRunner> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn OperatorRunner> {
+    fn clone(&self) -> Self {
+        (**self).box_clone()
+    }
+}
+
 /// The abstract graph representation of an ERDOS program defined in the driver.
 ///
 /// The abstract graph is compiled into a [`JobGraph`], which ERDOS schedules and executes.
@@ -36,7 +72,7 @@ pub struct InternalGraph {
     /// Collection of operators.
     operators: HashMap<OperatorId, AbstractOperator>,
     /// A mapping from the OperatorId to the OperatorRunner.
-    operator_runners: HashMap<OperatorId, Box<dyn JobRunner>>,
+    operator_runners: HashMap<OperatorId, Box<dyn OperatorRunner>>,
     /// Collection of all streams in the graph.
     streams: HashMap<StreamId, Box<dyn AbstractStreamT>>,
     /// Collection of ingress streams and the corresponding functions to execute for setup.
@@ -149,15 +185,13 @@ impl InternalGraph {
         let config_copy = config.clone();
         let write_stream_id = write_stream.id();
         let op_runner =
-            move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
-                let mut stream_manager = stream_manager.lock().unwrap();
-
+            move |_, _, stream_manager: &mut StreamManager| -> Box<dyn OperatorExecutorT> {
                 let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
 
                 let executor =
                     SourceExecutor::new(config_copy.clone(), operator_fn.clone(), write_stream);
 
-                Some(Box::new(executor))
+                Box::new(executor)
             };
 
         self.streams.insert(
@@ -193,33 +227,32 @@ impl InternalGraph {
         U: 'static + Send + Sync,
     {
         config.id = OperatorId::new_deterministic();
-
         let config_copy = config.clone();
-        let read_stream_id = read_stream.id();
-        let stream_id = self.resolve_stream_id(&read_stream_id).unwrap();
 
-        let op_runner =
-            move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
-                let mut stream_manager = stream_manager.lock().unwrap();
+        let op_runner = move |read_stream_id: Option<StreamId>,
+                              _,
+                              stream_manager: &mut StreamManager|
+              -> Box<dyn OperatorExecutorT> {
+            let read_stream = stream_manager
+                .take_read_stream(read_stream_id.unwrap())
+                .unwrap();
 
-                let read_stream = stream_manager.take_read_stream(stream_id).unwrap();
-
-                Some(Box::new(OneInExecutor::new(
+            Box::new(OneInExecutor::new(
+                config_copy.clone(),
+                Box::new(ParallelSinkMessageProcessor::new(
                     config_copy.clone(),
-                    Box::new(ParallelSinkMessageProcessor::new(
-                        config_copy.clone(),
-                        operator_fn.clone(),
-                        state_fn.clone(),
-                    )),
-                    read_stream,
-                )))
-            };
+                    operator_fn.clone(),
+                    state_fn.clone(),
+                )),
+                read_stream,
+            ))
+        };
 
         let abstract_operator_id = config.id;
         let abstract_operator = AbstractOperator {
             id: abstract_operator_id,
             config,
-            read_streams: vec![read_stream_id],
+            read_streams: vec![read_stream.id()],
             write_streams: vec![],
             operator_type: AbstractOperatorType::ParallelSink,
         };
@@ -244,31 +277,31 @@ impl InternalGraph {
         config.id = OperatorId::new_deterministic();
 
         let config_copy = config.clone();
-        let read_stream_id = read_stream.id();
-        let stream_id = self.resolve_stream_id(&read_stream_id).unwrap();
 
-        let op_runner =
-            move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
-                let mut stream_manager = stream_manager.lock().unwrap();
+        let op_runner = move |read_stream_id: Option<StreamId>,
+                              _,
+                              stream_manager: &mut StreamManager|
+              -> Box<dyn OperatorExecutorT> {
+            let read_stream = stream_manager
+                .take_read_stream(read_stream_id.unwrap())
+                .unwrap();
 
-                let read_stream = stream_manager.take_read_stream(stream_id).unwrap();
-
-                Some(Box::new(OneInExecutor::new(
+            Box::new(OneInExecutor::new(
+                config_copy.clone(),
+                Box::new(SinkMessageProcessor::new(
                     config_copy.clone(),
-                    Box::new(SinkMessageProcessor::new(
-                        config_copy.clone(),
-                        operator_fn.clone(),
-                        state_fn.clone(),
-                    )),
-                    read_stream,
-                )))
-            };
+                    operator_fn.clone(),
+                    state_fn.clone(),
+                )),
+                read_stream,
+            ))
+        };
 
         let abstract_operator_id = config.id;
         let abstract_operator = AbstractOperator {
             id: abstract_operator_id,
             config,
-            read_streams: vec![read_stream_id],
+            read_streams: vec![read_stream.id()],
             write_streams: vec![],
             operator_type: AbstractOperatorType::Sink,
         };
@@ -296,28 +329,28 @@ impl InternalGraph {
         config.id = OperatorId::new_deterministic();
 
         let config_copy = config.clone();
-        let read_stream_id = read_stream.id();
         let write_stream_id = write_stream.id();
-        let stream_id = self.resolve_stream_id(&read_stream_id).unwrap();
 
-        let op_runner =
-            move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
-                let mut stream_manager = stream_manager.lock().unwrap();
+        let op_runner = move |read_stream_id: Option<StreamId>,
+                              _,
+                              stream_manager: &mut StreamManager|
+              -> Box<dyn OperatorExecutorT> {
+            let read_stream = stream_manager
+                .take_read_stream(read_stream_id.unwrap())
+                .unwrap();
+            let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
 
-                let read_stream = stream_manager.take_read_stream(stream_id).unwrap();
-                let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
-
-                Some(Box::new(OneInExecutor::new(
+            Box::new(OneInExecutor::new(
+                config_copy.clone(),
+                Box::new(ParallelOneInOneOutMessageProcessor::new(
                     config_copy.clone(),
-                    Box::new(ParallelOneInOneOutMessageProcessor::new(
-                        config_copy.clone(),
-                        operator_fn.clone(),
-                        state_fn.clone(),
-                        write_stream,
-                    )),
-                    read_stream,
-                )))
-            };
+                    operator_fn.clone(),
+                    state_fn.clone(),
+                    write_stream,
+                )),
+                read_stream,
+            ))
+        };
 
         self.streams.insert(
             write_stream_id,
@@ -328,7 +361,7 @@ impl InternalGraph {
         let abstract_operator = AbstractOperator {
             id: abstract_operator_id,
             config,
-            read_streams: vec![read_stream_id],
+            read_streams: vec![read_stream.id()],
             write_streams: vec![write_stream_id],
             operator_type: AbstractOperatorType::ParallelOneInOneOut,
         };
@@ -355,28 +388,28 @@ impl InternalGraph {
         config.id = OperatorId::new_deterministic();
 
         let config_copy = config.clone();
-        let read_stream_id = read_stream.id();
         let write_stream_id = write_stream.id();
-        let stream_id = self.resolve_stream_id(&read_stream_id).unwrap();
 
-        let op_runner =
-            move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
-                let mut stream_manager = stream_manager.lock().unwrap();
+        let op_runner = move |read_stream_id: Option<StreamId>,
+                              _,
+                              stream_manager: &mut StreamManager|
+              -> Box<dyn OperatorExecutorT> {
+            let read_stream = stream_manager
+                .take_read_stream(read_stream_id.unwrap())
+                .unwrap();
+            let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
 
-                let read_stream = stream_manager.take_read_stream(stream_id).unwrap();
-                let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
-
-                Some(Box::new(OneInExecutor::new(
+            Box::new(OneInExecutor::new(
+                config_copy.clone(),
+                Box::new(OneInOneOutMessageProcessor::new(
                     config_copy.clone(),
-                    Box::new(OneInOneOutMessageProcessor::new(
-                        config_copy.clone(),
-                        operator_fn.clone(),
-                        state_fn.clone(),
-                        write_stream,
-                    )),
-                    read_stream,
-                )))
-            };
+                    operator_fn.clone(),
+                    state_fn.clone(),
+                    write_stream,
+                )),
+                read_stream,
+            ))
+        };
 
         self.streams.insert(
             write_stream_id,
@@ -387,7 +420,7 @@ impl InternalGraph {
         let abstract_operator = AbstractOperator {
             id: abstract_operator_id,
             config,
-            read_streams: vec![read_stream_id],
+            read_streams: vec![read_stream.id()],
             write_streams: vec![write_stream_id],
             operator_type: AbstractOperatorType::OneInOneOut,
         };
@@ -417,32 +450,32 @@ impl InternalGraph {
         config.id = OperatorId::new_deterministic();
 
         let config_copy = config.clone();
-        let left_read_stream_id = left_read_stream.id();
-        let right_read_stream_id = right_read_stream.id();
         let write_stream_id = write_stream.id();
-        let left_stream_id = self.resolve_stream_id(&left_read_stream_id).unwrap();
-        let right_stream_id = self.resolve_stream_id(&right_read_stream_id).unwrap();
 
-        let op_runner =
-            move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
-                let mut stream_manager = stream_manager.lock().unwrap();
+        let op_runner = move |left_read_stream_id: Option<StreamId>,
+                              right_read_stream_id: Option<StreamId>,
+                              stream_manager: &mut StreamManager|
+              -> Box<dyn OperatorExecutorT> {
+            let left_read_stream = stream_manager
+                .take_read_stream(left_read_stream_id.unwrap())
+                .unwrap();
+            let right_read_stream = stream_manager
+                .take_read_stream(right_read_stream_id.unwrap())
+                .unwrap();
+            let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
 
-                let left_read_stream = stream_manager.take_read_stream(left_stream_id).unwrap();
-                let right_read_stream = stream_manager.take_read_stream(right_stream_id).unwrap();
-                let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
-
-                Some(Box::new(TwoInExecutor::new(
+            Box::new(TwoInExecutor::new(
+                config_copy.clone(),
+                Box::new(ParallelTwoInOneOutMessageProcessor::new(
                     config_copy.clone(),
-                    Box::new(ParallelTwoInOneOutMessageProcessor::new(
-                        config_copy.clone(),
-                        operator_fn.clone(),
-                        state_fn.clone(),
-                        write_stream,
-                    )),
-                    left_read_stream,
-                    right_read_stream,
-                )))
-            };
+                    operator_fn.clone(),
+                    state_fn.clone(),
+                    write_stream,
+                )),
+                left_read_stream,
+                right_read_stream,
+            ))
+        };
 
         self.streams.insert(
             write_stream_id,
@@ -453,7 +486,7 @@ impl InternalGraph {
         let abstract_operator = AbstractOperator {
             id: abstract_operator_id,
             config,
-            read_streams: vec![left_read_stream_id, right_read_stream_id],
+            read_streams: vec![left_read_stream.id(), right_read_stream.id()],
             write_streams: vec![write_stream_id],
             operator_type: AbstractOperatorType::ParallelTwoInOneOut,
         };
@@ -482,32 +515,32 @@ impl InternalGraph {
         config.id = OperatorId::new_deterministic();
 
         let config_copy = config.clone();
-        let left_read_stream_id = left_read_stream.id();
-        let right_read_stream_id = right_read_stream.id();
         let write_stream_id = write_stream.id();
-        let left_stream_id = self.resolve_stream_id(&left_read_stream_id).unwrap();
-        let right_stream_id = self.resolve_stream_id(&right_read_stream_id).unwrap();
 
-        let op_runner =
-            move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
-                let mut stream_manager = stream_manager.lock().unwrap();
+        let op_runner = move |left_read_stream_id: Option<StreamId>,
+                              right_read_stream_id: Option<StreamId>,
+                              stream_manager: &mut StreamManager|
+              -> Box<dyn OperatorExecutorT> {
+            let left_read_stream = stream_manager
+                .take_read_stream(left_read_stream_id.unwrap())
+                .unwrap();
+            let right_read_stream = stream_manager
+                .take_read_stream(right_read_stream_id.unwrap())
+                .unwrap();
+            let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
 
-                let left_read_stream = stream_manager.take_read_stream(left_stream_id).unwrap();
-                let right_read_stream = stream_manager.take_read_stream(right_stream_id).unwrap();
-                let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
-
-                Some(Box::new(TwoInExecutor::new(
+            Box::new(TwoInExecutor::new(
+                config_copy.clone(),
+                Box::new(TwoInOneOutMessageProcessor::new(
                     config_copy.clone(),
-                    Box::new(TwoInOneOutMessageProcessor::new(
-                        config_copy.clone(),
-                        operator_fn.clone(),
-                        state_fn.clone(),
-                        write_stream,
-                    )),
-                    left_read_stream,
-                    right_read_stream,
-                )))
-            };
+                    operator_fn.clone(),
+                    state_fn.clone(),
+                    write_stream,
+                )),
+                left_read_stream,
+                right_read_stream,
+            ))
+        };
 
         self.streams.insert(
             write_stream_id,
@@ -518,7 +551,7 @@ impl InternalGraph {
         let abstract_operator = AbstractOperator {
             id: abstract_operator_id,
             config,
-            read_streams: vec![left_read_stream_id, right_read_stream_id],
+            read_streams: vec![left_read_stream.id(), right_read_stream.id()],
             write_streams: vec![write_stream_id],
             operator_type: AbstractOperatorType::TwoInOneOut,
         };
@@ -548,32 +581,31 @@ impl InternalGraph {
         config.id = OperatorId::new_deterministic();
 
         let config_copy = config.clone();
-        let read_stream_id = read_stream.id();
         let left_write_stream_id = left_write_stream.id();
         let right_write_stream_id = right_write_stream.id();
-        let stream_id = self.resolve_stream_id(&read_stream_id).unwrap();
 
-        let op_runner =
-            move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
-                let mut stream_manager = stream_manager.lock().unwrap();
+        let op_runner = move |read_stream_id: Option<StreamId>,
+                              _,
+                              stream_manager: &mut StreamManager|
+              -> Box<dyn OperatorExecutorT> {
+            let read_stream = stream_manager
+                .take_read_stream(read_stream_id.unwrap())
+                .unwrap();
+            let left_write_stream = stream_manager.write_stream(left_write_stream_id).unwrap();
+            let right_write_stream = stream_manager.write_stream(right_write_stream_id).unwrap();
 
-                let read_stream = stream_manager.take_read_stream(stream_id).unwrap();
-                let left_write_stream = stream_manager.write_stream(left_write_stream_id).unwrap();
-                let right_write_stream =
-                    stream_manager.write_stream(right_write_stream_id).unwrap();
-
-                Some(Box::new(OneInExecutor::new(
+            Box::new(OneInExecutor::new(
+                config_copy.clone(),
+                Box::new(ParallelOneInTwoOutMessageProcessor::new(
                     config_copy.clone(),
-                    Box::new(ParallelOneInTwoOutMessageProcessor::new(
-                        config_copy.clone(),
-                        operator_fn.clone(),
-                        state_fn.clone(),
-                        left_write_stream,
-                        right_write_stream,
-                    )),
-                    read_stream,
-                )))
-            };
+                    operator_fn.clone(),
+                    state_fn.clone(),
+                    left_write_stream,
+                    right_write_stream,
+                )),
+                read_stream,
+            ))
+        };
 
         self.streams.insert(
             left_write_stream_id,
@@ -588,7 +620,7 @@ impl InternalGraph {
         let abstract_operator = AbstractOperator {
             id: abstract_operator_id,
             config,
-            read_streams: vec![read_stream_id],
+            read_streams: vec![read_stream.id()],
             write_streams: vec![left_write_stream_id, right_write_stream_id],
             operator_type: AbstractOperatorType::ParallelOneInTwoOut,
         };
@@ -617,32 +649,31 @@ impl InternalGraph {
         config.id = OperatorId::new_deterministic();
 
         let config_copy = config.clone();
-        let read_stream_id = read_stream.id();
         let left_write_stream_id = left_write_stream.id();
         let right_write_stream_id = right_write_stream.id();
-        let stream_id = self.resolve_stream_id(&read_stream_id).unwrap();
 
-        let op_runner =
-            move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
-                let mut stream_manager = stream_manager.lock().unwrap();
+        let op_runner = move |read_stream_id: Option<StreamId>,
+                              _,
+                              stream_manager: &mut StreamManager|
+              -> Box<dyn OperatorExecutorT> {
+            let read_stream = stream_manager
+                .take_read_stream(read_stream_id.unwrap())
+                .unwrap();
+            let left_write_stream = stream_manager.write_stream(left_write_stream_id).unwrap();
+            let right_write_stream = stream_manager.write_stream(right_write_stream_id).unwrap();
 
-                let read_stream = stream_manager.take_read_stream(stream_id).unwrap();
-                let left_write_stream = stream_manager.write_stream(left_write_stream_id).unwrap();
-                let right_write_stream =
-                    stream_manager.write_stream(right_write_stream_id).unwrap();
-
-                Some(Box::new(OneInExecutor::new(
+            Box::new(OneInExecutor::new(
+                config_copy.clone(),
+                Box::new(OneInTwoOutMessageProcessor::new(
                     config_copy.clone(),
-                    Box::new(OneInTwoOutMessageProcessor::new(
-                        config_copy.clone(),
-                        operator_fn.clone(),
-                        state_fn.clone(),
-                        left_write_stream,
-                        right_write_stream,
-                    )),
-                    read_stream,
-                )))
-            };
+                    operator_fn.clone(),
+                    state_fn.clone(),
+                    left_write_stream,
+                    right_write_stream,
+                )),
+                read_stream,
+            ))
+        };
 
         self.streams.insert(
             left_write_stream_id,
@@ -657,7 +688,7 @@ impl InternalGraph {
         let abstract_operator = AbstractOperator {
             id: config.id,
             config,
-            read_streams: vec![read_stream_id],
+            read_streams: vec![read_stream.id()],
             write_streams: vec![left_write_stream_id, right_write_stream_id],
             operator_type: AbstractOperatorType::OneInTwoOut,
         };
@@ -693,6 +724,9 @@ impl InternalGraph {
             }
         }
 
+        // Maintain the executors for each compiled Job.
+        let mut job_runners = HashMap::with_capacity(self.operators.len() + 1);
+
         // Merge all the SetupHooks for the streams of the Driver job.
         let mut driver_setup_hooks = Vec::new();
 
@@ -725,21 +759,17 @@ impl InternalGraph {
             driver_setup_hooks.push(setup_hook);
         }
 
-        // Move all the JobRunners into the JobGraph and add a runner for the Driver.
-        let mut job_runners: HashMap<_, _> = self
-            .operator_runners
-            .drain()
-            .map(|(operator_id, operator_runner)| (Job::Operator(operator_id), operator_runner))
-            .collect();
-        let driver_runner =
+        // Merge the setup hooks of the Driver streams into a single JobRunner.
+        let driver_runner: Box<dyn JobRunner> = Box::new(
             move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
                 let mut stream_manager = stream_manager.lock().unwrap();
                 for driver_setup_hook in driver_setup_hooks.clone() {
                     (driver_setup_hook)(&mut stream_manager);
                 }
                 None
-            };
-        job_runners.insert(Job::Driver, Box::new(driver_runner));
+            },
+        );
+        job_runners.insert(Job::Driver, driver_runner);
 
         // Move all the non-loop Streams into the JobGraph.
         let mut streams: HashMap<_, _> = self.streams.drain().collect();
@@ -787,6 +817,46 @@ impl InternalGraph {
                 })?;
                 write_stream.register_source(operator_job.clone());
             }
+
+            // Create a JobRunner for the operator now that the IDs are resolved.
+            let operator_runner = self
+                .operator_runners
+                .remove(&abstract_operator.id)
+                .ok_or_else(|| {
+                    GraphCompilationError(format!(
+                        "Could not find an OperatorRunner for Operator {}",
+                        abstract_operator.id
+                    ))
+                })?;
+            let read_stream_ids = abstract_operator.read_streams.clone();
+            let job_runner = match abstract_operator.operator_type {
+                AbstractOperatorType::Source => {
+                    let runner: Box<dyn JobRunner> = 
+                    Box::new(move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
+                        let mut stream_manager = stream_manager.lock().unwrap();
+                        let operator_executor = (operator_runner)(None, None, &mut stream_manager);
+                        Some(operator_executor)
+                    });
+                    runner
+                }
+                AbstractOperatorType::ParallelSink | AbstractOperatorType::Sink | AbstractOperatorType::ParallelOneInOneOut | AbstractOperatorType::OneInOneOut | AbstractOperatorType::ParallelOneInTwoOut | AbstractOperatorType::OneInTwoOut => {
+                    let runner: Box<dyn JobRunner> = Box::new(move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
+                        let mut stream_manager = stream_manager.lock().unwrap();
+                        let operator_executor = (operator_runner)(Some(read_stream_ids[0]), None, &mut stream_manager);
+                        Some(operator_executor)
+                    });
+                    runner
+                }
+                AbstractOperatorType::ParallelTwoInOneOut | AbstractOperatorType::TwoInOneOut =>  {
+                    let runner: Box<dyn JobRunner> = Box::new(move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
+                        let mut stream_manager = stream_manager.lock().unwrap();
+                        let operator_executor = (operator_runner)(Some(read_stream_ids[0]), Some(read_stream_ids[1]), &mut stream_manager);
+                        Some(operator_executor)
+                    });
+                    runner
+                }
+            };
+            job_runners.insert(operator_job.clone(), job_runner);
         }
 
         // Ensure that all streams have Sources.
@@ -808,4 +878,5 @@ impl InternalGraph {
             egress_streams,
         ))
     }
+
 }
