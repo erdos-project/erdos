@@ -567,7 +567,7 @@ impl WorkerNode {
         stream: &Box<dyn AbstractStreamT>,
         worker_addresses: &HashMap<Job, WorkerAddress>,
     ) -> Option<WorkerAddress> {
-        let source_job = stream.get_source();
+        let source_job = stream.source()?;
         match worker_addresses.get(&source_job) {
             Some(source_address) => Some(source_address.clone()),
             None => {
@@ -590,7 +590,7 @@ impl WorkerNode {
         worker_addresses: &HashMap<Job, WorkerAddress>,
     ) -> HashMap<Job, WorkerAddress> {
         let mut destination_addresses = HashMap::new();
-        for destination_job in stream.get_destinations() {
+        for destination_job in stream.destinations() {
             match worker_addresses.get(&destination_job) {
                 Some(destination_address) => {
                     destination_addresses.insert(destination_job, destination_address.clone());

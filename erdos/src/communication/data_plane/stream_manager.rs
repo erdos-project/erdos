@@ -257,8 +257,8 @@ impl StreamManager {
 
         // Register for a new endpoint with the Pusher.
         let stream_endpoints = self.stream_endpoints.get_mut(&stream.id()).unwrap();
-        stream_endpoints.add_inter_worker_recv_endpoint(stream.get_source())?;
-        worker_connection.notify_pusher_update(stream.get_source(), stream.id(), receiving_job)
+        stream_endpoints.add_inter_worker_recv_endpoint(stream.source().unwrap())?;
+        worker_connection.notify_pusher_update(stream.source().unwrap(), stream.id(), receiving_job)
     }
 
     /// Adds an Inter-Worker send endpoint for the [`stream`] to the [`destination_job`]

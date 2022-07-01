@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::{error::Error, fmt, net::SocketAddr};
 
 use tokio::{runtime::Builder, sync::mpsc, task::JoinHandle};
 use tracing::Level;
@@ -7,12 +7,33 @@ use tracing_subscriber::fmt::format::FmtSpan;
 
 use crate::{
     communication::{control_plane::notifications::DriverNotification, CommunicationError},
-    dataflow::{graph::JobGraphId, Graph},
+    dataflow::{
+        graph::{GraphCompilationError, JobGraphId},
+        Graph,
+    },
     node::{Leader, Resources, WorkerNode},
     Configuration,
 };
 
 use super::WorkerId;
+
+/// The error raised by the handles when executing commands from the drivers.
+#[derive(Debug)]
+pub enum HandleError {
+    GraphCompilationError(GraphCompilationError),
+    CommunicationError(String),
+}
+
+impl Error for HandleError {}
+
+impl fmt::Display for HandleError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            HandleError::GraphCompilationError(err) => write!(f, "{}", err),
+            HandleError::CommunicationError(err) => write!(f, "{}", err),
+        }
+    }
+}
 
 /// A [`LeaderHandle`] is used by driver applications to interact
 /// with the Leader node running on their local instance.
@@ -63,11 +84,16 @@ impl LeaderHandle {
         }
     }
 
-    pub async fn shutdown(&self) -> Result<(), CommunicationError> {
+    pub async fn shutdown(&self) -> Result<(), HandleError> {
         // Send a shutdown message to the Leader.
         self.leader_handle
             .send(DriverNotification::Shutdown)
-            .await?;
+            .await
+            .map_err(|_| {
+                HandleError::CommunicationError(String::from(
+                    "Error submitting Shutdown message to Leader.",
+                ))
+            })?;
         Ok(())
     }
 }
@@ -146,9 +172,11 @@ impl WorkerHandle {
     // them needs to submit it to the Leader. This should later be removed if
     // we choose to dynamically link the user applications into the Worker's
     // memory space.
-    pub fn register(&self, graph: &Graph) -> Result<JobGraphId, CommunicationError> {
+    pub fn register(&self, graph: Graph) -> Result<JobGraphId, HandleError> {
         // Compile the JobGraph and register it with the Worker.
-        let job_graph = graph.compile();
+        let job_graph = graph
+            .compile()
+            .map_err(|err| HandleError::GraphCompilationError(err))?;
         let job_graph_id = job_graph.id();
         tracing::trace!(
             "WorkerHandle {} received a notification from the Driver \
@@ -158,22 +186,28 @@ impl WorkerHandle {
             job_graph_id,
         );
         self.worker_handle
-            .blocking_send(DriverNotification::RegisterGraph(job_graph))?;
+            .blocking_send(DriverNotification::RegisterGraph(job_graph))
+            .map_err(|_| {
+                HandleError::CommunicationError(String::from(
+                    "Error registering the Graph with the Leader.",
+                ))
+            })?;
 
         Ok(job_graph_id)
     }
 
-    // TODO (Sukrit): Take as input a Graph handle that is built by the user.
-    // We should expose the `AbstractGraph` structure as a `GraphBuilder` and
-    // consume that in the `submit` method to prevent the users from making
-    // any further changes to it.
-    pub fn submit(&self, graph: &Graph) -> Result<JobGraphId, CommunicationError> {
+    pub fn submit(&self, graph: Graph) -> Result<JobGraphId, HandleError> {
         // Compile the JobGraph and register it with the Worker.
         let job_graph_id = self.register(graph)?;
 
         // Submit the JobGraph to the Leader.
         self.worker_handle
-            .blocking_send(DriverNotification::SubmitGraph(job_graph_id.clone()))?;
+            .blocking_send(DriverNotification::SubmitGraph(job_graph_id.clone()))
+            .map_err(|_| {
+                HandleError::CommunicationError(String::from(
+                    "Error submitting the Graph to the Leader.",
+                ))
+            })?;
 
         Ok(job_graph_id)
     }

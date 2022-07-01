@@ -89,9 +89,9 @@ fn main() {
 
     // Submit the Graph.
     if worker_handle.id() == WorkerId::from(0) {
-        let _ = worker_handle.submit(&graph);
+        let _ = worker_handle.submit(graph);
     } else {
-        let _ = worker_handle.register(&graph);
+        let _ = worker_handle.register(graph);
     }
 
     // loop {

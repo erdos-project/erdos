@@ -76,8 +76,8 @@ impl From<JobGraph> for AbstractJobGraph {
         let mut destinations = HashMap::new();
 
         for (stream_id, stream) in job_graph.streams.iter() {
-            sources.insert(*stream_id, stream.get_source());
-            destinations.insert(*stream_id, stream.get_destinations());
+            sources.insert(*stream_id, stream.source().unwrap());
+            destinations.insert(*stream_id, stream.destinations());
         }
         Self {
             name: job_graph.name.clone(),
@@ -106,49 +106,18 @@ impl JobGraph {
         name: String,
         operators: HashMap<Job, AbstractOperator>,
         operator_runners: HashMap<OperatorId, Box<dyn OperatorRunner>>,
-        streams: Vec<Box<dyn AbstractStreamT>>,
+        streams: HashMap<StreamId, Box<dyn AbstractStreamT>>,
         ingress_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
         egress_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
     ) -> Self {
-        // Initialize a HashMap of streams.
-        let mut stream_id_to_stream_map: HashMap<StreamId, Box<dyn AbstractStreamT>> =
-            streams.into_iter().map(|s| (s.id(), s)).collect();
-
-        // Register the source and destination of each stream.
-        // TODO (Sukrit): This should happen at the time of compilation.
-        for (job, operator) in operators.iter() {
-            for read_stream_id in operator.read_streams.iter() {
-                let read_stream = stream_id_to_stream_map.get_mut(read_stream_id).unwrap();
-                read_stream.add_destination(job.clone());
-            }
-            for write_stream_id in operator.write_streams.iter() {
-                let write_stream = stream_id_to_stream_map.get_mut(write_stream_id).unwrap();
-                write_stream.register_source(job.clone());
-            }
-        }
-
-        let mut ingress_streams_for_jobgraph = HashMap::new();
-        for (ingress_stream_id, setup_hook) in ingress_streams {
-            let ingress_stream = stream_id_to_stream_map.get_mut(&ingress_stream_id).unwrap();
-            ingress_stream.register_source(Job::Driver);
-            ingress_streams_for_jobgraph.insert(ingress_stream_id, setup_hook);
-        }
-
-        let mut egress_streams_for_jobgraph = HashMap::new();
-        for (extract_stream_id, setup_hook) in egress_streams {
-            let egress_stream = stream_id_to_stream_map.get_mut(&extract_stream_id).unwrap();
-            egress_stream.add_destination(Job::Driver);
-            egress_streams_for_jobgraph.insert(extract_stream_id, setup_hook);
-        }
-
         Self {
             id: JobGraphId(name.clone()),
             name,
             operators,
             operator_runners,
-            streams: stream_id_to_stream_map,
-            ingress_streams: ingress_streams_for_jobgraph,
-            egress_streams: egress_streams_for_jobgraph,
+            streams,
+            ingress_streams,
+            egress_streams,
         }
     }
 
@@ -252,11 +221,11 @@ impl JobGraph {
 
         writeln!(file, "   // Streams")?;
         for stream in self.streams.values().into_iter() {
-            let source_id = match stream.get_source() {
+            let source_id = match stream.source().unwrap() {
                 Job::Driver => driver_id,
                 Job::Operator(id) => id,
             };
-            for destination in stream.get_destinations().iter() {
+            for destination in stream.destinations().iter() {
                 let destination_id = match destination {
                     Job::Driver => driver_id,
                     Job::Operator(id) => *id,
@@ -282,7 +251,7 @@ impl fmt::Debug for JobGraph {
             let mut dependents = Vec::new();
             for write_stream_id in operator.write_streams.iter() {
                 let write_stream = self.streams.get(write_stream_id).unwrap();
-                for dependent_job in write_stream.get_destinations() {
+                for dependent_job in write_stream.destinations() {
                     match dependent_job {
                         Job::Operator(dependent_job_id) => {
                             if let Some(dependent_job) =

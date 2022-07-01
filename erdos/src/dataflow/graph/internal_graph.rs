@@ -1,5 +1,6 @@
 use std::{collections::HashMap, hash::Hash};
 
+use petgraph::Graph;
 use serde::Deserialize;
 
 use std::sync::{Arc, Mutex};
@@ -24,7 +25,7 @@ use crate::{
     OperatorConfig, OperatorId,
 };
 
-use super::{AbstractOperatorType, Job, OperatorRunner};
+use super::{AbstractOperatorType, GraphCompilationError, Job, OperatorRunner};
 
 /// The abstract graph representation of an ERDOS program defined in the driver.
 ///
@@ -681,63 +682,109 @@ impl InternalGraph {
     /// consisting of jobs and typed communication channels connecting jobs.
     /// The compilation step checks that all [`LoopStream`]s are connected,
     /// and arranges jobs and channels in a directed graph.
-    pub(crate) fn compile(&mut self) -> JobGraph {
-        // Check that all loops are closed.
+    pub(crate) fn compile(&mut self) -> Result<JobGraph, GraphCompilationError> {
+        // Ensure that all loop streams are connected.
         for (loop_stream_id, connected_stream_id) in self.loop_streams.iter() {
             if connected_stream_id.is_none() {
-                panic!("LoopStream {} is not connected to another loop. Call `LoopStream::connect_loop` to fix.", loop_stream_id);
+                return Err(GraphCompilationError(format!(
+                    "LoopStream {} is not connected to another loop. \
+                        Call `LoopStream::connect_loop` to fix.",
+                    loop_stream_id
+                )));
             }
         }
 
-        // Get all streams except loop streams.
-        let streams: Vec<_> = self
-            .streams
-            .iter()
-            .filter(|(k, _)| !self.loop_streams.contains_key(k))
-            .map(|(_k, v)| v.box_clone())
-            .collect();
-
-        let mut ingress_streams = HashMap::new();
-        let ingress_stream_ids: Vec<_> = self.ingress_streams.keys().cloned().collect();
-        for stream_id in ingress_stream_ids {
-            // Remove and re-insert setup hook to satisfy static lifetimes.
-            let setup_hook = self.ingress_streams.remove(&stream_id).unwrap();
-            ingress_streams.insert(stream_id, setup_hook.box_clone());
-            self.ingress_streams.insert(stream_id, setup_hook);
+        // Move the IngressStreams to the JobGraph while marking its source as the Driver.
+        let mut ingress_streams = HashMap::with_capacity(self.ingress_streams.len());
+        for (ingress_stream_id, setup_hook) in self.ingress_streams.drain() {
+            let ingress_stream = self.streams.get_mut(&ingress_stream_id).ok_or_else(|| {
+                GraphCompilationError(format!(
+                    "Unable to retrieve IngressStream with ID: {}",
+                    ingress_stream_id
+                ))
+            })?;
+            ingress_stream.register_source(Job::Driver);
+            ingress_streams.insert(ingress_stream_id, setup_hook);
         }
 
-        let mut egress_streams = HashMap::new();
-        let egress_stream_ids: Vec<_> = self.egress_streams.keys().cloned().collect();
-        for stream_id in egress_stream_ids {
-            // Remove and re-insert setup hook to satisfy static lifetimes.
-            let setup_hook = self.egress_streams.remove(&stream_id).unwrap();
-            egress_streams.insert(stream_id, setup_hook.box_clone());
-            self.egress_streams.insert(stream_id, setup_hook);
+        // Move the EgressStreams to the JobGraph while adding the Driver as a destination.
+        let mut egress_streams = HashMap::with_capacity(self.egress_streams.len());
+        for (egress_stream_id, setup_hook) in self.egress_streams.drain() {
+            let egress_stream = self.streams.get_mut(&egress_stream_id).ok_or_else(|| {
+                GraphCompilationError(format!(
+                    "Unable to retrieve EgressStream with ID: {}",
+                    egress_stream_id
+                ))
+            })?;
+            egress_stream.add_destination(Job::Driver);
+            egress_streams.insert(egress_stream_id, setup_hook);
         }
 
+        // Move all the non-loop Streams into the JobGraph.
+        let mut streams: HashMap<_, _> = self.streams.drain().collect();
+        streams.retain(|stream_id, _| !self.loop_streams.contains_key(stream_id));
+
+        // Move AbstractOperators to the JobGraph while resolving LoopStream IDs
+        // and setting the Sources and destinations of the streams.
         let mut operators: HashMap<_, _> = self
             .operators
-            .iter()
-            .map(|(operator_id, operator)| (Job::Operator(*operator_id), operator.clone()))
+            .drain()
+            .map(|(operator_id, abstract_operator)| (Job::Operator(operator_id), abstract_operator))
             .collect();
+        for (operator_job, abstract_operator) in operators.iter_mut() {
+            for index in 0..abstract_operator.read_streams.len() {
+                // If any ReadStream was connected to a LoopStream, resolve the ID.
+                let stream_id = &abstract_operator.read_streams[index];
+                let resolved_read_stream_id =
+                    self.resolve_stream_id(stream_id).ok_or_else(|| {
+                        GraphCompilationError(format!(
+                            "Could not resolve the StreamID: {} for Operator {}",
+                            stream_id, abstract_operator.id,
+                        ))
+                    })?;
 
-        // Replace loop stream IDs with connected stream IDs.
-        for o in operators.values_mut() {
-            for i in 0..o.read_streams.len() {
-                if self.loop_streams.contains_key(&o.read_streams[i]) {
-                    let resolved_id = self.resolve_stream_id(&o.read_streams[i]).unwrap();
-                    o.read_streams[i] = resolved_id;
-                }
+                // Register the job as a destination with the ReadStream.
+                let read_stream = streams.get_mut(&resolved_read_stream_id).ok_or_else(|| {
+                    GraphCompilationError(format!(
+                        "Could not find the ReadStream with ID {} for Operator {}",
+                        resolved_read_stream_id, abstract_operator.id,
+                    ))
+                })?;
+                read_stream.add_destination(operator_job.clone());
+
+                // Save the resolved StreamID.
+                abstract_operator.read_streams[index] = resolved_read_stream_id;
+            }
+
+            for write_stream_id in abstract_operator.write_streams.iter() {
+                // Register the job as a source with the WriteStream.
+                let write_stream = streams.get_mut(write_stream_id).ok_or_else(|| {
+                    GraphCompilationError(format!(
+                        "Could not find the WriteStream with ID {} for Operator {}",
+                        write_stream_id, abstract_operator.id,
+                    ))
+                })?;
+                write_stream.register_source(operator_job.clone());
             }
         }
 
-        JobGraph::new(
+        // Ensure that all streams have Sources.
+        for stream in streams.values() {
+            if stream.source().is_none() {
+                return Err(GraphCompilationError(format!(
+                    "The Stream {} was not mapped to a Source.",
+                    stream.id()
+                )));
+            }
+        }
+
+        Ok(JobGraph::new(
             self.name.clone(),
             operators,
             self.operator_runners.clone(),
             streams,
             ingress_streams,
             egress_streams,
-        )
+        ))
     }
 }

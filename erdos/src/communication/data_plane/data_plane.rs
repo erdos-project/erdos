@@ -170,7 +170,7 @@ impl DataPlane {
                                         if pending_jobs.is_empty() {
                                             if let Err(error) = self.channel_to_worker.send(
                                                 DataPlaneNotification::StreamReady(
-                                                    stream.get_source(),
+                                                    stream.source().unwrap(),
                                                     stream.id(),
                                                 ),
                                             ) {
@@ -179,7 +179,7 @@ impl DataPlane {
                                                         of StreamReady for Stream {} and Job {:?}: {:?}",
                                                     self.worker_id,
                                                     stream.id(),
-                                                    stream.get_source(),
+                                                    stream.source().unwrap(),
                                                     error
                                                 );
                                             }
@@ -358,7 +358,7 @@ impl DataPlane {
                         // pending connections to be made to other Workers, then notify
                         // the Worker that the Stream is ready.
                         Some(DataPlaneNotification::StreamReady(
-                            stream.get_source(),
+                            stream.source().unwrap(),
                             stream.id(),
                         ))
                     } else {
@@ -405,7 +405,7 @@ impl DataPlane {
                     stream.name(),
                     stream.id(),
                     destination_job,
-                    stream.get_source(),
+                    stream.source().unwrap(),
                     worker_id,
                     worker_address,
                 );
@@ -418,7 +418,7 @@ impl DataPlane {
                         self.worker_id,
                         worker_id,
                         worker_address,
-                        stream.get_source(),
+                        stream.source().unwrap(),
                         stream.name(),
                         stream.id()
                     );
@@ -463,7 +463,7 @@ impl DataPlane {
                     stream.name(),
                     stream.id(),
                     destination_job,
-                    stream.get_source(),
+                    stream.source().unwrap(),
                 );
 
                 // We notify the caller that the Stream is ready because there is nothing
@@ -490,7 +490,7 @@ impl DataPlane {
         let mut stream_manager = self.stream_manager.lock().unwrap();
 
         let mut setup_successful = true;
-        for destination in stream.get_destinations() {
+        for destination in stream.destinations() {
             match destination_addresses.get(&destination).unwrap() {
                 WorkerAddress::Remote(worker_id, _worker_address) => {
                     match self.connections_to_other_workers.get(worker_id) {

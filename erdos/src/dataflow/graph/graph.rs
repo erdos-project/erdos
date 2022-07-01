@@ -15,6 +15,8 @@ use crate::{
     OperatorConfig,
 };
 
+use super::GraphCompilationError;
+
 /// A user defined dataflow graph representation.
 ///
 /// When adding various [`stream`](crate::dataflow::stream)s and
@@ -373,7 +375,8 @@ impl Graph {
     }
 
     /// Compiles the internal graph representation.
-    pub(crate) fn compile(&self) -> JobGraph {
-        self.internal_graph.lock().unwrap().compile()
+    pub(crate) fn compile(self) -> Result<JobGraph, GraphCompilationError> {
+        let mut internal_graph = self.internal_graph.lock().unwrap();
+        internal_graph.compile()
     }
 }
