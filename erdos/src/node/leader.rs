@@ -442,6 +442,14 @@ impl Leader {
 
             // Inform the Worker to initiate appropriate connections and schedule
             // the Operator.
+            tracing::trace!(
+                "[Leader] Scheduling Job {:?} from Graph {:?} on Worker {} \
+                    with the following addresses of other Workers: {:?}.",
+                job,
+                job_graph_id,
+                worker_id,
+                worker_addresses
+            );
             let _ = leader_to_workers_tx.send(WorkerHandlerNotification::ScheduleJob(
                 job_graph_id.clone(),
                 job.clone(),
@@ -543,10 +551,22 @@ impl Leader {
                         }
                     })
                     .collect();
+                tracing::debug!(
+                    "[Leader] Notifying {:?} workers to execute the Graph {:?}.",
+                    assigned_workers,
+                    job_graph_id
+                );
                 let _ = leader_to_workers_tx.send(WorkerHandlerNotification::ExecuteGraph(
                     job_graph_id.clone(),
                     assigned_workers,
                 ));
+            } else {
+                tracing::trace!(
+                    "[Leader] The JobGraph {:?} was not ready for execution \
+                                        after marking Job {:?} ready.",
+                    job_graph_id.clone(),
+                    job
+                );
             }
         } else {
             tracing::error!(
