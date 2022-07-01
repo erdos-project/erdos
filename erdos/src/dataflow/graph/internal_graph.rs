@@ -37,15 +37,12 @@ trait OperatorRunner:
     + Send
 {
     fn box_clone(&self) -> Box<dyn OperatorRunner>;
+    fn to_job_runner(self, operator: &AbstractOperator) -> Box<dyn JobRunner>;
 }
 
 impl<
         T: 'static
-            + Fn(
-                Option<StreamId>,
-                Option<StreamId>,
-                &mut StreamManager,
-            ) -> Box<dyn OperatorExecutorT>
+            + Fn(Option<StreamId>, Option<StreamId>, &mut StreamManager) -> Box<dyn OperatorExecutorT>
             + Sync
             + Send
             + Clone,
@@ -53,6 +50,50 @@ impl<
 {
     fn box_clone(&self) -> Box<dyn OperatorRunner> {
         Box::new(self.clone())
+    }
+
+    fn to_job_runner(self, operator: &AbstractOperator) -> Box<dyn JobRunner> {
+        let runner: Box<dyn JobRunner> = match operator.operator_type {
+            AbstractOperatorType::Source => Box::new(
+                move |stream_manager| -> Option<Box<dyn OperatorExecutorT>> {
+                    let mut stream_manager = stream_manager.lock().unwrap();
+                    let operator_executor = (self)(None, None, &mut stream_manager);
+                    Some(operator_executor)
+                },
+            ),
+            AbstractOperatorType::ParallelSink
+            | AbstractOperatorType::Sink
+            | AbstractOperatorType::ParallelOneInOneOut
+            | AbstractOperatorType::OneInOneOut
+            | AbstractOperatorType::ParallelOneInTwoOut
+            | AbstractOperatorType::OneInTwoOut => {
+                let read_stream_id = operator.read_streams[0];
+                Box::new(
+                    move |stream_manager| -> Option<Box<dyn OperatorExecutorT>> {
+                        let mut stream_manager = stream_manager.lock().unwrap();
+                        let operator_executor =
+                            (self)(Some(read_stream_id), None, &mut stream_manager);
+                        Some(operator_executor)
+                    },
+                )
+            }
+            AbstractOperatorType::ParallelTwoInOneOut | AbstractOperatorType::TwoInOneOut => {
+                let left_read_stream_id = operator.read_streams[0];
+                let right_read_stream_id = operator.read_streams[1];
+                Box::new(
+                    move |stream_manager| -> Option<Box<dyn OperatorExecutorT>> {
+                        let mut stream_manager = stream_manager.lock().unwrap();
+                        let operator_executor = (self)(
+                            Some(left_read_stream_id),
+                            Some(right_read_stream_id),
+                            &mut stream_manager,
+                        );
+                        Some(operator_executor)
+                    },
+                )
+            }
+        };
+        runner
     }
 }
 
@@ -828,35 +869,10 @@ impl InternalGraph {
                         abstract_operator.id
                     ))
                 })?;
-            let read_stream_ids = abstract_operator.read_streams.clone();
-            let job_runner = match abstract_operator.operator_type {
-                AbstractOperatorType::Source => {
-                    let runner: Box<dyn JobRunner> = 
-                    Box::new(move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
-                        let mut stream_manager = stream_manager.lock().unwrap();
-                        let operator_executor = (operator_runner)(None, None, &mut stream_manager);
-                        Some(operator_executor)
-                    });
-                    runner
-                }
-                AbstractOperatorType::ParallelSink | AbstractOperatorType::Sink | AbstractOperatorType::ParallelOneInOneOut | AbstractOperatorType::OneInOneOut | AbstractOperatorType::ParallelOneInTwoOut | AbstractOperatorType::OneInTwoOut => {
-                    let runner: Box<dyn JobRunner> = Box::new(move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
-                        let mut stream_manager = stream_manager.lock().unwrap();
-                        let operator_executor = (operator_runner)(Some(read_stream_ids[0]), None, &mut stream_manager);
-                        Some(operator_executor)
-                    });
-                    runner
-                }
-                AbstractOperatorType::ParallelTwoInOneOut | AbstractOperatorType::TwoInOneOut =>  {
-                    let runner: Box<dyn JobRunner> = Box::new(move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
-                        let mut stream_manager = stream_manager.lock().unwrap();
-                        let operator_executor = (operator_runner)(Some(read_stream_ids[0]), Some(read_stream_ids[1]), &mut stream_manager);
-                        Some(operator_executor)
-                    });
-                    runner
-                }
-            };
-            job_runners.insert(operator_job.clone(), job_runner);
+            job_runners.insert(
+                operator_job.clone(),
+                operator_runner.to_job_runner(&abstract_operator),
+            );
         }
 
         // Ensure that all streams have Sources.
@@ -878,5 +894,4 @@ impl InternalGraph {
             egress_streams,
         ))
     }
-
 }
