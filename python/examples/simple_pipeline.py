@@ -62,13 +62,10 @@ def main():
     """Creates and runs the dataflow graph."""
     graph = Graph()
 
-    count_stream = graph.connect_source(SendOp,
-                                        erdos.operator.OperatorConfig())
-    graph.connect_sink(CallbackOp, erdos.operator.OperatorConfig(),
-                       count_stream)
+    count_stream = graph.connect_source(SendOp, erdos.operator.OperatorConfig())
+    graph.connect_sink(CallbackOp, erdos.operator.OperatorConfig(), count_stream)
     graph.connect_sink(PullOp, erdos.operator.OperatorConfig(), count_stream)
-    graph.connect_sink(TryPullOp, erdos.operator.OperatorConfig(),
-                       count_stream)
+    graph.connect_sink(TryPullOp, erdos.operator.OperatorConfig(), count_stream)
 
     count_stream.to_egress()
 

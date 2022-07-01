@@ -2,8 +2,7 @@ import logging
 from typing import Union
 
 
-def setup_logging(name: str,
-                  log_file: Union[str, None] = None) -> logging.Logger:
+def setup_logging(name: str, log_file: Union[str, None] = None) -> logging.Logger:
     """Create a logger with the given name and attach the given handler.
 
     Args:
@@ -22,8 +21,7 @@ def setup_logging(name: str,
     )
 
 
-def setup_csv_logging(name: str,
-                      log_file: Union[str, None] = None) -> logging.Logger:
+def setup_csv_logging(name: str, log_file: Union[str, None] = None) -> logging.Logger:
     """Create a logger that logs statistics in a CSV file, and attach the
     given handler.
 
@@ -38,8 +36,7 @@ def setup_csv_logging(name: str,
     return _setup_logging(name, "%(message)s", None, log_file)
 
 
-def setup_trace_logging(name: str,
-                        log_file: Union[str, None] = None) -> logging.Logger:
+def setup_trace_logging(name: str, log_file: Union[str, None] = None) -> logging.Logger:
     """Create a logger that logs the runtime statistics of methods decorated
     with the :py:func:`profile_method`.
 

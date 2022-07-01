@@ -16,6 +16,7 @@ class Message(Generic[T]):
         timestamp: The timestamp of the message.
         data: The data of the message.
     """
+
     def __init__(self, timestamp: Timestamp, data: T) -> None:
         """Constructs a :py:class:`Message` with the given `data` and
         `timestamp`.
@@ -40,8 +41,9 @@ class Message(Generic[T]):
         If the data is later changed, :py:meth:`Message._serialize_data` must
         be called again to reflect changes in the message.
         """
-        self._serialized_data = pickle.dumps(self.data,
-                                             protocol=pickle.HIGHEST_PROTOCOL)
+        self._serialized_data = pickle.dumps(
+            self.data, protocol=pickle.HIGHEST_PROTOCOL
+        )
 
     def _to_py_message(self) -> PyMessage:
         """Converts the current message to a :py:class:`PyMessage`.
@@ -51,8 +53,7 @@ class Message(Generic[T]):
         """
         if self._serialized_data is None:
             self._serialize_data()
-        return PyMessage(self.timestamp._to_py_timestamp(),
-                         self._serialized_data)
+        return PyMessage(self.timestamp._to_py_timestamp(), self._serialized_data)
 
     def __str__(self):
         return "{{timestamp: {}, data: {}}}".format(self.timestamp, self.data)
@@ -66,6 +67,7 @@ class WatermarkMessage(Message[None]):
     Attributes:
         timestamp: The timestamp for which this is a watermark.
     """
+
     def __init__(self, timestamp: Timestamp) -> None:
         super(WatermarkMessage, self).__init__(timestamp, None)
 

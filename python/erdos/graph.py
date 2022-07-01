@@ -23,6 +23,7 @@ class NodeHandle:
     Note:
         This structure should not be initialized by the users.
     """
+
     def __init__(self, py_node_handle, processes):
         self.py_node_handle = py_node_handle
         self.processes = processes
@@ -47,6 +48,7 @@ class Graph:
     """An ERDOS dataflow graph representation on which streams and operators
     are added.
     """
+
     def __init__(self):
         """Constructs a :py:class:`Graph`"""
         self._py_graph = PyGraph()
@@ -82,12 +84,13 @@ class Graph:
             :py:class:`WriteStream` made available to :py:meth:`.Source.run`.
         """
         if not issubclass(op_type, erdos.operator.Source):
-            raise TypeError(
-                "{} must subclass erdos.operator.Source".format(op_type))
+            raise TypeError("{} must subclass erdos.operator.Source".format(op_type))
 
         if op_type.run.__code__.co_code == erdos.operator.Source.run.__code__.co_code:
-            logger.warn("The operator {} does not "
-                        "implement the `run` method.".format(op_type))
+            logger.warn(
+                "The operator {} does not "
+                "implement the `run` method.".format(op_type)
+            )
 
         # 1-index operators because node 0 is preserved for the current process,
         # and each node can only run 1 python operator.
@@ -95,10 +98,13 @@ class Graph:
         node_id = self._num_py_operators
         logger.debug(
             "Connecting operator #{num} ({name}) to the graph.".format(
-                num=node_id, name=config.name))
+                num=node_id, name=config.name
+            )
+        )
 
         internal_stream = self._py_graph.connect_source(
-            op_type, config, args, kwargs, node_id)
+            op_type, config, args, kwargs, node_id
+        )
         return OperatorStream(internal_stream)
 
     def connect_sink(
@@ -123,21 +129,22 @@ class Graph:
                 initialization.
         """
         if not issubclass(op_type, erdos.operator.Sink):
-            raise TypeError(
-                "{} must subclass erdos.operator.Sink".format(op_type))
+            raise TypeError("{} must subclass erdos.operator.Sink".format(op_type))
 
         if not isinstance(read_stream, Stream):
             raise TypeError("{} must subclass `Stream`.".format(read_stream))
 
-        if (op_type.run.__code__.co_code
-                == erdos.operator.Sink.run.__code__.co_code
-                and op_type.on_data.__code__.co_code
-                == erdos.operator.Sink.on_data.__code__.co_code
-                and op_type.on_watermark.__code__.co_code
-                == erdos.operator.Sink.on_watermark.__code__.co_code):
+        if (
+            op_type.run.__code__.co_code == erdos.operator.Sink.run.__code__.co_code
+            and op_type.on_data.__code__.co_code
+            == erdos.operator.Sink.on_data.__code__.co_code
+            and op_type.on_watermark.__code__.co_code
+            == erdos.operator.Sink.on_watermark.__code__.co_code
+        ):
             logger.warn(
                 "The operator {} does not implement any of the "
-                "`run`, `on_data` or `on_watermark` methods.".format(op_type))
+                "`run`, `on_data` or `on_watermark` methods.".format(op_type)
+            )
 
         # 1-index operators because node 0 is preserved for the current process,
         # and each node can only run 1 python operator.
@@ -145,11 +152,13 @@ class Graph:
         node_id = self._num_py_operators
         logger.debug(
             "Connecting operator #{num} ({name}) to the graph.".format(
-                num=node_id, name=config.name))
+                num=node_id, name=config.name
+            )
+        )
 
-        self._py_graph.connect_sink(op_type, config,
-                                    read_stream._internal_stream, args, kwargs,
-                                    node_id)
+        self._py_graph.connect_sink(
+            op_type, config, read_stream._internal_stream, args, kwargs, node_id
+        )
 
     def connect_one_in_one_out(
         self,
@@ -181,20 +190,24 @@ class Graph:
         """
         if not issubclass(op_type, erdos.operator.OneInOneOut):
             raise TypeError(
-                "{} must subclass erdos.operator.OneInOneOut".format(op_type))
+                "{} must subclass erdos.operator.OneInOneOut".format(op_type)
+            )
 
         if not isinstance(read_stream, Stream):
             raise TypeError("{} must subclass `Stream`.".format(read_stream))
 
-        if (op_type.run.__code__.co_code
-                == erdos.operator.OneInOneOut.run.__code__.co_code
-                and op_type.on_data.__code__.co_code
-                == erdos.operator.OneInOneOut.on_data.__code__.co_code
-                and op_type.on_watermark.__code__.co_code
-                == erdos.operator.OneInOneOut.on_watermark.__code__.co_code):
+        if (
+            op_type.run.__code__.co_code
+            == erdos.operator.OneInOneOut.run.__code__.co_code
+            and op_type.on_data.__code__.co_code
+            == erdos.operator.OneInOneOut.on_data.__code__.co_code
+            and op_type.on_watermark.__code__.co_code
+            == erdos.operator.OneInOneOut.on_watermark.__code__.co_code
+        ):
             logger.warn(
                 "The operator {} does not implement any of the "
-                "`run`, `on_data` or `on_watermark` methods.".format(op_type))
+                "`run`, `on_data` or `on_watermark` methods.".format(op_type)
+            )
 
         # 1-index operators because node 0 is preserved for the current process,
         # and each node can only run 1 python operator.
@@ -202,11 +215,13 @@ class Graph:
         node_id = self._num_py_operators
         logger.debug(
             "Connecting operator #{num} ({name}) to the graph.".format(
-                num=node_id, name=config.name))
+                num=node_id, name=config.name
+            )
+        )
 
         internal_stream = self._py_graph.connect_one_in_one_out(
-            op_type, config, read_stream._internal_stream, args, kwargs,
-            node_id)
+            op_type, config, read_stream._internal_stream, args, kwargs, node_id
+        )
         return OperatorStream(internal_stream)
 
     def connect_two_in_one_out(
@@ -243,27 +258,30 @@ class Graph:
         """
         if not issubclass(op_type, erdos.operator.TwoInOneOut):
             raise TypeError(
-                "{} must subclass erdos.operator.TwoInOneOut".format(op_type))
+                "{} must subclass erdos.operator.TwoInOneOut".format(op_type)
+            )
 
         if not isinstance(left_read_stream, Stream):
-            raise TypeError(
-                "{} must subclass `Stream`.".format(left_read_stream))
+            raise TypeError("{} must subclass `Stream`.".format(left_read_stream))
 
         if not isinstance(right_read_stream, Stream):
-            raise TypeError(
-                "{} must subclass `Stream`.".format(right_read_stream))
+            raise TypeError("{} must subclass `Stream`.".format(right_read_stream))
 
-        if (op_type.run.__code__.co_code
-                == erdos.operator.TwoInOneOut.run.__code__.co_code
-                and op_type.on_left_data.__code__.co_code
-                == erdos.operator.TwoInOneOut.on_left_data.__code__.co_code
-                and op_type.on_right_data.__code__.co_code
-                == erdos.operator.TwoInOneOut.on_right_data.__code__.co_code
-                and op_type.on_watermark.__code__.co_code
-                == erdos.operator.TwoInOneOut.on_watermark.__code__.co_code):
-            logger.warn("The operator {} does not implement any of the `run`, "
-                        "`on_left_data`, `on_right_data` or `on_watermark` "
-                        "methods.".format(op_type))
+        if (
+            op_type.run.__code__.co_code
+            == erdos.operator.TwoInOneOut.run.__code__.co_code
+            and op_type.on_left_data.__code__.co_code
+            == erdos.operator.TwoInOneOut.on_left_data.__code__.co_code
+            and op_type.on_right_data.__code__.co_code
+            == erdos.operator.TwoInOneOut.on_right_data.__code__.co_code
+            and op_type.on_watermark.__code__.co_code
+            == erdos.operator.TwoInOneOut.on_watermark.__code__.co_code
+        ):
+            logger.warn(
+                "The operator {} does not implement any of the `run`, "
+                "`on_left_data`, `on_right_data` or `on_watermark` "
+                "methods.".format(op_type)
+            )
 
         # 1-index operators because node 0 is preserved for the current process,
         # and each node can only run 1 python operator.
@@ -271,7 +289,9 @@ class Graph:
         node_id = self._num_py_operators
         logger.debug(
             "Connecting operator #{num} ({name}) to the graph.".format(
-                num=node_id, name=config.name))
+                num=node_id, name=config.name
+            )
+        )
 
         internal_stream = self._py_graph.connect_two_in_one_out(
             op_type,
@@ -314,20 +334,24 @@ class Graph:
         """
         if not issubclass(op_type, erdos.operator.OneInTwoOut):
             raise TypeError(
-                "{} must subclass erdos.operator.OneInTwoOut".format(op_type))
+                "{} must subclass erdos.operator.OneInTwoOut".format(op_type)
+            )
 
         if not isinstance(read_stream, Stream):
             raise TypeError("{} must subclass `Stream`.".format(read_stream))
 
-        if (op_type.run.__code__.co_code
-                == erdos.operator.OneInTwoOut.run.__code__.co_code
-                and op_type.on_data.__code__.co_code
-                == erdos.operator.OneInTwoOut.on_data.__code__.co_code
-                and op_type.on_watermark.__code__.co_code
-                == erdos.operator.OneInTwoOut.on_watermark.__code__.co_code):
+        if (
+            op_type.run.__code__.co_code
+            == erdos.operator.OneInTwoOut.run.__code__.co_code
+            and op_type.on_data.__code__.co_code
+            == erdos.operator.OneInTwoOut.on_data.__code__.co_code
+            and op_type.on_watermark.__code__.co_code
+            == erdos.operator.OneInTwoOut.on_watermark.__code__.co_code
+        ):
             logger.warn(
                 "The operator {} does not implement any of the "
-                "`run`, `on_data` or `on_watermark` methods.".format(op_type))
+                "`run`, `on_data` or `on_watermark` methods.".format(op_type)
+            )
 
         # 1-index operators because node 0 is preserved for the current process,
         # and each node can only run 1 python operator.
@@ -335,16 +359,18 @@ class Graph:
         node_id = self._num_py_operators
         logger.debug(
             "Connecting operator #{num} ({name}) to the graph.".format(
-                num=node_id, name=config.name))
+                num=node_id, name=config.name
+            )
+        )
 
         left_stream, right_stream = self._py_graph.connect_one_in_two_out(
-            op_type, config, read_stream._internal_stream, args, kwargs,
-            node_id)
+            op_type, config, read_stream._internal_stream, args, kwargs, node_id
+        )
         return OperatorStream(left_stream), OperatorStream(right_stream)
 
-    def run(self,
-            graph_filename: Optional[str] = None,
-            start_port: Optional[int] = 9000):
+    def run(
+        self, graph_filename: Optional[str] = None, start_port: Optional[int] = 9000
+    ):
         """Instantiates and runs the dataflow graph.
 
         ERDOS will spawn 1 process for each python operator, and connect them via
@@ -364,9 +390,9 @@ class Graph:
     def _run_node(self, node_id, data_addresses, control_addresses):
         self._py_graph.run(node_id, data_addresses, control_addresses)
 
-    def run_async(self,
-                  graph_filename: Optional[str] = None,
-                  start_port: Optional[int] = 9000) -> NodeHandle:
+    def run_async(
+        self, graph_filename: Optional[str] = None, start_port: Optional[int] = 9000
+    ) -> NodeHandle:
         """Instantiates and runs the dataflow graph asynchronously.
 
         ERDOS will spawn 1 process for each python operator, and connect them via
@@ -388,12 +414,12 @@ class Graph:
             for i in range(self._num_py_operators + 1)
         ]
         control_addresses = [
-            "127.0.0.1:{port}".format(port=start_port + len(data_addresses) +
-                                      i)
+            "127.0.0.1:{port}".format(port=start_port + len(data_addresses) + i)
             for i in range(self._num_py_operators + 1)
         ]
-        logger.debug("Running the dataflow graph on addresses: {}".format(
-            data_addresses))
+        logger.debug(
+            "Running the dataflow graph on addresses: {}".format(data_addresses)
+        )
 
         # Fix for macOS where mulitprocessing defaults
         # to spawn() instead of fork() in Python 3.8+
@@ -402,8 +428,9 @@ class Graph:
         # https://bugs.python.org/issue33725
         ctx = mp.get_context("fork")
         processes = [
-            ctx.Process(target=self._run_node,
-                        args=(i, data_addresses, control_addresses))
+            ctx.Process(
+                target=self._run_node, args=(i, data_addresses, control_addresses)
+            )
             for i in range(1, self._num_py_operators + 1)
         ]
 
@@ -420,8 +447,8 @@ class Graph:
 
         # The driver must always be on node 0 otherwise ingest and extract streams
         # will break
-        py_node_handle = self._py_graph.run_async(0, data_addresses,
-                                                  control_addresses,
-                                                  graph_filename)
+        py_node_handle = self._py_graph.run_async(
+            0, data_addresses, control_addresses, graph_filename
+        )
 
         return NodeHandle(py_node_handle, processes)

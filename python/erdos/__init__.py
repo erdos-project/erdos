@@ -3,7 +3,6 @@ import sys
 from functools import wraps
 
 import erdos.context
-import erdos.internal as _internal
 import erdos.operator
 import erdos.utils
 from erdos.graph import Graph
@@ -62,12 +61,11 @@ def profile_method(**decorator_kwargs):
                         # The func is a callback.
                         timestamp = args[1].timestamp
             else:
-                raise TypeError(
-                    "@erdos.profile can only be used on operator methods")
+                raise TypeError("@erdos.profile can only be used on operator methods")
 
-            with erdos.profile(event_name,
-                               args[0],
-                               event_data={"timestamp": str(timestamp)}):
+            with erdos.profile(
+                event_name, args[0], event_data={"timestamp": str(timestamp)}
+            ):
                 return func(*args, **kwargs)
 
         return wrapper

@@ -13,6 +13,7 @@ from erdos.streams import WriteStream
 
 class SendOp(Source):
     """Sends `frequency` messages per second."""
+
     def __init__(self, frequency):
         print("Initializing send op with frequency {}".format(frequency))
         self.frequency = frequency
@@ -22,13 +23,15 @@ class SendOp(Source):
         while True:
             timestamp = erdos.Timestamp(coordinates=[count])
             msg = erdos.Message(timestamp, count)
-            print("{name}: sending {msg}".format(name=self.config.name,
-                                                 msg=msg))
+            print("{name}: sending {msg}".format(name=self.config.name, msg=msg))
             write_stream.send(msg)
 
             watermark = erdos.WatermarkMessage(timestamp)
-            print("{name}: sending watermark {watermark}".format(
-                name=self.config.name, watermark=watermark))
+            print(
+                "{name}: sending watermark {watermark}".format(
+                    name=self.config.name, watermark=watermark
+                )
+            )
             write_stream.send(watermark)
 
             count += 1
@@ -62,12 +65,14 @@ def main():
     graph = Graph()
 
     left_stream = graph.connect_source(
-        SendOp, erdos.operator.OperatorConfig(name="FastSendOp"), frequency=2)
+        SendOp, erdos.operator.OperatorConfig(name="FastSendOp"), frequency=2
+    )
     right_stream = graph.connect_source(
-        SendOp, erdos.operator.OperatorConfig(name="SlowSendOp"), frequency=1)
-    graph.connect_two_in_one_out(JoinOp,
-                                 erdos.operator.OperatorConfig(name="JoinOp"),
-                                 left_stream, right_stream)
+        SendOp, erdos.operator.OperatorConfig(name="SlowSendOp"), frequency=1
+    )
+    graph.connect_two_in_one_out(
+        JoinOp, erdos.operator.OperatorConfig(name="JoinOp"), left_stream, right_stream
+    )
 
     graph.run()
 

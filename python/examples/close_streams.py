@@ -18,8 +18,9 @@ def main():
     graph = Graph()
 
     ingress_stream = graph.add_ingress("IngressStream")
-    s = graph.connect_one_in_one_out(NoopOp, erdos.operator.OperatorConfig(),
-                                     ingress_stream)
+    s = graph.connect_one_in_one_out(
+        NoopOp, erdos.operator.OperatorConfig(), ingress_stream
+    )
     egress_stream = s.to_egress()
 
     handle = graph.run_async()
