@@ -53,7 +53,7 @@ impl<
     }
 
     fn to_job_runner(self, operator: &AbstractOperator) -> Box<dyn JobRunner> {
-        let runner: Box<dyn JobRunner> = match operator.operator_type {
+        match operator.operator_type {
             AbstractOperatorType::Source => Box::new(
                 move |stream_manager| -> Option<Box<dyn OperatorExecutorT>> {
                     let mut stream_manager = stream_manager.lock().unwrap();
@@ -92,8 +92,7 @@ impl<
                     },
                 )
             }
-        };
-        runner
+        }
     }
 }
 
