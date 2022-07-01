@@ -8,14 +8,15 @@ from itertools import zip_longest
 from typing import Callable, Generic, Sequence, Tuple, Type, TypeVar, Union
 
 from erdos.internal import (
-    PyEgressStream, 
-    PyIngressStream, 
+    PyEgressStream,
+    PyIngressStream,
     PyLoopStream,
-    PyMessage, 
+    PyMessage,
     PyOperatorStream,
     PyReadStream,
-    PyStream, 
-    PyWriteStream)
+    PyStream,
+    PyWriteStream,
+)
 from erdos.message import Message, WatermarkMessage
 from erdos.timestamp import Timestamp
 
@@ -342,10 +343,7 @@ class LoopStream(Stream[T]):
 
     Note:
         Must call `connect_loop` with a valid :py:class:`OperatorStream` to
-        complete the loop.
-    
-    Note:
-        This class should not be initialized by the users.
+        complete the loop. This class should not be initialized by the users.
     """
     def __init__(self, loop_stream: PyLoopStream) -> None:
         super().__init__(loop_stream)
@@ -357,13 +355,13 @@ class LoopStream(Stream[T]):
 
 
 class IngressStream(Stream[T]):
-    """An :py:class:`IngestStream` enables drivers to inject data into a
+    """An :py:class:`IngressStream` enables drivers to inject data into a
     running ERDOS application.
 
-    The driver can initialize a new :py:class:`IngestStream` and connect it to
+    The driver can initialize a new :py:class:`IngressStream` and connect it to
     an operator through the :code:`connect` family of functions. Similar to a
     :py:class:`WriteStream`, an :py:class:`IngestStream` provides a
-    :py:func:`IngestStream.send` to enable the driver to send data to the
+    :py:func:`IngressStream.send` to enable the driver to send data to the
     operator to which it was connected.
 
     Note:
@@ -376,7 +374,7 @@ class IngressStream(Stream[T]):
         """Whether the stream is closed.
 
         Returns True if the a top watermark message was sent or the
-        IngestStream was unable to successfully set up.
+        IngressStream was unable to successfully set up.
         """
         return self._internal_stream.is_closed()
 
@@ -390,7 +388,7 @@ class IngressStream(Stream[T]):
         if not isinstance(msg, Message):
             raise TypeError("msg must inherent from erdos.Message!")
 
-        logger.debug("Sending message {} on the Ingest stream {}".format(
+        logger.debug("Sending message {} on the Ingress stream {}".format(
             msg, self.name))
 
         internal_msg = msg._to_py_message()
@@ -398,18 +396,18 @@ class IngressStream(Stream[T]):
 
 
 class EgressStream(Stream[T]):
-    """An :py:class:`ExtractStream` enables drivers to read data from a
+    """An :py:class:`EgressStream` enables drivers to read data from a
     running ERDOS applications.
 
-    The driver can initialize a new :py:class:`ExtractStream` by passing the
+    The driver can initialize a new :py:class:`EgressStream` by passing the
     instance of :py:class:`OperatorStream` returned by the :code:`connect`
     family of functions. Similar to a :py:class:`ReadStream`, an
-    :py:class:`ExtractStream` provides :py:meth:`.read` and
+    :py:class:`EgressStream` provides :py:meth:`.read` and
     :py:meth:`.try_read` for reading data published on the corresponding
     :py:class:`OperatorStream`.
 
     Args:
-        stream: The stream from which to read messages.
+        py_egress_stream: The stream from which to read messages.
 
     Note:
         This class should not be initialized by the users.
@@ -424,14 +422,14 @@ class EgressStream(Stream[T]):
 
     @property
     def id(self) -> str:
-        """The id of the ExtractStream."""
+        """The id of the EgressStream."""
         return uuid.UUID(self._py_egress_stream.id())
 
     def is_closed(self) -> bool:
         """Whether the stream is closed.
 
         Returns True if the a top watermark message was sent or the
-        :py:class:`ExtractStream` was unable to successfully set up.
+        :py:class:`EgressStream` was unable to successfully set up.
         """
         return self._py_egress_stream.is_closed()
 

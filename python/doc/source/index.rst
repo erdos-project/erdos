@@ -5,6 +5,7 @@
     :caption: Overview
 
     intro.rst
+    graph.rst
     streams.rst
     operators.rst
     messages.rst

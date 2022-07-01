@@ -60,7 +60,7 @@ build an ERDOS application which may then be executed.
 The driver is typically the main section of the program.
 
 The driver may also interact with a running ERDOS application.
-Using the :py:class:`.IngestStream`, the driver can send
+Using the :py:class:`.IngressStream`, the driver can send
 data to operators on a stream.
 The :py:class:`.ExtractStream` allows the driver to read
 data sent from an operator.

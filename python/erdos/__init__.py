@@ -11,12 +11,13 @@ from erdos.message import Message, WatermarkMessage
 from erdos.profile import Profile
 from erdos.streams import (
     EgressStream,
-    IngressStream, 
+    IngressStream,
     LoopStream,
-    OperatorStream, 
-    ReadStream, 
-    Stream, 
-    WriteStream)
+    OperatorStream,
+    ReadStream,
+    Stream,
+    WriteStream,
+)
 from erdos.timestamp import Timestamp
 
 # Set the top-level logger for ERDOS logging.

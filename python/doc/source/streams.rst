@@ -16,19 +16,19 @@ Streams expose 3 classes of interfaces:
    Structures that implement read interfaces include:
 
   * :py:class:`.ReadStream`: used by operators to read data and register callbacks.
-  * :py:class:`.ExtractStream`: used by the driver to read data.
+  * :py:class:`.EgressStream`: used by the driver to read data.
 
 #. Write-interfaces expose the send method to send data on a stream.
    Structures that implement write interfaces include:
 
   * :py:class:`.WriteStream`: used by operators to send data.
-  * :py:class:`.IngestStream`: used by the driver to send data.
+  * :py:class:`.IngressStream`: used by the driver to send data.
 
 #. Abstract interfaces used to connect operators and construct a dataflow graph.
    Structures that implement the abstract `:py:class:.Stream` interface include:
 
    * :py:class:`.OperatorStream`: representing a stream on which an operator sends messages.
-   * :py:class:`.IngestStream`: used to send messages to operators from the driver.
+   * :py:class:`.IngressStream`: used to send messages to operators from the driver.
    * :py:class:`.LoopStream`: used to create loops in the dataflow graph.
 
 
@@ -80,11 +80,11 @@ operators. For these applications, ERDOS provides special stream interfaces to
 
 A comprehensive example is available `here <https://github.com/erdos-project/erdos/blob/master/python/examples/ingest_extract.py>`__.
 
-.. autoclass:: erdos.IngestStream
+.. autoclass:: erdos.IngressStream
     :show-inheritance:
     :members: send
 
-.. autoclass:: erdos.ExtractStream
+.. autoclass:: erdos.EgressStream
     :members: read, try_read
 
 
