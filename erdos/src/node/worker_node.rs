@@ -23,9 +23,8 @@ use crate::{
             ControlPlaneCodec,
         },
         data_plane::{
-            data_plane::DataPlane,
             notifications::{DataPlaneNotification, StreamType},
-            StreamManager,
+            DataPlane, StreamManager,
         },
         CommunicationError,
     },

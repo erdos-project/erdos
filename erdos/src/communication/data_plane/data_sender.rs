@@ -9,11 +9,11 @@ use tokio::{
 use tokio_util::codec::Framed;
 
 use crate::{
-    communication::{CommunicationError, InterProcessMessage, MessageCodec},
+    communication::{CommunicationError, InterProcessMessage},
     node::WorkerId,
 };
 
-use super::notifications::DataPlaneNotification;
+use super::{codec::MessageCodec, notifications::DataPlaneNotification};
 
 /// The [`DataSender`] pulls messages from a FIFO inter-thread channel.
 /// The [`DataSender`] services all operators sending messages to a particular

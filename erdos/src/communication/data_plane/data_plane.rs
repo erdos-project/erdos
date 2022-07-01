@@ -14,7 +14,7 @@ use tokio_util::codec::Framed;
 use crate::{
     communication::{
         control_plane::notifications::WorkerAddress, CommunicationError, EhloMetadata,
-        InterProcessMessage, MessageCodec,
+        InterProcessMessage,
     },
     dataflow::{
         graph::{AbstractStreamT, Job},
@@ -24,6 +24,7 @@ use crate::{
 };
 
 use super::{
+    codec::MessageCodec,
     notifications::{DataPlaneNotification, StreamType},
     worker_connection::WorkerConnection,
     StreamManager,
