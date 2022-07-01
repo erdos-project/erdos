@@ -105,7 +105,7 @@ where
     ///
     /// # Example
     /// ```
-    /// # use erdos::dataflow::{stream::{Graph, IngressStream, Stream}, operator::OperatorConfig, operators::Map};
+    /// # use erdos::dataflow::{Graph, stream::{IngressStream, Stream}, operator::OperatorConfig, operators::Map};
     /// #
     /// # let graph = Graph::new();
     /// # let source_stream = graph.add_ingress("SourceIngressStream");

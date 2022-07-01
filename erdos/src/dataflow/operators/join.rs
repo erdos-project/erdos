@@ -31,7 +31,7 @@ use crate::dataflow::{
 /// #     stream::IngressStream,
 /// #     operator::OperatorConfig,
 /// #     operators::TimestampJoinOperator,
-/// #     state::TimeVersionedState.
+/// #     state::TimeVersionedState,
 /// #     Graph,
 /// # };
 /// # let graph = Graph::new();

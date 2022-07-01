@@ -9,8 +9,14 @@ import erdos.utils
 from erdos.graph import Graph
 from erdos.message import Message, WatermarkMessage
 from erdos.profile import Profile
-from erdos.streams import (EgressStream, IngressStream, LoopStream,
-                           OperatorStream, ReadStream, Stream, WriteStream)
+from erdos.streams import (
+    EgressStream,
+    IngressStream, 
+    LoopStream,
+    OperatorStream, 
+    ReadStream, 
+    Stream, 
+    WriteStream)
 from erdos.timestamp import Timestamp
 
 # Set the top-level logger for ERDOS logging.

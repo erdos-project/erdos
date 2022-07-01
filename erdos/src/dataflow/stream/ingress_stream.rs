@@ -44,7 +44,7 @@ use super::{errors::SendError, Stream, StreamId, WriteStream, WriteStreamT};
 ///     OperatorConfig::new().name("MapOperator"),
 ///     &ingress_stream,
 /// );
-/// let mut egress_stream = graph.add_egress(&output_stream);
+/// let mut egress_stream = output_stream.to_egress();
 ///
 /// node.run_async(graph);
 ///

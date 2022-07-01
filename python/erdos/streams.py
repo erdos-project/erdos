@@ -7,9 +7,15 @@ from abc import ABC
 from itertools import zip_longest
 from typing import Callable, Generic, Sequence, Tuple, Type, TypeVar, Union
 
-from erdos.internal import (PyEgressStream, PyIngressStream, PyLoopStream,
-                            PyMessage, PyOperatorStream, PyReadStream,
-                            PyStream, PyWriteStream)
+from erdos.internal import (
+    PyEgressStream, 
+    PyIngressStream, 
+    PyLoopStream,
+    PyMessage, 
+    PyOperatorStream,
+    PyReadStream,
+    PyStream, 
+    PyWriteStream)
 from erdos.message import Message, WatermarkMessage
 from erdos.timestamp import Timestamp
 

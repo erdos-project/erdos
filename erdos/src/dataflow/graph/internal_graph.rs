@@ -26,7 +26,7 @@ use crate::{
 
 /// The abstract graph representation of an ERDOS program defined in the driver.
 ///
-/// The abstract graph is compiled into a [`JobGraph`], which ERDOS schedules and executes.
+/// The abstract graph is compiled into a JobGraph, which ERDOS schedules and executes.
 /// TODO: Make this struct private.
 #[derive(Default)]
 pub struct InternalGraph {
