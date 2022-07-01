@@ -26,6 +26,8 @@ use crate::{
 
 use super::{AbstractOperatorType, GraphCompilationError, Job, JobRunner};
 
+/// The [`OperatorRunner`] trait holds a function that sets up an `Operator` pending the resolution
+/// of the IDs of its [`ReadStream`]s.
 trait OperatorRunner:
     'static
     + Fn(
@@ -36,7 +38,14 @@ trait OperatorRunner:
     + Sync
     + Send
 {
+    /// Clone the function into a Boxed object.
     fn box_clone(&self) -> Box<dyn OperatorRunner>;
+
+    /// Convert the underlying function into a [`JobRunner`] that sets up the Operator.
+    /// 
+    /// This method retrieves the actual [`ReadStream`] IDs of the Operator after the compilation
+    /// step has resolved the IDs of the LoopStreams, and returns a function that sets up the
+    /// Operator.
     fn to_job_runner(self, operator: &AbstractOperator) -> Result<Box<dyn JobRunner>, GraphCompilationError>;
 }
 

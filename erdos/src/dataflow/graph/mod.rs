@@ -227,31 +227,59 @@ impl fmt::Debug for dyn AbstractStreamT {
     }
 }
 
-/// The [`OperatorType`] enum represents the type of operator that
-/// the [`AbstractOperator`] refers to.
+/// An enum representing the type of the operator that teh [`AbstractOperator`] refers to.
+/// 
+/// See the [`operator`](crate::dataflow::operator) module for the corresponding traits.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) enum AbstractOperatorType {
+    /// A variant representing an operator that implements the 
+    /// [`Source`](crate::dataflow::operator::Source) trait.
     Source,
+    /// A variant representing an operator that implements the 
+    /// [`ParallelSink`](crate::dataflow::operator::ParallelSink) trait.
     ParallelSink,
+    /// A variant representing an operator that implements the 
+    /// [`Sink`](crate::dataflow::operator::Sink) trait.
     Sink,
+    /// A variant representing an operator that implements the 
+    /// [`ParallelOneInOneOut`](crate::dataflow::operator::ParallelOneInOneOut) trait.
     ParallelOneInOneOut,
+    /// A variant representing an operator that implements the 
+    /// [`OneInOneOut`](crate::dataflow::operator::OneInOneOut) trait.
     OneInOneOut,
+    /// A variant representing an operator that implements the 
+    /// [`ParallelTwoInOneOut`](crate::dataflow::operator::ParallelTwoInOneOut) trait.
     ParallelTwoInOneOut,
+    /// A variant representing an operator that implements the 
+    /// [`TwoInOneOut`](crate::dataflow::operator::TwoInOneOut) trait.
     TwoInOneOut,
+    /// A variant representing an operator that implements the 
+    /// [`ParallelOneInTwoOut`](crate::dataflow::operator::ParallelOneInTwoOut) trait.
     ParallelOneInTwoOut,
+    /// A variant representing an operator that implements the 
+    /// [`OneInTwoOut`](crate::dataflow::operator::OneInTwoOut) trait.
     OneInTwoOut,
 }
 
-/// The representation of the operator used to set up and configure the dataflow.
+/// An abstract representation of each of the [`Operator`](crate::dataflow::operator) in a 
+/// dataflow graph.
+/// 
+/// This structure is communicated by a [`Worker`](crate::node::WorkerNode) to a 
+/// [`Leader`](crate::node::Leader) in order to enable the scheduling of the 
+/// [`JobGraph`](crate::dataflow::graph::JobGraph).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct AbstractOperator {
+    /// The ID of the `Operator` that this instance abstracts.
     pub id: OperatorId,
-    /// Operator configuration.
+    /// The configuration of the `Operator` that this instance abstracts.
     pub config: OperatorConfig,
-    /// Streams on which the operator reads.
+    /// The IDs of the [`ReadStream`](crate::dataflow::stream::ReadStream)s from where the 
+    /// `Operator` underlying this instance retrieves its data from.
     pub read_streams: Vec<StreamId>,
-    /// Streams on which the operator writes.
+    /// The IDs of the [`WriteStream`](crate::dataflow::stream::WriteStream)s to where the 
+    /// `Operator` underlying this instance sends its output data.
     pub write_streams: Vec<StreamId>,
-    /// The type of the Operator.
+    /// The type of [trait](crate::dataflow::operator) implemented by the `Operator`
+    /// that this instance abstracts.
     pub operator_type: AbstractOperatorType,
 }

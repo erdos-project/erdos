@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::{dataflow::stream::StreamId, OperatorId};
 
 use super::{
-    JobGraphId, JobRunner, StreamSetupHook, {AbstractOperator, AbstractStreamT, Job},
+    JobGraphId, JobRunner, {AbstractOperator, AbstractStreamT, Job},
 };
 
 /// The [`InternalGraph`] is an internal representation of the Graph
