@@ -183,7 +183,7 @@ impl InternalGraph {
         let write_stream_option_copy = ingress_stream.get_write_stream();
         let id_copy = ingress_stream.id();
         let setup_hook =
-            move |stream_manager: &mut StreamManager| match stream_manager.write_stream(id_copy) {
+            move |stream_manager: &mut StreamManager| match stream_manager.take_write_stream(id_copy) {
                 Ok(write_stream) => {
                     write_stream_option_copy
                         .lock()
@@ -265,7 +265,7 @@ impl InternalGraph {
         let write_stream_id = write_stream.id();
         let op_runner =
             move |_, _, stream_manager: &mut StreamManager| -> Box<dyn OperatorExecutorT> {
-                let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
+                let write_stream = stream_manager.take_write_stream(write_stream_id).unwrap();
 
                 let executor =
                     SourceExecutor::new(config_copy.clone(), operator_fn.clone(), write_stream);
@@ -417,7 +417,7 @@ impl InternalGraph {
             let read_stream = stream_manager
                 .take_read_stream(read_stream_id.unwrap(), Job::Operator(config_copy.id))
                 .unwrap();
-            let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
+            let write_stream = stream_manager.take_write_stream(write_stream_id).unwrap();
 
             Box::new(OneInExecutor::new(
                 config_copy.clone(),
@@ -476,7 +476,7 @@ impl InternalGraph {
             let read_stream = stream_manager
                 .take_read_stream(read_stream_id.unwrap(), Job::Operator(config_copy.id))
                 .unwrap();
-            let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
+            let write_stream = stream_manager.take_write_stream(write_stream_id).unwrap();
 
             Box::new(OneInExecutor::new(
                 config_copy.clone(),
@@ -541,7 +541,7 @@ impl InternalGraph {
             let right_read_stream = stream_manager
                 .take_read_stream(right_read_stream_id.unwrap(), Job::Operator(config_copy.id))
                 .unwrap();
-            let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
+            let write_stream = stream_manager.take_write_stream(write_stream_id).unwrap();
 
             Box::new(TwoInExecutor::new(
                 config_copy.clone(),
@@ -606,7 +606,7 @@ impl InternalGraph {
             let right_read_stream = stream_manager
                 .take_read_stream(right_read_stream_id.unwrap(), Job::Operator(config_copy.id))
                 .unwrap();
-            let write_stream = stream_manager.write_stream(write_stream_id).unwrap();
+            let write_stream = stream_manager.take_write_stream(write_stream_id).unwrap();
 
             Box::new(TwoInExecutor::new(
                 config_copy.clone(),
@@ -670,8 +670,8 @@ impl InternalGraph {
             let read_stream = stream_manager
                 .take_read_stream(read_stream_id.unwrap(), Job::Operator(config_copy.id))
                 .unwrap();
-            let left_write_stream = stream_manager.write_stream(left_write_stream_id).unwrap();
-            let right_write_stream = stream_manager.write_stream(right_write_stream_id).unwrap();
+            let left_write_stream = stream_manager.take_write_stream(left_write_stream_id).unwrap();
+            let right_write_stream = stream_manager.take_write_stream(right_write_stream_id).unwrap();
 
             Box::new(OneInExecutor::new(
                 config_copy.clone(),
@@ -738,8 +738,8 @@ impl InternalGraph {
             let read_stream = stream_manager
                 .take_read_stream(read_stream_id.unwrap(), Job::Operator(config_copy.id))
                 .unwrap();
-            let left_write_stream = stream_manager.write_stream(left_write_stream_id).unwrap();
-            let right_write_stream = stream_manager.write_stream(right_write_stream_id).unwrap();
+            let left_write_stream = stream_manager.take_write_stream(left_write_stream_id).unwrap();
+            let right_write_stream = stream_manager.take_write_stream(right_write_stream_id).unwrap();
 
             Box::new(OneInExecutor::new(
                 config_copy.clone(),

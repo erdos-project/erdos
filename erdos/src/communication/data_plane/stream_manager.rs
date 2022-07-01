@@ -102,7 +102,7 @@ where
         }
     }
 
-    /// Takes a `RecvEndpoint` out of the stream.
+    /// Takes the [`RecvEndpoint`] out of the stream.
     fn take_recv_endpoint(
         &mut self,
         job: Job,
@@ -119,9 +119,9 @@ where
         Ok(self.recv_endpoints.remove(&job).unwrap())
     }
 
-    /// Returns a cloned list of the `SendEndpoint`s the stream has.
-    fn get_send_endpoints(&mut self) -> HashMap<Job, SendEndpoint<Arc<Message<D>>>> {
-        self.send_endpoints.clone()
+    /// Takes the [`SendEndpoint`]s out of the stream.
+    fn take_send_endpoints(&mut self) -> HashMap<Job, SendEndpoint<Arc<Message<D>>>> {
+        self.send_endpoints.drain().collect()
     }
 
     /// Adds a [`SendEndpoint`] corresponding to the [`job`].
@@ -290,7 +290,11 @@ impl StreamManager {
         )
     }
 
-    /// This function can only be called once successfully.
+    /// Retrieves the [`ReadStream`] corresponding to the `read_stream_id` and the
+    /// job that receives the data.
+    ///
+    /// This method can only be called once successfully per `receiving_job`, and 
+    /// will return an error if called again.
     pub fn take_read_stream<D>(
         &mut self,
         read_stream_id: StreamId,
@@ -326,7 +330,10 @@ impl StreamManager {
         }
     }
 
-    pub fn write_stream<D>(
+    /// Retrieves the [`WriteStream`] corresponding to the `write_stream_id`.
+    /// 
+    /// This method can only be called once succesfully.
+    pub fn take_write_stream<D>(
         &mut self,
         write_stream_id: StreamId,
     ) -> Result<WriteStream<D>, CommunicationError>
@@ -338,7 +345,7 @@ impl StreamManager {
                 .as_any()
                 .downcast_mut::<StreamEndpoints<D>>()
             {
-                let send_endpoints = stream_endpoints.get_send_endpoints();
+                let send_endpoints = stream_endpoints.take_send_endpoints();
                 Ok(WriteStream::new(
                     stream_endpoints.id(),
                     &stream_endpoints.name(),
