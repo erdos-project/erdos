@@ -12,7 +12,8 @@ use crate::{
             endpoints::{RecvEndpoint, SendEndpoint},
             Pusher,
         },
-        errors::CommunicationError, InterProcessMessage,
+        errors::CommunicationError,
+        InterWorkerMessage,
     },
     dataflow::{
         graph::{AbstractStreamT, Job},
@@ -57,7 +58,7 @@ pub(crate) trait StreamEndpointsT: Send {
     fn add_inter_worker_send_endpoint(
         &mut self,
         job: Job,
-        channel_to_data_sender: UnboundedSender<InterProcessMessage>,
+        channel_to_data_sender: UnboundedSender<InterWorkerMessage>,
     );
 
     /// Adds a [`RecvEndpoint`] for the given [`job`] on the Stream for which this
@@ -165,7 +166,7 @@ where
     fn add_inter_worker_send_endpoint(
         &mut self,
         job: Job,
-        channel_to_data_sender: UnboundedSender<InterProcessMessage>,
+        channel_to_data_sender: UnboundedSender<InterWorkerMessage>,
     ) {
         self.add_send_endpoint(
             job,

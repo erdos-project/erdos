@@ -1,5 +1,5 @@
 //! Abstractions for communication between ERDOS [`Worker`]s and the [`Leader`].
-//! 
+//!
 //! [`Worker`]: crate::node::WorkerNode
 //! [`Leader`]: crate::node::Leader
 

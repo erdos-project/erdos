@@ -6,7 +6,7 @@ use tokio::{sync::mpsc, task::unconstrained};
 use crate::{
     communication::{
         errors::{CommunicationError, TryRecvError},
-        InterProcessMessage, Serializable,
+        InterWorkerMessage, Serializable,
     },
     dataflow::stream::StreamId,
 };
@@ -19,7 +19,7 @@ pub(crate) enum SendEndpoint<D: Clone + Send + Debug> {
     /// Send messages to operators running on a different node.
     /// Data is first sent to [`DataSender`](crate::communication::senders::DataSender)
     /// which encodes and sends the message on a TCP stream.
-    InterProcess(StreamId, mpsc::UnboundedSender<InterProcessMessage>),
+    InterProcess(StreamId, mpsc::UnboundedSender<InterWorkerMessage>),
 }
 
 /// Zero-copy implementation of the endpoint.
@@ -29,7 +29,7 @@ impl<D: 'static + Serializable + Send + Sync + Debug> SendEndpoint<Arc<D>> {
         match self {
             Self::InterThread(sender) => sender.send(msg).map_err(CommunicationError::from),
             Self::InterProcess(stream_id, sender) => sender
-                .send(InterProcessMessage::new_deserialized(msg, *stream_id))
+                .send(InterWorkerMessage::new_deserialized(msg, *stream_id))
                 .map_err(CommunicationError::from),
         }
     }

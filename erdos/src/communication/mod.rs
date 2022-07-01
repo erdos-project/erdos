@@ -36,26 +36,26 @@ pub(crate) mod errors;
 use serializable::Serializable;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Metadata {
+pub(crate) enum Metadata {
     MessageMetadata(MessageMetadata),
     EhloMetadata(EhloMetadata),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MessageMetadata {
+pub(crate) struct MessageMetadata {
     pub stream_id: StreamId,
 }
 
 /// The metadata shared by [`Worker`](crate::node::WorkerHandle)s upon initiating a
 /// [data plane](crate::communication::data_plane) connection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EhloMetadata {
+pub(crate) struct EhloMetadata {
     /// The ID of the [`Worker`](crate::node::WorkerHandle) initiating the handshake.
     pub worker_id: WorkerId,
 }
 
 #[derive(Clone)]
-pub(crate) enum InterProcessMessage {
+pub(crate) enum InterWorkerMessage {
     Serialized {
         metadata: MessageMetadata,
         bytes: BytesMut,
@@ -69,7 +69,7 @@ pub(crate) enum InterProcessMessage {
     },
 }
 
-impl InterProcessMessage {
+impl InterWorkerMessage {
     pub fn new_serialized(bytes: BytesMut, metadata: MessageMetadata) -> Self {
         Self::Serialized { metadata, bytes }
     }

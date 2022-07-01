@@ -14,7 +14,7 @@ use tokio_util::codec::Framed;
 use crate::{
     communication::{
         control_plane::notifications::WorkerAddress, errors::CommunicationError, EhloMetadata,
-        InterProcessMessage,
+        InterWorkerMessage,
     },
     dataflow::{
         graph::{AbstractStreamT, Job},
@@ -251,7 +251,7 @@ impl DataPlane {
         let other_worker_id = if let Some(result) = worker_stream.next().await {
             match result {
                 Ok(message) => {
-                    if let InterProcessMessage::Ehlo { metadata } = message {
+                    if let InterWorkerMessage::Ehlo { metadata } = message {
                         let other_worker_id = metadata.worker_id;
                         tracing::debug!(
                             "[DataPlane {}] Received an incoming connection from \
@@ -307,7 +307,7 @@ impl DataPlane {
                 let (mut worker_sink, worker_stream) =
                     Framed::new(worker_connection, MessageCodec::new()).split();
                 let _ = worker_sink
-                    .send(InterProcessMessage::Ehlo {
+                    .send(InterWorkerMessage::Ehlo {
                         metadata: EhloMetadata {
                             worker_id: self.worker_id,
                         },

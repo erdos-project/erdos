@@ -9,7 +9,7 @@ use tokio::{
 use tokio_util::codec::Framed;
 
 use crate::{
-    communication::{errors::CommunicationError, InterProcessMessage},
+    communication::{errors::CommunicationError, InterWorkerMessage},
     node::WorkerId,
 };
 
@@ -22,10 +22,10 @@ pub(crate) struct DataSender {
     /// The ID of the [`Worker`] that the TCP stream is sending data to.
     worker_id: WorkerId,
     /// The sender of the Framed TCP stream for the Worker connection.
-    tcp_stream: SplitSink<Framed<TcpStream, MessageCodec>, InterProcessMessage>,
+    tcp_stream: SplitSink<Framed<TcpStream, MessageCodec>, InterWorkerMessage>,
     /// MPSC channel to receive data messages from operators that are to
     /// be forwarded on the underlying TCP stream.
-    data_message_rx: UnboundedReceiver<InterProcessMessage>,
+    data_message_rx: UnboundedReceiver<InterWorkerMessage>,
     /// MPSC channel to communicate messages to the [`DataPlane`] handler.
     data_plane_notification_tx: UnboundedSender<DataPlaneNotification>,
 }
@@ -33,8 +33,8 @@ pub(crate) struct DataSender {
 impl DataSender {
     pub(crate) fn new(
         worker_id: WorkerId,
-        tcp_stream: SplitSink<Framed<TcpStream, MessageCodec>, InterProcessMessage>,
-        data_message_rx: UnboundedReceiver<InterProcessMessage>,
+        tcp_stream: SplitSink<Framed<TcpStream, MessageCodec>, InterWorkerMessage>,
+        data_message_rx: UnboundedReceiver<InterWorkerMessage>,
         data_plane_notification_tx: UnboundedSender<DataPlaneNotification>,
     ) -> Self {
         Self {

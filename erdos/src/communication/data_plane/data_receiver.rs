@@ -12,7 +12,8 @@ use tokio_util::codec::Framed;
 
 use crate::{
     communication::{
-        data_plane::notifications::DataPlaneNotification, errors::CommunicationError, InterProcessMessage,
+        data_plane::notifications::DataPlaneNotification, errors::CommunicationError,
+        InterWorkerMessage,
     },
     dataflow::stream::StreamId,
     node::WorkerId,
@@ -79,7 +80,7 @@ impl DataReceiver {
                         Ok(message) => {
                             // Read the Metadata from the Message.
                             let (metadata, bytes) = match message {
-                                InterProcessMessage::Serialized { metadata, bytes } => {
+                                InterWorkerMessage::Serialized { metadata, bytes } => {
                                     (metadata, bytes)
                                 }
                                 _ => unreachable!(),

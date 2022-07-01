@@ -9,7 +9,7 @@ use tokio::{
 use tokio_util::codec::Framed;
 
 use crate::{
-    communication::{errors::CommunicationError, InterProcessMessage},
+    communication::{errors::CommunicationError, InterWorkerMessage},
     dataflow::{graph::Job, stream::StreamId},
     node::WorkerId,
 };
@@ -26,13 +26,13 @@ pub struct WorkerConnection {
     data_sender_handle: JoinHandle<Result<(), CommunicationError>>,
     sender_initialized: bool,
     channel_to_data_receiver: UnboundedSender<DataPlaneNotification>,
-    channel_to_data_sender: UnboundedSender<InterProcessMessage>,
+    channel_to_data_sender: UnboundedSender<InterWorkerMessage>,
 }
 
 impl WorkerConnection {
     pub(crate) fn new(
         worker_id: WorkerId,
-        worker_sink: SplitSink<Framed<TcpStream, MessageCodec>, InterProcessMessage>,
+        worker_sink: SplitSink<Framed<TcpStream, MessageCodec>, InterWorkerMessage>,
         worker_stream: SplitStream<Framed<TcpStream, MessageCodec>>,
         channel_to_data_plane: UnboundedSender<DataPlaneNotification>,
     ) -> Self {
@@ -104,7 +104,7 @@ impl WorkerConnection {
             .map_err(CommunicationError::from)
     }
 
-    pub(crate) fn get_channel_to_sender(&self) -> UnboundedSender<InterProcessMessage> {
+    pub(crate) fn get_channel_to_sender(&self) -> UnboundedSender<InterWorkerMessage> {
         self.channel_to_data_sender.clone()
     }
 }

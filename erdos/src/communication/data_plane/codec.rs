@@ -3,7 +3,7 @@ use bytes::{BufMut, BytesMut};
 use std::fmt::Debug;
 use tokio_util::codec::{Decoder, Encoder};
 
-use crate::communication::{errors::CodecError, InterProcessMessage, Metadata};
+use crate::communication::{errors::CodecError, InterWorkerMessage, Metadata};
 
 const HEADER_SIZE: usize = 8;
 
@@ -40,7 +40,7 @@ impl MessageCodec {
 }
 
 impl Decoder for MessageCodec {
-    type Item = InterProcessMessage;
+    type Item = InterWorkerMessage;
     type Error = CodecError;
 
     /// Decodes a sequence of bytes into an InterProcessMessage.
@@ -48,7 +48,7 @@ impl Decoder for MessageCodec {
     /// Reads the header size, then the header, and finally the message.
     /// Reserves memory for the entire message to reduce upon reading the header
     /// costly memory allocations.
-    fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<InterProcessMessage>, CodecError> {
+    fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<InterWorkerMessage>, CodecError> {
         match self.status {
             // Decode the header and reserve
             DecodeStatus::Header => {
@@ -89,9 +89,9 @@ impl Decoder for MessageCodec {
                     let bytes = buf.split_to(data_size);
                     let msg = match self.metadata.take().unwrap() {
                         Metadata::MessageMetadata(metadata) => {
-                            InterProcessMessage::new_serialized(bytes, metadata)
+                            InterWorkerMessage::new_serialized(bytes, metadata)
                         }
-                        Metadata::EhloMetadata(metadata) => InterProcessMessage::new_ehlo(metadata),
+                        Metadata::EhloMetadata(metadata) => InterWorkerMessage::new_ehlo(metadata),
                     };
                     self.status = DecodeStatus::Header;
                     Ok(Some(msg))
@@ -103,21 +103,21 @@ impl Decoder for MessageCodec {
     }
 }
 
-impl Encoder<InterProcessMessage> for MessageCodec {
+impl Encoder<InterWorkerMessage> for MessageCodec {
     type Error = CodecError;
 
     /// Encodes a InterProcessMessage into a buffer.
     ///
     /// First writes the header_size, then the header, and finally the
     /// serialized message.
-    fn encode(&mut self, msg: InterProcessMessage, buf: &mut BytesMut) -> Result<(), CodecError> {
+    fn encode(&mut self, msg: InterWorkerMessage, buf: &mut BytesMut) -> Result<(), CodecError> {
         // Serialize and write the header.
         let (metadata, data) = match msg {
-            InterProcessMessage::Deserialized { metadata, data } => {
+            InterWorkerMessage::Deserialized { metadata, data } => {
                 (Metadata::MessageMetadata(metadata), Some(data))
             }
-            InterProcessMessage::Ehlo { metadata } => (Metadata::EhloMetadata(metadata), None),
-            InterProcessMessage::Serialized {
+            InterWorkerMessage::Ehlo { metadata } => (Metadata::EhloMetadata(metadata), None),
+            InterWorkerMessage::Serialized {
                 metadata: _,
                 bytes: _,
             } => unreachable!(),
