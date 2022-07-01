@@ -26,7 +26,7 @@ use crate::{
             notifications::{DataPlaneNotification, StreamType},
             DataPlane, StreamManager,
         },
-        CommunicationError,
+        errors::CommunicationError,
     },
     dataflow::{
         graph::{AbstractStreamT, Job, JobGraph, JobGraphId},

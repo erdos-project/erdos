@@ -8,8 +8,11 @@ use tokio::sync::mpsc::{self, UnboundedSender};
 
 use crate::{
     communication::{
-        data_plane::worker_connection::WorkerConnection, CommunicationError, InterProcessMessage,
-        Pusher, RecvEndpoint, SendEndpoint,
+        data_plane::{
+            endpoints::{RecvEndpoint, SendEndpoint},
+            Pusher,
+        },
+        errors::CommunicationError, InterProcessMessage,
     },
     dataflow::{
         graph::{AbstractStreamT, Job},
@@ -19,7 +22,7 @@ use crate::{
     node::WorkerId,
 };
 
-use super::pusher::PusherT;
+use super::{pusher::PusherT, worker_connection::WorkerConnection};
 
 pub(crate) trait StreamEndpointsT: Send {
     /// Upcasts the [`StreamEndpoints`] object to [`Any`].
@@ -293,7 +296,7 @@ impl StreamManager {
     /// Retrieves the [`ReadStream`] corresponding to the `read_stream_id` and the
     /// job that receives the data.
     ///
-    /// This method can only be called once successfully per `receiving_job`, and 
+    /// This method can only be called once successfully per `receiving_job`, and
     /// will return an error if called again.
     pub fn take_read_stream<D>(
         &mut self,
@@ -331,7 +334,7 @@ impl StreamManager {
     }
 
     /// Retrieves the [`WriteStream`] corresponding to the `write_stream_id`.
-    /// 
+    ///
     /// This method can only be called once succesfully.
     pub fn take_write_stream<D>(
         &mut self,

@@ -6,7 +6,7 @@ use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::format::FmtSpan;
 
 use crate::{
-    communication::{control_plane::notifications::DriverNotification, CommunicationError},
+    communication::{control_plane::notifications::DriverNotification, errors::CommunicationError},
     dataflow::{
         graph::{GraphCompilationError, JobGraphId},
         Graph,
@@ -198,7 +198,7 @@ impl WorkerHandle {
     }
 
     /// Submits the [`Graph`] to the `Leader` for execution.
-    /// 
+    ///
     /// This method automatically invokes the [`register`] method.
     pub fn submit(&self, graph: Graph) -> Result<JobGraphId, HandleError> {
         // Compile the JobGraph and register it with the Worker.

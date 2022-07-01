@@ -1,4 +1,4 @@
-use crate::communication::{CommunicationError, TryRecvError};
+use crate::communication::errors::{CommunicationError, TryRecvError};
 
 /// Errors raised when something went wrong while reading from a `ReadStream`.
 #[derive(Debug, PartialEq)]

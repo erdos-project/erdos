@@ -1,4 +1,7 @@
-//! Data structures for control plane communication between ERDOS Workers and the Leader.
+//! Abstractions for communication between ERDOS [`Worker`]s and the [`Leader`].
+//! 
+//! [`Worker`]: crate::node::WorkerNode
+//! [`Leader`]: crate::node::Leader
 
 // Private Modules.
 mod codec;

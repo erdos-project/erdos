@@ -1,5 +1,5 @@
 //! Abstractions for communication between a [`Leader`] and the [`Worker`]s,
-//! and between [`Worker`].
+//! and between [`Worker`]s.
 //!
 //! This module provides support for the following two major communication patterns:
 //! 1. [Control Plane] which enables a [`Leader`] to communicate with the [`Worker`]s and
@@ -25,22 +25,15 @@ use serde::{Deserialize, Serialize};
 use crate::{dataflow::stream::StreamId, node::WorkerId};
 
 // Private submodules
-mod errors;
 mod serializable;
 
 // Crate-wide visible submodules
 pub(crate) mod control_plane;
 pub(crate) mod data_plane;
+pub(crate) mod errors;
 
 // Private imports
 use serializable::Serializable;
-
-// Module-wide exports
-pub(crate) use data_plane::{
-    endpoints::{RecvEndpoint, SendEndpoint},
-    DataPlane, Pusher,
-};
-pub(crate) use errors::{CodecError, CommunicationError, TryRecvError};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Metadata {
@@ -62,7 +55,7 @@ pub struct EhloMetadata {
 }
 
 #[derive(Clone)]
-pub enum InterProcessMessage {
+pub(crate) enum InterProcessMessage {
     Serialized {
         metadata: MessageMetadata,
         bytes: BytesMut,

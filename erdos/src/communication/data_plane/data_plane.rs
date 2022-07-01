@@ -13,7 +13,7 @@ use tokio_util::codec::Framed;
 
 use crate::{
     communication::{
-        control_plane::notifications::WorkerAddress, CommunicationError, EhloMetadata,
+        control_plane::notifications::WorkerAddress, errors::CommunicationError, EhloMetadata,
         InterProcessMessage,
     },
     dataflow::{

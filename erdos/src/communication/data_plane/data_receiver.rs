@@ -12,7 +12,7 @@ use tokio_util::codec::Framed;
 
 use crate::{
     communication::{
-        data_plane::notifications::DataPlaneNotification, CommunicationError, InterProcessMessage,
+        data_plane::notifications::DataPlaneNotification, errors::CommunicationError, InterProcessMessage,
     },
     dataflow::stream::StreamId,
     node::WorkerId,

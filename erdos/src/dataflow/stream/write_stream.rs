@@ -7,7 +7,7 @@ use std::{
 use serde::Deserialize;
 
 use crate::{
-    communication::{Pusher, SendEndpoint},
+    communication::data_plane::{endpoints::SendEndpoint, Pusher},
     dataflow::{deadlines::ConditionContext, graph::Job, Data, Message, Timestamp},
 };
 

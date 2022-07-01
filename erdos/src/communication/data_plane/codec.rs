@@ -3,9 +3,7 @@ use bytes::{BufMut, BytesMut};
 use std::fmt::Debug;
 use tokio_util::codec::{Decoder, Encoder};
 
-
-use crate::communication::{CodecError, InterProcessMessage, Metadata};
-
+use crate::communication::{errors::CodecError, InterProcessMessage, Metadata};
 
 const HEADER_SIZE: usize = 8;
 
@@ -26,7 +24,7 @@ enum DecodeStatus {
 /// For each message, the codec first writes the size of its message header,
 /// then the message header, and finally the content of the message.
 #[derive(Debug)]
-pub struct MessageCodec {
+pub(crate) struct MessageCodec {
     /// Current part of the message to decode.
     status: DecodeStatus,
     metadata: Option<Metadata>,

@@ -5,7 +5,7 @@ use bytes::BytesMut;
 use serde::{Deserialize, Serialize};
 use tokio_util::codec::{Decoder, Encoder};
 
-use crate::communication::CodecError;
+use crate::communication::errors::CodecError;
 
 pub struct ControlPlaneCodec<T, U>
 where

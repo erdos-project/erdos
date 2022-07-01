@@ -4,13 +4,16 @@ use futures::FutureExt;
 use tokio::{sync::mpsc, task::unconstrained};
 
 use crate::{
-    communication::{CommunicationError, InterProcessMessage, Serializable, TryRecvError},
+    communication::{
+        errors::{CommunicationError, TryRecvError},
+        InterProcessMessage, Serializable,
+    },
     dataflow::stream::StreamId,
 };
 
 /// Endpoint to be used to send messages between operators.
 #[derive(Clone)]
-pub enum SendEndpoint<D: Clone + Send + Debug> {
+pub(crate) enum SendEndpoint<D: Clone + Send + Debug> {
     /// Send messages to an operator running in the same process.
     InterThread(mpsc::UnboundedSender<D>),
     /// Send messages to operators running on a different node.

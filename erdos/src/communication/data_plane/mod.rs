@@ -1,3 +1,7 @@
+//! Abstractions for communicating messages across [`Worker`]s.
+//! 
+//! [`Worker`]: crate::node::WorkerNode
+
 // Private Submodules
 mod codec;
 mod data_plane;

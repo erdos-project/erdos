@@ -9,7 +9,7 @@ use tokio::{
 use tokio_util::codec::Framed;
 
 use crate::{
-    communication::{CommunicationError, InterProcessMessage},
+    communication::{errors::CommunicationError, InterProcessMessage},
     node::WorkerId,
 };
 

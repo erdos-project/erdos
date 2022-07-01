@@ -19,9 +19,9 @@ use crate::{
             },
             ControlPlaneCodec,
         },
-        CommunicationError,
+        errors::CommunicationError,
     },
-    dataflow::graph::{Job, JobGraphId, AbstractJobGraph},
+    dataflow::graph::{AbstractJobGraph, Job, JobGraphId},
     node::WorkerState,
     scheduler::{JobGraphScheduler, SimpleJobGraphScheduler},
 };

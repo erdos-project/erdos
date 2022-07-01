@@ -10,8 +10,9 @@ use serde::Deserialize;
 
 use crate::{
     communication::{
+        data_plane::endpoints::SendEndpoint,
         serializable::{Deserializable, DeserializedMessage, Serializable},
-        CommunicationError, SendEndpoint,
+        errors::CommunicationError,
     },
     dataflow::{graph::Job, stream::StreamId, Data},
 };
