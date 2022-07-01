@@ -10,7 +10,7 @@ T = TypeVar("T")
 class Message(Generic[T]):
     """A :py:class:`Message` allows an operator to send timestamped data to
     other operators via a :py:class:`WriteStream` or an
-    :py:class:`IngestStream`.
+    :py:class:`IngressStream`.
 
     Attributes:
         timestamp: The timestamp of the message.

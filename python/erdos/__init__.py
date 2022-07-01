@@ -74,6 +74,7 @@ def profile_method(**decorator_kwargs):
 
 
 __all__ = [
+    "Graph",
     "Stream",
     "ReadStream",
     "WriteStream",
@@ -95,5 +96,4 @@ __all__ = [
     "run_async",
     "profile_method",
     "NodeHandle",
-    "Graph",
 ]

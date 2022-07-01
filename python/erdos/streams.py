@@ -374,7 +374,7 @@ class IngressStream(Stream[T]):
 
     The driver can initialize a new :py:class:`IngressStream` and connect it to
     an operator through the :code:`connect` family of functions. Similar to a
-    :py:class:`WriteStream`, an :py:class:`IngestStream` provides a
+    :py:class:`WriteStream`, an :py:class:`IngressStream` provides a
     :py:func:`IngressStream.send` to enable the driver to send data to the
     operator to which it was connected.
 

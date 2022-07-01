@@ -6,8 +6,8 @@ applications.*
 
 The system is built using techniques from streaming dataflow systems which is
 reflected by the API.
-Applications are modeled as directed graphs, in which data flows through
-:doc:`streams <streams>` and is processed by :doc:`operators <operators>`.
+Applications are modeled as directed :doc: `graphs <graph>`, in which data flows 
+through :doc:`streams <streams>` and is processed by :doc:`operators <operators>`.
 Because applications often resemble a sequence of connected operators,
 an ERDOS application may also be referred to as a *pipeline*.
 
@@ -24,18 +24,20 @@ for connecting operators via streams. For information on building operators, see
 
 .. code-block:: python
 
+  graph = Graph()
+
   # Create a camera operator which generates a stream of RGB images.
-  camera_frames = erdos.connect_source(CameraOp, erdos.OperatorConfig())
+  camera_frames = graph.connect_source(CameraOp, erdos.OperatorConfig())
   # Connect an object detection operator which uses the provided model to
   # detect objects and compute bounding boxes.
-  bounding_boxes = erdos.connect_one_in_one_out(
+  bounding_boxes = graph.connect_one_in_one_out(
       ObjectDetectorOp,
       erdos.OperatorConfig(),
       camera_frames,
       model="models/ssd_mobilenet_v1_coco")
   # Connect semantic segmentation operator to the camera which computes the
   # semantic segmentation for each image.
-  segmentation = erdos.connect_one_in_one_out(SegmentationOp,
+  segmentation = graph.connect_one_in_one_out(SegmentationOp,
                                               erdos.OperatorConfig(),
                                               camera_frames,
                                               model="models/drn_d_22_cityscapes")
@@ -43,10 +45,10 @@ for connecting operators via streams. For information on building operators, see
   actions = erdos.connect_two_in_one_out(ActionOp, erdos.OperatorConfig(),
                                          bounding_boxes, segmentation)
   # Create a robot operator which interfaces with the robot to apply actions.
-  erdos.connect_sink(RobotOp, erdos.OperatorConfig(), actions)
+  graph.connect_sink(RobotOp, erdos.OperatorConfig(), actions)
 
   # Execute the application.
-  erdos.run()
+  graph.run()
 
 Further examples are available on
 `GitHub <https://github.com/erdos-project/erdos/tree/master/python/examples>`_
@@ -62,7 +64,7 @@ The driver is typically the main section of the program.
 The driver may also interact with a running ERDOS application.
 Using the :py:class:`.IngressStream`, the driver can send
 data to operators on a stream.
-The :py:class:`.ExtractStream` allows the driver to read
+The :py:class:`.EgressStream` allows the driver to read
 data sent from an operator.
 
 
@@ -95,7 +97,7 @@ View the `codebase on GitHub <https://github.com/erdos-project/erdos>`_.
 
 You can export the dataflow graph as a 
 `DOT file <https://en.wikipedia.org/wiki/DOT_(graph_description_language)>`_
-by setting the ``graph_filename`` argument in :py:func:`erdos.run`.
+by setting the ``graph_filename`` argument in :py:func:`.run`.
 
 
 More Information

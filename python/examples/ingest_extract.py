@@ -29,10 +29,10 @@ def main():
     while True:
         timestamp = erdos.Timestamp(coordinates=[count])
         send_msg = erdos.Message(timestamp, count)
-        print("IngestStream: sending {send_msg}".format(send_msg=send_msg))
+        print("IngressSteram: sending {send_msg}".format(send_msg=send_msg))
         ingress_stream.send(send_msg)
         recv_msg = egress_stream.read()
-        print("ExtractStream: received {recv_msg}".format(recv_msg=recv_msg))
+        print("EgressStream: received {recv_msg}".format(recv_msg=recv_msg))
 
         count += 1
         time.sleep(1)

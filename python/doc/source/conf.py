@@ -65,6 +65,10 @@ internal_classes = {
     "PyReadStream": "erdos.internal.PyReadStream",
     "PyOperatorStream": "erdos.internal.PyOperatorStream",
     "PyStream": "erdos.internal.PyStream",
+    "PyIngressStream": "erdos.internal.PyIngressStream",
+    "PyEgressStream": "erdos.internal.PyEgressStream",
+    "PyLoopStream": "erdos.internal.PyLoopStream",
+    "PyGraph": "erdos.internal.PyGraph",
 }
 
 mock_erdos_internal = mock.Mock()
