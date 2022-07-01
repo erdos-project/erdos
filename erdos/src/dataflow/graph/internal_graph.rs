@@ -37,7 +37,7 @@ trait OperatorRunner:
     + Send
 {
     fn box_clone(&self) -> Box<dyn OperatorRunner>;
-    fn to_job_runner(self, operator: &AbstractOperator) -> Box<dyn JobRunner>;
+    fn to_job_runner(self, operator: &AbstractOperator) -> Result<Box<dyn JobRunner>, GraphCompilationError>;
 }
 
 impl<
@@ -52,35 +52,50 @@ impl<
         Box::new(self.clone())
     }
 
-    fn to_job_runner(self, operator: &AbstractOperator) -> Box<dyn JobRunner> {
+    fn to_job_runner(
+        self,
+        operator: &AbstractOperator,
+    ) -> Result<Box<dyn JobRunner>, GraphCompilationError> {
         match operator.operator_type {
-            AbstractOperatorType::Source => Box::new(
+            AbstractOperatorType::Source => Ok(Box::new(
                 move |stream_manager| -> Option<Box<dyn OperatorExecutorT>> {
                     let mut stream_manager = stream_manager.lock().unwrap();
                     let operator_executor = (self)(None, None, &mut stream_manager);
                     Some(operator_executor)
                 },
-            ),
+            )),
             AbstractOperatorType::ParallelSink
             | AbstractOperatorType::Sink
             | AbstractOperatorType::ParallelOneInOneOut
             | AbstractOperatorType::OneInOneOut
             | AbstractOperatorType::ParallelOneInTwoOut
             | AbstractOperatorType::OneInTwoOut => {
+                if operator.read_streams.len() < 1 {
+                    return Err(GraphCompilationError(format!(
+                        "Could not find the ReadStream ID for Operator {}.",
+                        operator.id,
+                    )));
+                }
                 let read_stream_id = operator.read_streams[0];
-                Box::new(
+                Ok(Box::new(
                     move |stream_manager| -> Option<Box<dyn OperatorExecutorT>> {
                         let mut stream_manager = stream_manager.lock().unwrap();
                         let operator_executor =
                             (self)(Some(read_stream_id), None, &mut stream_manager);
                         Some(operator_executor)
                     },
-                )
+                ))
             }
             AbstractOperatorType::ParallelTwoInOneOut | AbstractOperatorType::TwoInOneOut => {
+                if operator.read_streams.len() < 2 {
+                    return Err(GraphCompilationError(format!(
+                        "Could not find the ReadStream IDs for Operator {}",
+                        operator.id,
+                    )));
+                }
                 let left_read_stream_id = operator.read_streams[0];
                 let right_read_stream_id = operator.read_streams[1];
-                Box::new(
+                Ok(Box::new(
                     move |stream_manager| -> Option<Box<dyn OperatorExecutorT>> {
                         let mut stream_manager = stream_manager.lock().unwrap();
                         let operator_executor = (self)(
@@ -90,7 +105,7 @@ impl<
                         );
                         Some(operator_executor)
                     },
-                )
+                ))
             }
         }
     }
@@ -800,16 +815,18 @@ impl InternalGraph {
         }
 
         // Merge the setup hooks of the Driver streams into a single JobRunner.
-        let driver_runner: Box<dyn JobRunner> = Box::new(
-            move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
-                let mut stream_manager = stream_manager.lock().unwrap();
-                for driver_setup_hook in driver_setup_hooks.clone() {
-                    (driver_setup_hook)(&mut stream_manager);
-                }
-                None
-            },
-        );
-        job_runners.insert(Job::Driver, driver_runner);
+        if !driver_setup_hooks.is_empty() {
+            let driver_runner: Box<dyn JobRunner> = Box::new(
+                move |stream_manager: Arc<Mutex<StreamManager>>| -> Option<Box<dyn OperatorExecutorT>> {
+                    let mut stream_manager = stream_manager.lock().unwrap();
+                    for driver_setup_hook in driver_setup_hooks.clone() {
+                        (driver_setup_hook)(&mut stream_manager);
+                    }
+                    None
+                },
+            );
+            job_runners.insert(Job::Driver, driver_runner);
+        }
 
         // Move all the non-loop Streams into the JobGraph.
         let mut streams: HashMap<_, _> = self.streams.drain().collect();
@@ -870,7 +887,7 @@ impl InternalGraph {
                 })?;
             job_runners.insert(
                 operator_job.clone(),
-                operator_runner.to_job_runner(&abstract_operator),
+                operator_runner.to_job_runner(&abstract_operator)?,
             );
         }
 
