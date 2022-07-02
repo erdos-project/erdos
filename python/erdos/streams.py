@@ -422,9 +422,6 @@ class EgressStream(Stream[T]):
     :py:meth:`.try_read` for reading data published on the corresponding
     :py:class:`OperatorStream`.
 
-    Args:
-        py_egress_stream: The stream from which to read messages.
-
     Note:
         This class should not be initialized by the users.
     """
