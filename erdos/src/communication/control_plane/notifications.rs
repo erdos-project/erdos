@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     dataflow::graph::{AbstractJobGraph, Job, JobGraph, JobGraphId},
-    node::{Resources, WorkerId},
+    node::{JobState, Resources, WorkerId},
 };
 
 /// An enum specifying the notifications that a [`Driver`](crate::dataflow::graph::Job::Driver)
@@ -32,7 +32,7 @@ pub(crate) enum WorkerNotification {
     /// Informs the `Leader` that the [`Job`](crate::dataflow::graph::Job) from the
     /// [`Graph`](crate::dataflow::graph::Graph) with the provided ID is ready for
     /// execution.
-    JobReady(JobGraphId, Job),
+    JobUpdate(JobGraphId, Job, JobState),
     /// Submits a representation of the JobGraph with the given ID for
     /// scheduling by the Leader.
     SubmitGraph(JobGraphId, AbstractJobGraph),

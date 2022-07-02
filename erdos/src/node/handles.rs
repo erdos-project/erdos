@@ -156,6 +156,7 @@ impl WorkerHandle {
             config.data_plane_address,
             worker_resources,
             worker_rx,
+            config.num_threads,
         );
         let worker_task = worker_runtime.spawn(async move { worker.run().await });
         Self {

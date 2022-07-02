@@ -40,7 +40,7 @@ enum WorkerHandlerNotification {
     WorkerInitialized(WorkerState),
     ScheduleJobGraph(WorkerId, JobGraphId, AbstractJobGraph),
     ScheduleJob(JobGraphId, Job, WorkerId, HashMap<Job, WorkerAddress>),
-    JobReady(JobGraphId, Job),
+    JobUpdate(JobGraphId, Job, JobState),
     ExecuteGraph(JobGraphId, HashSet<WorkerId>),
     Shutdown(WorkerId),
     ShutdownAllWorkers,
@@ -180,11 +180,15 @@ impl Leader {
                 // We consider the Worker scheduling the JobGraph to be the Driver.
                 self.schedule_graph(driver_id, job_graph_id, job_graph, leader_to_workers_tx);
             }
-            WorkerHandlerNotification::JobReady(job_graph_id, job) => {
-                // Mark the job as ready, and if this was the last Job that required scheduling,
-                // then notify all of the Workers that the JobGraph was placed on to execute their
-                // jobs.
-                self.mark_job_ready(job_graph_id, job, leader_to_workers_tx);
+            WorkerHandlerNotification::JobUpdate(job_graph_id, job, job_state) => {
+                if job_state == JobState::Ready {
+                    // Mark the job as ready, and if this was the last Job that required scheduling,
+                    // then notify all of the Workers that the JobGraph was placed on to execute
+                    // their jobs.
+                    self.mark_job_ready(job_graph_id, job, leader_to_workers_tx);
+                } else {
+                    // TODO (Sukrit): Expand the set of states and updates.
+                }
             }
             WorkerHandlerNotification::Shutdown(worker_id) => {
                 self.worker_id_to_worker_state.remove(&worker_id);
@@ -241,15 +245,16 @@ impl Leader {
                                 )
                             );
                         },
-                        WorkerNotification::JobReady(job_graph_id, job) => {
+                        WorkerNotification::JobUpdate(job_graph_id, job, job_state) => {
                             tracing::trace!(
-                                "[WorkerHandler {}] Job {:?} from JobGraph {:?} is ready.",
+                                "[WorkerHandler {}] Job {:?} from JobGraph {:?} is in state {:?}.",
                                 id_of_this_worker,
                                 job,
                                 job_graph_id,
+                                job_state,
                             );
                             let _ = channel_to_leader.send(
-                                WorkerHandlerNotification::JobReady(job_graph_id, job)
+                                WorkerHandlerNotification::JobUpdate(job_graph_id, job, job_state)
                             );
                         }
                         WorkerNotification::SubmitGraph(job_graph_id, job_graph) => {

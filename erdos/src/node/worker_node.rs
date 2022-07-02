@@ -35,7 +35,7 @@ use crate::{
     node::{worker::Worker, Resources},
 };
 
-use super::{JobState, WorkerId};
+use super::{operator_executors::OperatorExecutorT, JobState, WorkerId};
 
 /// An alias for the type of the connection between the [`Leader`] and the [`Worker`].
 type ConnectionToLeader = SplitSink<
@@ -62,10 +62,15 @@ pub(crate) struct WorkerNode {
     pending_stream_setups: HashMap<Job, (JobGraphId, HashSet<StreamId>)>,
     /// A mapping of the `JobGraph` to the state of each scheduled `Job`.
     job_graph_to_job_state: HashMap<JobGraphId, HashMap<Job, JobState>>,
+    /// A memo of the OperatorExecutors that are pending for each JobGraph.
+    job_graph_to_operator_executor: HashMap<JobGraphId, Vec<Box<dyn OperatorExecutorT>>>,
     /// A handle to the [`StreamManager`] instance shared with the [`DataPlane`].
     /// The [`DataPlane`] populates the channels on the shared instance upon request,
     /// which are then retrieved for consumption by each [`Job`].
     stream_manager: Arc<Mutex<StreamManager>>,
+    /// A data structure that executes the operators.
+    // TODO (Sukrit): This should be incorporated into the WorkerNode.
+    worker: Worker,
 }
 
 impl WorkerNode {
@@ -76,6 +81,7 @@ impl WorkerNode {
         data_plane_address: SocketAddr,
         resources: Resources,
         driver_notification_rx: Receiver<DriverNotification>,
+        num_threads: usize,
     ) -> Self {
         Self {
             id,
@@ -86,7 +92,9 @@ impl WorkerNode {
             job_graphs: HashMap::new(),
             pending_stream_setups: HashMap::new(),
             job_graph_to_job_state: HashMap::new(),
+            job_graph_to_operator_executor: HashMap::new(),
             stream_manager: Arc::new(Mutex::new(StreamManager::new(id))),
+            worker: Worker::new(num_threads),
         }
     }
 
@@ -233,10 +241,42 @@ impl WorkerNode {
                                 // If the set is empty, notify the Leader of the
                                 // successful initialization of the Job.
                                 if pending_streams.is_empty() {
+                                    // Initialize the Job.
+                                    if let Some(job_graph) = self.job_graphs.get(job_graph_id) {
+                                        if let Some(job_runner) = job_graph.job_runner(&job) {
+                                            let stream_manager_copy =
+                                                Arc::clone(&self.stream_manager);
+                                            if let Some(operator_executor) =
+                                                (job_runner)(stream_manager_copy)
+                                            {
+                                                let operator_executors = self
+                                                    .job_graph_to_operator_executor
+                                                    .entry(job_graph_id.clone())
+                                                    .or_default();
+                                                operator_executors.push(operator_executor);
+                                            }
+                                        } else {
+                                            tracing::error!(
+                                                "[Worker {}] Could not find a Runner for \
+                                                Job {:?} in JobGraph {:?}.",
+                                                self.id,
+                                                job,
+                                                job_graph_id
+                                            );
+                                        }
+                                    } else {
+                                        tracing::error!(
+                                            "[Worker {}] Could not find a JobGraph with ID: {:?}.",
+                                            self.id,
+                                            job_graph_id,
+                                        );
+                                    }
+                                    // TODO (Sukrit): The JobRunner should be invoked here.
                                     if let Err(error) = leader_tx
-                                        .send(WorkerNotification::JobReady(
+                                        .send(WorkerNotification::JobUpdate(
                                             job_graph_id.clone(),
                                             job,
+                                            JobState::Ready,
                                         ))
                                         .await
                                     {
@@ -332,28 +372,19 @@ impl WorkerNode {
                     self.job_graph_to_job_state
                 );
 
-                // TODO (Sukrit): Fix this code.
-                let mut worker = Worker::new(2);
-                let mut operator_executors = Vec::new();
-                let job_graph = self.job_graphs.get(&job_graph_id).unwrap();
-                // TODO (Sukrit): If there was no state, then maybe the graph was not scheduled on this node.
-                for (job, _) in self.job_graph_to_job_state.get(&job_graph_id).unwrap() {
-                    if let Some(job_runner) = job_graph.job_runner(job) {
-                        let stream_manager_copy = Arc::clone(&self.stream_manager);
-                        if let Some(operator_executor) = (job_runner)(stream_manager_copy) {
-                            operator_executors.push(operator_executor);
-                        }
-                    } else {
-                        tracing::warn!(
-                            "[Worker {}] Could not find a Runner for Job {:?}",
-                            self.id,
-                            job
-                        );
-                    }
+                if let Some(operator_executors) =
+                    self.job_graph_to_operator_executor.remove(&job_graph_id)
+                {
+                    self.worker.spawn_tasks(operator_executors).await;
+                    self.worker.execute().await;
+                } else {
+                    tracing::error!(
+                        "[Worker {}] Could not find any executors for JobGraph {:?}.
+                            The graph was potentially not scheduled here.",
+                        self.id,
+                        job_graph_id,
+                    );
                 }
-                worker.spawn_tasks(operator_executors).await;
-                std::thread::sleep_ms(1000);
-                worker.execute().await;
             }
             // The shutdown arm is unreachable, because it should be handled in the main loop.
             LeaderNotification::Shutdown => unreachable!(),

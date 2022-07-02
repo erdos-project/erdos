@@ -38,8 +38,8 @@ pub use handles::{LeaderHandle, WorkerHandle};
 
 use crate::dataflow::graph::JobGraphId;
 
-#[derive(Debug, PartialEq)]
-enum JobState {
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub(crate) enum JobState {
     Scheduled,
     Ready,
     Executing,
