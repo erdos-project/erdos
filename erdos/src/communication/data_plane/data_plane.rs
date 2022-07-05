@@ -65,6 +65,10 @@ pub(crate) struct DataPlane {
 
 impl DataPlane {
     /// Initialize a [`DataPlane`].
+    /// 
+    /// The `DataPlane` can be requested to bind to a randomly-assigned address by specifying
+    /// the port in the `address` to 0. The corresponding address chosen by the `DataPlane`
+    /// can then be queried using `address`[DataPlane.address].
     ///
     /// # Arguments
     /// - `worker_id`: The ID of the [`Worker`] to whom this `DataPlane` belongs.
