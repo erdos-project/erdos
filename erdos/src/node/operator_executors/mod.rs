@@ -227,8 +227,8 @@ where
 
         // Execute the `run` method.
         tracing::debug!(
-            "Node {}: Running Operator {}",
-            self.config.node_id,
+            "Worker {}: Running Operator {}",
+            self.config.worker_id,
             self.config.get_name()
         );
         tokio::task::block_in_place(|| {
@@ -358,8 +358,8 @@ where
 
         // Execute the `run` method.
         tracing::debug!(
-            "Node {}: Running Operator {}",
-            self.config.node_id,
+            "Worker {}: Running Operator {}",
+            self.config.worker_id,
             self.config.get_name()
         );
         tokio::task::block_in_place(|| {

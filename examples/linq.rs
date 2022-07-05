@@ -9,7 +9,6 @@ use erdos::{
         stream::{WriteStream, WriteStreamT},
         Graph, Message, OperatorConfig, Timestamp,
     },
-    node::Node,
     Configuration,
 };
 
@@ -76,8 +75,8 @@ impl Sink<TimeVersionedState<usize>, usize> for SinkOperator {
 
 fn main() {
     let args = erdos::new_app("ERDOS").get_matches();
-    let mut node = Node::new(Configuration::from_args(&args));
-    let graph = Graph::new();
+
+    let graph = Graph::new("LINQ_Pipeline");
 
     let source_config = OperatorConfig::new().name("SourceOperator");
     // Streams data 0, 1, 2, ..., 9 with timestamps 0, 1, 2, ..., 9.
@@ -112,5 +111,5 @@ fn main() {
         &odds,
     );
 
-    node.run(graph);
+    // node.run(graph);
 }

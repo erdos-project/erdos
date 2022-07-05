@@ -12,7 +12,6 @@ use erdos::dataflow::state::TimeVersionedState;
 use erdos::dataflow::stream::*;
 use erdos::dataflow::Graph;
 use erdos::dataflow::*;
-use erdos::node::Node;
 use erdos::Configuration;
 
 struct SourceOperator {}
@@ -249,8 +248,9 @@ fn main() {
     //let mut s = TimestampDeadline::new().with_start_condition(45);
     //println!("The s value is {}", s.s);
     let args = erdos::new_app("ERDOS").get_matches();
-    let mut node = Node::new(Configuration::from_args(&args));
-    let graph = Graph::new();
+
+    // let mut node = Node::new(Configuration::from_args(&args));
+    let graph = Graph::new("FullPipeline");
 
     let source_config = OperatorConfig::new().name("SourceOperator");
     let source_stream = graph.connect_source(SourceOperator::new, source_config);
@@ -337,5 +337,5 @@ fn main() {
 
     let _egress_stream: EgressStream<usize> = square_stream.to_egress();
 
-    node.run(graph);
+    // node.run(graph);
 }

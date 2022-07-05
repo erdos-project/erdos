@@ -1,112 +1,180 @@
-use std::{collections::HashMap, fs::File, io::prelude::*};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+    fs::File,
+    io::prelude::*,
+};
+
+use serde::{Deserialize, Serialize};
 
 use crate::{dataflow::stream::StreamId, OperatorId};
 
 use super::{
-    StreamSetupHook, {AbstractOperator, AbstractStreamT, Job},
+    JobGraphId, JobRunner, {AbstractOperator, AbstractStreamT, Job},
 };
 
-pub(crate) struct JobGraph {
-    operators: Vec<AbstractOperator>,
-    streams: HashMap<StreamId, Box<dyn AbstractStreamT>>,
+/// The [`InternalGraph`] is an internal representation of the Graph
+/// that is communicated to the Leader by the Client / Workers.
+// TODO (Sukrit): This should be renamed as AbstractGraph once the
+// Graph abstraction is exposed to the developers as GraphBuilder.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct AbstractJobGraph {
+    /// The name of the JobGraph that this graph is a representation of.
+    name: String,
+    /// The mapping of all the operators in the Graph from their ID to
+    /// their [`AbstractOperator`] representation.
+    operators: HashMap<Job, AbstractOperator>,
+    /// A mapping from the ID of the Stream to the ID of the
+    /// AbstractOperator that generates data for it.
     stream_sources: HashMap<StreamId, Job>,
+    /// A mapping from the ID of the Stream to the IDs of the
+    /// AbstractOperators that consume the data from it.
     stream_destinations: HashMap<StreamId, Vec<Job>>,
-    driver_setup_hooks: Vec<Box<dyn StreamSetupHook>>,
+    /// A collection of IDs of the IngressStreams.
+    ingress_streams: HashSet<StreamId>,
+    /// A collection of IDs of the EgressStreams.
+    egress_streams: HashSet<StreamId>,
+}
+
+impl AbstractJobGraph {
+    pub(crate) fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Retrieve the [`AbstractOperator`] underlying the given [`Job`]
+    ///
+    /// Returns None if the Job was of variant [`Driver`] or the job was
+    /// not found in the graph.
+    pub(crate) fn operator(&self, job: &Job) -> Option<AbstractOperator> {
+        self.operators.get(job).cloned()
+    }
+
+    /// Retrieve the collection of [`AbstractOperator`]s in the Graph.
+    pub(crate) fn operators(&self) -> &HashMap<Job, AbstractOperator> {
+        &self.operators
+    }
+
+    /// Retrieve the [`Job`] that publishes the data on the given stream_id.
+    pub(crate) fn source(&self, stream_id: &StreamId) -> Option<Job> {
+        self.stream_sources.get(stream_id).cloned()
+    }
+
+    pub(crate) fn destinations(&self, stream_id: &StreamId) -> Vec<Job> {
+        match self.stream_destinations.get(stream_id) {
+            Some(destinations) => destinations.clone(),
+            None => Vec::new(),
+        }
+    }
+
+    pub(crate) fn ingress_streams(&self) -> HashSet<StreamId> {
+        self.ingress_streams.clone()
+    }
+
+    pub(crate) fn egress_streams(&self) -> HashSet<StreamId> {
+        self.egress_streams.clone()
+    }
+}
+
+impl From<JobGraph> for AbstractJobGraph {
+    fn from(job_graph: JobGraph) -> Self {
+        let mut sources = HashMap::new();
+        let mut destinations = HashMap::new();
+
+        for (stream_id, stream) in job_graph.streams.iter() {
+            sources.insert(*stream_id, stream.source().unwrap());
+            destinations.insert(*stream_id, stream.destinations());
+        }
+        Self {
+            name: job_graph.name.clone(),
+            operators: job_graph.operators.clone(),
+            stream_sources: sources,
+            stream_destinations: destinations,
+            ingress_streams: job_graph.ingress_streams.clone(),
+            egress_streams: job_graph.egress_streams.clone(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct JobGraph {
+    id: JobGraphId,
+    name: String,
+    operators: HashMap<Job, AbstractOperator>,
+    job_runners: HashMap<Job, Box<dyn JobRunner>>,
+    streams: HashMap<StreamId, Box<dyn AbstractStreamT>>,
+    ingress_streams: HashSet<StreamId>,
+    egress_streams: HashSet<StreamId>,
 }
 
 impl JobGraph {
     pub(crate) fn new(
-        operators: Vec<AbstractOperator>,
-        streams: Vec<Box<dyn AbstractStreamT>>,
-        ingress_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
-        egress_streams: HashMap<StreamId, Box<dyn StreamSetupHook>>,
+        name: String,
+        operators: HashMap<Job, AbstractOperator>,
+        job_runners: HashMap<Job, Box<dyn JobRunner>>,
+        streams: HashMap<StreamId, Box<dyn AbstractStreamT>>,
+        ingress_streams: HashSet<StreamId>,
+        egress_streams: HashSet<StreamId>,
     ) -> Self {
-        let mut stream_sources = HashMap::new();
-        let mut stream_destinations: HashMap<StreamId, Vec<Job>> = HashMap::new();
-
-        // Initialize stream destination vectors.
-        // Necessary because the JobGraph assumes that each stream
-        // has a destination vector (may be empty).
-        for s in streams.iter() {
-            stream_destinations.insert(s.id(), Vec::new());
-        }
-
-        for operator in operators.iter() {
-            for &read_stream_id in operator.read_streams.iter() {
-                stream_destinations
-                    .entry(read_stream_id)
-                    .or_default()
-                    .push(Job::Operator(operator.id));
-            }
-            for &write_stream_id in operator.write_streams.iter() {
-                stream_sources.insert(write_stream_id, Job::Operator(operator.id));
-            }
-        }
-
-        let mut driver_setup_hooks = Vec::new();
-        for (ingress_stream_id, setup_hook) in ingress_streams {
-            stream_sources.insert(ingress_stream_id, Job::Driver);
-            driver_setup_hooks.push(setup_hook);
-        }
-
-        for (egress_stream_id, setup_hook) in egress_streams {
-            stream_destinations
-                .entry(egress_stream_id)
-                .or_default()
-                .push(Job::Driver);
-            driver_setup_hooks.push(setup_hook);
-        }
-
         Self {
+            id: JobGraphId(name.clone()),
+            name,
             operators,
-            // Convert to a HashMap to easily query streams.
-            streams: streams.into_iter().map(|s| (s.id(), s)).collect(),
-            stream_sources,
-            stream_destinations,
-            driver_setup_hooks,
+            job_runners,
+            streams,
+            ingress_streams,
+            egress_streams,
         }
     }
 
-    /// Returns a copy of the operators in the graph.
-    pub fn operators(&self) -> Vec<AbstractOperator> {
-        self.operators.clone()
+    /// Retreives the name of the JobGraph.
+    pub(crate) fn name(&self) -> &str {
+        &self.name
     }
 
-    /// Returns the stream, the stream's source, and the stream's destinations.
-    pub fn get_streams(&self) -> Vec<(Box<dyn AbstractStreamT>, Job, Vec<Job>)> {
-        self.streams
-            .values()
-            .map(|s| {
-                let source = *self.stream_sources.get(&s.id()).unwrap_or_else(|| {
-                    panic!(
-                        "Internal error: stream {} (ID: {}) must have a source",
-                        s.name(),
-                        s.id()
-                    )
-                });
-                let destinations = self
-                    .stream_destinations
-                    .get(&s.id())
-                    .cloned()
-                    .unwrap_or_else(|| {
-                        panic!(
-                            "Internal error: stream {} (ID: {}) must have a destination",
-                            s.name(),
-                            s.id()
-                        )
-                    });
-                (s.box_clone(), source, destinations)
-            })
-            .collect()
+    /// Retrieves the ID of the JobGraph.
+    pub(crate) fn id(&self) -> JobGraphId {
+        self.id.clone()
     }
 
-    /// Returns the hooks used to set up ingress and egress streams.
-    pub fn get_driver_setup_hooks(&self) -> Vec<Box<dyn StreamSetupHook>> {
-        let mut driver_setup_hooks = Vec::new();
-        for i in 0..self.driver_setup_hooks.len() {
-            driver_setup_hooks.push(self.driver_setup_hooks[i].box_clone());
+    /// Retrieve the [`AbstractOperator`] for the given [`Job`].
+    pub(crate) fn operator(&self, job: &Job) -> Option<AbstractOperator> {
+        self.operators.get(job).cloned()
+    }
+
+    /// Retrieve the execution function for a particular operator in the graph.
+    pub(crate) fn job_runner(&self, job: &Job) -> Option<Box<dyn JobRunner>> {
+        match self.job_runners.get(job) {
+            Some(operator_runner) => Some(operator_runner.clone()),
+            None => None,
         }
-        driver_setup_hooks
+    }
+
+    pub fn stream(&self, stream_id: &StreamId) -> Option<Box<dyn AbstractStreamT>> {
+        self.streams.get(stream_id).cloned()
+    }
+
+    /// Returns the [`AbstractStream`] representations of the [`IngressStream`]s
+    /// registered in the [`JobGraph`].
+    pub fn ingress_streams(&self) -> Vec<Box<dyn AbstractStreamT>> {
+        let mut ingress_streams = Vec::new();
+        for ingress_stream_id in &self.ingress_streams {
+            if let Some(ingress_stream) = self.stream(&ingress_stream_id) {
+                ingress_streams.push(ingress_stream);
+            }
+        }
+        ingress_streams
+    }
+
+    /// Returns the [`AbstractStream`] representations of the [`EgressStream`]s
+    /// registered in the [`JobGraph`].
+    pub fn egress_streams(&self) -> Vec<Box<dyn AbstractStreamT>> {
+        let mut egress_streams = Vec::new();
+        for egress_stream_id in &self.egress_streams {
+            if let Some(egress_stream) = self.stream(&egress_stream_id) {
+                egress_streams.push(egress_stream);
+            }
+        }
+        egress_streams
     }
 
     /// Exports the job graph to a Graphviz file (*.gv, *.dot).
@@ -115,45 +183,69 @@ impl JobGraph {
         writeln!(file, "digraph erdos_dataflow {{")?;
 
         let driver_id = OperatorId::new_deterministic();
-        if !self.driver_setup_hooks.is_empty() {
-            writeln!(file, "   // Driver")?;
-            writeln!(file, "   \"{}\" [label=\"Driver\"];", driver_id)?;
-        }
+        // if !self.driver_setup_hooks.is_empty() {
+        //     writeln!(file, "   // Driver")?;
+        //     writeln!(file, "   \"{}\" [label=\"Driver\"];", driver_id)?;
+        // }
 
         writeln!(file, "   // Operators")?;
-        for operator in self.operators.iter() {
+        for operator in self.operators.values() {
             writeln!(
                 file,
                 "   \"{}\" [label=\"{}\n(Node {})\"];",
                 operator.id,
                 operator.config.get_name(),
-                operator.config.node_id,
+                operator.config.worker_id,
             )?;
         }
 
         writeln!(file, "   // Streams")?;
-        for (stream_id, source) in self.stream_sources.iter() {
-            let source_id = match source {
+        for stream in self.streams.values().into_iter() {
+            let source_id = match stream.source().unwrap() {
                 Job::Driver => driver_id,
-                Job::Operator(id) => *id,
+                Job::Operator(id) => id,
             };
-            if let Some(dests) = self.stream_destinations.get(stream_id) {
-                for dest in dests.iter() {
-                    let dest_id = match dest {
-                        Job::Driver => driver_id,
-                        Job::Operator(id) => *id,
-                    };
-                    let stream_name = self.streams.get(stream_id).unwrap().name();
-                    writeln!(
-                        file,
-                        "   \"{}\" -> \"{}\" [label=\"{}\"];",
-                        source_id, dest_id, stream_name
-                    )?;
-                }
+            for destination in stream.destinations().iter() {
+                let destination_id = match destination {
+                    Job::Driver => driver_id,
+                    Job::Operator(id) => *id,
+                };
+                let stream_name = stream.name();
+                writeln!(
+                    file,
+                    "   \"{}\" -> \"{}\" [label=\"{}\"];",
+                    source_id, destination_id, stream_name
+                )?;
             }
         }
-
         writeln!(file, "}}")?;
         file.flush()
+    }
+}
+
+impl fmt::Debug for JobGraph {
+    // Outputs an adjacency list representation of the JobGraph.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut adjacency_list = HashMap::new();
+        for operator in self.operators.values() {
+            let mut dependents = Vec::new();
+            for write_stream_id in operator.write_streams.iter() {
+                let write_stream = self.streams.get(write_stream_id).unwrap();
+                for dependent_job in write_stream.destinations() {
+                    match dependent_job {
+                        Job::Operator(dependent_job_id) => {
+                            if let Some(dependent_job) =
+                                self.operators.get(&Job::Operator(dependent_job_id))
+                            {
+                                dependents.push(dependent_job.config.get_name())
+                            }
+                        }
+                        Job::Driver => dependents.push("Driver".to_string()),
+                    }
+                }
+            }
+            adjacency_list.insert(operator.config.get_name(), dependents);
+        }
+        write!(f, "{:?}", adjacency_list)
     }
 }
