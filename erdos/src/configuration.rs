@@ -30,6 +30,9 @@ pub struct Configuration {
 
 impl Configuration {
     /// Creates a new [`Worker`](crate::node::WorkerHandle) configuration.
+    /// 
+    /// The `Worker` can be requested to choose a randomly-assigned port to listen for incoming
+    /// connections from other `Worker`s by specifying an address with the port 0.
     pub fn new(
         id: WorkerId,
         leader_address: SocketAddr,

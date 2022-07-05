@@ -224,7 +224,10 @@ pub fn new_app(name: &str) -> clap::App {
                 .short("d")
                 .long("data-address")
                 .default_value("0.0.0.0:0")
-                .help("The address of the DataPlane for the Worker."),
+                .help(
+                    "The address of the DataPlane for the Worker \
+                        (assigned to a random port by default).",
+                ),
         )
         .arg(
             Arg::with_name("address")
