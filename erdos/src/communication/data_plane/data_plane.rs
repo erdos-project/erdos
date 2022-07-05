@@ -30,16 +30,31 @@ use super::{
     StreamManager,
 };
 
-/// [`DataPlane`] manages the connections amongst Workers, and enables
-/// [`Worker`]s to communicate data messages to each other.
+/// A data structure that manages connections amongst [`Worker`]s, and constructs the Streams
+/// used by the `Operator`s to communicate to other `Operator`s.
 pub(crate) struct DataPlane {
+    /// The ID of the [`Worker`] to whom this `DataPlane` belongs.
     worker_id: WorkerId,
+    /// The TCP connection on which the `Worker` is listening for
+    /// incoming connections from other `Worker`s.
     worker_connection_listener: TcpListener,
+    /// A notification channel from the `Worker` to send notifications
+    /// to the `DataPlane`.
     channel_from_worker: UnboundedReceiver<DataPlaneNotification>,
+    /// A notification channel from the `DataPlane` to send notifications
+    /// to the `Worker`.
     channel_to_worker: UnboundedSender<DataPlaneNotification>,
+    /// A notification channel from the [`DataSender`]s and [`DataReceiver`]s
+    /// corresponding to the connections to other `Worker`s.
     channel_from_worker_connections: UnboundedReceiver<DataPlaneNotification>,
+    /// A notification channel to the `DataSender`s and `DataReceiver`s
+    /// corresponding to the connections to other `Worker`s.
     channel_from_worker_connections_tx: UnboundedSender<DataPlaneNotification>,
+    /// A mapping from the ID of the `Worker`s to whom this `DataPlane` maintains
+    /// connections to their `DataReceiver`s and `DataSender`s.
     connections_to_other_workers: HashMap<WorkerId, WorkerConnection>,
+    /// A shared reference to the [`StreamManager`] that contains communication
+    /// endpoints to be used by the `Operator`s.
     stream_manager: Arc<Mutex<StreamManager>>,
     /// Caches the Streams that need to be setup upon connection to a Worker
     /// with the given ID.
@@ -49,6 +64,18 @@ pub(crate) struct DataPlane {
 }
 
 impl DataPlane {
+    /// Initialize a [`DataPlane`].
+    ///
+    /// # Arguments
+    /// - `worker_id`: The ID of the [`Worker`] to whom this `DataPlane` belongs.
+    /// - `address`: The IP address where the `DataPlane` listens to connections from
+    ///    other `Worker`s.
+    /// - `stream_manager`: A shared reference to a `StreamManager` that is populated
+    ///    by the `DataPlane` with endpoints which are used by the `Job`s to retrieve
+    ///    and send messages.
+    /// - `channel_from_worker`: A notification channel to receive notifications from
+    ///    the `Worker`.
+    /// - `channel_to_worker`: A notification channel to send notifications to the `Worker`.
     pub async fn new(
         worker_id: WorkerId,
         address: SocketAddr,
@@ -78,6 +105,10 @@ impl DataPlane {
         })
     }
 
+    /// Execute the main loop of the `DataPlane`.
+    ///
+    /// This method begins listening for connections from other `Worker`s and for notifications
+    /// from the `Worker` for whom this `DataPlane` is executing.
     pub async fn run(&mut self) -> Result<(), CommunicationError> {
         tracing::info!(
             "[DataPlane {}] Running data plane for Worker {} at address: {}",
@@ -87,20 +118,28 @@ impl DataPlane {
         );
         loop {
             tokio::select! {
-                // Handle incoming connections from other workers.
+                // Respond to incoming TCP connections from other [`Worker`]s.
                 worker_connection = self.worker_connection_listener.accept() => {
                     match worker_connection {
                         Ok((worker_stream, worker_address)) => {
-                            match self.handle_incoming_worker_connection(worker_stream, worker_address).await {
-                                Ok(connection) => {
-                                    self.connections_to_other_workers.insert(connection.get_id(), connection);
+                            match self.handle_incoming_worker_connection(
+                                    worker_stream,
+                                    worker_address
+                                ).await {
+                                    Ok(connection) => {
+                                        self.connections_to_other_workers.insert(
+                                            connection.get_id(),
+                                            connection,
+                                        );
+                                    }
+                                    Err(error) => {
+                                        tracing::warn!("[DataPlane {}] {}", self.worker_id, error);
+                                    }
                                 }
-                                Err(_) => todo!(),
-                            }
                         }
                         Err(error) => {
                             tracing::error!(
-                                "[DataPlane {}] Received an error when handling a \
+                                "[DataPlane {}] Received an error when accepting a
                                                     Worker connection: {}",
                                 self.worker_id,
                                 error,
@@ -109,7 +148,7 @@ impl DataPlane {
                     }
                 }
 
-                // Handle messages from the Worker node.
+                // Respond to notifications from the [`Worker`] to whom this [`DataPlane`] belongs.
                 Some(worker_message) = self.channel_from_worker.recv() => {
                     match worker_message {
                         DataPlaneNotification::SetupStreams(job, streams) => {
@@ -123,32 +162,66 @@ impl DataPlane {
                                 );
                             }
                         }
-                        _ => unreachable!(),
+                        _ => {
+                            tracing::warn!(
+                                "[DataPlane {}] Unsupported notification from Worker: {:?}",
+                                self.worker_id,
+                                worker_message,
+                            )
+                        }
                     }
                 }
 
-                // Handle messages from the Senders and the Receivers.
+                // Respond to notifications from the `DataSender`s and `DataReceiver`s for the
+                // `Worker`s that this `DataPlane` is connected to.
                 Some(notification) = self.channel_from_worker_connections.recv() => {
-                    self.handle_notification_from_worker_connections(notification);
+                    if let Err(error) = self.handle_notification_from_worker_connections(
+                        notification,
+                    ) {
+                        tracing::warn!("[DataPlane {}] {}", self.worker_id, error);
+                    }
                 }
 
             }
         }
     }
 
-    fn handle_notification_from_worker_connections(&mut self, notification: DataPlaneNotification) {
+    /// Respond to a notification from other [`Worker`]s.
+    ///
+    /// # Arguments
+    /// - `notification`: The notification received from the [`DataSender`]s and [`DataReceiver`]s
+    /// for all the [`WorkerConnection`]s.
+    fn handle_notification_from_worker_connections(
+        &mut self,
+        notification: DataPlaneNotification,
+    ) -> Result<(), CommunicationError> {
         match notification {
             DataPlaneNotification::ReceiverInitialized(worker_id) => {
-                self.connections_to_other_workers
-                    .get_mut(&worker_id)
-                    .unwrap()
-                    .set_data_receiver_initialized();
+                match self.connections_to_other_workers.get_mut(&worker_id) {
+                    Some(worker_connection) => {
+                        worker_connection.set_data_receiver_initialized();
+                    }
+                    None => {
+                        return Err(CommunicationError::ProtocolError(format!(
+                            "Received a notification for the initialization of a DataReceiver \
+                                        for Worker {}, but no such connection was found.",
+                            worker_id,
+                        )));
+                    }
+                };
             }
             DataPlaneNotification::SenderInitialized(worker_id) => {
-                let worker_connection = self
-                    .connections_to_other_workers
-                    .get_mut(&worker_id)
-                    .unwrap();
+                let worker_connection = match self.connections_to_other_workers.get_mut(&worker_id)
+                {
+                    Some(worker_connection) => worker_connection,
+                    None => {
+                        return Err(CommunicationError::ProtocolError(format!(
+                            "Received a notification for the initialization of a DataSender \
+                                        for Worker {}, but no such connection was found.",
+                            worker_id,
+                        )));
+                    }
+                };
 
                 // Mark the sender as initialized and install any cached endpoints for this node.
                 worker_connection.set_data_sender_initialized();
@@ -175,38 +248,38 @@ impl DataPlane {
                                                     stream.id(),
                                                 ),
                                             ) {
-                                                tracing::warn!(
-                                                    "[DataPlane {}] Received error when notifying Worker \
-                                                        of StreamReady for Stream {} and Job {:?}: {:?}",
-                                                    self.worker_id,
-                                                    stream.id(),
-                                                    stream.source().unwrap(),
-                                                    error
-                                                );
+                                                return Err(CommunicationError::ProtocolError(
+                                                    format!(
+                                                        "Received error when notifying Worker of \
+                                                        StreamReady for Stream {} and Job {:?}: \
+                                                                                        {:?}",
+                                                        stream.id(),
+                                                        stream.source().unwrap(),
+                                                        error
+                                                    ),
+                                                ));
                                             }
                                             self.pending_job_setups.remove(&stream.id());
                                         }
                                     }
                                     false => {
-                                        tracing::warn!(
-                                            "[DataPlane {}] Could not find Job \
-                                            {:?} in pending jobs for Stream {}.",
-                                            self.worker_id,
+                                        return Err(CommunicationError::ProtocolError(format!(
+                                            "Could not find Job {:?} in pending \
+                                            jobs for Stream {}.",
                                             job,
                                             stream.id()
-                                        );
+                                        )));
                                     }
                                 }
                             }
                             None => {
-                                tracing::warn!(
-                                    "[DataPlane {}] Inconsistency between cached streams to be \
+                                return Err(CommunicationError::ProtocolError(format!(
+                                    "Inconsistency between cached streams to be \
                                     setup for Worker {}, Stream {} and Job {:?}.",
-                                    self.worker_id,
                                     worker_id,
                                     stream.id(),
                                     job
-                                );
+                                )));
                             }
                         }
                     }
@@ -218,14 +291,11 @@ impl DataPlane {
                     .channel_to_worker
                     .send(DataPlaneNotification::StreamReady(receiving_job, stream_id))
                 {
-                    tracing::error!(
-                        "[DataPlane {}] Received error when notifying Worker of \
-                                StreamReady for Stream {} and Job {:?}: {:?}",
-                        self.worker_id,
-                        stream_id,
-                        receiving_job,
-                        error
-                    );
+                    return Err(CommunicationError::ProtocolError(format!(
+                        "Received error when notifying Worker of StreamReady \
+                                        for Stream {} and Job {:?}: {:?}",
+                        stream_id, receiving_job, error
+                    )));
                 } else {
                     tracing::trace!(
                         "[DataPlane {}] Successfully notified Worker of \
@@ -236,10 +306,25 @@ impl DataPlane {
                     );
                 }
             }
-            _ => unreachable!(),
+            _ => {
+                return Err(CommunicationError::ProtocolError(format!(
+                    "Received unsupported notification: {:?}",
+                    notification
+                )));
+            }
         }
+        Ok(())
     }
 
+    /// Manage an incoming TCP connection from another [`Worker`] at the given address.
+    ///
+    /// The method performs the handshake procedure defined in
+    /// [`EHLO`](crate::communication::InterWorkerMessage::Ehlo) to retrieve the ID of
+    /// the remote `Worker`, and returns a new [`WorkerConnection`] object if successful.
+    ///
+    /// # Arguments:
+    /// - `tcp_stream`: The TCP connection initiated by the remote `Worker`.
+    /// - `worker_address`: The address of the remote `Worker`.
     async fn handle_incoming_worker_connection(
         &mut self,
         tcp_stream: TcpStream,
@@ -248,6 +333,7 @@ impl DataPlane {
         // Split the TCP stream into a Sink and Stream, and perform the EHLO handshake.
         let (worker_sink, mut worker_stream) =
             Framed::new(tcp_stream, MessageCodec::default()).split();
+
         let other_worker_id = if let Some(result) = worker_stream.next().await {
             match result {
                 Ok(message) => {
@@ -262,14 +348,8 @@ impl DataPlane {
                         );
                         other_worker_id
                     } else {
-                        tracing::error!(
-                            "[DataPlane {}] The EHLO procedure went wrong with \
-                                                    Worker at address {}!",
-                            self.worker_id,
-                            worker_address,
-                        );
                         return Err(CommunicationError::ProtocolError(format!(
-                            "EHLO protocol went wrong with the Worker at address {}",
+                            "EHLO protocol went wrong with the Worker at address {}.",
                             worker_address
                         )));
                     }
@@ -277,7 +357,10 @@ impl DataPlane {
                 Err(error) => return Err(error.into()),
             }
         } else {
-            unreachable!()
+            return Err(CommunicationError::ProtocolError(format!(
+                "No EHLO message received from Worker at address {}.",
+                worker_address
+            )));
         };
 
         // Create a new WorkerConnection.
@@ -290,7 +373,7 @@ impl DataPlane {
     }
 
     /// Initiates a TCP connection to another [`Worker`]'s [`DataPlane`] at the given address.
-    /// 
+    ///
     /// # Arguments
     /// - `other_worker_id`: The ID of the [`Worker`] being connected to.
     /// - `worker_address`: The address of the `Worker` being connected to.
@@ -299,44 +382,30 @@ impl DataPlane {
         other_worker_id: WorkerId,
         worker_address: SocketAddr,
     ) -> Result<WorkerConnection, CommunicationError> {
-        match TcpStream::connect(worker_address).await {
-            Ok(worker_connection) => {
-                tracing::debug!(
-                    "[DataPlane {}] Successfully connected to Worker {} at \
+        let worker_connection = TcpStream::connect(worker_address).await?;
+        tracing::debug!(
+            "[DataPlane {}] Successfully connected to Worker {} at \
                                                         address {}.",
-                    self.worker_id,
-                    other_worker_id,
-                    worker_address,
-                );
+            self.worker_id,
+            other_worker_id,
+            worker_address,
+        );
 
-                let (mut worker_sink, worker_stream) =
-                    Framed::new(worker_connection, MessageCodec::new()).split();
-                let _ = worker_sink
-                    .send(InterWorkerMessage::Ehlo {
-                        metadata: EhloMetadata {
-                            worker_id: self.worker_id,
-                        },
-                    })
-                    .await;
-                Ok(WorkerConnection::new(
-                    other_worker_id,
-                    worker_sink,
-                    worker_stream,
-                    self.channel_from_worker_connections_tx.clone(),
-                ))
-            }
-            Err(error) => {
-                tracing::error!(
-                    "[DataPlane {}] Received an error when connecting to Worker \
-                                                {} at address {}: {:?}",
-                    self.worker_id,
-                    other_worker_id,
-                    worker_address,
-                    error,
-                );
-                Err(error.into())
-            }
-        }
+        let (mut worker_sink, worker_stream) =
+            Framed::new(worker_connection, MessageCodec::new()).split();
+        worker_sink
+            .send(InterWorkerMessage::Ehlo {
+                metadata: EhloMetadata {
+                    worker_id: self.worker_id,
+                },
+            })
+            .await?;
+        Ok(WorkerConnection::new(
+            other_worker_id,
+            worker_sink,
+            worker_stream,
+            self.channel_from_worker_connections_tx.clone(),
+        ))
     }
 
     /// Sets up the `Stream`s for the given [`Job`].
