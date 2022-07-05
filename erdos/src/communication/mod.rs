@@ -48,6 +48,10 @@ pub(crate) struct MessageMetadata {
 
 /// The metadata shared by [`Worker`](crate::node::WorkerHandle)s upon initiating a
 /// [data plane](crate::communication::data_plane) connection.
+/// 
+/// This metadata is shared during the initial handshake protocol amonst `Worker`s
+/// and is akin to an 
+/// [SMTP Extended Hello](https://tldp.org/HOWTO/Spam-Filtering-for-MX/smtpchecks.html).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct EhloMetadata {
     /// The ID of the [`Worker`](crate::node::WorkerHandle) initiating the handshake.
