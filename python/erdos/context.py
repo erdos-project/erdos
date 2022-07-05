@@ -120,7 +120,5 @@ class TwoInOneOutContext:
 
     def __str__(self):
         return "TwoInOneOutContext(Timestamp={}, Config={}, WriteStream={})".format(
-            self.timestamp,
-            self.config,
-            self.write_stream.name(),
+            self.timestamp, self.config, self.write_stream.name(),
         )

@@ -6,7 +6,7 @@ applications.*
 
 The system is built using techniques from streaming dataflow systems which is
 reflected by the API.
-Applications are modeled as directed :doc: `graphs <graph>`, in which data flows 
+Applications are modeled as directed :doc:`graphs <graph>`, in which data flows 
 through :doc:`streams <streams>` and is processed by :doc:`operators <operators>`.
 Because applications often resemble a sequence of connected operators,
 an ERDOS application may also be referred to as a *pipeline*.
@@ -24,8 +24,8 @@ for connecting operators via streams. For information on building operators, see
 
 .. code-block:: python
 
+  # Create a dataflow graph to which we add operators and streams.
   graph = Graph()
-
   # Create a camera operator which generates a stream of RGB images.
   camera_frames = graph.connect_source(CameraOp, erdos.OperatorConfig())
   # Connect an object detection operator which uses the provided model to

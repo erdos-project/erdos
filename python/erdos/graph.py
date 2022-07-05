@@ -55,9 +55,13 @@ class Graph:
         self._num_py_operators = 0
 
     def add_ingress(self, name: str) -> IngressStream:
+        """Registers an :py:class:`.IngressStream` with the given :code:`name`
+        to the dataflow graph, and returns the created :py:class:`.IngressStream`."""
         return IngressStream(self._py_graph.add_ingress(name))
 
     def add_loop_stream(self) -> LoopStream:
+        """Registers a :py:class:`.LoopStream` to the dataflow graph, and
+        returns the created :py:class:`.LoopStream`. """
         return LoopStream(self._py_graph.add_loop_stream())
 
     def connect_source(
