@@ -25,7 +25,7 @@ fn setup_notification_channels() -> Result<NotificationChannel, Box<dyn std::err
     let mut signals = Signals::new(&[SIGINT])?;
     let signals_handle = signals.handle();
 
-    // Initialize a Broadcast channel to be used to talk to the nodes.
+    // Initialize a channel to be used to talk to the nodes.
     let (driver_notification_tx, driver_notification_rx) = mpsc::channel(100);
     let signals_task = tokio::spawn(async move {
         while let Some(signal) = signals.next().await {
