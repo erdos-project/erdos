@@ -15,6 +15,8 @@ use crate::{
     OperatorConfig,
 };
 
+use super::GraphCompilationError;
+
 /// A user defined dataflow graph representation.
 ///
 /// When adding various [`stream`](crate::dataflow::stream)s and
@@ -52,21 +54,20 @@ use crate::{
 ///
 /// See [`IngressStream`], [`EgressStream`](crate::dataflow::stream), [`LoopStream`], and the
 /// [`operators`](crate::dataflow::operators) for more examples.
-#[derive(Default)]
 pub struct Graph {
     internal_graph: Arc<Mutex<InternalGraph>>,
 }
 
 #[allow(dead_code)]
 impl Graph {
-    /// Creates a new Graph to which streams and operators can be added.
-    pub fn new() -> Self {
+    /// Creates a new `Graph` with the given `name` to which streams and operators can be added.
+    pub fn new(name: &str) -> Self {
         Self {
-            internal_graph: Arc::new(Mutex::new(InternalGraph::new())),
+            internal_graph: Arc::new(Mutex::new(InternalGraph::new(name.to_string()))),
         }
     }
 
-    /// Adds an [`IngressStream`] to the graph.
+    /// Adds an [`IngressStream`] with the given `name` to the `Graph`.
     pub fn add_ingress<D>(&self, name: &str) -> IngressStream<D>
     where
         for<'a> D: Data + Deserialize<'a>,
@@ -80,7 +81,7 @@ impl Graph {
         ingress_stream
     }
 
-    /// Adds a [`LoopStream`] to the graph.
+    /// Adds a [`LoopStream`] to the `Graph`.
     pub fn add_loop_stream<D>(&self) -> LoopStream<D>
     where
         for<'a> D: Data + Deserialize<'a>,
@@ -374,7 +375,8 @@ impl Graph {
     }
 
     /// Compiles the internal graph representation.
-    pub(crate) fn compile(&self) -> JobGraph {
-        self.internal_graph.lock().unwrap().compile()
+    pub(crate) fn compile(self) -> Result<JobGraph, GraphCompilationError> {
+        let mut internal_graph = self.internal_graph.lock().unwrap();
+        internal_graph.compile()
     }
 }

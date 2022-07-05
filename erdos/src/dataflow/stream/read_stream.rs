@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    communication::{RecvEndpoint, TryRecvError},
+    communication::{data_plane::endpoints::RecvEndpoint, errors::TryRecvError},
     dataflow::{Data, Message},
 };
 

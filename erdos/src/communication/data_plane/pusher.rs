@@ -1,5 +1,6 @@
 use std::{
     any::Any,
+    collections::HashMap,
     fmt::{self, Debug},
     sync::Arc,
 };
@@ -9,53 +10,59 @@ use serde::Deserialize;
 
 use crate::{
     communication::{
+        data_plane::endpoints::SendEndpoint,
+        errors::CommunicationError,
         serializable::{Deserializable, DeserializedMessage, Serializable},
-        CommunicationError, SendEndpoint,
     },
-    dataflow::Data,
+    dataflow::{graph::Job, stream::StreamId, Data},
 };
 
 /// Trait used to deserialize a message and send it on a collection of [`SendEndpoint`]s
 /// without exposing the message's type to owner of the [`PusherT`] trait object.
-pub trait PusherT: Send {
+pub(crate) trait PusherT: Send {
+    /// Retrieve the ID of the Stream for which this Pusher was created.
+    fn stream_id(&self) -> StreamId;
+
+    /// Retrieve the Jobs for which an endpoint is registered on this Pusher.
+    fn jobs(&self) -> Vec<Job>;
+
+    /// Checks if an endpoint exists for the given Job inside this Pusher.
+    fn contains_endpoint(&self, job: &Job) -> bool;
+
+    /// Upcasts the trait object, so that it can be later downcasted to the
+    /// correct message type when retrieving the [`Endpoint`]s.
     fn as_any(&mut self) -> &mut dyn Any;
-    /// To be used to clone a boxed pusher.
-    fn box_clone(&self) -> Box<dyn PusherT>;
+
     /// Creates message from bytes and sends it to endpoints.
     fn send_from_bytes(&mut self, buf: BytesMut) -> Result<(), CommunicationError>;
 }
 
 /// Internal structure used to send data on a collection of [`SendEndpoint`]s.
 #[derive(Clone)]
-pub struct Pusher<D: Debug + Clone + Send> {
+pub(crate) struct Pusher<D: Debug + Clone + Send> {
+    stream_id: StreamId,
     // TODO: We might want to order the endpoints by the priority of their tasks.
-    endpoints: Vec<SendEndpoint<D>>,
+    endpoints: HashMap<Job, SendEndpoint<D>>,
 }
 
 /// Zero-copy implementation of the pusher.
 impl<D: 'static + Serializable + Send + Sync + Debug> Pusher<Arc<D>> {
-    pub fn new() -> Self {
+    pub fn new(stream_id: StreamId) -> Self {
         Self {
-            endpoints: Vec::new(),
+            stream_id,
+            endpoints: HashMap::new(),
         }
     }
 
-    pub fn add_endpoint(&mut self, endpoint: SendEndpoint<Arc<D>>) {
-        self.endpoints.push(endpoint);
+    pub fn add_endpoint(&mut self, job: Job, endpoint: SendEndpoint<Arc<D>>) {
+        self.endpoints.insert(job, endpoint);
     }
 
     pub fn send(&mut self, msg: Arc<D>) -> Result<(), CommunicationError> {
-        for endpoint in self.endpoints.iter_mut() {
+        for endpoint in self.endpoints.values_mut().into_iter() {
             endpoint.send(Arc::clone(&msg))?;
         }
         Ok(())
-    }
-}
-
-impl Clone for Box<dyn PusherT> {
-    /// Clones a boxed pusher.
-    fn clone(&self) -> Box<dyn PusherT> {
-        self.box_clone()
     }
 }
 
@@ -64,12 +71,12 @@ impl<D> PusherT for Pusher<Arc<D>>
 where
     for<'de> D: Data + Deserialize<'de>,
 {
-    fn as_any(&mut self) -> &mut dyn Any {
-        self
+    fn jobs(&self) -> Vec<Job> {
+        self.endpoints.keys().into_iter().cloned().collect()
     }
 
-    fn box_clone(&self) -> Box<dyn PusherT> {
-        Box::new((*self).clone())
+    fn as_any(&mut self) -> &mut dyn Any {
+        self
     }
 
     fn send_from_bytes(&mut self, mut buf: BytesMut) -> Result<(), CommunicationError> {
@@ -83,10 +90,23 @@ where
         }
         Ok(())
     }
+
+    fn stream_id(&self) -> StreamId {
+        self.stream_id
+    }
+
+    fn contains_endpoint(&self, job: &Job) -> bool {
+        self.endpoints.contains_key(job)
+    }
 }
 
-impl fmt::Debug for Box<dyn PusherT> {
+impl fmt::Debug for dyn PusherT {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Box<dyn PusheT> {{ }}")
+        write!(
+            f,
+            "PusherT (ID={}, Jobs={:?})",
+            self.stream_id(),
+            self.jobs()
+        )
     }
 }

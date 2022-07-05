@@ -148,7 +148,6 @@ use serde::{Deserialize, Serialize};
 mod configuration;
 
 // Public submodules
-#[doc(hidden)]
 pub mod communication;
 pub mod dataflow;
 pub mod node;
@@ -221,18 +220,21 @@ pub fn new_app(name: &str) -> clap::App {
                 .help("Number of worker threads per process"),
         )
         .arg(
-            Arg::with_name("data-addresses")
+            Arg::with_name("data-address")
                 .short("d")
-                .long("data-addresses")
-                .default_value("127.0.0.1:9000")
-                .help("Comma separated list of data socket addresses of all nodes"),
+                .long("data-address")
+                .default_value("0.0.0.0:0")
+                .help(
+                    "The address of the DataPlane for the Worker \
+                        (assigned to a random port by default).",
+                ),
         )
         .arg(
-            Arg::with_name("control-addresses")
-                .short("c")
-                .long("control-addresses")
-                .default_value("127.0.0.1:9000")
-                .help("Comma separated list of control socket addresses of all nodes"),
+            Arg::with_name("address")
+                .short("l")
+                .long("address")
+                .default_value("0.0.0.0:4444")
+                .help("The address of the Leader."),
         )
         .arg(
             Arg::with_name("index")

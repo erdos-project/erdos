@@ -1,5 +1,5 @@
-use std::io;
-use tokio::sync::mpsc;
+use std::{error::Error, fmt, io};
+use tokio::sync::{broadcast::error::RecvError, mpsc};
 
 /// Error raised by the communication layer.
 #[derive(Debug)]
@@ -18,6 +18,20 @@ pub enum CommunicationError {
     BincodeError(bincode::Error),
     /// Failed to read/write data from/to the TCP stream.
     IoError(io::Error),
+    /// Failed to correctly follow protocol.
+    /// This can be raised when there are protocol errors between
+    /// the Leader and the Worker, or between Workers.
+    ProtocolError(String),
+    /// Failed to setup the Stream.
+    StreamManagerError(String),
+}
+
+impl Error for CommunicationError {}
+
+impl fmt::Display for CommunicationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Received error: {:?}", self)
+    }
 }
 
 impl From<bincode::Error> for CommunicationError {
@@ -58,6 +72,15 @@ impl From<CodecError> for CommunicationError {
         match e {
             CodecError::IoError(e) => CommunicationError::IoError(e),
             CodecError::BincodeError(e) => CommunicationError::BincodeError(e),
+        }
+    }
+}
+
+impl From<RecvError> for CommunicationError {
+    fn from(e: RecvError) -> Self {
+        match e {
+            RecvError::Closed => CommunicationError::Disconnected,
+            RecvError::Lagged(_) => CommunicationError::NoCapacity,
         }
     }
 }
