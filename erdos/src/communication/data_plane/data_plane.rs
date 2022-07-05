@@ -229,7 +229,7 @@ impl DataPlane {
                     let mut stream_manager = self.stream_manager.lock().unwrap();
                     for (job, stream) in cached_setups {
                         stream_manager.add_inter_worker_send_endpoint(
-                            stream,
+                            stream.as_ref(),
                             job.clone(),
                             &worker_connection,
                         );
@@ -535,7 +535,7 @@ impl DataPlane {
                     .unwrap();
                 let mut stream_manager = self.stream_manager.lock().unwrap();
                 stream_manager.add_inter_worker_recv_endpoint(
-                    &stream,
+                    stream.as_ref(),
                     destination_job,
                     &worker_connection,
                 )?;
@@ -620,7 +620,7 @@ impl DataPlane {
                             // There already exists a connection to this Worker, register
                             // a new SendEndpoint atop this connection.
                             stream_manager.add_inter_worker_send_endpoint(
-                                &stream,
+                                stream.as_ref(),
                                 destination,
                                 worker_connection,
                             )
@@ -658,7 +658,7 @@ impl DataPlane {
                         stream.id(),
                         destination,
                     );
-                    stream_manager.add_intra_worker_endpoint(&stream, destination);
+                    stream_manager.add_intra_worker_endpoint(stream.as_ref(), destination);
                 }
             }
         }

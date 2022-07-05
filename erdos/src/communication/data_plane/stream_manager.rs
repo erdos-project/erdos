@@ -235,11 +235,7 @@ impl StreamManager {
     /// Adds an Intra-Worker send and receive endpoint for a [`WriteStream`].
     /// The [`receiving_job`] specifies the [`Job`] that will construct a [`ReadStream`]
     /// from the corresponding [`RecvEndpoint`].
-    pub fn add_intra_worker_endpoint(
-        &mut self,
-        stream: &Box<dyn AbstractStreamT>,
-        receiving_job: Job,
-    ) {
+    pub fn add_intra_worker_endpoint(&mut self, stream: &dyn AbstractStreamT, receiving_job: Job) {
         // If there are no endpoints for this stream, create endpoints.
         let stream_endpoints = self
             .stream_endpoints
@@ -254,7 +250,7 @@ impl StreamManager {
     /// on the current [`Worker`] on the specified connection to another [`Worker`].
     pub fn add_inter_worker_recv_endpoint(
         &mut self,
-        stream: &Box<dyn AbstractStreamT>,
+        stream: &dyn AbstractStreamT,
         receiving_job: Job,
         worker_connection: &WorkerConnection,
     ) -> Result<(), CommunicationError> {
@@ -277,7 +273,7 @@ impl StreamManager {
     /// from the current [`Worker`] on the specified connection to another [`Worker`].
     pub fn add_inter_worker_send_endpoint(
         &mut self,
-        stream: &Box<dyn AbstractStreamT>,
+        stream: &dyn AbstractStreamT,
         destination_job: Job,
         worker_connection: &WorkerConnection,
     ) {

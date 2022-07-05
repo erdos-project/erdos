@@ -7,7 +7,6 @@ use std::{
 };
 
 use futures::{stream::SplitSink, SinkExt, StreamExt};
-use serde::{Deserialize, Serialize};
 use tokio::{
     net::TcpStream,
     sync::mpsc::{self, Receiver, UnboundedSender},
