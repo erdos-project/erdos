@@ -61,7 +61,7 @@ class Graph:
 
     def add_loop_stream(self) -> LoopStream:
         """Registers a :py:class:`.LoopStream` to the dataflow graph, and
-        returns the created :py:class:`.LoopStream`. """
+        returns the created :py:class:`.LoopStream`."""
         return LoopStream(self._py_graph.add_loop_stream())
 
     def connect_source(
