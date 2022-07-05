@@ -24,7 +24,7 @@ pub(crate) trait PusherT: Send {
     fn stream_id(&self) -> StreamId;
 
     /// Retrieve the Jobs for which an endpoint is registered on this Pusher.
-    fn get_jobs(&self) -> Vec<Job>;
+    fn jobs(&self) -> Vec<Job>;
 
     /// Checks if an endpoint exists for the given Job inside this Pusher.
     fn contains_endpoint(&self, job: &Job) -> bool;
@@ -71,7 +71,7 @@ impl<D> PusherT for Pusher<Arc<D>>
 where
     for<'de> D: Data + Deserialize<'de>,
 {
-    fn get_jobs(&self) -> Vec<Job> {
+    fn jobs(&self) -> Vec<Job> {
         self.endpoints.keys().into_iter().cloned().collect()
     }
 
@@ -106,7 +106,7 @@ impl fmt::Debug for dyn PusherT {
             f,
             "PusherT (ID={}, Jobs={:?})",
             self.stream_id(),
-            self.get_jobs()
+            self.jobs()
         )
     }
 }
