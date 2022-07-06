@@ -146,6 +146,7 @@ impl Clone for Box<dyn DriverStreamSetupHook> {
     }
 }
 
+>>>>>>> 7c793179566ed40571c04d378b15aef0c690b41f
 /// The abstract graph representation of an ERDOS program defined in the driver.
 ///
 /// The abstract graph is compiled into a [`JobGraph`], which ERDOS schedules and executes.
@@ -182,6 +183,7 @@ impl InternalGraph {
         // A hook to initialize the ingress stream's connections to downstream operators.
         let write_stream_option_copy = ingress_stream.get_write_stream();
         let id_copy = ingress_stream.id();
+
         let setup_hook = move |stream_manager: &mut StreamManager| match stream_manager
             .take_write_stream(id_copy)
         {
@@ -210,7 +212,7 @@ impl InternalGraph {
         let read_stream_option_copy = egress_stream.get_read_stream();
         let id_copy = egress_stream.id();
 
-        let hook = move |stream_manager: &mut StreamManager| match stream_manager
+        let setup_hook = move |stream_manager: &mut StreamManager| match stream_manager
             .take_read_stream(id_copy, Job::Driver)
         {
             Ok(read_stream) => {
@@ -220,7 +222,7 @@ impl InternalGraph {
         };
 
         self.egress_streams
-            .insert(egress_stream.id(), Box::new(hook));
+            .insert(egress_stream.id(), Box::new(setup_hook));
     }
 
     pub(crate) fn add_loop_stream<D>(&mut self, loop_stream: &LoopStream<D>)
@@ -355,7 +357,6 @@ impl InternalGraph {
         T: Data + for<'a> Deserialize<'a>,
     {
         config.id = OperatorId::new_deterministic();
-
         let config_copy = config.clone();
 
         let op_runner = move |read_stream_id: Option<StreamId>,
@@ -407,7 +408,6 @@ impl InternalGraph {
         V: 'static + Send + Sync,
     {
         config.id = OperatorId::new_deterministic();
-
         let config_copy = config.clone();
         let write_stream_id = write_stream.id();
 
@@ -466,7 +466,6 @@ impl InternalGraph {
         U: Data + for<'a> Deserialize<'a>,
     {
         config.id = OperatorId::new_deterministic();
-
         let config_copy = config.clone();
         let write_stream_id = write_stream.id();
 
@@ -528,7 +527,6 @@ impl InternalGraph {
         W: 'static + Send + Sync,
     {
         config.id = OperatorId::new_deterministic();
-
         let config_copy = config.clone();
         let write_stream_id = write_stream.id();
 
@@ -593,7 +591,6 @@ impl InternalGraph {
         V: Data + for<'a> Deserialize<'a>,
     {
         config.id = OperatorId::new_deterministic();
-
         let config_copy = config.clone();
         let write_stream_id = write_stream.id();
 
@@ -659,7 +656,6 @@ impl InternalGraph {
         W: 'static + Send + Sync,
     {
         config.id = OperatorId::new_deterministic();
-
         let config_copy = config.clone();
         let left_write_stream_id = left_write_stream.id();
         let right_write_stream_id = right_write_stream.id();
@@ -731,7 +727,6 @@ impl InternalGraph {
         V: Data + for<'a> Deserialize<'a>,
     {
         config.id = OperatorId::new_deterministic();
-
         let config_copy = config.clone();
         let left_write_stream_id = left_write_stream.id();
         let right_write_stream_id = right_write_stream.id();

@@ -7,7 +7,7 @@ use erdos::{
         operators::{Filter, Join, Map, Split},
         state::TimeVersionedState,
         stream::{WriteStream, WriteStreamT},
-        Message, OperatorConfig, Timestamp,
+        Graph, Message, OperatorConfig, Timestamp,
     },
     Configuration,
 };
@@ -75,40 +75,41 @@ impl Sink<TimeVersionedState<usize>, usize> for SinkOperator {
 
 fn main() {
     let args = erdos::new_app("ERDOS").get_matches();
-    // let mut node = Node::new(Configuration::from_args(&args));
 
-    // let source_config = OperatorConfig::new().name("SourceOperator");
-    // // Streams data 0, 1, 2, ..., 9 with timestamps 0, 1, 2, ..., 9.
-    // let source_stream = erdos::connect_source(SourceOperator::new, source_config);
+    let graph = Graph::new("LINQ_Pipeline");
 
-    // // Given x, generates a sequence of messages 0, ..., x for the current timestamp.
-    // let sequence = source_stream.flat_map(|x| (1..=*x));
-    // // Finds the factors of x using the generated sequence.
-    // let factors = source_stream
-    //     .timestamp_join(&sequence)
-    //     .filter(|&(x, d)| x % d == 0)
-    //     .map(|&(_, d)| d);
+    let source_config = OperatorConfig::new().name("SourceOperator");
+    // Streams data 0, 1, 2, ..., 9 with timestamps 0, 1, 2, ..., 9.
+    let source_stream = graph.connect_source(SourceOperator::new, source_config);
 
-    // // Split into streams of even factors and odd factors.
-    // let (evens, odds) = factors.split(|x| x % 2 == 0);
+    // Given x, generates a sequence of messages 0, ..., x for the current timestamp.
+    let sequence = source_stream.flat_map(|x| (1..=*x));
+    // Finds the factors of x using the generated sequence.
+    let factors = source_stream
+        .timestamp_join(&sequence)
+        .filter(|&(x, d)| x % d == 0)
+        .map(|&(_, d)| d);
 
-    // // Print received even messages.
-    // let evens_sink_config = OperatorConfig::new().name("EvensSinkOperator");
-    // erdos::connect_sink(
-    //     SinkOperator::new,
-    //     TimeVersionedState::new,
-    //     evens_sink_config,
-    //     &evens,
-    // );
+    // Split into streams of even factors and odd factors.
+    let (evens, odds) = factors.split(|x| x % 2 == 0);
 
-    // // Print received odd messages.
-    // let odds_sink_config = OperatorConfig::new().name("OddsSinkOperator");
-    // erdos::connect_sink(
-    //     SinkOperator::new,
-    //     TimeVersionedState::new,
-    //     odds_sink_config,
-    //     &odds,
-    // );
+    // Print received even messages.
+    let evens_sink_config = OperatorConfig::new().name("EvensSinkOperator");
+    graph.connect_sink(
+        SinkOperator::new,
+        TimeVersionedState::new,
+        evens_sink_config,
+        &evens,
+    );
 
-    // node.run();
+    // Print received odd messages.
+    let odds_sink_config = OperatorConfig::new().name("OddsSinkOperator");
+    graph.connect_sink(
+        SinkOperator::new,
+        TimeVersionedState::new,
+        odds_sink_config,
+        &odds,
+    );
+
+    // node.run(graph);
 }

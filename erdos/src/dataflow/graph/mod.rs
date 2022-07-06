@@ -129,6 +129,20 @@ where
     }
 }
 
+impl<T, D> From<&T> for AbstractStream<D>
+where
+    T: Stream<D>,
+    for<'a> D: Data + Deserialize<'a>,
+{
+    fn from(stream: &T) -> Self {
+        Self {
+            id: stream.id(),
+            name: stream.name(),
+            phantom: PhantomData,
+        }
+    }
+}
+
 /// A trait implemented over [`AbstractStream`]s used to preserve
 /// typing while processing sets of streams.
 pub(crate) trait AbstractStreamT: Send + Sync {
