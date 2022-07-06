@@ -146,7 +146,6 @@ impl Clone for Box<dyn DriverStreamSetupHook> {
     }
 }
 
->>>>>>> 7c793179566ed40571c04d378b15aef0c690b41f
 /// The abstract graph representation of an ERDOS program defined in the driver.
 ///
 /// The abstract graph is compiled into a [`JobGraph`], which ERDOS schedules and executes.
