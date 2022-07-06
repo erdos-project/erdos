@@ -1,10 +1,16 @@
+from typing import Generic, TypeVar
+
 import erdos
 from erdos.internal import PyTimestamp
 from erdos.streams import WriteStream
 from erdos.timestamp import Timestamp
 
+T = TypeVar("T")
+U = TypeVar("U")
+V = TypeVar("V")
 
-class SinkContext:
+
+class SinkContext(Generic[T]):
     """A :py:class:`SinkContext` instance enables developers to retrieve
     metadata about the current invocation of either a message or a watermark
     callback in a :py:class:`.Sink` operator.
@@ -26,7 +32,7 @@ class SinkContext:
         )
 
 
-class OneInOneOutContext:
+class OneInOneOutContext(Generic[T, U]):
     """A :py:class:`OneInOneOutContext` instance enables developers to retrieve
     metadata about the current invocation of either a message or a watermark
     callback in a :py:class:`.OneInOneOut` operator.
@@ -44,11 +50,11 @@ class OneInOneOutContext:
         self,
         timestamp: PyTimestamp,
         config: "erdos.OperatorConfig",
-        write_stream: WriteStream,
+        write_stream: WriteStream[U],
     ):
         self.timestamp = Timestamp(_py_timestamp=timestamp)
         self.config = config
-        self.write_stream = write_stream
+        self.write_stream = write_stream[U]
 
     def __str__(self):
         return "OneInOneOutContext(Timestamp={}, Config={}, WriteStream={})".format(
@@ -56,7 +62,7 @@ class OneInOneOutContext:
         )
 
 
-class OneInTwoOutContext:
+class OneInTwoOutContext(Generic[T, U, V]):
     """A :py:class:`OneInTwoOutContext` instance enables developers to retrieve
     metadata about the current invocation of either a message or a watermark
     callback in a :py:class:`.OneInTwoOut` operator.
@@ -76,8 +82,8 @@ class OneInTwoOutContext:
         self,
         timestamp: PyTimestamp,
         config: "erdos.OperatorConfig",
-        left_write_stream: WriteStream,
-        right_write_stream: WriteStream,
+        left_write_stream: WriteStream[U],
+        right_write_stream: WriteStream[V],
     ):
         self.timestamp = Timestamp(_py_timestamp=timestamp)
         self.config = config
@@ -94,7 +100,7 @@ class OneInTwoOutContext:
         )
 
 
-class TwoInOneOutContext:
+class TwoInOneOutContext(Generic[T, U, V]):
     """A :py:class:`TwoInOneOutContext` instance enables developers to retrieve
     metadata about the current invocation of either a message or a watermark
     callback in a :py:class:`.TwoInOneOut` operator.
@@ -112,7 +118,7 @@ class TwoInOneOutContext:
         self,
         timestamp: PyTimestamp,
         config: "erdos.OperatorConfig",
-        write_stream: WriteStream,
+        write_stream: WriteStream[V],
     ):
         self.timestamp = Timestamp(_py_timestamp=timestamp)
         self.config = config
@@ -120,7 +126,5 @@ class TwoInOneOutContext:
 
     def __str__(self):
         return "TwoInOneOutContext(Timestamp={}, Config={}, WriteStream={})".format(
-            self.timestamp,
-            self.config,
-            self.write_stream.name(),
+            self.timestamp, self.config, self.write_stream.name(),
         )
