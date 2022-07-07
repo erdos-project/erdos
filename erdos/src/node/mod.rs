@@ -40,6 +40,7 @@ use crate::dataflow::graph::JobGraphId;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) enum ExecutionState {
+    NotScheduled,
     Scheduled,
     Ready,
     Executing,

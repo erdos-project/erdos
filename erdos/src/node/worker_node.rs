@@ -385,6 +385,7 @@ impl WorkerNode {
                     );
                 }
             }
+            LeaderNotification::QueryResponse(query_response) => {}
             // The shutdown arm is unreachable, because it should be handled in the main loop.
             LeaderNotification::Shutdown => unreachable!(),
         }

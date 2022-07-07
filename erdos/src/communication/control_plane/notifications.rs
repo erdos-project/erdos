@@ -22,6 +22,20 @@ pub(crate) enum DriverNotification {
     Shutdown,
 }
 
+/// An enum specifying the types of queries that a [`Worker`] can ask a [`Leader`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) enum QueryType {
+    /// Request the `Leader` for the status of the `JobGraph` with the given ID.
+    JobGraphStatus(JobGraphId),
+}
+
+/// An enum specifying the responses to the queries that a [`Worker`] can ask a [`Leader`].
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) enum QueryResponseType {
+    /// Responds to the [`QueryType::JobGraphStatus`] query with the `ExecutionState`.
+    JobGraphStatus(JobGraphId, ExecutionState),
+}
+
 /// An enum specifying the notifications that a [`Worker`](crate::node::WorkerNode)
 /// can send to a [`Leader`](crate::node::Leader).
 #[derive(Debug, Serialize, Deserialize)]
@@ -33,6 +47,8 @@ pub(crate) enum WorkerNotification {
     /// [`Graph`](crate::dataflow::graph::Graph) with the provided ID is ready for
     /// execution.
     JobUpdate(JobGraphId, Job, ExecutionState),
+    /// Requests the `Leader` to respond to the [`Query`](QueryType).
+    Query(QueryType),
     /// Submits a representation of the JobGraph with the given ID for
     /// scheduling by the Leader.
     SubmitGraph(JobGraphId, AbstractJobGraph),
@@ -44,25 +60,23 @@ pub(crate) enum WorkerNotification {
 /// the Worker where a Job is originating from.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) enum WorkerAddress {
-    /// The [`Job`] originates from a remote address with the given
-    /// ID and Socket address.
+    /// The [`Job`] originates from a remote address with the given ID and Socket address.
     Remote(WorkerId, SocketAddr),
     /// The [`Job`] originates on the local Worker.
     Local,
 }
 
 /// A [`LeaderNotification`] specifies the notifications that a
-/// [`LeaderNode`](crate::node::LeaderNode) can send to a
-/// [`WorkerNode`](crate::node::WorkerNode).
+/// [`LeaderNode`](crate::node::LeaderNode) can send to a [`WorkerNode`](crate::node::WorkerNode).
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum LeaderNotification {
-    /// Informs a [`Worker`] that a Job from the given JobGraph
-    /// must be scheduled locally, and provides addresses of other
-    /// [`Job`]s that this one needs to communicate with.
+    /// Informs a [`Worker`] that a Job from the given JobGraph must be scheduled locally,
+    /// and provides addresses of other [`Job`]s that this one needs to communicate with.
     ScheduleJob(JobGraphId, Job, HashMap<Job, WorkerAddress>),
-    /// Informs a [`Worker`] that the JobGraph with the given ID
-    /// is ready to be executed.
+    /// Informs a [`Worker`] that the JobGraph with the given ID is ready to be executed.
     ExecuteGraph(JobGraphId),
+    /// Responds to a [`Query`](WorkerNotification::Query) sent by the `Worker`.
+    QueryResponse(QueryResponseType),
     /// Informs a [`Worker`] that it needs to shut down.
     Shutdown,
 }
