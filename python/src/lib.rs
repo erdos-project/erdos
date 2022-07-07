@@ -32,33 +32,32 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyEgressStream>()?;
     m.add_class::<PyMessage>()?;
     m.add_class::<PyTimestamp>()?;
-
     Ok(())
 }
 
-#[pyclass]
-struct PyNodeHandle {
-    node_handle: Option<NodeHandle>,
-}
+// #[pyclass]
+// struct PyNodeHandle {
+//     node_handle: Option<NodeHandle>,
+// }
 
-#[pymethods]
-impl PyNodeHandle {
-    fn shutdown_node(&mut self, py: Python) -> PyResult<()> {
-        py.allow_threads(|| match self.node_handle.take() {
-            Some(node_handle) => node_handle
-                .shutdown()
-                .map_err(exceptions::PyException::new_err),
-            None => Err(exceptions::PyException::new_err(
-                "Unable to shut down; no Rust node handle available",
-            )),
-        })
-    }
-}
+// #[pymethods]
+// impl PyNodeHandle {
+//     fn shutdown_node(&mut self, py: Python) -> PyResult<()> {
+//         py.allow_threads(|| match self.node_handle.take() {
+//             Some(node_handle) => node_handle
+//                 .shutdown()
+//                 .map_err(exceptions::PyException::new_err),
+//             None => Err(exceptions::PyException::new_err(
+//                 "Unable to shut down; no Rust node handle available",
+//             )),
+//         })
+//     }
+// }
 
-impl From<NodeHandle> for PyNodeHandle {
-    fn from(node_handle: NodeHandle) -> Self {
-        Self {
-            node_handle: Some(node_handle),
-        }
-    }
-}
+// impl From<NodeHandle> for PyNodeHandle {
+//     fn from(node_handle: NodeHandle) -> Self {
+//         Self {
+//             node_handle: Some(node_handle),
+//         }
+//     }
+// }

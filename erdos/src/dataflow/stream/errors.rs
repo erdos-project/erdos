@@ -1,4 +1,4 @@
-use crate::communication::{CommunicationError, TryRecvError};
+use crate::communication::errors::{CommunicationError, TryRecvError};
 
 /// Errors raised when something went wrong while reading from a `ReadStream`.
 #[derive(Debug, PartialEq)]
@@ -69,6 +69,10 @@ impl From<CommunicationError> for SendError {
             CommunicationError::IoError(io_error) => {
                 eprintln!("Got write stream IOError {}", io_error);
                 SendError::IOError
+            }
+            // Streams should not be exposed to protocol or StreamManager errors.
+            CommunicationError::ProtocolError(_) | CommunicationError::StreamManagerError(_) => {
+                unreachable!()
             }
         }
     }

@@ -6,7 +6,7 @@ use std::{
     io::{Error, ErrorKind},
 };
 
-use crate::communication::CommunicationError;
+use crate::communication::errors::CommunicationError;
 
 /// Wrapper around a deserialized message. The wrapper can either own the deserialized
 /// message or store a reference to it.
@@ -16,7 +16,7 @@ pub enum DeserializedMessage<'a, T> {
 }
 
 /// Trait automatically derived for all messages that derive `Serialize`.
-pub trait Serializable {
+pub(crate) trait Serializable {
     fn encode(&self) -> Result<BytesMut, CommunicationError>;
     fn encode_into(&self, buffer: &mut BytesMut) -> Result<(), CommunicationError>;
     fn serialized_size(&self) -> Result<usize, CommunicationError>;

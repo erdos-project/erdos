@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fmt,
     sync::{Arc, Mutex},
 };
@@ -6,8 +7,8 @@ use std::{
 use serde::Deserialize;
 
 use crate::{
-    communication::{Pusher, SendEndpoint},
-    dataflow::{deadlines::ConditionContext, Data, Message, Timestamp},
+    communication::data_plane::{endpoints::SendEndpoint, Pusher},
+    dataflow::{deadlines::ConditionContext, graph::Job, Data, Message, Timestamp},
 };
 
 use super::{errors::SendError, StreamId, WriteStreamT};
@@ -65,13 +66,13 @@ impl<D: Data> WriteStream<D> {
     pub(crate) fn new(
         id: StreamId,
         name: &str,
-        endpoints: Vec<SendEndpoint<Arc<Message<D>>>>,
+        endpoints: HashMap<Job, SendEndpoint<Arc<Message<D>>>>,
     ) -> Self {
         tracing::debug!("Initializing a WriteStream {} with the ID: {}", name, id);
 
-        let mut pusher = Pusher::new();
-        for endpoint in endpoints {
-            pusher.add_endpoint(endpoint);
+        let mut pusher = Pusher::new(id);
+        for (job, endpoint) in endpoints {
+            pusher.add_endpoint(job, endpoint);
         }
 
         Self {

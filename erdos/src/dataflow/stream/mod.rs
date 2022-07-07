@@ -76,7 +76,6 @@ pub struct OperatorStream<D: Data> {
     graph: Arc<Mutex<InternalGraph>>,
 }
 
-#[allow(dead_code)]
 impl<D: Data> OperatorStream<D> {
     /// Creates a new stream.
     pub(crate) fn new(name: &str, graph: Arc<Mutex<InternalGraph>>) -> Self {
