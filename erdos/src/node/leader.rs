@@ -31,7 +31,7 @@ use crate::{
     scheduler::{JobGraphScheduler, SimpleJobGraphScheduler},
 };
 
-use super::{JobState, WorkerId, WorkerState};
+use super::{ExecutionState, WorkerId, WorkerState};
 
 /// The notifications that are communicated between the main `Leader` thread
 /// and the individual tasks spawned for handling each of the attached `Worker`s.
@@ -40,7 +40,7 @@ enum WorkerHandlerNotification {
     WorkerInitialized(WorkerState),
     ScheduleJobGraph(WorkerId, JobGraphId, AbstractJobGraph),
     ScheduleJob(JobGraphId, Job, WorkerId, HashMap<Job, WorkerAddress>),
-    JobUpdate(JobGraphId, Job, JobState),
+    JobUpdate(JobGraphId, Job, ExecutionState),
     ExecuteGraph(JobGraphId, HashSet<WorkerId>),
     Shutdown(WorkerId),
     ShutdownAllWorkers,
@@ -63,7 +63,7 @@ pub(crate) struct Leader {
     /// The scheduler to be used for scheduling JobGraphs onto Workers.
     job_graph_scheduler: Box<dyn JobGraphScheduler + Send>,
     /// A mapping between the JobGraph and the status of its Jobs.
-    job_graph_to_job_state: HashMap<JobGraphId, HashMap<Job, JobState>>,
+    job_graph_to_job_state: HashMap<JobGraphId, HashMap<Job, ExecutionState>>,
 }
 
 impl Leader {
@@ -181,7 +181,7 @@ impl Leader {
                 self.schedule_graph(driver_id, job_graph_id, job_graph, leader_to_workers_tx);
             }
             WorkerHandlerNotification::JobUpdate(job_graph_id, job, job_state) => {
-                if job_state == JobState::Ready {
+                if job_state == ExecutionState::Ready {
                     // Mark the job as ready, and if this was the last Job that required scheduling,
                     // then notify all of the Workers that the JobGraph was placed on to execute
                     // their jobs.
@@ -461,7 +461,7 @@ impl Leader {
                 *worker_id,
                 worker_addresses,
             ));
-            job_status.insert(job.clone(), JobState::Scheduled);
+            job_status.insert(job.clone(), ExecutionState::Scheduled);
 
             // Update the `WorkerState` to include the JobGraphID.
             self.worker_id_to_worker_state
@@ -501,7 +501,7 @@ impl Leader {
                 driver_id,
                 worker_addresses_for_driver,
             ));
-            job_status.insert(Job::Driver, JobState::Scheduled);
+            job_status.insert(Job::Driver, ExecutionState::Scheduled);
         }
 
         // Map the flags that check if the Operator is ready to the name of the JobGraph.
@@ -528,7 +528,7 @@ impl Leader {
         if let Some(job_status) = self.job_graph_to_job_state.get_mut(&job_graph_id) {
             // Update the status of the `Job`.
             if let Some(job_status_value) = job_status.get_mut(&job) {
-                *job_status_value = JobState::Ready;
+                *job_status_value = ExecutionState::Ready;
             } else {
                 tracing::error!(
                     "[Leader] The Job {:?} was not found in the JobGraph {:?}.",
@@ -543,7 +543,7 @@ impl Leader {
             if job_status
                 .values()
                 .into_iter()
-                .all(|status| *status == JobState::Ready)
+                .all(|status| *status == ExecutionState::Ready)
             {
                 let assigned_workers: HashSet<_> = self
                     .worker_id_to_worker_state

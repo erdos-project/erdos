@@ -34,7 +34,7 @@ use crate::{
     node::{worker::Worker, Resources},
 };
 
-use super::{operator_executors::OperatorExecutorT, JobState, WorkerId};
+use super::{operator_executors::OperatorExecutorT, ExecutionState, WorkerId};
 
 /// An alias for the type of the connection between the [`Leader`] and the [`Worker`].
 type ConnectionToLeader = SplitSink<
@@ -60,7 +60,7 @@ pub(crate) struct WorkerNode {
     /// each [`Job`] before it can be marked Ready to the [`Leader`].
     pending_stream_setups: HashMap<Job, (JobGraphId, HashSet<StreamId>)>,
     /// A mapping of the `JobGraph` to the state of each scheduled `Job`.
-    job_graph_to_job_state: HashMap<JobGraphId, HashMap<Job, JobState>>,
+    job_graph_to_job_state: HashMap<JobGraphId, HashMap<Job, ExecutionState>>,
     /// A memo of the OperatorExecutors that are pending for each JobGraph.
     job_graph_to_operator_executor: HashMap<JobGraphId, Vec<Box<dyn OperatorExecutorT>>>,
     /// A handle to the [`StreamManager`] instance shared with the [`DataPlane`].
@@ -275,7 +275,7 @@ impl WorkerNode {
                                         .send(WorkerNotification::JobUpdate(
                                             job_graph_id.clone(),
                                             job,
-                                            JobState::Ready,
+                                            ExecutionState::Ready,
                                         ))
                                         .await
                                     {
@@ -294,7 +294,7 @@ impl WorkerNode {
                                     match self.job_graph_to_job_state.get_mut(job_graph_id) {
                                         Some(job_state) => match job_state.get_mut(&job) {
                                             Some(job_state) => {
-                                                *job_state = JobState::Ready;
+                                                *job_state = ExecutionState::Ready;
                                             }
                                             None => {
                                                 tracing::warn!(
@@ -536,7 +536,7 @@ impl WorkerNode {
             .job_graph_to_job_state
             .entry(job_graph.id())
             .or_default();
-        job_state.insert(job, JobState::Scheduled);
+        job_state.insert(job, ExecutionState::Scheduled);
 
         // Ask the DataPlane to setup the Streams.
         if let Err(error) =
