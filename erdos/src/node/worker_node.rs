@@ -9,7 +9,7 @@ use std::{
 use futures::{stream::SplitSink, SinkExt, StreamExt};
 use tokio::{
     net::TcpStream,
-    sync::mpsc::{self, Receiver, UnboundedSender},
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
 };
 use tokio_util::codec::Framed;
 
@@ -54,7 +54,7 @@ pub(crate) struct WorkerNode {
     /// The set of [`Resources`] that the [`Worker`] owns.
     resources: Resources,
     /// A channel where the [`Worker`] receives notifications from the [`Driver`].
-    driver_notification_rx: Receiver<DriverNotification>,
+    driver_notification_rx: UnboundedReceiver<DriverNotification>,
     /// A mapping of the [`JobGraph`]s that have been submitted to the [`Worker`].
     job_graphs: HashMap<JobGraphId, JobGraph>,
     /// A memo of the stream connections that are remaining to be setup for
@@ -82,7 +82,7 @@ impl WorkerNode {
         leader_address: SocketAddr,
         data_plane_address: SocketAddr,
         resources: Resources,
-        driver_notification_rx: Receiver<DriverNotification>,
+        driver_notification_rx: UnboundedReceiver<DriverNotification>,
         num_threads: usize,
     ) -> Self {
         Self {

@@ -1,6 +1,10 @@
 use std::{error::Error, fmt, net::SocketAddr};
 
-use tokio::{runtime::Builder, sync::mpsc, task::JoinHandle};
+use tokio::{
+    runtime::Builder,
+    sync::mpsc::{self, UnboundedSender},
+    task::JoinHandle,
+};
 use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::format::FmtSpan;
@@ -102,7 +106,7 @@ impl LeaderHandle {
 /// to the ERDOS Leader, and query their execution progres.
 pub struct WorkerHandle {
     /// A handle to communicate notifications to the underlying Worker.
-    worker_handle: mpsc::Sender<DriverNotification>,
+    worker_handle: UnboundedSender<DriverNotification>,
     /// An ID for the WorkerHandle that mirrors the ID of the underlying Worker.
     handle_id: WorkerId,
     /// A handle for the asynchronously running Worker task.
@@ -144,7 +148,7 @@ impl WorkerHandle {
 
         // Initialize a channel between the Handle and the Worker.
         // This channel is used by the Handle to submit requests to the Worker.
-        let (worker_tx, worker_rx) = mpsc::channel(100);
+        let (worker_tx, worker_rx) = mpsc::unbounded_channel();
 
         // Initialize a Worker with the given index, and an empty set of Resources.
         // TODO (Sukrit): In the future, the index of the Worker should be generated
@@ -188,7 +192,7 @@ impl WorkerHandle {
             job_graph_id,
         );
         self.worker_handle
-            .blocking_send(DriverNotification::RegisterGraph(job_graph))
+            .send(DriverNotification::RegisterGraph(job_graph))
             .map_err(|_| {
                 HandleError::CommunicationError(String::from(
                     "Error registering the Graph with the Leader.",
@@ -207,7 +211,7 @@ impl WorkerHandle {
 
         // Submit the JobGraph to the Leader.
         self.worker_handle
-            .blocking_send(DriverNotification::SubmitGraph(job_graph_id.clone()))
+            .send(DriverNotification::SubmitGraph(job_graph_id.clone()))
             .map_err(|_| {
                 HandleError::CommunicationError(String::from(
                     "Error submitting the Graph to the Leader.",
