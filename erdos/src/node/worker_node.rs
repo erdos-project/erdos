@@ -17,7 +17,7 @@ use crate::{
     communication::{
         control_plane::{
             notifications::{
-                DriverNotification, LeaderNotification, WorkerAddress, WorkerNotification,
+                DriverNotification, LeaderNotification, QueryId, WorkerAddress, WorkerNotification,
             },
             ControlPlaneCodec,
         },
@@ -32,6 +32,7 @@ use crate::{
         stream::StreamId,
     },
     node::{worker::Worker, Resources},
+    Uuid,
 };
 
 use super::{operator_executors::OperatorExecutorT, ExecutionState, WorkerId};
@@ -67,6 +68,8 @@ pub(crate) struct WorkerNode {
     /// The [`DataPlane`] populates the channels on the shared instance upon request,
     /// which are then retrieved for consumption by each [`Job`].
     stream_manager: Arc<Mutex<StreamManager>>,
+    /// A mapping of the pending Queries from the ID of the Query to its source.
+    pending_queries: HashMap<QueryId, Job>,
     /// A data structure that executes the operators.
     // TODO (Sukrit): This should be incorporated into the WorkerNode.
     worker: Worker,
@@ -93,6 +96,7 @@ impl WorkerNode {
             job_graph_to_job_state: HashMap::new(),
             job_graph_to_operator_executor: HashMap::new(),
             stream_manager: Arc::new(Mutex::new(StreamManager::new(id))),
+            pending_queries: HashMap::new(),
             worker: Worker::new(num_threads),
         }
     }
@@ -385,7 +389,22 @@ impl WorkerNode {
                     );
                 }
             }
-            LeaderNotification::QueryResponse(query_response) => {}
+            LeaderNotification::QueryResponse(query_id, query_response) => {
+                if let Some(source) = self.pending_queries.get(&query_id) {
+                    match source {
+                        Job::Driver => todo!(),
+                        // Queries are only initiated by the Driver for now.
+                        Job::Operator(_) => unreachable!(),
+                    }
+                } else {
+                    tracing::warn!(
+                        "[Worker {}] Received a response to the Query {:?} \
+                                    that was not pending on the Worker.",
+                        self.id,
+                        query_id,
+                    );
+                }
+            }
             // The shutdown arm is unreachable, because it should be handled in the main loop.
             LeaderNotification::Shutdown => unreachable!(),
         }
@@ -433,6 +452,25 @@ impl WorkerNode {
                         self.id,
                         job_graph_id,
                     )
+                }
+            }
+            DriverNotification::Query(query) => {
+                // Generate a QueryId and forward the Query to the Leader.
+                let query_id = QueryId(Uuid::new_deterministic());
+                if let Err(error) = leader_tx
+                    .send(WorkerNotification::Query(query_id.clone(), query.clone()))
+                    .await
+                {
+                    tracing::error!(
+                        "[Worker {}] Received an error when sending the \
+                                    Query {:?} to the Leader: {:?}",
+                        self.id,
+                        query,
+                        error,
+                    );
+                } else {
+                    // Save the pending Query corresponding to the Driver job.
+                    self.pending_queries.insert(query_id, Job::Driver);
                 }
             }
             // The shutdown arm is unreachable, because it should be handled in the main loop.

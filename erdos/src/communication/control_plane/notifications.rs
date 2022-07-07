@@ -1,25 +1,29 @@
 //! A collection of enums that specify the communication patterns between
 //! [`Leader`](crate::node::Leader), [`Worker`](crate::node::WorkerNode)
 //! and [`Driver`](crate::dataflow::graph::Job::Driver)s.
-use std::{collections::HashMap, net::SocketAddr};
+use std::{collections::HashMap, error::Error, fmt, net::SocketAddr};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
     dataflow::graph::{AbstractJobGraph, Job, JobGraph, JobGraphId},
     node::{ExecutionState, Resources, WorkerId},
+    Uuid,
 };
 
-/// An enum specifying the notifications that a [`Driver`](crate::dataflow::graph::Job::Driver)
-/// can send to a [`Worker`](crate::node::WorkerNode).
-#[derive(Debug, Clone)]
-pub(crate) enum DriverNotification {
-    /// Notifies the `Worker` to compile and register the graph with itself.
-    RegisterGraph(JobGraph),
-    /// Notifies the `Worker` to register the graph with itself, and submit to the `Leader`.
-    SubmitGraph(JobGraphId),
-    /// Notifies the `Worker` to shutdown.
-    Shutdown,
+/// The identifier to uniquely identify each [`Query`](WorkerNotification::Query).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub(crate) struct QueryId(pub Uuid);
+
+/// The error returned by the Leader if a [`Query`](WorkerNotification::Query) cannot be
+/// answered correctly by the Leader.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct QueryError(pub String);
+impl Error for QueryError {}
+impl fmt::Display for QueryError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "QueryError({})", self.0)
+    }
 }
 
 /// An enum specifying the types of queries that a [`Worker`] can ask a [`Leader`].
@@ -33,7 +37,21 @@ pub(crate) enum QueryType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) enum QueryResponseType {
     /// Responds to the [`QueryType::JobGraphStatus`] query with the `ExecutionState`.
-    JobGraphStatus(JobGraphId, ExecutionState),
+    JobGraphStatus(JobGraphId, Result<ExecutionState, QueryError>),
+}
+
+/// An enum specifying the notifications that a [`Driver`](crate::dataflow::graph::Job::Driver)
+/// can send to a [`Worker`](crate::node::WorkerNode).
+#[derive(Debug, Clone)]
+pub(crate) enum DriverNotification {
+    /// Notifies the `Worker` to compile and register the graph with itself.
+    RegisterGraph(JobGraph),
+    /// Notifies the `Worker` to register the graph with itself, and submit to the `Leader`.
+    SubmitGraph(JobGraphId),
+    /// Requests the `Worker` to respond to a [`Query`](QueryType).
+    Query(QueryType),
+    /// Notifies the `Worker` to shutdown.
+    Shutdown,
 }
 
 /// An enum specifying the notifications that a [`Worker`](crate::node::WorkerNode)
@@ -48,7 +66,7 @@ pub(crate) enum WorkerNotification {
     /// execution.
     JobUpdate(JobGraphId, Job, ExecutionState),
     /// Requests the `Leader` to respond to the [`Query`](QueryType).
-    Query(QueryType),
+    Query(QueryId, QueryType),
     /// Submits a representation of the JobGraph with the given ID for
     /// scheduling by the Leader.
     SubmitGraph(JobGraphId, AbstractJobGraph),
@@ -76,7 +94,7 @@ pub(crate) enum LeaderNotification {
     /// Informs a [`Worker`] that the JobGraph with the given ID is ready to be executed.
     ExecuteGraph(JobGraphId),
     /// Responds to a [`Query`](WorkerNotification::Query) sent by the `Worker`.
-    QueryResponse(QueryResponseType),
+    QueryResponse(QueryId, QueryResponseType),
     /// Informs a [`Worker`] that it needs to shut down.
     Shutdown,
 }

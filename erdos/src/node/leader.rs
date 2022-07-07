@@ -37,8 +37,8 @@ enum WorkerHandlerNotification {
     ScheduleJob(JobGraphId, Job, WorkerId, HashMap<Job, WorkerAddress>),
     JobUpdate(JobGraphId, Job, ExecutionState),
     ExecuteGraph(JobGraphId, HashSet<WorkerId>),
-    Query(WorkerId, QueryType),
-    QueryResponse(WorkerId, QueryResponseType),
+    Query(WorkerId, QueryId, QueryType),
+    QueryResponse(WorkerId, QueryId, QueryResponseType),
     Shutdown(WorkerId),
     ShutdownAllWorkers,
 }
@@ -248,9 +248,34 @@ impl Leader {
             WorkerHandlerNotification::Shutdown(worker_id) => {
                 self.worker_id_to_worker_state.remove(&worker_id);
             }
-            _ => {
-                todo!();
+            WorkerHandlerNotification::Query(worker_id, query_id, query) => {
+                if let Err(error) = match &query {
+                    QueryType::JobGraphStatus(job_graph_id) => {
+                        let response = match self.job_graph_metadata.get(&job_graph_id) {
+                            Some(graph_metadata) => Ok(graph_metadata.job_graph_state.clone()),
+                            None => Err(QueryError(format!(
+                                "JobGraph {:?} was not registered in the Leader.",
+                                job_graph_id,
+                            ))),
+                        };
+                        leader_to_workers_tx.send(WorkerHandlerNotification::QueryResponse(
+                            worker_id,
+                            query_id.clone(),
+                            QueryResponseType::JobGraphStatus(job_graph_id.clone(), response),
+                        ))
+                    }
+                } {
+                    tracing::warn!(
+                        "[Leader] Error responding to the Query({:?})[{:?}] by the Worker {}: {:?}",
+                        query_id,
+                        query,
+                        worker_id,
+                        error,
+                    );
+                }
             }
+            // The rest of the notifications are to be sent from the Leader to the WorkerHandlers.
+            _ => unreachable!(),
         }
     }
 
@@ -327,19 +352,23 @@ impl Leader {
                         );
                     }
                 }
-                WorkerNotification::Query(query) => {
+                WorkerNotification::Query(query_id, query) => {
                     tracing::trace!(
-                        "[WorkerHandler {}] Received a query: {:?}.",
+                        "[WorkerHandler {}] Received the Query({:?}): {:?}.",
                         id_of_this_worker,
+                        query_id,
                         query,
                     );
                     if let Err(error) = channel_to_leader.send(WorkerHandlerNotification::Query(
                         id_of_this_worker,
+                        query_id.clone(),
                         query.clone(),
                     )) {
                         tracing::warn!(
-                            "[WorkerHandler {}] Error submitting the Query {:?} to the Leader: {}",
+                            "[WorkerHandler {}] Error submitting the \
+                                Query({:?})[{:?}] to the Leader: {}",
                             id_of_this_worker,
+                            query_id,
                             query,
                             error,
                         );
@@ -415,22 +444,28 @@ impl Leader {
                         }
                     }
                 }
-                WorkerHandlerNotification::QueryResponse(worker_id, query_response) => {
+                WorkerHandlerNotification::QueryResponse(worker_id, query_id, query_response) => {
                     // The Leader responds to a Query by a Worker.
                     if id_of_this_worker == worker_id {
                         tracing::trace!(
-                            "[WorkerHandler {}] Responding with a QueryResponse {:?} from Leader.",
+                            "[WorkerHandler {}] Responding with a QueryResponse({:?}) \
+                                                            {:?} from Leader.",
                             id_of_this_worker,
+                            query_id,
                             query_response,
                         );
                         if let Err(error) = worker_tx
-                            .send(LeaderNotification::QueryResponse(query_response.clone()))
+                            .send(LeaderNotification::QueryResponse(
+                                query_id.clone(),
+                                query_response.clone(),
+                            ))
                             .await
                         {
                             tracing::warn!(
-                                "[WorkerHandler {}] Error notifying Worker of the QueryResponse \
-                                                                {:?} from Leader: {:?}",
+                                "[WorkerHandler {}] Error notifying Worker of the \
+                                    QueryResponse({:?})[{:?}] from Leader: {:?}",
                                 id_of_this_worker,
+                                query_id,
                                 query_response,
                                 error,
                             );
