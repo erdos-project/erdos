@@ -2,7 +2,7 @@ use std::{error::Error, fmt, net::SocketAddr};
 
 use tokio::{
     runtime::Builder,
-    sync::mpsc::{self, UnboundedSender},
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
     task::JoinHandle,
 };
 use tracing::Level;
@@ -105,8 +105,10 @@ impl LeaderHandle {
 /// A [`WorkerHandle`] is used by driver applications to submit ERDOS applications
 /// to the ERDOS Leader, and query their execution progres.
 pub struct WorkerHandle {
-    /// A handle to communicate notifications to the underlying Worker.
-    worker_handle: UnboundedSender<DriverNotification>,
+    /// A channel to communicate notifications to the underlying Worker.
+    channel_to_worker: UnboundedSender<DriverNotification>,
+    /// A channel to receive notifications from the underlying Worker.
+    channel_from_worker: UnboundedReceiver<DriverNotification>,
     /// An ID for the WorkerHandle that mirrors the ID of the underlying Worker.
     handle_id: WorkerId,
     /// A handle for the asynchronously running Worker task.
@@ -146,9 +148,11 @@ impl WorkerHandle {
             .build()
             .unwrap();
 
-        // Initialize a channel between the Handle and the Worker.
+        // Initialize channels between the Handle and the Worker.
         // This channel is used by the Handle to submit requests to the Worker.
-        let (worker_tx, worker_rx) = mpsc::unbounded_channel();
+        let (channel_to_worker_tx, channel_to_worker_rx) = mpsc::unbounded_channel();
+        // This channel is used by the Worker to respond to the Handle.
+        let (channel_from_worker_tx, channel_from_worker_rx) = mpsc::unbounded_channel();
 
         // Initialize a Worker with the given index, and an empty set of Resources.
         // TODO (Sukrit): In the future, the index of the Worker should be generated
@@ -159,13 +163,15 @@ impl WorkerHandle {
             config.leader_address,
             config.data_plane_address,
             worker_resources,
-            worker_rx,
+            channel_to_worker_rx,
+            channel_from_worker_tx,
             config.num_threads,
         );
         let worker_task = worker_runtime.spawn(async move { worker.run().await });
         Self {
             handle_id: config.id,
-            worker_handle: worker_tx,
+            channel_to_worker: channel_to_worker_tx,
+            channel_from_worker: channel_from_worker_rx,
             worker_task,
             worker_runtime,
             logger_guard,
@@ -191,7 +197,7 @@ impl WorkerHandle {
             job_graph.name(),
             job_graph_id,
         );
-        self.worker_handle
+        self.channel_to_worker
             .send(DriverNotification::RegisterGraph(job_graph))
             .map_err(|_| {
                 HandleError::CommunicationError(String::from(
@@ -210,7 +216,7 @@ impl WorkerHandle {
         let job_graph_id = self.register(graph)?;
 
         // Submit the JobGraph to the Leader.
-        self.worker_handle
+        self.channel_to_worker
             .send(DriverNotification::SubmitGraph(job_graph_id.clone()))
             .map_err(|_| {
                 HandleError::CommunicationError(String::from(

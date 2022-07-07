@@ -54,7 +54,9 @@ pub(crate) struct WorkerNode {
     /// The set of [`Resources`] that the [`Worker`] owns.
     resources: Resources,
     /// A channel where the [`Worker`] receives notifications from the [`Driver`].
-    driver_notification_rx: UnboundedReceiver<DriverNotification>,
+    channel_from_driver: UnboundedReceiver<DriverNotification>,
+    /// A channel where the [`Worker`] sends notifications to the [`Driver`].
+    channel_to_driver: UnboundedSender<DriverNotification>,
     /// A mapping of the [`JobGraph`]s that have been submitted to the [`Worker`].
     job_graphs: HashMap<JobGraphId, JobGraph>,
     /// A memo of the stream connections that are remaining to be setup for
@@ -82,7 +84,8 @@ impl WorkerNode {
         leader_address: SocketAddr,
         data_plane_address: SocketAddr,
         resources: Resources,
-        driver_notification_rx: UnboundedReceiver<DriverNotification>,
+        channel_from_driver: UnboundedReceiver<DriverNotification>,
+        channel_to_driver: UnboundedSender<DriverNotification>,
         num_threads: usize,
     ) -> Self {
         Self {
@@ -90,7 +93,8 @@ impl WorkerNode {
             leader_address,
             data_plane_address,
             resources,
-            driver_notification_rx,
+            channel_from_driver,
+            channel_to_driver,
             job_graphs: HashMap::new(),
             pending_stream_setups: HashMap::new(),
             job_graph_to_job_state: HashMap::new(),
@@ -190,7 +194,7 @@ impl WorkerNode {
                 }
 
                 // Handle messages received from the Driver.
-                Some(driver_notification) = self.driver_notification_rx.recv() => {
+                Some(driver_notification) = self.channel_from_driver.recv() => {
                     match driver_notification {
                         DriverNotification::Shutdown => {
                             tracing::info!(
