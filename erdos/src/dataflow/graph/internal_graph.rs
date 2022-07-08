@@ -150,7 +150,7 @@ impl Clone for Box<dyn DriverStreamSetupHook> {
 ///
 /// The abstract graph is compiled into a JobGraph, which ERDOS schedules and executes.
 /// TODO: Make this struct private.
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct InternalGraph {
     /// The name of the Graph.
     name: String,

@@ -88,17 +88,20 @@ where
         let op_name = format!("ConcatOp_{}_{}", self.name(), other.name());
         let write_stream = OperatorStream::new(
             &format!("{}-write-stream", op_name),
-            Arc::clone(&self.graph()),
+            Arc::clone(&self.internal_graph()),
         );
 
-        self.graph().lock().unwrap().connect_two_in_one_out(
-            ConcatOperator::new,
-            || {},
-            OperatorConfig::new().name(&op_name),
-            self,
-            other,
-            &write_stream,
-        );
+        self.internal_graph()
+            .lock()
+            .unwrap()
+            .connect_two_in_one_out(
+                ConcatOperator::new,
+                || {},
+                OperatorConfig::new().name(&op_name),
+                self,
+                other,
+                &write_stream,
+            );
         write_stream
     }
 }

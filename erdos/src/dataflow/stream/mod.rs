@@ -48,6 +48,8 @@ pub use read_stream::ReadStream;
 use serde::Deserialize;
 pub use write_stream::WriteStream;
 
+pub(crate) use private::InternalStream;
+
 use super::graph::InternalGraph;
 
 pub type StreamId = crate::Uuid;
@@ -59,23 +61,38 @@ pub trait WriteStreamT<D: Data> {
     fn send(&mut self, msg: Message<D>) -> Result<(), SendError>;
 }
 
-pub trait Stream<D: Data> {
+/// Defines edges in the [`Graph`](crate::dataflow::Graph).
+pub trait Stream<D: Data>: InternalStream<D> {
+    /// The name of the stream used in debugging.
     fn name(&self) -> String;
+    /// The stream's unique ID.
     fn id(&self) -> StreamId;
-    // TODO: Replace with a context/information data structure that contains the
-    // abstract graph and potentially information about the parent operator.
-    fn graph(&self) -> Arc<Mutex<InternalGraph>>;
 }
 
-impl<D: Data> Stream<D> for &dyn Stream<D> {
+impl<'a, D: Data> Stream<D> for &'a dyn Stream<D>
+where
+    &'a dyn Stream<D>: InternalStream<D>,
+{
     fn name(&self) -> String {
         (**self).name()
     }
     fn id(&self) -> StreamId {
         (**self).id()
     }
-    fn graph(&self) -> Arc<Mutex<InternalGraph>> {
-        (**self).graph()
+}
+
+mod private {
+    use super::{Arc, Data, InternalGraph, Mutex};
+    /// A sealed trait implemented for ERDOS Stream types.
+    pub trait InternalStream<D: Data> {
+        /// Returns a reference to the internal graph. Used to support the LINQ API.
+        fn internal_graph(&self) -> Arc<Mutex<InternalGraph>>;
+    }
+
+    impl<D: Data> InternalStream<D> for &dyn InternalStream<D> {
+        fn internal_graph(&self) -> Arc<Mutex<InternalGraph>> {
+            (**self).internal_graph()
+        }
     }
 }
 
@@ -106,7 +123,7 @@ impl<D: Data> OperatorStream<D> {
         for<'a> D: Data + Deserialize<'a>,
     {
         let egress_stream = EgressStream::new(self);
-        self.graph()
+        self.internal_graph()
             .lock()
             .unwrap()
             .add_egress_stream(&egress_stream);
@@ -122,7 +139,10 @@ impl<D: Data> Stream<D> for OperatorStream<D> {
     fn id(&self) -> StreamId {
         self.id
     }
-    fn graph(&self) -> Arc<Mutex<InternalGraph>> {
+}
+
+impl<D: Data> InternalStream<D> for OperatorStream<D> {
+    fn internal_graph(&self) -> Arc<Mutex<InternalGraph>> {
         Arc::clone(&self.graph)
     }
 }
