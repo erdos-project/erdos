@@ -15,6 +15,8 @@ from erdos.streams import ReadStream, WriteStream
 MAX_NUM_RUNTIME_SAMPLES = 1000
 
 T = TypeVar("T")
+U = TypeVar("U")
+V = TypeVar("V")
 
 
 class BaseOperator(Generic[T]):
@@ -256,8 +258,8 @@ class TwoInOneOut(BaseOperator[T]):
     def run(
         self,
         left_read_stream: ReadStream[T],
-        right_read_stream: ReadStream[T],
-        write_stream: WriteStream[T],
+        right_read_stream: ReadStream[U],
+        write_stream: WriteStream[V],
     ):
         """Runs the operator.
 
@@ -273,7 +275,7 @@ class TwoInOneOut(BaseOperator[T]):
             write_stream: A :py:class:`.WriteStream` instance to send data on.
         """
 
-    def on_left_data(self, context: TwoInOneOutContext[T], data: Any):
+    def on_left_data(self, context: TwoInOneOutContext[V], data: T):
         """Callback invoked upon receipt of a :py:class:`.Message` on the
         `left_read_stream`.
 
@@ -284,7 +286,7 @@ class TwoInOneOut(BaseOperator[T]):
                 stream.
         """
 
-    def on_right_data(self, context: TwoInOneOutContext[T], data: Any):
+    def on_right_data(self, context: TwoInOneOutContext[V], data: U):
         """Callback invoked puon receipt of a :py:class:`.Message` on the
         `right_read_stream`.
 
@@ -295,7 +297,7 @@ class TwoInOneOut(BaseOperator[T]):
                 stream.
         """
 
-    def on_watermark(self, context: TwoInOneOutContext[T]):
+    def on_watermark(self, context: TwoInOneOutContext[V]):
         """Callback invoked upon receipt of a :py:class:`.WatermarkMessage`
         across the two instances of the operator's :py:class:`.ReadStream`.
 
@@ -314,7 +316,7 @@ class TwoInOneOut(BaseOperator[T]):
         """
 
 
-class OneInTwoOut(BaseOperator[T]):
+class OneInTwoOut(BaseOperator, Generic[T,U,V]):
     """A :py:class:`OneInTwoOut` is an abstract base class that needs to be
     inherited by user-defined operators that consume data from a single
     :py:class:`.ReadStream` instance and produce data on two instances of
@@ -340,8 +342,8 @@ class OneInTwoOut(BaseOperator[T]):
     def run(
         self,
         read_stream: ReadStream[T],
-        left_write_stream: WriteStream[T],
-        right_write_stream: WriteStream[T],
+        left_write_stream: WriteStream[U],
+        right_write_stream: WriteStream[V],
     ):
         """Runs the operator.
 
@@ -358,7 +360,7 @@ class OneInTwoOut(BaseOperator[T]):
                 send data on.
         """
 
-    def on_data(self, context: OneInTwoOutContext[T], data: Any):
+    def on_data(self, context: OneInTwoOutContext[U,V], data: T):
         """Callback invoked upon receipt of a :py:class:`.Message` on the
         `read_stream`.
 
@@ -369,7 +371,7 @@ class OneInTwoOut(BaseOperator[T]):
                 stream.
         """
 
-    def on_watermark(self, context: OneInTwoOutContext[T]):
+    def on_watermark(self, context: OneInTwoOutContext[U,V]):
         """Callback invoked upon receipt of a :py:class:`.WatermarkMessage` on
         the operator's :py:class:`.ReadStream`.
 
@@ -388,7 +390,7 @@ class OneInTwoOut(BaseOperator[T]):
         """
 
 
-class OperatorConfig(Generic[T]):
+class OperatorConfig():
     """An :py:class:`OperatorConfig` allows developers to configure an
     operator.
 

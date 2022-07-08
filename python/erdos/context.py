@@ -10,7 +10,7 @@ U = TypeVar("U")
 V = TypeVar("V")
 
 
-class SinkContext(Generic[T]):
+class SinkContext():
     """A :py:class:`SinkContext` instance enables developers to retrieve
     metadata about the current invocation of either a message or a watermark
     callback in a :py:class:`.Sink` operator.
@@ -32,7 +32,7 @@ class SinkContext(Generic[T]):
         )
 
 
-class OneInOneOutContext(Generic[T, U]):
+class OneInOneOutContext(Generic[T]):
     """A :py:class:`OneInOneOutContext` instance enables developers to retrieve
     metadata about the current invocation of either a message or a watermark
     callback in a :py:class:`.OneInOneOut` operator.
@@ -50,11 +50,11 @@ class OneInOneOutContext(Generic[T, U]):
         self,
         timestamp: PyTimestamp,
         config: "erdos.OperatorConfig",
-        write_stream: WriteStream[U],
+        write_stream: WriteStream[T],
     ):
         self.timestamp = Timestamp(_py_timestamp=timestamp)
         self.config = config
-        self.write_stream = write_stream[U]
+        self.write_stream = write_stream
 
     def __str__(self):
         return "OneInOneOutContext(Timestamp={}, Config={}, WriteStream={})".format(
@@ -62,7 +62,7 @@ class OneInOneOutContext(Generic[T, U]):
         )
 
 
-class OneInTwoOutContext(Generic[T, U, V]):
+class OneInTwoOutContext(Generic[T, U]):
     """A :py:class:`OneInTwoOutContext` instance enables developers to retrieve
     metadata about the current invocation of either a message or a watermark
     callback in a :py:class:`.OneInTwoOut` operator.
