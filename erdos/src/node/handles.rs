@@ -231,7 +231,7 @@ impl WorkerHandle {
     }
 
     /// Retrieves the status of the `Graph` from the `Leader`.
-    /// 
+    ///
     /// # Arguments
     /// - `graph_id`: The ID of the `Graph` whose status needs to be retrieved.
     fn get_job_graph_status(
