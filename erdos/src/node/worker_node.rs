@@ -386,8 +386,8 @@ impl WorkerNode {
                     self.worker.execute().await;
                 } else {
                     tracing::error!(
-                        "[Worker {}] Could not find any executors for JobGraph {:?}.
-                            The graph was potentially not scheduled here.",
+                        "[Worker {}] Could not find any executors for JobGraph {:?}. \
+                        This is either a Driver or the Graph was potentially not scheduled here.",
                         self.id,
                         job_graph_id,
                     );
@@ -396,7 +396,21 @@ impl WorkerNode {
             LeaderNotification::QueryResponse(query_id, query_response) => {
                 if let Some(source) = self.pending_queries.get(&query_id) {
                     match source {
-                        Job::Driver => todo!(),
+                        Job::Driver => {
+                            // Send the response to the Driver.
+                            if let Err(error) = self
+                                .channel_to_driver
+                                .send(DriverNotification::QueryResponse(query_response))
+                            {
+                                tracing::warn!(
+                                    "[Worker {}] Error sending the response to \
+                                            the Query {:?} to the Driver: {:}",
+                                    self.id,
+                                    query_id,
+                                    error,
+                                );
+                            }
+                        }
                         // Queries are only initiated by the Driver for now.
                         Job::Operator(_) => unreachable!(),
                     }
@@ -477,8 +491,9 @@ impl WorkerNode {
                     self.pending_queries.insert(query_id, Job::Driver);
                 }
             }
-            // The shutdown arm is unreachable, because it should be handled in the main loop.
-            DriverNotification::Shutdown => unreachable!(),
+            // The below types should either be handled in the main loop,
+            // or should never be received.
+            DriverNotification::Shutdown | DriverNotification::QueryResponse(_) => unreachable!(),
         }
     }
 

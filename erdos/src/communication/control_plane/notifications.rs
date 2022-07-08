@@ -50,6 +50,8 @@ pub(crate) enum DriverNotification {
     SubmitGraph(JobGraphId),
     /// Requests the `Worker` to respond to a [`Query`](QueryType).
     Query(QueryType),
+    /// Response to a `Query` sent by the `Driver`.
+    QueryResponse(QueryResponseType),
     /// Notifies the `Worker` to shutdown.
     Shutdown,
 }

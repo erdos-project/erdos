@@ -10,7 +10,10 @@ use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::format::FmtSpan;
 
 use crate::{
-    communication::{control_plane::notifications::DriverNotification, errors::CommunicationError},
+    communication::{
+        control_plane::notifications::{DriverNotification, QueryResponseType, QueryType},
+        errors::CommunicationError,
+    },
     dataflow::{
         graph::{GraphCompilationError, JobGraphId},
         Graph,
@@ -19,7 +22,7 @@ use crate::{
     Configuration,
 };
 
-use super::WorkerId;
+use super::{ExecutionState, WorkerId};
 
 /// The error raised by the handles when executing commands from the drivers.
 #[derive(Debug)]
@@ -225,6 +228,64 @@ impl WorkerHandle {
             })?;
 
         Ok(job_graph_id)
+    }
+
+    /// Retrieves the status of the `Graph` from the `Leader`.
+    /// 
+    /// # Arguments
+    /// - `graph_id`: The ID of the `Graph` whose status needs to be retrieved.
+    fn get_job_graph_status(
+        &mut self,
+        graph_id: &JobGraphId,
+    ) -> Result<ExecutionState, HandleError> {
+        // Request the Worker for the status of the JobGraph.
+        self.channel_to_worker
+            .send(DriverNotification::Query(QueryType::JobGraphStatus(
+                graph_id.clone(),
+            )))
+            .map_err(|_| {
+                HandleError::CommunicationError(String::from(
+                    "Error requesting the Ready status of the Graph from the Leader.",
+                ))
+            })?;
+
+        // Wait for the response of the Query from the Worker.
+        match self.channel_from_worker.blocking_recv() {
+            Some(notification) => match notification {
+                DriverNotification::QueryResponse(query_response) => match query_response {
+                    QueryResponseType::JobGraphStatus(response_graph_id, job_graph_state) => {
+                        if response_graph_id == *graph_id {
+                            match job_graph_state {
+                                Ok(result) => Ok(result),
+                                Err(error) => Err(HandleError::CommunicationError(error.0)),
+                            }
+                        } else {
+                            Err(HandleError::CommunicationError(String::from(
+                                "Incorrect JobGraph status retrieved from the Leader.",
+                            )))
+                        }
+                    }
+                },
+                _ => Err(HandleError::CommunicationError(String::from(
+                    "Error retrieving the Ready status of the Graph from the Leader.",
+                ))),
+            },
+            None => Err(HandleError::CommunicationError(String::from(
+                "Error retrieving the Ready status of the Graph from the Leader.",
+            ))),
+        }
+    }
+
+    /// Checks if the [`Graph`] submitted to the [`Worker`] is ready for execution.
+    ///
+    /// # Arguments
+    /// - `graph_id`: The ID of the `Graph` returned by the [`submit`] or [`register`] methods.
+    pub fn ready(&mut self, graph_id: &JobGraphId) -> Result<bool, HandleError> {
+        let job_graph_state = self.get_job_graph_status(graph_id)?;
+        Ok(
+            job_graph_state == ExecutionState::Ready
+                || job_graph_state == ExecutionState::Executing,
+        )
     }
 
     /// Retrieve the ID of the Worker underlying this handle.
