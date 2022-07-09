@@ -54,13 +54,7 @@ impl PyEgressStream {
 
 impl PyEgressStream {
     pub fn new(py: Python, egress_stream: EgressStream<Vec<u8>>) -> PyResult<Py<Self>> {
-        let initializer = PyClassInitializer::from(Self::from(egress_stream));
+        let initializer = PyClassInitializer::from(Self { egress_stream });
         Py::new(py, initializer)
-    }
-}
-
-impl From<EgressStream<Vec<u8>>> for PyEgressStream {
-    fn from(egress_stream: EgressStream<Vec<u8>>) -> Self {
-        Self { egress_stream }
     }
 }

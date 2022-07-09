@@ -347,7 +347,7 @@ class OperatorStream(Stream[T]):
     def __init__(self, operator_stream: PyOperatorStream) -> None:
         super().__init__(operator_stream)
 
-    def to_egress(self) -> EgressStream:
+    def to_egress(self) -> EgressStream[T]:
         return EgressStream(self._internal_stream.to_egress())
 
 
@@ -411,14 +411,13 @@ class IngressStream(Stream[T]):
         self._internal_stream.send(internal_msg)
 
 
-class EgressStream(Stream[T]):
+class EgressStream(Generic[T]):
     """An :py:class:`EgressStream` enables drivers to read data from a
     running ERDOS applications.
 
-    The driver can initialize a new :py:class:`EgressStream` by passing the
-    instance of :py:class:`OperatorStream` returned by the :code:`connect`
-    family of functions. Similar to a :py:class:`ReadStream`, an
-    :py:class:`EgressStream` provides :py:meth:`.read` and
+    The driver can initialize a new :py:class:`EgressStream` by invoking
+    :py:meth:`OperatorStream.to_egress`. Similar to a :py:class:`ReadStream`,
+    an :py:class:`EgressStream` provides :py:meth:`.read` and
     :py:meth:`.try_read` for reading data published on the corresponding
     :py:class:`OperatorStream`.
 

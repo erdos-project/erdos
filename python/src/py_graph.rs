@@ -51,7 +51,7 @@ impl PyGraph {
         let flow_watermarks: bool = py_config.getattr(py, "flow_watermarks")?.extract(py)?;
         let mut config = OperatorConfig::new()
             .name(&name)
-            .worker(WorkerId(worker_id))
+            .worker(WorkerId::from(worker_id))
             .flow_watermarks(flow_watermarks);
         config.id = OperatorId::new_deterministic();
         tracing::debug!("Assigning ID {} to {}.", config.id, name,);
@@ -99,7 +99,7 @@ impl PyGraph {
         let flow_watermarks: bool = py_config.getattr(py, "flow_watermarks")?.extract(py)?;
         let mut config = OperatorConfig::new()
             .name(&name)
-            .worker(WorkerId(worker_id))
+            .worker(WorkerId::from(worker_id))
             .flow_watermarks(flow_watermarks);
         config.id = OperatorId::new_deterministic();
         tracing::debug!("Assigning ID {} to {}.", config.id, name,);
@@ -148,7 +148,7 @@ impl PyGraph {
         let flow_watermarks: bool = py_config.getattr(py, "flow_watermarks")?.extract(py)?;
         let mut config = OperatorConfig::new()
             .name(&name)
-            .worker(WorkerId(worker_id))
+            .worker(WorkerId::from(worker_id))
             .flow_watermarks(flow_watermarks);
         config.id = OperatorId::new_deterministic();
         tracing::debug!("Assigning ID {} to {}.", config.id, name,);
@@ -198,7 +198,7 @@ impl PyGraph {
         let flow_watermarks: bool = py_config.getattr(py, "flow_watermarks")?.extract(py)?;
         let mut config = OperatorConfig::new()
             .name(&name)
-            .worker(WorkerId(worker_id))
+            .worker(WorkerId::from(worker_id))
             .flow_watermarks(flow_watermarks);
         config.id = OperatorId::new_deterministic();
         tracing::debug!("Assigning ID {} to {}", config.id, name,);
@@ -252,7 +252,7 @@ impl PyGraph {
         let flow_watermarks: bool = py_config.getattr(py, "flow_watermarks")?.extract(py)?;
         let mut config = OperatorConfig::new()
             .name(&name)
-            .worker(WorkerId(worker_id))
+            .worker(WorkerId::from(worker_id))
             .flow_watermarks(flow_watermarks);
         config.id = OperatorId::new_deterministic();
         tracing::debug!("Assigning ID {} to {}.", config.id, name,);
