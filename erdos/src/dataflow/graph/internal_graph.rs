@@ -176,7 +176,7 @@ impl InternalGraph {
         }
     }
 
-    pub(crate) fn add_ingress_stream<D>(&mut self, ingress_stream: &IngressStream<D>)
+    pub fn add_ingress_stream<D>(&mut self, ingress_stream: &IngressStream<D>)
     where
         for<'a> D: Data + Deserialize<'a>,
     {
@@ -205,7 +205,7 @@ impl InternalGraph {
             .insert(ingress_stream.id(), Box::new(setup_hook));
     }
 
-    pub(crate) fn add_egress_stream<D>(&mut self, egress_stream: &EgressStream<D>)
+    pub fn add_egress_stream<D>(&mut self, egress_stream: &EgressStream<D>)
     where
         for<'a> D: Data + Deserialize<'a>,
     {
@@ -225,7 +225,7 @@ impl InternalGraph {
             .insert(egress_stream.id(), Box::new(setup_hook));
     }
 
-    pub(crate) fn add_loop_stream<D>(&mut self, loop_stream: &LoopStream<D>)
+    pub fn add_loop_stream<D>(&mut self, loop_stream: &LoopStream<D>)
     where
         for<'a> D: Data + Deserialize<'a>,
     {
@@ -241,11 +241,8 @@ impl InternalGraph {
     }
 
     /// Connects a [`LoopStream`] to another stream in order to close a loop.
-    pub(crate) fn connect_loop<D>(
-        &mut self,
-        loop_stream: &LoopStream<D>,
-        stream: &OperatorStream<D>,
-    ) where
+    pub fn connect_loop<D>(&mut self, loop_stream: &LoopStream<D>, stream: &OperatorStream<D>)
+    where
         for<'a> D: Data + Deserialize<'a>,
     {
         if let Some(v) = self.loop_streams.get_mut(&loop_stream.id()) {
@@ -253,7 +250,7 @@ impl InternalGraph {
         }
     }
 
-    pub(crate) fn connect_source<O, T>(
+    pub fn connect_source<O, T>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
         mut config: OperatorConfig,
@@ -295,7 +292,7 @@ impl InternalGraph {
             .insert(abstract_operator_id, Box::new(op_runner));
     }
 
-    pub(crate) fn connect_parallel_sink<O, S, T, U>(
+    pub fn connect_parallel_sink<O, S, T, U>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
         // Add state as an explicit argument to support future features such as state sharing.
@@ -344,7 +341,7 @@ impl InternalGraph {
             .insert(abstract_operator_id, Box::new(op_runner));
     }
 
-    pub(crate) fn connect_sink<O, S, T>(
+    pub fn connect_sink<O, S, T>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
         // Add state as an explicit argument to support future features such as state sharing.
@@ -392,7 +389,7 @@ impl InternalGraph {
             .insert(abstract_operator_id, Box::new(op_runner));
     }
 
-    pub(crate) fn connect_parallel_one_in_one_out<O, S, T, U, V>(
+    pub fn connect_parallel_one_in_one_out<O, S, T, U, V>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
         // Add state as an explicit argument to support future features such as state sharing.
@@ -451,7 +448,7 @@ impl InternalGraph {
             .insert(abstract_operator_id, Box::new(op_runner));
     }
 
-    pub(crate) fn connect_one_in_one_out<O, S, T, U>(
+    pub fn connect_one_in_one_out<O, S, T, U>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
         // Add state as an explicit argument to support future features such as state sharing.
@@ -509,7 +506,7 @@ impl InternalGraph {
             .insert(abstract_operator_id, Box::new(op_runner));
     }
 
-    pub(crate) fn connect_parallel_two_in_one_out<O, S, T, U, V, W>(
+    pub fn connect_parallel_two_in_one_out<O, S, T, U, V, W>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
         // Add state as an explicit argument to support future features such as state sharing.
@@ -574,7 +571,7 @@ impl InternalGraph {
             .insert(abstract_operator_id, Box::new(op_runner));
     }
 
-    pub(crate) fn connect_two_in_one_out<O, S, T, U, V>(
+    pub fn connect_two_in_one_out<O, S, T, U, V>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
         // Add state as an explicit argument to support future features such as state sharing.
@@ -638,7 +635,7 @@ impl InternalGraph {
             .insert(abstract_operator_id, Box::new(op_runner));
     }
 
-    pub(crate) fn connect_parallel_one_in_two_out<O, S, T, U, V, W>(
+    pub fn connect_parallel_one_in_two_out<O, S, T, U, V, W>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
         // Add state as an explicit argument to support future features such as state sharing.
@@ -710,7 +707,7 @@ impl InternalGraph {
             .insert(abstract_operator_id, Box::new(op_runner));
     }
 
-    pub(crate) fn connect_one_in_two_out<O, S, T, U, V>(
+    pub fn connect_one_in_two_out<O, S, T, U, V>(
         &mut self,
         operator_fn: impl Fn() -> O + Clone + Send + Sync + 'static,
         // Add state as an explicit argument to support future features such as state sharing.
@@ -784,7 +781,7 @@ impl InternalGraph {
     /// If `stream_id` corresponds to a [`LoopStream`], returns the [`StreamId`] of the
     /// [`Stream`] to which it is connected. Returns [`None`] if unconnected.
     /// Otherwise, returns `stream_id`.
-    pub(crate) fn resolve_stream_id(&self, stream_id: &StreamId) -> Option<StreamId> {
+    fn resolve_stream_id(&self, stream_id: &StreamId) -> Option<StreamId> {
         match self.loop_streams.get(stream_id) {
             Some(connected_stream_id) => *connected_stream_id,
             None => Some(*stream_id),
