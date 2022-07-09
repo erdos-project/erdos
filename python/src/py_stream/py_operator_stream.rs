@@ -1,7 +1,8 @@
-use erdos::dataflow::stream::{OperatorStream, Stream};
-use pyo3::prelude::*;
+use pyo3::{exceptions::PyException, prelude::*};
 
-use super::{PyEgressStream, PyStream};
+use erdos::dataflow::stream::OperatorStream;
+
+use crate::py_stream::{PyEgressStream, PyStream};
 
 /// The internal Python abstraction over a [`Stream`].
 ///
@@ -11,19 +12,15 @@ pub struct PyOperatorStream {}
 
 #[pymethods]
 impl PyOperatorStream {
-    fn name(&self) -> String {
-        // self.stream.name()
-        unimplemented!()
-    }
-
-    fn id(&self) -> String {
-        // format!("{}", self.stream.id())
-        unimplemented!()
-    }
-
-    fn to_egress(&self, py: Python) -> Py<PyEgressStream> {
-        unimplemented!()
-        // PyEgressStream::new(py, self.stream.to_egress()).unwrap()
+    fn to_egress(mut self_: PyRefMut<Self>, py: Python) -> PyResult<Py<PyEgressStream>> {
+        if let Some(operator_stream) = self_.as_mut().downcast_stream::<OperatorStream<Vec<u8>>>() {
+            PyEgressStream::new(py, operator_stream.to_egress())
+        } else {
+            Err(PyException::new_err(format!(
+                "OperatorStream {}: failed to downcast the PyStream's stream field.",
+                self_.as_ref().name()
+            )))
+        }
     }
 }
 
