@@ -69,10 +69,16 @@ pub trait Stream<D: Data>: InternalStream<D> {
     fn id(&self) -> StreamId;
 }
 
-impl<'a, D: Data> Stream<D> for &'a dyn Stream<D>
-where
-    &'a dyn Stream<D>: InternalStream<D>,
-{
+impl<D: Data, S: Stream<D> + ?Sized> Stream<D> for &S {
+    fn name(&self) -> String {
+        (**self).name()
+    }
+    fn id(&self) -> StreamId {
+        (**self).id()
+    }
+}
+
+impl<D: Data, S: Stream<D> + ?Sized> Stream<D> for Box<S> {
     fn name(&self) -> String {
         (**self).name()
     }
@@ -89,7 +95,13 @@ mod private {
         fn internal_graph(&self) -> Arc<Mutex<InternalGraph>>;
     }
 
-    impl<D: Data> InternalStream<D> for &dyn InternalStream<D> {
+    impl<D: Data, S: InternalStream<D> + ?Sized> InternalStream<D> for &S {
+        fn internal_graph(&self) -> Arc<Mutex<InternalGraph>> {
+            (**self).internal_graph()
+        }
+    }
+
+    impl<D: Data, S: InternalStream<D> + ?Sized> InternalStream<D> for Box<S> {
         fn internal_graph(&self) -> Arc<Mutex<InternalGraph>> {
             (**self).internal_graph()
         }
