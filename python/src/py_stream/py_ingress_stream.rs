@@ -1,5 +1,6 @@
-use erdos::dataflow::{stream::IngressStream, Message, Stream};
-use pyo3::{exceptions, prelude::*};
+use pyo3::{exceptions::PyException, prelude::*};
+
+use erdos::dataflow::{stream::IngressStream, Message};
 
 use crate::{PyMessage, PyStream};
 
@@ -11,22 +12,32 @@ pub struct PyIngressStream {}
 
 #[pymethods]
 impl PyIngressStream {
-    fn is_closed(self_: PyRef<Self>) -> bool {
-        unimplemented!();
-        let super_ = self_.as_ref();
-
-        // self.ingress_stream.is_closed()
+    fn is_closed(mut self_: PyRefMut<Self>) -> PyResult<bool> {
+        if let Some(ingress_stream) = self_.as_mut().downcast_stream::<IngressStream<Vec<u8>>>() {
+            Ok(ingress_stream.is_closed())
+        } else {
+            Err(PyException::new_err(format!(
+                "IngressStream {}: failed to downcast the PyStream's stream field.",
+                self_.as_ref().name()
+            )))
+        }
     }
 
-    fn send(&mut self, msg: &PyMessage) -> PyResult<()> {
-        unimplemented!();
-        // self.ingress_stream.send(Message::from(msg)).map_err(|e| {
-        //     exceptions::PyException::new_err(format!(
-        //         "Error sending message on ingress stream {}: {:?}",
-        //         self.ingress_stream.id(),
-        //         e
-        //     ))
-        // })
+    fn send(mut self_: PyRefMut<Self>, msg: &PyMessage) -> PyResult<()> {
+        if let Some(ingress_stream) = self_.as_mut().downcast_stream::<IngressStream<Vec<u8>>>() {
+            ingress_stream.send(Message::from(msg)).map_err(|e| {
+                PyException::new_err(format!(
+                    "IngressStream {}: failed to send the message with {:?}",
+                    self_.as_ref().name(),
+                    e
+                ))
+            })
+        } else {
+            Err(PyException::new_err(format!(
+                "IngressStream {}: failed to downcast the PyStream's stream field.",
+                self_.as_ref().name()
+            )))
+        }
     }
 }
 

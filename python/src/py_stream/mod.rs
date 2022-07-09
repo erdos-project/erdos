@@ -1,10 +1,10 @@
-use std::sync::{Arc, Mutex};
+use std::any::Any;
 
 use erdos::dataflow::{
     operators::{Concat, Filter, Join, Map, Split},
-    stream::{Stream, StreamId},
+    stream::Stream,
 };
-use pyo3::{exceptions::PyValueError, prelude::*, types::PyBytes};
+use pyo3::{prelude::*, types::PyBytes};
 
 // Private submodules
 mod py_egress_stream;
@@ -26,6 +26,12 @@ pub use py_write_stream::PyWriteStream;
 #[pyclass(subclass)]
 pub struct PyStream {
     pub stream: Box<dyn Stream<Vec<u8>>>,
+}
+
+impl PyStream {
+    pub fn downcast_stream<T: Any>(&mut self) -> Option<&mut T> {
+        (&mut self.stream as &mut dyn Any).downcast_mut()
+    }
 }
 
 #[pymethods]
