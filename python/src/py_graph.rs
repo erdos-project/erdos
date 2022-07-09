@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use pyo3::{pyclass, pymethods, Py, PyObject, PyResult, Python};
 
-use erdos::{dataflow::Graph, node::WorkerId, Configuration, OperatorConfig, OperatorId};
+use erdos::{dataflow::Graph, node::WorkerId, OperatorConfig, OperatorId};
 
 use crate::{
     py_operators::{PyOneInOneOut, PyOneInTwoOut, PySink, PySource, PyTwoInOneOut},
@@ -85,7 +85,7 @@ impl PyGraph {
         py: Python,
         py_type: PyObject,
         py_config: PyObject,
-        read_stream: &PyStream,
+        py_read_stream: &PyStream,
         args: PyObject,
         kwargs: PyObject,
         worker_id: usize,
@@ -123,7 +123,7 @@ impl PyGraph {
             },
             || {},
             config,
-            read_stream.stream.as_ref(),
+            py_read_stream.stream.as_ref(),
         );
         Ok(())
     }
@@ -134,7 +134,7 @@ impl PyGraph {
         py: Python,
         py_type: PyObject,
         py_config: PyObject,
-        read_stream: &PyStream,
+        py_read_stream: &PyStream,
         args: PyObject,
         kwargs: PyObject,
         worker_id: usize,
@@ -172,7 +172,7 @@ impl PyGraph {
             },
             || {},
             config,
-            read_stream.stream.as_ref(),
+            py_read_stream.stream.as_ref(),
         );
 
         PyOperatorStream::new(py, write_stream)
@@ -184,7 +184,7 @@ impl PyGraph {
         py: Python,
         py_type: PyObject,
         py_config: PyObject,
-        read_stream: &PyStream,
+        py_read_stream: &PyStream,
         args: PyObject,
         kwargs: PyObject,
         worker_id: usize,
@@ -222,7 +222,7 @@ impl PyGraph {
             },
             || {},
             config,
-            read_stream.stream.as_ref(),
+            py_read_stream.stream.as_ref(),
         );
 
         let py_left_write_stream = PyOperatorStream::new(py, left_write_stream)?;
@@ -237,8 +237,8 @@ impl PyGraph {
         py: Python,
         py_type: PyObject,
         py_config: PyObject,
-        left_read_stream: &PyStream,
-        right_read_stream: &PyStream,
+        py_left_read_stream: &PyStream,
+        py_right_read_stream: &PyStream,
         args: PyObject,
         kwargs: PyObject,
         worker_id: usize,
@@ -276,8 +276,8 @@ impl PyGraph {
             },
             || {},
             config,
-            left_read_stream.stream.as_ref(),
-            right_read_stream.stream.as_ref(),
+            py_left_read_stream.stream.as_ref(),
+            py_right_read_stream.stream.as_ref(),
         );
 
         PyOperatorStream::new(py, write_stream)

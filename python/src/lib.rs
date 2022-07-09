@@ -1,7 +1,5 @@
 #![feature(get_mut_unchecked)]
-
-use py_graph::PyGraph;
-use pyo3::{exceptions, prelude::*};
+use pyo3::prelude::*;
 
 // Private submodules
 mod py_message;
@@ -12,6 +10,7 @@ mod py_timestamp;
 pub mod py_graph;
 
 // Private imports
+use py_graph::PyGraph;
 use py_message::PyMessage;
 use py_stream::{
     PyEgressStream, PyIngressStream, PyLoopStream, PyOperatorStream, PyReadStream, PyStream,
