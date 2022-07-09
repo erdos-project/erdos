@@ -5,9 +5,11 @@ use std::{
 
 use serde::Deserialize;
 
-use crate::dataflow::{graph::InternalGraph, Data};
-
-use super::{OperatorStream, StreamId};
+use crate::dataflow::{
+    graph::InternalGraph,
+    stream::{InternalStream, OperatorStream, Stream, StreamId},
+    Data,
+};
 
 /// Enables loops in the dataflow.
 ///
@@ -62,12 +64,26 @@ where
             stream.name,
         );
     }
+}
 
-    pub fn id(&self) -> StreamId {
-        self.id
+impl<D: Data> InternalStream<D> for LoopStream<D>
+where
+    for<'a> D: Data + Deserialize<'a>,
+{
+    fn internal_graph(&self) -> Arc<Mutex<InternalGraph>> {
+        Arc::clone(&self.graph)
+    }
+}
+
+impl<D: Data> Stream<D> for LoopStream<D>
+where
+    for<'a> D: Data + Deserialize<'a>,
+{
+    fn name(&self) -> String {
+        format!("LoopStream-{}", self.id())
     }
 
-    pub fn graph(&self) -> Arc<Mutex<InternalGraph>> {
-        Arc::clone(&self.graph)
+    fn id(&self) -> StreamId {
+        self.id
     }
 }

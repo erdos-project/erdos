@@ -84,7 +84,7 @@ where
 mod private {
     use super::{Arc, Data, InternalGraph, Mutex};
     /// A sealed trait implemented for ERDOS Stream types.
-    pub trait InternalStream<D: Data> {
+    pub trait InternalStream<D: Data>: Send + Sync {
         /// Returns a reference to the internal graph. Used to support the LINQ API.
         fn internal_graph(&self) -> Arc<Mutex<InternalGraph>>;
     }

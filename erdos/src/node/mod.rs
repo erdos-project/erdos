@@ -47,7 +47,7 @@ pub(crate) enum JobState {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct WorkerId(usize);
+pub struct WorkerId(pub usize);
 
 impl Default for WorkerId {
     fn default() -> Self {
