@@ -13,7 +13,7 @@ pub struct PyIngressStream {}
 #[pymethods]
 impl PyIngressStream {
     fn is_closed(mut self_: PyRefMut<Self>) -> PyResult<bool> {
-        if let Some(ingress_stream) = self_.as_mut().downcast_stream::<IngressStream<Vec<u8>>>() {
+        if let Some(ingress_stream) = self_.as_mut().as_mut_stream::<IngressStream<Vec<u8>>>() {
             Ok(ingress_stream.is_closed())
         } else {
             Err(PyException::new_err(format!(
@@ -24,7 +24,7 @@ impl PyIngressStream {
     }
 
     fn send(mut self_: PyRefMut<Self>, msg: &PyMessage) -> PyResult<()> {
-        if let Some(ingress_stream) = self_.as_mut().downcast_stream::<IngressStream<Vec<u8>>>() {
+        if let Some(ingress_stream) = self_.as_mut().as_mut_stream::<IngressStream<Vec<u8>>>() {
             ingress_stream.send(Message::from(msg)).map_err(|e| {
                 PyException::new_err(format!(
                     "IngressStream {}: failed to send the message with {:?}",

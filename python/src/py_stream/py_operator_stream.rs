@@ -13,7 +13,7 @@ pub struct PyOperatorStream {}
 #[pymethods]
 impl PyOperatorStream {
     fn to_egress(mut self_: PyRefMut<Self>, py: Python) -> PyResult<Py<PyEgressStream>> {
-        if let Some(operator_stream) = self_.as_mut().downcast_stream::<OperatorStream<Vec<u8>>>() {
+        if let Some(operator_stream) = self_.as_mut().as_mut_stream::<OperatorStream<Vec<u8>>>() {
             PyEgressStream::new(py, operator_stream.to_egress())
         } else {
             Err(PyException::new_err(format!(

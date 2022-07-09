@@ -29,7 +29,7 @@ pub struct PyStream {
 }
 
 impl PyStream {
-    pub fn downcast_stream<T: Any>(&mut self) -> Option<&mut T> {
+    pub fn as_mut_stream<T: Any>(&mut self) -> Option<&mut T> {
         (&mut self.stream as &mut dyn Any).downcast_mut()
     }
 }

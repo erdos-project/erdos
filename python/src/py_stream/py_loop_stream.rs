@@ -16,10 +16,10 @@ impl PyLoopStream {
         mut self_: PyRefMut<Self>,
         mut py_operator_stream: PyRefMut<PyOperatorStream>,
     ) -> PyResult<()> {
-        if let Some(loop_stream) = self_.as_mut().downcast_stream::<LoopStream<Vec<u8>>>() {
+        if let Some(loop_stream) = self_.as_mut().as_mut_stream::<LoopStream<Vec<u8>>>() {
             if let Some(operator_stream) = py_operator_stream
                 .as_mut()
-                .downcast_stream::<OperatorStream<Vec<u8>>>()
+                .as_mut_stream::<OperatorStream<Vec<u8>>>()
             {
                 loop_stream.connect_loop(operator_stream);
                 Ok(())
