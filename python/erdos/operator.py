@@ -19,7 +19,7 @@ U = TypeVar("U")
 V = TypeVar("V")
 
 
-class BaseOperator(Generic[T]):
+class BaseOperator():
     """A :py:class:`BaseOperator` is an internal class that provides the
     methods common to the individual operators.
     """
@@ -67,7 +67,7 @@ class BaseOperator(Generic[T]):
             json.dump(self._trace_events, write_file)
 
 
-class Source(BaseOperator[T]):
+class Source(BaseOperator, Generic[T]):
     """A :py:class:`Source` is an abstract base class that needs to be
     inherited by user-defined source operators that generate data on a single
     :py:class:`.WriteStream` in an ERDOS dataflow graph.
@@ -106,7 +106,7 @@ class Source(BaseOperator[T]):
         """
 
 
-class Sink(BaseOperator[T]):
+class Sink(BaseOperator, Generic[T]):
     """A :py:class:`Sink` is an abstract class that needs to be inherited by
     user-defined sink operators that consume data from a single
     :py:class:`.ReadStream` in an ERDOS dataflow graph.
@@ -167,7 +167,7 @@ class Sink(BaseOperator[T]):
         """
 
 
-class OneInOneOut(BaseOperator[T]):
+class OneInOneOut(BaseOperator, Generic[T,U]):
     """A :py:class:`OneInOneOut` is an abstract base class that needs to be
     inherited by user-defined operators that consume data from a single
     :py:class:`.ReadStream` and produce data on a single
@@ -190,7 +190,7 @@ class OneInOneOut(BaseOperator[T]):
         instance._runtime_stats = defaultdict(deque)
         return instance
 
-    def run(self, read_stream: ReadStream[T], write_stream: WriteStream[T]):
+    def run(self, read_stream: ReadStream[T], write_stream: WriteStream[U]):
         """Runs the operator.
 
         Invoked automatically by ERDOS, and provided with a
@@ -202,7 +202,7 @@ class OneInOneOut(BaseOperator[T]):
             write_stream: A :py:class:`.WriteStream` instance to send data on.
         """
 
-    def on_data(self, context: OneInOneOutContext[T], data: Any):
+    def on_data(self, context: OneInOneOutContext[U], data: T):
         """Callback invoked upon receipt of a :py:class:`.Message` on the
         operator's :py:class:`.ReadStream`.
 
@@ -232,7 +232,7 @@ class OneInOneOut(BaseOperator[T]):
         """
 
 
-class TwoInOneOut(BaseOperator[T]):
+class TwoInOneOut(BaseOperator, Generic[T,U,V]):
     """A :py:class:`TwoInOneOut` is an abstract base class that needs to be
     inherited by user-defined operators that consume data from two
     :py:class:`.ReadStream` instances and produces data on a single
