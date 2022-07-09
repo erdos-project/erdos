@@ -1,6 +1,6 @@
 import json
 from collections import defaultdict, deque
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 import numpy as np
 
@@ -13,6 +13,10 @@ from erdos.context import (
 from erdos.streams import ReadStream, WriteStream
 
 MAX_NUM_RUNTIME_SAMPLES = 1000
+
+T = TypeVar("T")
+U = TypeVar("U")
+V = TypeVar("V")
 
 
 class BaseOperator:
@@ -63,7 +67,7 @@ class BaseOperator:
             json.dump(self._trace_events, write_file)
 
 
-class Source(BaseOperator):
+class Source(BaseOperator, Generic[T]):
     """A :py:class:`Source` is an abstract base class that needs to be
     inherited by user-defined source operators that generate data on a single
     :py:class:`.WriteStream` in an ERDOS dataflow graph.
@@ -83,7 +87,7 @@ class Source(BaseOperator):
         instance._runtime_stats = defaultdict(deque)
         return instance
 
-    def run(self, write_stream: WriteStream):
+    def run(self, write_stream: WriteStream[T]):
         """Runs the operator.
 
         Invoked automatically by ERDOS, and provided with a
@@ -102,7 +106,7 @@ class Source(BaseOperator):
         """
 
 
-class Sink(BaseOperator):
+class Sink(BaseOperator, Generic[T]):
     """A :py:class:`Sink` is an abstract class that needs to be inherited by
     user-defined sink operators that consume data from a single
     :py:class:`.ReadStream` in an ERDOS dataflow graph.
@@ -123,7 +127,7 @@ class Sink(BaseOperator):
         instance._runtime_stats = defaultdict(deque)
         return instance
 
-    def run(self, read_stream: ReadStream):
+    def run(self, read_stream: ReadStream[T]):
         """Runs the operator.
 
         Invoked automatically by ERDOS, and provided with a
@@ -163,7 +167,7 @@ class Sink(BaseOperator):
         """
 
 
-class OneInOneOut(BaseOperator):
+class OneInOneOut(BaseOperator, Generic[T, U]):
     """A :py:class:`OneInOneOut` is an abstract base class that needs to be
     inherited by user-defined operators that consume data from a single
     :py:class:`.ReadStream` and produce data on a single
@@ -186,7 +190,7 @@ class OneInOneOut(BaseOperator):
         instance._runtime_stats = defaultdict(deque)
         return instance
 
-    def run(self, read_stream: ReadStream, write_stream: WriteStream):
+    def run(self, read_stream: ReadStream[T], write_stream: WriteStream[U]):
         """Runs the operator.
 
         Invoked automatically by ERDOS, and provided with a
@@ -198,7 +202,7 @@ class OneInOneOut(BaseOperator):
             write_stream: A :py:class:`.WriteStream` instance to send data on.
         """
 
-    def on_data(self, context: OneInOneOutContext, data: Any):
+    def on_data(self, context: OneInOneOutContext[U], data: T):
         """Callback invoked upon receipt of a :py:class:`.Message` on the
         operator's :py:class:`.ReadStream`.
 
@@ -228,7 +232,7 @@ class OneInOneOut(BaseOperator):
         """
 
 
-class TwoInOneOut(BaseOperator):
+class TwoInOneOut(BaseOperator, Generic[T, U, V]):
     """A :py:class:`TwoInOneOut` is an abstract base class that needs to be
     inherited by user-defined operators that consume data from two
     :py:class:`.ReadStream` instances and produces data on a single
@@ -253,9 +257,9 @@ class TwoInOneOut(BaseOperator):
 
     def run(
         self,
-        left_read_stream: ReadStream,
-        right_read_stream: ReadStream,
-        write_stream: WriteStream,
+        left_read_stream: ReadStream[T],
+        right_read_stream: ReadStream[U],
+        write_stream: WriteStream[V],
     ):
         """Runs the operator.
 
@@ -271,7 +275,7 @@ class TwoInOneOut(BaseOperator):
             write_stream: A :py:class:`.WriteStream` instance to send data on.
         """
 
-    def on_left_data(self, context: TwoInOneOutContext, data: Any):
+    def on_left_data(self, context: TwoInOneOutContext[V], data: T):
         """Callback invoked upon receipt of a :py:class:`.Message` on the
         `left_read_stream`.
 
@@ -282,7 +286,7 @@ class TwoInOneOut(BaseOperator):
                 stream.
         """
 
-    def on_right_data(self, context: TwoInOneOutContext, data: Any):
+    def on_right_data(self, context: TwoInOneOutContext[V], data: U):
         """Callback invoked puon receipt of a :py:class:`.Message` on the
         `right_read_stream`.
 
@@ -293,7 +297,7 @@ class TwoInOneOut(BaseOperator):
                 stream.
         """
 
-    def on_watermark(self, context: TwoInOneOutContext):
+    def on_watermark(self, context: TwoInOneOutContext[V]):
         """Callback invoked upon receipt of a :py:class:`.WatermarkMessage`
         across the two instances of the operator's :py:class:`.ReadStream`.
 
@@ -312,7 +316,7 @@ class TwoInOneOut(BaseOperator):
         """
 
 
-class OneInTwoOut(BaseOperator):
+class OneInTwoOut(BaseOperator, Generic[T, U, V]):
     """A :py:class:`OneInTwoOut` is an abstract base class that needs to be
     inherited by user-defined operators that consume data from a single
     :py:class:`.ReadStream` instance and produce data on two instances of
@@ -337,9 +341,9 @@ class OneInTwoOut(BaseOperator):
 
     def run(
         self,
-        read_stream: ReadStream,
-        left_write_stream: WriteStream,
-        right_write_stream: WriteStream,
+        read_stream: ReadStream[T],
+        left_write_stream: WriteStream[U],
+        right_write_stream: WriteStream[V],
     ):
         """Runs the operator.
 
@@ -356,7 +360,7 @@ class OneInTwoOut(BaseOperator):
                 send data on.
         """
 
-    def on_data(self, context: OneInTwoOutContext, data: Any):
+    def on_data(self, context: OneInTwoOutContext[U, V], data: T):
         """Callback invoked upon receipt of a :py:class:`.Message` on the
         `read_stream`.
 
@@ -367,7 +371,7 @@ class OneInTwoOut(BaseOperator):
                 stream.
         """
 
-    def on_watermark(self, context: OneInTwoOutContext):
+    def on_watermark(self, context: OneInTwoOutContext[U, V]):
         """Callback invoked upon receipt of a :py:class:`.WatermarkMessage` on
         the operator's :py:class:`.ReadStream`.
 

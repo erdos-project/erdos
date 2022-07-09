@@ -1,7 +1,13 @@
+from typing import Generic, TypeVar
+
 import erdos
 from erdos.internal import PyTimestamp
 from erdos.streams import WriteStream
 from erdos.timestamp import Timestamp
+
+T = TypeVar("T")
+U = TypeVar("U")
+V = TypeVar("V")
 
 
 class SinkContext:
@@ -26,7 +32,7 @@ class SinkContext:
         )
 
 
-class OneInOneOutContext:
+class OneInOneOutContext(Generic[T]):
     """A :py:class:`OneInOneOutContext` instance enables developers to retrieve
     metadata about the current invocation of either a message or a watermark
     callback in a :py:class:`.OneInOneOut` operator.
@@ -44,7 +50,7 @@ class OneInOneOutContext:
         self,
         timestamp: PyTimestamp,
         config: "erdos.OperatorConfig",
-        write_stream: WriteStream,
+        write_stream: WriteStream[T],
     ):
         self.timestamp = Timestamp(_py_timestamp=timestamp)
         self.config = config
@@ -56,7 +62,7 @@ class OneInOneOutContext:
         )
 
 
-class OneInTwoOutContext:
+class OneInTwoOutContext(Generic[T, U]):
     """A :py:class:`OneInTwoOutContext` instance enables developers to retrieve
     metadata about the current invocation of either a message or a watermark
     callback in a :py:class:`.OneInTwoOut` operator.
@@ -76,8 +82,8 @@ class OneInTwoOutContext:
         self,
         timestamp: PyTimestamp,
         config: "erdos.OperatorConfig",
-        left_write_stream: WriteStream,
-        right_write_stream: WriteStream,
+        left_write_stream: WriteStream[T],
+        right_write_stream: WriteStream[U],
     ):
         self.timestamp = Timestamp(_py_timestamp=timestamp)
         self.config = config
@@ -94,7 +100,7 @@ class OneInTwoOutContext:
         )
 
 
-class TwoInOneOutContext:
+class TwoInOneOutContext(Generic[T]):
     """A :py:class:`TwoInOneOutContext` instance enables developers to retrieve
     metadata about the current invocation of either a message or a watermark
     callback in a :py:class:`.TwoInOneOut` operator.
@@ -112,7 +118,7 @@ class TwoInOneOutContext:
         self,
         timestamp: PyTimestamp,
         config: "erdos.OperatorConfig",
-        write_stream: WriteStream,
+        write_stream: WriteStream[T],
     ):
         self.timestamp = Timestamp(_py_timestamp=timestamp)
         self.config = config
