@@ -1,15 +1,14 @@
 use std::sync::Arc;
 
-use erdos::dataflow::Graph;
-use erdos::node::Node;
-use erdos::Configuration;
 use pyo3::{pyclass, pymethods, Py, PyObject, PyResult, Python};
 
-use crate::py_operators::{PyOneInOneOut, PyOneInTwoOut, PySink, PySource, PyTwoInOneOut};
-use crate::py_stream::{PyIngressStream, PyLoopStream, PyStream};
-use crate::{PyNodeHandle, PyOperatorStream};
+use erdos::{dataflow::Graph, node::WorkerId, Configuration, OperatorConfig, OperatorId};
 
-use erdos::{node::NodeId, OperatorConfig, OperatorId};
+use crate::{
+    py_operators::{PyOneInOneOut, PyOneInTwoOut, PySink, PySource, PyTwoInOneOut},
+    py_stream::{PyIngressStream, PyLoopStream, PyStream},
+    PyOperatorStream,
+};
 
 #[pyclass]
 pub(crate) struct PyGraph {
@@ -19,9 +18,9 @@ pub(crate) struct PyGraph {
 #[pymethods]
 impl PyGraph {
     #[new]
-    fn new() -> PyResult<Self> {
+    fn new(name: &str) -> PyResult<Self> {
         Ok(Self {
-            graph: Graph::new(),
+            graph: Graph::new(name),
         })
     }
 
@@ -41,7 +40,7 @@ impl PyGraph {
         py_config: PyObject,
         args: PyObject,
         kwargs: PyObject,
-        node_id: NodeId,
+        worker_id: usize,
     ) -> PyResult<Py<PyOperatorStream>> {
         // Create the config.
         let operator_name: Option<String> = py_config.getattr(py, "name")?.extract(py)?;
@@ -52,7 +51,7 @@ impl PyGraph {
         let flow_watermarks: bool = py_config.getattr(py, "flow_watermarks")?.extract(py)?;
         let mut config = OperatorConfig::new()
             .name(&name)
-            .node(node_id)
+            .worker(WorkerId(worker_id))
             .flow_watermarks(flow_watermarks);
         config.id = OperatorId::new_deterministic();
         tracing::debug!("Assigning ID {} to {}.", config.id, name,);
@@ -89,7 +88,7 @@ impl PyGraph {
         read_stream: &PyStream,
         args: PyObject,
         kwargs: PyObject,
-        node_id: NodeId,
+        worker_id: usize,
     ) -> PyResult<()> {
         // Create the config.
         let operator_name: Option<String> = py_config.getattr(py, "name")?.extract(py)?;
@@ -100,7 +99,7 @@ impl PyGraph {
         let flow_watermarks: bool = py_config.getattr(py, "flow_watermarks")?.extract(py)?;
         let mut config = OperatorConfig::new()
             .name(&name)
-            .node(node_id)
+            .worker(WorkerId(worker_id))
             .flow_watermarks(flow_watermarks);
         config.id = OperatorId::new_deterministic();
         tracing::debug!("Assigning ID {} to {}.", config.id, name,);
@@ -124,7 +123,7 @@ impl PyGraph {
             },
             || {},
             config,
-            read_stream,
+            read_stream.stream.as_ref(),
         );
         Ok(())
     }
@@ -138,7 +137,7 @@ impl PyGraph {
         read_stream: &PyStream,
         args: PyObject,
         kwargs: PyObject,
-        node_id: NodeId,
+        worker_id: usize,
     ) -> PyResult<Py<PyOperatorStream>> {
         // Create the config.
         let operator_name: Option<String> = py_config.getattr(py, "name")?.extract(py)?;
@@ -149,7 +148,7 @@ impl PyGraph {
         let flow_watermarks: bool = py_config.getattr(py, "flow_watermarks")?.extract(py)?;
         let mut config = OperatorConfig::new()
             .name(&name)
-            .node(node_id)
+            .worker(WorkerId(worker_id))
             .flow_watermarks(flow_watermarks);
         config.id = OperatorId::new_deterministic();
         tracing::debug!("Assigning ID {} to {}.", config.id, name,);
@@ -173,7 +172,7 @@ impl PyGraph {
             },
             || {},
             config,
-            read_stream,
+            read_stream.stream.as_ref(),
         );
 
         PyOperatorStream::new(py, write_stream)
@@ -188,7 +187,7 @@ impl PyGraph {
         read_stream: &PyStream,
         args: PyObject,
         kwargs: PyObject,
-        node_id: NodeId,
+        worker_id: usize,
     ) -> PyResult<(Py<PyOperatorStream>, Py<PyOperatorStream>)> {
         // Create the config.
         let operator_name: Option<String> = py_config.getattr(py, "name")?.extract(py)?;
@@ -199,7 +198,7 @@ impl PyGraph {
         let flow_watermarks: bool = py_config.getattr(py, "flow_watermarks")?.extract(py)?;
         let mut config = OperatorConfig::new()
             .name(&name)
-            .node(node_id)
+            .worker(WorkerId(worker_id))
             .flow_watermarks(flow_watermarks);
         config.id = OperatorId::new_deterministic();
         tracing::debug!("Assigning ID {} to {}", config.id, name,);
@@ -223,7 +222,7 @@ impl PyGraph {
             },
             || {},
             config,
-            read_stream,
+            read_stream.stream.as_ref(),
         );
 
         let py_left_write_stream = PyOperatorStream::new(py, left_write_stream)?;
@@ -242,7 +241,7 @@ impl PyGraph {
         right_read_stream: &PyStream,
         args: PyObject,
         kwargs: PyObject,
-        node_id: NodeId,
+        worker_id: usize,
     ) -> PyResult<Py<PyOperatorStream>> {
         // Create the config.
         let operator_name: Option<String> = py_config.getattr(py, "name")?.extract(py)?;
@@ -253,7 +252,7 @@ impl PyGraph {
         let flow_watermarks: bool = py_config.getattr(py, "flow_watermarks")?.extract(py)?;
         let mut config = OperatorConfig::new()
             .name(&name)
-            .node(node_id)
+            .worker(WorkerId(worker_id))
             .flow_watermarks(flow_watermarks);
         config.id = OperatorId::new_deterministic();
         tracing::debug!("Assigning ID {} to {}.", config.id, name,);
@@ -277,66 +276,67 @@ impl PyGraph {
             },
             || {},
             config,
-            left_read_stream,
-            right_read_stream,
+            left_read_stream.stream.as_ref(),
+            right_read_stream.stream.as_ref(),
         );
 
         PyOperatorStream::new(py, write_stream)
     }
 
-    fn run(
-        &self,
-        py: Python,
-        node_id: NodeId,
-        data_addresses: Vec<String>,
-        control_addresses: Vec<String>,
-        graph_filename: Option<String>,
-    ) -> PyResult<()> {
-        py.allow_threads(move || {
-            let data_addresses = data_addresses
-                .into_iter()
-                .map(|s| s.parse().expect("Unable to parse socket address"))
-                .collect();
-            let control_addresses = control_addresses
-                .into_iter()
-                .map(|s| s.parse().expect("Unable to parse socket address"))
-                .collect();
-            let mut config = Configuration::new(node_id, data_addresses, control_addresses, 7);
-            if let Some(filename) = graph_filename {
-                config = config.export_dataflow_graph(filename.as_str());
-            }
+    // TODO: fix for leader-worker.
+    // fn run(
+    //     &self,
+    //     py: Python,
+    //     worker_id: usize,
+    //     data_addresses: Vec<String>,
+    //     control_addresses: Vec<String>,
+    //     graph_filename: Option<String>,
+    // ) -> PyResult<()> {
+    //     py.allow_threads(move || {
+    //         let data_addresses = data_addresses
+    //             .into_iter()
+    //             .map(|s| s.parse().expect("Unable to parse socket address"))
+    //             .collect();
+    //         let control_addresses = control_addresses
+    //             .into_iter()
+    //             .map(|s| s.parse().expect("Unable to parse socket address"))
+    //             .collect();
+    //         let mut config = Configuration::new(node_id, data_addresses, control_addresses, 7);
+    //         if let Some(filename) = graph_filename {
+    //             config = config.export_dataflow_graph(filename.as_str());
+    //         }
 
-            let mut node = Node::new(config);
-            node.run(self.graph.clone());
-        });
-        Ok(())
-    }
+    //         let mut node = Node::new(config);
+    //         node.run(self.graph.clone());
+    //     });
+    //     Ok(())
+    // }
 
-    fn run_async(
-        &self,
-        py: Python,
-        node_id: NodeId,
-        data_addresses: Vec<String>,
-        control_addresses: Vec<String>,
-        graph_filename: Option<String>,
-    ) -> PyResult<PyNodeHandle> {
-        let node_handle = py.allow_threads(move || {
-            let data_addresses = data_addresses
-                .into_iter()
-                .map(|s| s.parse().expect("Unable to parse socket address"))
-                .collect();
-            let control_addresses = control_addresses
-                .into_iter()
-                .map(|s| s.parse().expect("Unable to parse socket address"))
-                .collect();
-            let mut config = Configuration::new(node_id, data_addresses, control_addresses, 7);
-            if let Some(filename) = graph_filename {
-                config = config.export_dataflow_graph(filename.as_str());
-            }
+    // fn run_async(
+    //     &self,
+    //     py: Python,
+    //     worker_id: usize,
+    //     data_addresses: Vec<String>,
+    //     control_addresses: Vec<String>,
+    //     graph_filename: Option<String>,
+    // ) -> PyResult<PyNodeHandle> {
+    //     let node_handle = py.allow_threads(move || {
+    //         let data_addresses = data_addresses
+    //             .into_iter()
+    //             .map(|s| s.parse().expect("Unable to parse socket address"))
+    //             .collect();
+    //         let control_addresses = control_addresses
+    //             .into_iter()
+    //             .map(|s| s.parse().expect("Unable to parse socket address"))
+    //             .collect();
+    //         let mut config = Configuration::new(node_id, data_addresses, control_addresses, 7);
+    //         if let Some(filename) = graph_filename {
+    //             config = config.export_dataflow_graph(filename.as_str());
+    //         }
 
-            let node = Node::new(config);
-            node.run_async(self.graph.clone())
-        });
-        Ok(PyNodeHandle::from(node_handle))
-    }
+    //         let node = Node::new(config);
+    //         node.run_async(self.graph.clone())
+    //     });
+    //     Ok(PyNodeHandle::from(node_handle))
+    // }
 }

@@ -7,22 +7,23 @@ use super::{PyEgressStream, PyStream};
 ///
 /// This class is exposed on the Python interface as `erdos.streams.Stream`.
 #[pyclass(extends=PyStream)]
-pub struct PyOperatorStream {
-    pub stream: OperatorStream<Vec<u8>>,
-}
+pub struct PyOperatorStream {}
 
 #[pymethods]
 impl PyOperatorStream {
     fn name(&self) -> String {
-        self.stream.name()
+        // self.stream.name()
+        unimplemented!()
     }
 
     fn id(&self) -> String {
-        format!("{}", self.stream.id())
+        // format!("{}", self.stream.id())
+        unimplemented!()
     }
 
     fn to_egress(&self, py: Python) -> Py<PyEgressStream> {
-        PyEgressStream::new(py, self.stream.to_egress()).unwrap()
+        unimplemented!()
+        // PyEgressStream::new(py, self.stream.to_egress()).unwrap()
     }
 }
 
@@ -32,24 +33,9 @@ impl PyOperatorStream {
     /// from a Rust [`OperatorStream`].
     pub(crate) fn new(py: Python, operator_stream: OperatorStream<Vec<u8>>) -> PyResult<Py<Self>> {
         let base_class = PyStream {
-            id: operator_stream.id(),
-            name: operator_stream.name(),
-            graph: operator_stream.graph(),
+            stream: Box::new(operator_stream),
         };
-        let initializer =
-            PyClassInitializer::from(base_class).add_subclass(Self::from(operator_stream));
+        let initializer = PyClassInitializer::from(base_class).add_subclass(Self {});
         Py::new(py, initializer)
-    }
-}
-
-impl From<OperatorStream<Vec<u8>>> for PyOperatorStream {
-    fn from(stream: OperatorStream<Vec<u8>>) -> Self {
-        Self { stream }
-    }
-}
-
-impl From<PyOperatorStream> for OperatorStream<Vec<u8>> {
-    fn from(py_stream: PyOperatorStream) -> Self {
-        py_stream.stream
     }
 }

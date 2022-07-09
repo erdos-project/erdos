@@ -1,6 +1,3 @@
 [workspace]
 
-members = [
-    "erdos",
-    "examples",
-]
+members = ["erdos", "python", "examples"]

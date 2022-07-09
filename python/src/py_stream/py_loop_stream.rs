@@ -9,32 +9,22 @@ use super::PyOperatorStream;
 ///
 /// This class is exposed on the Python interface as `erdos.streams.LoopStream`.
 #[pyclass(extends=PyStream)]
-pub struct PyLoopStream {
-    loop_stream: LoopStream<Vec<u8>>,
-}
+pub struct PyLoopStream {}
 
 #[pymethods]
 impl PyLoopStream {
     fn connect_loop(&mut self, stream: &PyOperatorStream) {
-        self.loop_stream.connect_loop(&stream.stream);
+        unimplemented!();
+        // self.loop_stream.connect_loop(&stream.stream);
     }
 }
 
 impl PyLoopStream {
     pub fn new(py: Python, loop_stream: LoopStream<Vec<u8>>) -> PyResult<Py<Self>> {
         let base_class = PyStream {
-            id: loop_stream.id(),
-            name: format!("LoopStream-{}", loop_stream.id()),
-            graph: loop_stream.graph(),
+            stream: Box::new(loop_stream),
         };
-        let initializer =
-            PyClassInitializer::from(base_class).add_subclass(Self::from(loop_stream));
+        let initializer = PyClassInitializer::from(base_class).add_subclass(Self {});
         Py::new(py, initializer)
-    }
-}
-
-impl From<LoopStream<Vec<u8>>> for PyLoopStream {
-    fn from(loop_stream: LoopStream<Vec<u8>>) -> Self {
-        Self { loop_stream }
     }
 }

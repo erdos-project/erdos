@@ -1,6 +1,5 @@
 #![feature(get_mut_unchecked)]
 
-use erdos::node::NodeHandle;
 use py_graph::PyGraph;
 use pyo3::{exceptions, prelude::*};
 

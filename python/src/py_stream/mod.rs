@@ -1,11 +1,10 @@
 use std::sync::{Arc, Mutex};
 
 use erdos::dataflow::{
-    graph::InternalGraph,
     operators::{Concat, Filter, Join, Map, Split},
     stream::{Stream, StreamId},
 };
-use pyo3::{prelude::*, types::PyBytes};
+use pyo3::{exceptions::PyValueError, prelude::*, types::PyBytes};
 
 // Private submodules
 mod py_egress_stream;
@@ -26,19 +25,17 @@ pub use py_write_stream::PyWriteStream;
 /// The internal Python abstraction over a [`Stream`].
 #[pyclass(subclass)]
 pub struct PyStream {
-    pub id: StreamId,
-    pub name: String,
-    pub graph: Arc<Mutex<InternalGraph>>,
+    pub stream: Box<dyn Stream<Vec<u8>>>,
 }
 
 #[pymethods]
 impl PyStream {
     fn name(&self) -> String {
-        self.name.clone()
+        self.stream.name()
     }
 
     fn id(&self) -> String {
-        format!("{}", self.id)
+        format!("{}", self.stream.id())
     }
 
     fn _map(&self, py: Python<'_>, function: PyObject) -> PyResult<Py<PyOperatorStream>> {
@@ -52,7 +49,10 @@ impl PyStream {
                     .unwrap()
             })
         };
-        PyOperatorStream::new(py, self.map(map_fn))
+
+        // let operator_stream = self.stream.map(map_fn);
+        // PyOperatorStream::new(py, operator_stream)
+        unimplemented!()
     }
 
     fn _flat_map(&self, py: Python<'_>, function: PyObject) -> PyResult<Py<PyOperatorStream>> {
@@ -66,7 +66,10 @@ impl PyStream {
                     .unwrap()
             })
         };
-        PyOperatorStream::new(py, self.flat_map(flat_map_fn))
+
+        // let mapper = move |s: &dyn Stream<Vec<u8>>| s.flat_map(flat_map_fn);
+        unimplemented!();
+        // PyOperatorStream::new(py, self.flat_map(flat_map_fn))
     }
 
     fn _filter(&self, py: Python<'_>, function: PyObject) -> PyResult<Py<PyOperatorStream>> {
@@ -80,7 +83,8 @@ impl PyStream {
                     .unwrap()
             })
         };
-        PyOperatorStream::new(py, self.filter(filter_fn))
+        unimplemented!()
+        // PyOperatorStream::new(py, self.stream.filter(filter_fn))
     }
 
     fn _split(
@@ -98,11 +102,12 @@ impl PyStream {
                     .unwrap()
             })
         };
-        let (left_stream, right_stream) = self.split(split_fn);
-        Ok((
-            PyOperatorStream::new(py, left_stream).unwrap(),
-            PyOperatorStream::new(py, right_stream).unwrap(),
-        ))
+        // let (left_stream, right_stream) = self.split(split_fn);
+        // Ok((
+        //     PyOperatorStream::new(py, left_stream).unwrap(),
+        //     PyOperatorStream::new(py, right_stream).unwrap(),
+        // ))
+        unimplemented!()
     }
 
     fn _timestamp_join(
@@ -122,22 +127,12 @@ impl PyStream {
                     .unwrap()
             })
         };
-        PyOperatorStream::new(py, self.timestamp_join(other).map(map_fn))
+        unimplemented!();
+        // PyOperatorStream::new(py, self.timestamp_join(other).map(map_fn))
     }
 
     fn _concat(&self, py: Python<'_>, other: &PyStream) -> PyResult<Py<PyOperatorStream>> {
-        PyOperatorStream::new(py, self.concat(other))
-    }
-}
-
-impl Stream<Vec<u8>> for PyStream {
-    fn name(&self) -> String {
-        self.name.clone()
-    }
-    fn id(&self) -> StreamId {
-        self.id
-    }
-    fn graph(&self) -> Arc<Mutex<InternalGraph>> {
-        Arc::clone(&self.graph)
+        // PyOperatorStream::new(py, self.concat(other))
+        unimplemented!()
     }
 }
