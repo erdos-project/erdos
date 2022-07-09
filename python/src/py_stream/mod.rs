@@ -50,9 +50,7 @@ impl PyStream {
             })
         };
 
-        // let operator_stream = self.stream.map(map_fn);
-        // PyOperatorStream::new(py, operator_stream)
-        unimplemented!()
+        PyOperatorStream::new(py, self.stream.map(map_fn))
     }
 
     fn _flat_map(&self, py: Python<'_>, function: PyObject) -> PyResult<Py<PyOperatorStream>> {
@@ -66,10 +64,7 @@ impl PyStream {
                     .unwrap()
             })
         };
-
-        // let mapper = move |s: &dyn Stream<Vec<u8>>| s.flat_map(flat_map_fn);
-        unimplemented!();
-        // PyOperatorStream::new(py, self.flat_map(flat_map_fn))
+        PyOperatorStream::new(py, self.stream.flat_map(flat_map_fn))
     }
 
     fn _filter(&self, py: Python<'_>, function: PyObject) -> PyResult<Py<PyOperatorStream>> {
@@ -83,8 +78,7 @@ impl PyStream {
                     .unwrap()
             })
         };
-        unimplemented!()
-        // PyOperatorStream::new(py, self.stream.filter(filter_fn))
+        PyOperatorStream::new(py, self.stream.filter(filter_fn))
     }
 
     fn _split(
@@ -102,12 +96,11 @@ impl PyStream {
                     .unwrap()
             })
         };
-        // let (left_stream, right_stream) = self.split(split_fn);
-        // Ok((
-        //     PyOperatorStream::new(py, left_stream).unwrap(),
-        //     PyOperatorStream::new(py, right_stream).unwrap(),
-        // ))
-        unimplemented!()
+        let (left_stream, right_stream) = self.stream.split(split_fn);
+        Ok((
+            PyOperatorStream::new(py, left_stream).unwrap(),
+            PyOperatorStream::new(py, right_stream).unwrap(),
+        ))
     }
 
     fn _timestamp_join(
@@ -127,12 +120,10 @@ impl PyStream {
                     .unwrap()
             })
         };
-        unimplemented!();
-        // PyOperatorStream::new(py, self.timestamp_join(other).map(map_fn))
+        PyOperatorStream::new(py, self.stream.timestamp_join(&other.stream).map(map_fn))
     }
 
     fn _concat(&self, py: Python<'_>, other: &PyStream) -> PyResult<Py<PyOperatorStream>> {
-        // PyOperatorStream::new(py, self.concat(other))
-        unimplemented!()
+        PyOperatorStream::new(py, self.stream.concat(&other.stream))
     }
 }
