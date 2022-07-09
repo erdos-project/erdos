@@ -10,7 +10,7 @@ U = TypeVar("U")
 V = TypeVar("V")
 
 
-class SinkContext():
+class SinkContext:
     """A :py:class:`SinkContext` instance enables developers to retrieve
     metadata about the current invocation of either a message or a watermark
     callback in a :py:class:`.Sink` operator.
@@ -126,5 +126,7 @@ class TwoInOneOutContext(Generic[T]):
 
     def __str__(self):
         return "TwoInOneOutContext(Timestamp={}, Config={}, WriteStream={})".format(
-            self.timestamp, self.config, self.write_stream.name(),
+            self.timestamp,
+            self.config,
+            self.write_stream.name(),
         )

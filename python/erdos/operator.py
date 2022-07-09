@@ -19,7 +19,7 @@ U = TypeVar("U")
 V = TypeVar("V")
 
 
-class BaseOperator():
+class BaseOperator:
     """A :py:class:`BaseOperator` is an internal class that provides the
     methods common to the individual operators.
     """
@@ -167,7 +167,7 @@ class Sink(BaseOperator, Generic[T]):
         """
 
 
-class OneInOneOut(BaseOperator, Generic[T,U]):
+class OneInOneOut(BaseOperator, Generic[T, U]):
     """A :py:class:`OneInOneOut` is an abstract base class that needs to be
     inherited by user-defined operators that consume data from a single
     :py:class:`.ReadStream` and produce data on a single
@@ -232,7 +232,7 @@ class OneInOneOut(BaseOperator, Generic[T,U]):
         """
 
 
-class TwoInOneOut(BaseOperator, Generic[T,U,V]):
+class TwoInOneOut(BaseOperator, Generic[T, U, V]):
     """A :py:class:`TwoInOneOut` is an abstract base class that needs to be
     inherited by user-defined operators that consume data from two
     :py:class:`.ReadStream` instances and produces data on a single
@@ -316,7 +316,7 @@ class TwoInOneOut(BaseOperator, Generic[T,U,V]):
         """
 
 
-class OneInTwoOut(BaseOperator, Generic[T,U,V]):
+class OneInTwoOut(BaseOperator, Generic[T, U, V]):
     """A :py:class:`OneInTwoOut` is an abstract base class that needs to be
     inherited by user-defined operators that consume data from a single
     :py:class:`.ReadStream` instance and produce data on two instances of
@@ -360,7 +360,7 @@ class OneInTwoOut(BaseOperator, Generic[T,U,V]):
                 send data on.
         """
 
-    def on_data(self, context: OneInTwoOutContext[U,V], data: T):
+    def on_data(self, context: OneInTwoOutContext[U, V], data: T):
         """Callback invoked upon receipt of a :py:class:`.Message` on the
         `read_stream`.
 
@@ -371,7 +371,7 @@ class OneInTwoOut(BaseOperator, Generic[T,U,V]):
                 stream.
         """
 
-    def on_watermark(self, context: OneInTwoOutContext[U,V]):
+    def on_watermark(self, context: OneInTwoOutContext[U, V]):
         """Callback invoked upon receipt of a :py:class:`.WatermarkMessage` on
         the operator's :py:class:`.ReadStream`.
 
@@ -390,7 +390,7 @@ class OneInTwoOut(BaseOperator, Generic[T,U,V]):
         """
 
 
-class OperatorConfig():
+class OperatorConfig:
     """An :py:class:`OperatorConfig` allows developers to configure an
     operator.
 
