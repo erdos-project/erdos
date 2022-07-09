@@ -1,9 +1,8 @@
-use erdos::dataflow::LoopStream;
-use pyo3::prelude::*;
+use pyo3::{exceptions::PyException, prelude::*};
 
-use crate::py_stream::PyStream;
+use erdos::dataflow::{stream::OperatorStream, LoopStream};
 
-use super::PyOperatorStream;
+use crate::py_stream::{PyOperatorStream, PyStream};
 
 /// The internal Python abstraction over a `LoopStream`.
 ///
@@ -13,9 +12,29 @@ pub struct PyLoopStream {}
 
 #[pymethods]
 impl PyLoopStream {
-    fn connect_loop(&mut self, stream: &PyOperatorStream) {
-        unimplemented!();
-        // self.loop_stream.connect_loop(&stream.stream);
+    fn connect_loop(
+        mut self_: PyRefMut<Self>,
+        mut py_operator_stream: PyRefMut<PyOperatorStream>,
+    ) -> PyResult<()> {
+        if let Some(loop_stream) = self_.as_mut().downcast_stream::<LoopStream<Vec<u8>>>() {
+            if let Some(operator_stream) = py_operator_stream
+                .as_mut()
+                .downcast_stream::<OperatorStream<Vec<u8>>>()
+            {
+                loop_stream.connect_loop(operator_stream);
+                Ok(())
+            } else {
+                Err(PyException::new_err(format!(
+                    "OperatorStream {}: failed to downcast the PyStream's stream field.",
+                    py_operator_stream.as_ref().name()
+                )))
+            }
+        } else {
+            Err(PyException::new_err(format!(
+                "LoopStream {}: failed to downcast the PyStream's stream field.",
+                self_.as_ref().name()
+            )))
+        }
     }
 }
 
