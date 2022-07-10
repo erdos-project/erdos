@@ -235,10 +235,7 @@ impl WorkerHandle {
     /// # Arguments
     /// - `graph_id`: The ID of the `Graph` whose status needs to be retrieved.
     #[allow(clippy::collapsible_match)]
-    fn job_graph_status(
-        &mut self,
-        graph_id: &JobGraphId,
-    ) -> Result<ExecutionState, HandleError> {
+    fn job_graph_status(&mut self, graph_id: &JobGraphId) -> Result<ExecutionState, HandleError> {
         // Request the Worker for the status of the JobGraph.
         self.channel_to_worker
             .send(DriverNotification::Query(QueryType::JobGraphStatus(

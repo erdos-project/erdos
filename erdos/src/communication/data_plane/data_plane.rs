@@ -32,6 +32,7 @@ use super::{
 
 /// A data structure that manages connections amongst [`Worker`]s, and constructs the Streams
 /// used by the `Operator`s to communicate to other `Operator`s.
+#[allow(clippy::type_complexity)]
 pub(crate) struct DataPlane {
     /// The ID of the [`Worker`] to whom this `DataPlane` belongs.
     worker_id: WorkerId,
@@ -426,7 +427,7 @@ impl DataPlane {
             let notification = match stream {
                 StreamType::Read(stream, source_address)
                 | StreamType::Egress(stream, source_address) => {
-                    if self.setup_read_stream(&stream, job, source_address).await? {
+                    if self.setup_read_stream(stream.as_ref(), job, source_address).await? {
                         // If the ReadStream setup was successful, i.e., there are no
                         // remaining [`Pusher`]s to be updated, then notify the Worker
                         // that the Stream is ready.
@@ -478,7 +479,7 @@ impl DataPlane {
     ///    of the `Job` that is generating the data).
     async fn setup_read_stream(
         &mut self,
-        stream: &Box<dyn AbstractStreamT>,
+        stream: &dyn AbstractStreamT,
         destination_job: Job,
         source_address: WorkerAddress,
     ) -> Result<bool, CommunicationError> {
@@ -539,7 +540,7 @@ impl DataPlane {
                     .unwrap();
                 let mut stream_manager = self.stream_manager.lock().unwrap();
                 stream_manager.add_inter_worker_recv_endpoint(
-                    stream.as_ref(),
+                    stream,
                     destination_job,
                     worker_connection,
                 )?;
@@ -579,6 +580,7 @@ impl DataPlane {
     /// - `stream`: An [`AbstractStream`] representation of the `WriteStream` to be setup.
     /// - `destination_addresses`: A mapping from the [`Job`]s that this `WriteStream`
     ///    publishes data to along with the addresses of their destination `Worker`s.
+    #[allow(clippy::borrowed_box)]
     fn setup_write_stream(
         &mut self,
         stream: &Box<dyn AbstractStreamT>,
