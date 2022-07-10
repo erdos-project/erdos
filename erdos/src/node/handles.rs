@@ -191,7 +191,7 @@ impl WorkerHandle {
         // Compile the JobGraph and register it with the Worker.
         let job_graph = graph
             .compile()
-            .map_err(|err| HandleError::GraphCompilationError(err))?;
+            .map_err(HandleError::GraphCompilationError)?;
         let job_graph_id = job_graph.id();
         tracing::trace!(
             "WorkerHandle {} received a notification from the Driver \
