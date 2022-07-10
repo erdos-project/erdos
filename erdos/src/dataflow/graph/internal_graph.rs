@@ -149,8 +149,7 @@ impl Clone for Box<dyn DriverStreamSetupHook> {
 /// The abstract graph representation of an ERDOS program defined in the driver.
 ///
 /// The abstract graph is compiled into a JobGraph, which ERDOS schedules and executes.
-/// TODO: Make this struct private.
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct InternalGraph {
     /// The name of the Graph.
     name: String,
@@ -172,7 +171,12 @@ impl InternalGraph {
     pub fn new(name: String) -> Self {
         Self {
             name,
-            ..Default::default()
+            operators: HashMap::new(),
+            operator_runners: HashMap::new(),
+            streams: HashMap::new(),
+            ingress_streams: HashMap::new(),
+            egress_streams: HashMap::new(),
+            loop_streams: HashMap::new(),
         }
     }
 

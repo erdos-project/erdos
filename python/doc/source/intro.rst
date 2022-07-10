@@ -48,6 +48,7 @@ for connecting operators via streams. For information on building operators, see
   graph.connect_sink(RobotOp, erdos.OperatorConfig(), actions)
 
   # Execute the application.
+  # TODO: Update examples once Handles are ported to Python.
   graph.run()
 
 Further examples are available on
