@@ -1,28 +1,26 @@
-use erdos::dataflow::stream::{OperatorStream, Stream, StreamId};
-use pyo3::prelude::*;
+use pyo3::{exceptions::PyException, prelude::*};
 
-use super::PyStream;
+use erdos::dataflow::stream::OperatorStream;
+
+use crate::py_stream::{PyEgressStream, PyStream};
 
 /// The internal Python abstraction over a [`Stream`].
 ///
 /// This class is exposed on the Python interface as `erdos.streams.Stream`.
 #[pyclass(extends=PyStream)]
-pub struct PyOperatorStream {
-    pub stream: OperatorStream<Vec<u8>>,
-}
+pub struct PyOperatorStream {}
 
 #[pymethods]
 impl PyOperatorStream {
-    fn name(&self) -> String {
-        self.stream.name()
-    }
-
-    fn set_name(&mut self, name: String) {
-        self.stream.set_name(&name)
-    }
-
-    fn id(&self) -> String {
-        format!("{}", self.stream.id())
+    fn to_egress(mut self_: PyRefMut<Self>, py: Python) -> PyResult<Py<PyEgressStream>> {
+        if let Some(operator_stream) = self_.as_mut().as_mut_stream::<OperatorStream<Vec<u8>>>() {
+            PyEgressStream::new(py, operator_stream.to_egress())
+        } else {
+            Err(PyException::new_err(format!(
+                "OperatorStream {}: failed to downcast the PyStream's stream field.",
+                self_.as_ref().name()
+            )))
+        }
     }
 }
 
@@ -32,28 +30,9 @@ impl PyOperatorStream {
     /// from a Rust [`OperatorStream`].
     pub(crate) fn new(py: Python, operator_stream: OperatorStream<Vec<u8>>) -> PyResult<Py<Self>> {
         let base_class = PyStream {
-            id: operator_stream.id(),
+            stream: Box::new(operator_stream),
         };
-        let initializer =
-            PyClassInitializer::from(base_class).add_subclass(Self::from(operator_stream));
+        let initializer = PyClassInitializer::from(base_class).add_subclass(Self {});
         Py::new(py, initializer)
-    }
-}
-
-impl Stream<Vec<u8>> for PyOperatorStream {
-    fn id(&self) -> StreamId {
-        self.stream.id()
-    }
-}
-
-impl From<OperatorStream<Vec<u8>>> for PyOperatorStream {
-    fn from(stream: OperatorStream<Vec<u8>>) -> Self {
-        Self { stream }
-    }
-}
-
-impl From<PyOperatorStream> for OperatorStream<Vec<u8>> {
-    fn from(py_stream: PyOperatorStream) -> Self {
-        py_stream.stream
     }
 }

@@ -95,16 +95,19 @@ where
         let op_name = format!("FilterOp_{}", self.id());
         let write_stream = OperatorStream::new(
             &format!("{}-write-stream", op_name),
-            Arc::clone(&self.graph()),
+            Arc::clone(&self.internal_graph()),
         );
 
-        self.graph().lock().unwrap().connect_one_in_one_out(
-            move || -> FilterOperator<D> { FilterOperator::new(filter_fn.clone()) },
-            || {},
-            OperatorConfig::new().name(&op_name),
-            self,
-            &write_stream,
-        );
+        self.internal_graph()
+            .lock()
+            .unwrap()
+            .connect_one_in_one_out(
+                move || -> FilterOperator<D> { FilterOperator::new(filter_fn.clone()) },
+                || {},
+                OperatorConfig::new().name(&op_name),
+                self,
+                &write_stream,
+            );
         write_stream
     }
 }

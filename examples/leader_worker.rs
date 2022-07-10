@@ -75,6 +75,7 @@ fn main() {
 
     // Construct the Graph.
     let graph = Graph::new("LeaderWorkerExample");
+
     // let source_config = OperatorConfig::new().name("SourceOperator").worker(WorkerId::from(0));
     // let source_stream = graph.connect_source(SourceOperator::new, source_config);
 

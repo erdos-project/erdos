@@ -6,6 +6,7 @@ from typing import Any
 
 import erdos
 from erdos.context import TwoInOneOutContext
+from erdos.graph import Graph
 from erdos.operator import Source, TwoInOneOut
 from erdos.streams import WriteStream
 
@@ -61,17 +62,19 @@ class JoinOp(TwoInOneOut):
 
 def main():
     """Creates and runs the dataflow graph."""
-    left_stream = erdos.connect_source(
+    graph = Graph()
+
+    left_stream = graph.connect_source(
         SendOp, erdos.operator.OperatorConfig(name="FastSendOp"), frequency=2
     )
-    right_stream = erdos.connect_source(
+    right_stream = graph.connect_source(
         SendOp, erdos.operator.OperatorConfig(name="SlowSendOp"), frequency=1
     )
-    erdos.connect_two_in_one_out(
+    graph.connect_two_in_one_out(
         JoinOp, erdos.operator.OperatorConfig(name="JoinOp"), left_stream, right_stream
     )
 
-    erdos.run()
+    graph.run()
 
 
 if __name__ == "__main__":
