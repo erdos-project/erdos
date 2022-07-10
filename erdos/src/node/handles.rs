@@ -234,7 +234,7 @@ impl WorkerHandle {
     ///
     /// # Arguments
     /// - `graph_id`: The ID of the `Graph` whose status needs to be retrieved.
-    fn get_job_graph_status(
+    fn job_graph_status(
         &mut self,
         graph_id: &JobGraphId,
     ) -> Result<ExecutionState, HandleError> {
@@ -276,12 +276,12 @@ impl WorkerHandle {
         }
     }
 
-    /// Checks if the [`Graph`] submitted to the [`Worker`] is ready for execution.
+    /// Checks if the [`Graph`] submitted to the [`Worker`] is ready for execution or executing.
     ///
     /// # Arguments
     /// - `graph_id`: The ID of the `Graph` returned by the [`submit`] or [`register`] methods.
-    pub fn ready(&mut self, graph_id: &JobGraphId) -> Result<bool, HandleError> {
-        let job_graph_state = self.get_job_graph_status(graph_id)?;
+    pub fn job_graph_ready(&mut self, graph_id: &JobGraphId) -> Result<bool, HandleError> {
+        let job_graph_state = self.job_graph_status(graph_id)?;
         Ok(
             job_graph_state == ExecutionState::Ready
                 || job_graph_state == ExecutionState::Executing,

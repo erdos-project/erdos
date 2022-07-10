@@ -50,7 +50,7 @@ struct JobGraphMetadata {
     pub job_graph: AbstractJobGraph,
     /// A representation of the state that the [`JobGraph`] is in.
     pub job_graph_state: ExecutionState,
-    /// A mapping from the `Job` to the [`Worker`] it is currently assigned to, along
+    /// A mapping from the [`Job`] to the [`Worker`] it is currently assigned to, along
     /// with its execution.
     pub job_status: HashMap<Job, (Option<WorkerId>, ExecutionState)>,
 }

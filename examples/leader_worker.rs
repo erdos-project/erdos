@@ -92,7 +92,7 @@ fn main() {
     if worker_handle.id() == WorkerId::from(0) {
         if let Ok(graph_id) = worker_handle.submit(graph) {
             loop {
-                match worker_handle.ready(&graph_id) {
+                match worker_handle.job_graph_ready(&graph_id) {
                     Ok(status) => {
                         if status {
                             break;
