@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use std::{
     any::Any,
-    collections::{HashMap, hash_map::Entry},
+    collections::{hash_map::Entry, HashMap},
     sync::{Arc, Mutex},
 };
 use tokio::sync::mpsc::{self, UnboundedSender};
