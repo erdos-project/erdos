@@ -538,7 +538,7 @@ impl WorkerNode {
                         |stream_id| {
                             let stream = job_graph.stream(stream_id)?;
                             let worker_addresses =
-                                self.get_write_stream_addresses(&stream, worker_addresses);
+                                self.get_write_stream_addresses(stream.as_ref(), worker_addresses);
                             Some(StreamType::Write(stream, worker_addresses))
                         },
                     ));
@@ -547,7 +547,7 @@ impl WorkerNode {
                     streams_to_setup.extend(operator.read_streams.iter().filter_map(|stream_id| {
                         let stream = job_graph.stream(stream_id)?;
                         let worker_addresses =
-                            self.get_read_stream_address(&stream, worker_addresses)?;
+                            self.get_read_stream_address(stream.as_ref(), worker_addresses)?;
                         Some(StreamType::Read(stream, worker_addresses))
                     }));
                 } else {
@@ -563,7 +563,7 @@ impl WorkerNode {
                 // Request the DataPlane to setup the IngressStreams.
                 streams_to_setup.extend(job_graph.ingress_streams().into_iter().map(|stream| {
                     let worker_addresses =
-                        self.get_write_stream_addresses(&stream, worker_addresses);
+                        self.get_write_stream_addresses(stream.as_ref(), worker_addresses);
                     StreamType::Ingress(stream, worker_addresses)
                 }));
 
@@ -571,7 +571,7 @@ impl WorkerNode {
                 streams_to_setup.extend(job_graph.egress_streams().into_iter().filter_map(
                     |stream| {
                         let worker_addresses =
-                            self.get_read_stream_address(&stream, worker_addresses)?;
+                            self.get_read_stream_address(stream.as_ref(), worker_addresses)?;
                         Some(StreamType::Egress(stream, worker_addresses))
                     },
                 ));
@@ -612,7 +612,7 @@ impl WorkerNode {
 
     fn get_read_stream_address(
         &self,
-        stream: &Box<dyn AbstractStreamT>,
+        stream: &dyn AbstractStreamT,
         worker_addresses: &HashMap<Job, WorkerAddress>,
     ) -> Option<WorkerAddress> {
         let source_job = stream.source()?;
@@ -634,7 +634,7 @@ impl WorkerNode {
 
     fn get_write_stream_addresses(
         &self,
-        stream: &Box<dyn AbstractStreamT>,
+        stream: &dyn AbstractStreamT,
         worker_addresses: &HashMap<Job, WorkerAddress>,
     ) -> HashMap<Job, WorkerAddress> {
         let mut destination_addresses = HashMap::new();

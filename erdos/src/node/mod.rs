@@ -97,8 +97,4 @@ impl WorkerState {
     pub(crate) fn schedule_graph(&mut self, job_graph_id: JobGraphId) {
         self.scheduled_job_graphs.insert(job_graph_id);
     }
-
-    pub(crate) fn is_graph_scheduled(&self, job_graph_id: &JobGraphId) -> bool {
-        self.scheduled_job_graphs.contains(job_graph_id)
-    }
 }

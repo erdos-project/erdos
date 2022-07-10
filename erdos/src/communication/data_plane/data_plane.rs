@@ -427,7 +427,10 @@ impl DataPlane {
             let notification = match stream {
                 StreamType::Read(stream, source_address)
                 | StreamType::Egress(stream, source_address) => {
-                    if self.setup_read_stream(stream.as_ref(), job, source_address).await? {
+                    if self
+                        .setup_read_stream(stream.as_ref(), job, source_address)
+                        .await?
+                    {
                         // If the ReadStream setup was successful, i.e., there are no
                         // remaining [`Pusher`]s to be updated, then notify the Worker
                         // that the Stream is ready.
