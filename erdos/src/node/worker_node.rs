@@ -539,7 +539,7 @@ impl WorkerNode {
                             let stream = job_graph.stream(stream_id)?;
                             let worker_addresses =
                                 self.get_write_stream_addresses(&stream, worker_addresses);
-                            Some(StreamType::WriteStream(stream, worker_addresses))
+                            Some(StreamType::Write(stream, worker_addresses))
                         },
                     ));
 
@@ -548,7 +548,7 @@ impl WorkerNode {
                         let stream = job_graph.stream(stream_id)?;
                         let worker_addresses =
                             self.get_read_stream_address(&stream, worker_addresses)?;
-                        Some(StreamType::ReadStream(stream, worker_addresses))
+                        Some(StreamType::Read(stream, worker_addresses))
                     }));
                 } else {
                     tracing::error!(
@@ -564,7 +564,7 @@ impl WorkerNode {
                 streams_to_setup.extend(job_graph.ingress_streams().into_iter().map(|stream| {
                     let worker_addresses =
                         self.get_write_stream_addresses(&stream, worker_addresses);
-                    StreamType::IngressStream(stream, worker_addresses)
+                    StreamType::Ingress(stream, worker_addresses)
                 }));
 
                 // Request the DataPlane to setup the EgressStreams.
@@ -572,7 +572,7 @@ impl WorkerNode {
                     |stream| {
                         let worker_addresses =
                             self.get_read_stream_address(&stream, worker_addresses)?;
-                        Some(StreamType::EgressStream(stream, worker_addresses))
+                        Some(StreamType::Egress(stream, worker_addresses))
                     },
                 ));
             }
@@ -659,6 +659,6 @@ impl WorkerNode {
     }
 
     pub(crate) fn id(&self) -> WorkerId {
-        self.id.clone()
+        self.id
     }
 }

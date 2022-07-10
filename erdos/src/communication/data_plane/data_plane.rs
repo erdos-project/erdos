@@ -234,8 +234,8 @@ impl DataPlane {
                     for (job, stream) in cached_setups {
                         stream_manager.add_inter_worker_send_endpoint(
                             stream.as_ref(),
-                            job.clone(),
-                            &worker_connection,
+                            *job,
+                            worker_connection,
                         );
 
                         // Remove the job from the pending job set of the Stream.
@@ -424,8 +424,8 @@ impl DataPlane {
     ) -> Result<(), CommunicationError> {
         for stream in streams {
             let notification = match stream {
-                StreamType::ReadStream(stream, source_address)
-                | StreamType::EgressStream(stream, source_address) => {
+                StreamType::Read(stream, source_address)
+                | StreamType::Egress(stream, source_address) => {
                     if self.setup_read_stream(&stream, job, source_address).await? {
                         // If the ReadStream setup was successful, i.e., there are no
                         // remaining [`Pusher`]s to be updated, then notify the Worker
@@ -435,8 +435,8 @@ impl DataPlane {
                         None
                     }
                 }
-                StreamType::WriteStream(stream, destination_addresses)
-                | StreamType::IngressStream(stream, destination_addresses) => {
+                StreamType::Write(stream, destination_addresses)
+                | StreamType::Ingress(stream, destination_addresses) => {
                     if self.setup_write_stream(&stream, destination_addresses) {
                         // If the WriteStream setup was successful, i.e., there are no
                         // pending connections to be made to other Workers, then notify
@@ -541,7 +541,7 @@ impl DataPlane {
                 stream_manager.add_inter_worker_recv_endpoint(
                     stream.as_ref(),
                     destination_job,
-                    &worker_connection,
+                    worker_connection,
                 )?;
 
                 // We notify the caller that the Stream is not yet ready because we

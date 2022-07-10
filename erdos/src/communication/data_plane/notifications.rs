@@ -16,19 +16,19 @@ use super::pusher::PusherT;
 
 #[derive(Debug, Clone)]
 pub(crate) enum StreamType {
-    ReadStream(Box<dyn AbstractStreamT>, WorkerAddress),
-    EgressStream(Box<dyn AbstractStreamT>, WorkerAddress),
-    WriteStream(Box<dyn AbstractStreamT>, HashMap<Job, WorkerAddress>),
-    IngressStream(Box<dyn AbstractStreamT>, HashMap<Job, WorkerAddress>),
+    Read(Box<dyn AbstractStreamT>, WorkerAddress),
+    Egress(Box<dyn AbstractStreamT>, WorkerAddress),
+    Write(Box<dyn AbstractStreamT>, HashMap<Job, WorkerAddress>),
+    Ingress(Box<dyn AbstractStreamT>, HashMap<Job, WorkerAddress>),
 }
 
 impl StreamType {
     pub(crate) fn id(&self) -> StreamId {
         match self {
-            StreamType::ReadStream(stream, _) => stream.id(),
-            StreamType::WriteStream(stream, _) => stream.id(),
-            StreamType::EgressStream(stream, _) => stream.id(),
-            StreamType::IngressStream(stream, _) => stream.id(),
+            StreamType::Read(stream, _) => stream.id(),
+            StreamType::Write(stream, _) => stream.id(),
+            StreamType::Egress(stream, _) => stream.id(),
+            StreamType::Ingress(stream, _) => stream.id(),
         }
     }
 }

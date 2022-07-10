@@ -43,6 +43,7 @@ pub(crate) enum QueryResponseType {
 /// An enum specifying the notifications that a [`Driver`](crate::dataflow::graph::Job::Driver)
 /// can send to a [`Worker`](crate::node::WorkerNode).
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum DriverNotification {
     /// Notifies the `Worker` to compile and register the graph with itself.
     RegisterGraph(JobGraph),
@@ -59,6 +60,7 @@ pub(crate) enum DriverNotification {
 /// An enum specifying the notifications that a [`Worker`](crate::node::WorkerNode)
 /// can send to a [`Leader`](crate::node::Leader).
 #[derive(Debug, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum WorkerNotification {
     /// Informs the `Leader` that a new `Worker` has been initialized and provides
     /// information about the ID, Address and Resources of the Worker.

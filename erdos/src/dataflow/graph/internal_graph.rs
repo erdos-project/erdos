@@ -79,7 +79,7 @@ impl<
             | AbstractOperatorType::OneInOneOut
             | AbstractOperatorType::ParallelOneInTwoOut
             | AbstractOperatorType::OneInTwoOut => {
-                if operator.read_streams.len() < 1 {
+                if operator.read_streams.is_empty() {
                     return Err(GraphCompilationError(format!(
                         "Could not find the ReadStream ID for Operator {}.",
                         operator.id,
@@ -885,7 +885,7 @@ impl InternalGraph {
                         resolved_read_stream_id, abstract_operator.id,
                     ))
                 })?;
-                read_stream.add_destination(operator_job.clone());
+                read_stream.add_destination(*operator_job);
 
                 // Save the resolved StreamID.
                 abstract_operator.read_streams[index] = resolved_read_stream_id;
@@ -899,7 +899,7 @@ impl InternalGraph {
                         write_stream_id, abstract_operator.id,
                     ))
                 })?;
-                write_stream.register_source(operator_job.clone());
+                write_stream.register_source(*operator_job);
             }
 
             // Create a JobRunner for the operator now that the IDs are resolved.
@@ -913,8 +913,8 @@ impl InternalGraph {
                     ))
                 })?;
             job_runners.insert(
-                operator_job.clone(),
-                operator_runner.to_job_runner(&abstract_operator)?,
+                *operator_job,
+                operator_runner.to_job_runner(abstract_operator)?,
             );
         }
 

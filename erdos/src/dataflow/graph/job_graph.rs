@@ -80,17 +80,17 @@ impl From<JobGraph> for AbstractJobGraph {
         let mut sources = HashMap::new();
         let mut destinations = HashMap::new();
 
-        for (stream_id, stream) in job_graph.streams.iter() {
-            sources.insert(*stream_id, stream.source().unwrap());
-            destinations.insert(*stream_id, stream.destinations());
+        for (stream_id, stream) in job_graph.streams.into_iter() {
+            sources.insert(stream_id, stream.source().unwrap());
+            destinations.insert(stream_id, stream.destinations());
         }
         Self {
-            name: job_graph.name.clone(),
-            operators: job_graph.operators.clone(),
+            name: job_graph.name,
+            operators: job_graph.operators,
             stream_sources: sources,
             stream_destinations: destinations,
-            ingress_streams: job_graph.ingress_streams.clone(),
-            egress_streams: job_graph.egress_streams.clone(),
+            ingress_streams: job_graph.ingress_streams,
+            egress_streams: job_graph.egress_streams,
         }
     }
 }
@@ -158,7 +158,7 @@ impl JobGraph {
     pub fn ingress_streams(&self) -> Vec<Box<dyn AbstractStreamT>> {
         let mut ingress_streams = Vec::new();
         for ingress_stream_id in &self.ingress_streams {
-            if let Some(ingress_stream) = self.stream(&ingress_stream_id) {
+            if let Some(ingress_stream) = self.stream(ingress_stream_id) {
                 ingress_streams.push(ingress_stream);
             }
         }
@@ -170,7 +170,7 @@ impl JobGraph {
     pub fn egress_streams(&self) -> Vec<Box<dyn AbstractStreamT>> {
         let mut egress_streams = Vec::new();
         for egress_stream_id in &self.egress_streams {
-            if let Some(egress_stream) = self.stream(&egress_stream_id) {
+            if let Some(egress_stream) = self.stream(egress_stream_id) {
                 egress_streams.push(egress_stream);
             }
         }
@@ -200,7 +200,7 @@ impl JobGraph {
         }
 
         writeln!(file, "   // Streams")?;
-        for stream in self.streams.values().into_iter() {
+        for stream in self.streams.values() {
             let source_id = match stream.source().unwrap() {
                 Job::Driver => driver_id,
                 Job::Operator(id) => id,

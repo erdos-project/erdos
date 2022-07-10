@@ -11,7 +11,7 @@ pub(crate) trait JobGraphScheduler {
     fn schedule_graph(
         &mut self,
         job_graph: &AbstractJobGraph,
-        workers: &Vec<WorkerState>,
+        workers: &[WorkerState],
     ) -> HashMap<Job, WorkerId>;
 }
 
@@ -19,21 +19,16 @@ pub(crate) trait JobGraphScheduler {
 // to a separate module.
 /// The [`SimpleJobGraphScheduler`] maps the operators to the nodes they
 /// were requested to be run on in their [`OperatorConfig`].
+#[derive(Default)]
 pub(crate) struct SimpleJobGraphScheduler {}
-
-impl Default for SimpleJobGraphScheduler {
-    fn default() -> Self {
-        Self {}
-    }
-}
 
 impl JobGraphScheduler for SimpleJobGraphScheduler {
     fn schedule_graph(
         &mut self,
         job_graph: &AbstractJobGraph,
-        workers: &Vec<WorkerState>,
+        workers: &[WorkerState],
     ) -> HashMap<Job, WorkerId> {
-        if workers.len() == 0 {
+        if workers.is_empty() {
             // No workers found, we cannot schedule anything.
             return HashMap::new();
         }
@@ -49,12 +44,12 @@ impl JobGraphScheduler for SimpleJobGraphScheduler {
         for (operator_id, operator) in job_graph.operators().iter() {
             let requested_worker = operator.config.worker_id;
             if worker_ids.contains(&requested_worker) {
-                placements.insert(operator_id.clone(), requested_worker);
+                placements.insert(*operator_id, requested_worker);
             } else {
                 // Assign a random worker.
                 let worker_index = thread_rng().gen_range(0, worker_ids.len());
                 let worker_id = workers.get(worker_index).unwrap().id();
-                placements.insert(operator_id.clone(), worker_id);
+                placements.insert(*operator_id, worker_id);
             }
         }
 

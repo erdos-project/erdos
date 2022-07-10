@@ -12,9 +12,6 @@ impl Resources {
     }
 
     pub fn empty() -> Self {
-        Self {
-            num_cpus: 0,
-            num_gpus: 0,
-        }
+        Resources::new(0, 0)
     }
 }

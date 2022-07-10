@@ -183,30 +183,27 @@ impl Leader {
 
                 // Handle new messages from the drivers.
                 Some(driver_notification) = self.driver_notification_rx.recv() => {
-                    match driver_notification {
-                        DriverNotification::Shutdown => {
-                            // Ask all Workers to shutdown.
-                            tracing::debug!(
-                                "[Leader] Received a Shutdown notification from the Driver. \
-                                                Requesting all the Workers to shutdown."
+                    if let DriverNotification::Shutdown = driver_notification {
+                        // Ask all Workers to shutdown.
+                        tracing::debug!(
+                            "[Leader] Received a Shutdown notification from the Driver. \
+                                            Requesting all the Workers to shutdown."
+                        );
+                        if let Err(error) =
+                            leader_to_workers_tx.send(
+                                WorkerHandlerNotification::ShutdownAllWorkers
+                            ) {
+                            tracing::error!(
+                                "[Leader] Received an error when requesting \
+                                                    Worker shutdown: {}",
+                                error
                             );
-                            if let Err(error) =
-                                leader_to_workers_tx.send(
-                                    WorkerHandlerNotification::ShutdownAllWorkers
-                                ) {
-                                tracing::error!(
-                                    "[Leader] Received an error when requesting \
-                                                        Worker shutdown: {}",
-                                    error
-                                );
-                            }
-
-                            // Wait for all worker handler tasks to shutdown.
-                            future::join_all(self.worker_handlers.drain(..)).await;
-                            tracing::info!("Leader is shutting down!");
-                            return Ok(());
                         }
-                        _ => {}
+
+                        // Wait for all worker handler tasks to shutdown.
+                        future::join_all(self.worker_handlers.drain(..)).await;
+                        tracing::info!("Leader is shutting down!");
+                        return Ok(());
                     }
                 }
 
@@ -251,7 +248,7 @@ impl Leader {
             WorkerHandlerNotification::Query(worker_id, query_id, query) => {
                 if let Err(error) = match &query {
                     QueryType::JobGraphStatus(job_graph_id) => {
-                        let response = match self.job_graph_metadata.get(&job_graph_id) {
+                        let response = match self.job_graph_metadata.get(job_graph_id) {
                             Some(graph_metadata) => Ok(graph_metadata.job_graph_state.clone()),
                             None => Err(QueryError(format!(
                                 "JobGraph {:?} was not registered in the Leader.",
@@ -493,7 +490,7 @@ impl Leader {
                             if let Err(error) =
                                 channel_to_leader.send(WorkerHandlerNotification::WorkerInitialized(
                                     WorkerState::new(
-                                        id_of_this_worker.clone(),
+                                        id_of_this_worker,
                                         worker_address,
                                         resources,
                                     )
@@ -597,7 +594,7 @@ impl Leader {
                     // Configurations still work.
                     WorkerAddress::Local
                 } else {
-                    let driver_address = self.worker_id_to_worker_state.get(&driver_id)?.address();
+                    let driver_address = self.worker_id_to_worker_state.get(driver_id)?.address();
                     WorkerAddress::Remote(*driver_id, driver_address)
                 }
             }
@@ -620,7 +617,7 @@ impl Leader {
         leader_to_workers_tx: &broadcast::Sender<WorkerHandlerNotification>,
     ) {
         // Invoke the Scheduler to retrieve the placements for this JobGraph.
-        let workers = self.worker_id_to_worker_state.values().cloned().collect();
+        let workers: Vec<_> = self.worker_id_to_worker_state.values().cloned().collect();
         let placements = self
             .job_graph_scheduler
             .schedule_graph(&job_graph, &workers);
@@ -630,7 +627,7 @@ impl Leader {
 
         // Request the thread handling the `Worker` where the `Operator` was placed to schedule it.
         for (job, worker_id) in placements.iter() {
-            let operator = match job_graph.operator(&job) {
+            let operator = match job_graph.operator(job) {
                 Some(operator) => operator,
                 None => {
                     tracing::warn!(
@@ -664,7 +661,7 @@ impl Leader {
             for write_stream_id in &operator.write_streams {
                 for destination in job_graph.destinations(write_stream_id) {
                     if let Some(worker_address) =
-                        self.get_worker_address(&worker_id, &driver_id, &destination, &placements)
+                        self.get_worker_address(worker_id, &driver_id, &destination, &placements)
                     {
                         worker_addresses.insert(destination, worker_address);
                     }
@@ -683,15 +680,15 @@ impl Leader {
             );
             let _ = leader_to_workers_tx.send(WorkerHandlerNotification::ScheduleJob(
                 job_graph_id.clone(),
-                job.clone(),
+                *job,
                 *worker_id,
                 worker_addresses,
             ));
-            job_status.insert(job.clone(), (Some(*worker_id), ExecutionState::Scheduled));
+            job_status.insert(*job, (Some(*worker_id), ExecutionState::Scheduled));
 
             // Update the `WorkerState` to include the JobGraphID.
             self.worker_id_to_worker_state
-                .get_mut(&worker_id)
+                .get_mut(worker_id)
                 .unwrap()
                 .schedule_graph(job_graph_id.clone());
         }
@@ -739,7 +736,7 @@ impl Leader {
         // Find all the jobs that were not scheduled from the Graph, and update the Metadata.
         for job in job_graph.operators().keys() {
             if !job_status.contains_key(job) {
-                job_status.insert(job.clone(), (None, ExecutionState::NotScheduled));
+                job_status.insert(*job, (None, ExecutionState::NotScheduled));
             }
         }
         self.job_graph_metadata.insert(

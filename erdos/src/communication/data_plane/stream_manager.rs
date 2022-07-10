@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use std::{
     any::Any,
-    collections::HashMap,
+    collections::{HashMap, hash_map::Entry},
     sync::{Arc, Mutex},
 };
 use tokio::sync::mpsc::{self, UnboundedSender};
@@ -256,10 +256,10 @@ impl StreamManager {
     ) -> Result<(), CommunicationError> {
         // If there are no endpoints for this stream, create endpoints and install
         // the pusher to the DataReceiver at this connection.
-        if !self.stream_endpoints.contains_key(&stream.id()) {
+        if let Entry::Vacant(e) = self.stream_endpoints.entry(stream.id()) {
             let stream_endpoints = stream.to_stream_endpoints_t();
             let pusher = stream_endpoints.clone_pusher();
-            self.stream_endpoints.insert(stream.id(), stream_endpoints);
+            e.insert(stream_endpoints);
             worker_connection.install_pusher(stream.id(), pusher)?;
         }
 

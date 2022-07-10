@@ -234,6 +234,7 @@ impl WorkerHandle {
     ///
     /// # Arguments
     /// - `graph_id`: The ID of the `Graph` whose status needs to be retrieved.
+    #[allow(clippy::collapsible_match)]
     fn job_graph_status(
         &mut self,
         graph_id: &JobGraphId,
