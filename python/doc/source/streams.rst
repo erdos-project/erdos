@@ -68,7 +68,7 @@ and `:py:class:.WriteStream` interfaces.
 
 .. autoclass:: erdos.OperatorStream
     :show-inheritance:
-    :members:
+    :members: to_egress
 
 
 Ingesting and Extracting Data

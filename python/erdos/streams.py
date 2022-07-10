@@ -348,6 +348,8 @@ class OperatorStream(Stream[T]):
         super().__init__(operator_stream)
 
     def to_egress(self) -> EgressStream[T]:
+        """Converts the :py:class:`OperatorStream` to an
+        :py:class:`EgressStream`."""
         return EgressStream(self._internal_stream.to_egress())
 
 
