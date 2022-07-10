@@ -44,6 +44,7 @@ impl fmt::Display for HandleError {
 
 /// A [`LeaderHandle`] is used by driver applications to interact
 /// with the Leader node running on their local instance.
+#[allow(dead_code)]
 pub struct LeaderHandle {
     /// A handle to communicate notifications to the underlying Leader.
     leader_handle: mpsc::Sender<DriverNotification>,
@@ -107,6 +108,7 @@ impl LeaderHandle {
 
 /// A [`WorkerHandle`] is used by driver applications to submit ERDOS applications
 /// to the ERDOS Leader, and query their execution progres.
+#[allow(dead_code)]
 pub struct WorkerHandle {
     /// A channel to communicate notifications to the underlying Worker.
     channel_to_worker: UnboundedSender<DriverNotification>,

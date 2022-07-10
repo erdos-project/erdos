@@ -211,6 +211,7 @@ where
 /// the [`Job`]s that are scheduled on the current [`Worker`]. Once the
 /// connections are set up, the [`Operator`]s cast the [`StreamEndpoints`]
 /// to the required message type and retrieve or send the data.
+#[allow(dead_code)]
 pub(crate) struct StreamManager {
     /// The [`Worker`] to which the [`StreamManager`] belongs.
     worker_id: WorkerId,
@@ -218,6 +219,7 @@ pub(crate) struct StreamManager {
     stream_endpoints: HashMap<StreamId, Box<dyn StreamEndpointsT>>,
 }
 
+#[allow(dead_code)]
 impl StreamManager {
     /// Initializes a new [`StreamManager`] for the [`Worker`] with the given ID.
     pub fn new(worker_id: WorkerId) -> Self {

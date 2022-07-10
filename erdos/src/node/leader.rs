@@ -43,6 +43,7 @@ enum WorkerHandlerNotification {
     ShutdownAllWorkers,
 }
 
+#[allow(dead_code)]
 struct JobGraphMetadata {
     /// The ID of the [`JobGraph`] for which this metadata is maintained.
     pub id: JobGraphId,

@@ -106,6 +106,7 @@ pub(crate) struct JobGraph {
     egress_streams: HashSet<StreamId>,
 }
 
+#[allow(dead_code)]
 impl JobGraph {
     pub(crate) fn new(
         name: String,

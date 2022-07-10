@@ -209,7 +209,8 @@ impl WorkerNode {
                                     error
                                 );
                             }
-                            tokio::join!(data_plane_handle);
+                            // TODO (Sukrit): Define a shutdown method or implement Drop.
+                            let _ = tokio::join!(data_plane_handle);
                             return Ok(());
                         }
                         _ => self.handle_driver_messages(driver_notification, &mut leader_tx).await,
@@ -656,9 +657,5 @@ impl WorkerNode {
             }
         }
         destination_addresses
-    }
-
-    pub(crate) fn id(&self) -> WorkerId {
-        self.id
     }
 }
