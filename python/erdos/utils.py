@@ -1,5 +1,5 @@
 import logging
-from typing import Union
+from typing import Optional, Union
 
 
 def setup_logging(name: str, log_file: Union[str, None] = None) -> logging.Logger:
@@ -51,11 +51,17 @@ def setup_trace_logging(name: str, log_file: Union[str, None] = None) -> logging
     return _setup_logging(name, "%(message)s,", None, log_file)
 
 
-def _setup_logging(name: str, fmt: str, date_fmt: str, log_file=None):
-    if log_file is None:
-        handler = logging.StreamHandler()
-    else:
-        handler = logging.FileHandler(log_file)
+def _setup_logging(
+    name: str, fmt: str, date_fmt: Optional[str], log_file: Optional[str] = None
+):
+    # Hack to allow mypy to recognize the type of the handler.
+    def get_handler() -> logging.StreamHandler:
+        if log_file is None:
+            return logging.StreamHandler()
+        else:
+            return logging.FileHandler(log_file)
+
+    handler = get_handler()
     handler.setLevel(logging.DEBUG)
 
     formatter = logging.Formatter(fmt=fmt, datefmt=date_fmt)

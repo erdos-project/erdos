@@ -1,4 +1,4 @@
-from typing import List, Sequence
+from typing import List, Optional, Sequence
 
 from erdos.internal import PyTimestamp
 
@@ -11,7 +11,7 @@ class Timestamp:
     def __init__(
         self,
         timestamp=None,
-        coordinates: Sequence[int] = None,
+        coordinates: List[int] = None,
         is_top: bool = False,
         is_bottom: bool = False,
         _py_timestamp: PyTimestamp = None,
@@ -84,7 +84,7 @@ class Timestamp:
         return hash((coordinates, self.is_top, self.is_bottom))
 
     @property
-    def coordinates(self) -> List[int]:
+    def coordinates(self) -> Optional[List[int]]:
         """A list of integers representing the time."""
         return self._py_timestamp.coordinates()
 
