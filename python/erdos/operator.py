@@ -96,7 +96,7 @@ class Source(BaseOperator):
     def destroy(self):
         """Destroys the operator.
 
-        Invoked automatically by ERDOS once :py:func:`.run` finishes its
+        Invoked automatically by ERDOS once :py:meth:`run` finishes its
         execution, and can be used by the operator to teardown its state
         gracefully.
         """
@@ -156,7 +156,7 @@ class Sink(BaseOperator):
     def destroy(self):
         """Destroys the operator.
 
-        Invoked automatically by ERDOS once :py:func:`.run` finishes its
+        Invoked automatically by ERDOS once :py:meth:`run` finishes its
         execution, or when a watermark for the top timestamp is received on the
         read stream, and can be used by the operator to teardown its state
         gracefully.
@@ -221,7 +221,7 @@ class OneInOneOut(BaseOperator):
     def destroy(self):
         """Destroys the operator.
 
-        Invoked automatically by ERDOS once :py:func:`.run` finishes its
+        Invoked automatically by ERDOS once :py:meth:`run` finishes its
         execution, or when a watermark for the top timestamp is received on the
         read stream, and can be used by the operator to teardown its state
         gracefully.
@@ -305,7 +305,7 @@ class TwoInOneOut(BaseOperator):
     def destroy(self):
         """Destroys the operator.
 
-        Invoked automatically by ERDOS once :py:func:`.run` finishes its
+        Invoked automatically by ERDOS once :py:meth:`run` finishes its
         execution, or when a watermark for the top timestamp is received on
         both the read streams, and can be used by the operator to teardown its
         state gracefully.
@@ -379,7 +379,7 @@ class OneInTwoOut(BaseOperator):
     def destroy(self):
         """Destroys the operator.
 
-        Invoked automatically by ERDOS once :py:func:`.run` finishes its
+        Invoked automatically by ERDOS once :py:meth:`run` finishes its
         execution, or when a watermark for the top timestamp is received on
         the read stream, and can be used by the operator to teardown its state
         gracefully.

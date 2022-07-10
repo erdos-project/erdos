@@ -8,7 +8,7 @@ use serde::Deserialize;
 
 use crate::dataflow::{graph::InternalGraph, Data, Message};
 
-use super::{errors::SendError, Stream, StreamId, WriteStream, WriteStreamT};
+use super::{errors::SendError, InternalStream, Stream, StreamId, WriteStream, WriteStreamT};
 
 /// An [`IngressStream`] enables drivers to inject data into a running ERDOS application.
 ///
@@ -44,7 +44,7 @@ use super::{errors::SendError, Stream, StreamId, WriteStream, WriteStreamT};
 ///     OperatorConfig::new().name("MapOperator"),
 ///     &ingress_stream,
 /// );
-/// let mut egress_stream = graph.add_egress(&output_stream);
+/// let mut egress_stream = output_stream.to_egress();
 ///
 /// node.run_async(graph);
 ///
@@ -143,7 +143,13 @@ where
     fn id(&self) -> StreamId {
         self.id
     }
-    fn graph(&self) -> Arc<Mutex<InternalGraph>> {
+}
+
+impl<D: Data> InternalStream<D> for IngressStream<D>
+where
+    for<'a> D: Data + Deserialize<'a>,
+{
+    fn internal_graph(&self) -> Arc<Mutex<InternalGraph>> {
         Arc::clone(&self.graph)
     }
 }

@@ -65,7 +65,7 @@ where
 ///
 /// # Example
 /// ```
-/// # use erdos::dataflow::{stream::{IngressStream, Stream}, operator::OperatorConfig, operators::Concat};
+/// # use erdos::dataflow::{Graph, stream::{IngressStream, Stream}, operator::OperatorConfig, operators::Concat};
 /// # let graph = Graph::new();
 /// # let left_stream: IngressStream<usize> = graph.add_ingress("LeftIngressStream");
 /// # let right_stream: IngressStream<usize> = graph.add_ingress("RightIngressStream");
@@ -88,17 +88,20 @@ where
         let op_name = format!("ConcatOp_{}_{}", self.name(), other.name());
         let write_stream = OperatorStream::new(
             &format!("{}-write-stream", op_name),
-            Arc::clone(&self.graph()),
+            Arc::clone(&self.internal_graph()),
         );
 
-        self.graph().lock().unwrap().connect_two_in_one_out(
-            ConcatOperator::new,
-            || {},
-            OperatorConfig::new().name(&op_name),
-            self,
-            other,
-            &write_stream,
-        );
+        self.internal_graph()
+            .lock()
+            .unwrap()
+            .connect_two_in_one_out(
+                ConcatOperator::new,
+                || {},
+                OperatorConfig::new().name(&op_name),
+                self,
+                other,
+                &write_stream,
+            );
         write_stream
     }
 }

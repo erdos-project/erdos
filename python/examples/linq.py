@@ -3,6 +3,7 @@ from typing import Any
 
 import erdos
 from erdos.context import SinkContext
+from erdos.graph import Graph
 from erdos.operator import OperatorConfig, Sink, Source
 from erdos.streams import WriteStream
 
@@ -36,14 +37,17 @@ class SinkOp(Sink):
 
 
 def main():
-    source_stream = erdos.connect_source(SendOp, OperatorConfig())
+    graph = Graph()
+
+    source_stream = graph.connect_source(SendOp, OperatorConfig())
     map_stream = source_stream.map(lambda x: x**2)
     evens_stream, odds_stream = map_stream.split(lambda x: x % 2 == 0)
     flat_map_stream = map_stream.flat_map(lambda x: (f"Number {x}", float(x / 2)))
     str_stream, float_stream = flat_map_stream.split_by_type(str, float)
     merged_stream = evens_stream.concat(odds_stream, str_stream, float_stream)
-    erdos.connect_sink(SinkOp, OperatorConfig(name="MergedOutput"), merged_stream)
-    erdos.run()
+
+    graph.connect_sink(SinkOp, OperatorConfig(name="MergedOutput"), merged_stream)
+    graph.run()
 
 
 if __name__ == "__main__":

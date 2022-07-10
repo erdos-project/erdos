@@ -105,7 +105,7 @@ where
     ///
     /// # Example
     /// ```
-    /// # use erdos::dataflow::{stream::{Graph, IngressStream, Stream}, operator::OperatorConfig, operators::Map};
+    /// # use erdos::dataflow::{Graph, stream::{IngressStream, Stream}, operator::OperatorConfig, operators::Map};
     /// #
     /// # let graph = Graph::new();
     /// # let source_stream = graph.add_ingress("SourceIngressStream");
@@ -130,19 +130,22 @@ where
         let op_name = format!("MapOp_{}", self.id());
         let write_stream = OperatorStream::new(
             &format!("{}-write-stream", op_name),
-            Arc::clone(&self.graph()),
+            Arc::clone(&self.internal_graph()),
         );
 
-        self.graph().lock().unwrap().connect_one_in_one_out(
-            move || -> FlatMapOperator<D1, _> {
-                let map_fn = map_fn.clone();
-                FlatMapOperator::new(move |x| std::iter::once(map_fn(x)))
-            },
-            || {},
-            OperatorConfig::new().name(&op_name),
-            self,
-            &write_stream,
-        );
+        self.internal_graph()
+            .lock()
+            .unwrap()
+            .connect_one_in_one_out(
+                move || -> FlatMapOperator<D1, _> {
+                    let map_fn = map_fn.clone();
+                    FlatMapOperator::new(move |x| std::iter::once(map_fn(x)))
+                },
+                || {},
+                OperatorConfig::new().name(&op_name),
+                self,
+                &write_stream,
+            );
         write_stream
     }
 
@@ -154,16 +157,19 @@ where
         let op_name = format!("FlatMapOp_{}", self.id());
         let write_stream = OperatorStream::new(
             &format!("{}-write-stream", op_name),
-            Arc::clone(&self.graph()),
+            Arc::clone(&self.internal_graph()),
         );
 
-        self.graph().lock().unwrap().connect_one_in_one_out(
-            move || -> FlatMapOperator<D1, _> { FlatMapOperator::new(flat_map_fn.clone()) },
-            || {},
-            OperatorConfig::new().name(&op_name),
-            self,
-            &write_stream,
-        );
+        self.internal_graph()
+            .lock()
+            .unwrap()
+            .connect_one_in_one_out(
+                move || -> FlatMapOperator<D1, _> { FlatMapOperator::new(flat_map_fn.clone()) },
+                || {},
+                OperatorConfig::new().name(&op_name),
+                self,
+                &write_stream,
+            );
         write_stream
     }
 }
