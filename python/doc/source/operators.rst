@@ -68,7 +68,7 @@ Operator API
 Operator Config
 ---------------
 
-.. autoclass:: erdos.operator.OperatorConfig
+.. autoclass:: erdos.config.OperatorConfig
     :members: name, flow_watermarks, log_file_name, csv_log_file_name, profile_file_name
 
 Context API

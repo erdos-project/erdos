@@ -1,6 +1,6 @@
 from typing import Generic, TypeVar
 
-import erdos
+from erdos.config import OperatorConfig
 from erdos.internal import PyTimestamp
 from erdos.streams import WriteStream
 from erdos.timestamp import Timestamp
@@ -22,7 +22,7 @@ class SinkContext:
             the driver upon connection of the operator to the graph.
     """
 
-    def __init__(self, timestamp: PyTimestamp, config: erdos.OperatorConfig):
+    def __init__(self, timestamp: PyTimestamp, config: OperatorConfig):
         self.timestamp = Timestamp(_py_timestamp=timestamp)
         self.config = config
 
@@ -49,7 +49,7 @@ class OneInOneOutContext(Generic[T]):
     def __init__(
         self,
         timestamp: PyTimestamp,
-        config: erdos.OperatorConfig,
+        config: OperatorConfig,
         write_stream: WriteStream[T],
     ):
         self.timestamp = Timestamp(_py_timestamp=timestamp)
@@ -81,7 +81,7 @@ class OneInTwoOutContext(Generic[T, U]):
     def __init__(
         self,
         timestamp: PyTimestamp,
-        config: erdos.OperatorConfig,
+        config: OperatorConfig,
         left_write_stream: WriteStream[T],
         right_write_stream: WriteStream[U],
     ):
@@ -117,7 +117,7 @@ class TwoInOneOutContext(Generic[T]):
     def __init__(
         self,
         timestamp: PyTimestamp,
-        config: erdos.OperatorConfig,
+        config: OperatorConfig,
         write_stream: WriteStream[T],
     ):
         self.timestamp = Timestamp(_py_timestamp=timestamp)
