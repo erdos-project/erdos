@@ -106,7 +106,7 @@ jobs:
       - name: Check type correctness.
         run: |
           python -m pip install numpy mypy
-          mypy --allow-untyped-calls --strict ./python/erdos/
+          mypy --strict ./python/erdos/
 
   build-python:
     name: "Python ${{ matrix.python-version }} Build"

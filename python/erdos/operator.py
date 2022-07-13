@@ -4,7 +4,17 @@ import json
 import logging
 import uuid
 from collections import defaultdict, deque
-from typing import Any, Deque, Dict, Generic, List, Optional, TypeVar
+from typing import (
+    Any,
+    Deque,
+    Dict,
+    Generic,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    TypeVar,
+)
 
 import numpy as np
 
@@ -72,10 +82,14 @@ class BaseOperator:
             # We don't have any runtime statistics.
             return None
         else:
-            result = np.percentile(self._runtime_stats[event_name], percentile)
-            assert isinstance(
-                result, float
-            ), f"Incorrect type found for percentile result: {type(result)}"
+            stats = []
+            for stat in self._runtime_stats[event_name]:
+                assert isinstance(stat, int) or isinstance(
+                    stat, float
+                ), f"Non-numeric stat found in runtime_stats: {stat}"
+                stats.append(stat)
+
+            result = np.percentile(stats, percentile)
             return result
 
     def save_trace_events(self, file_name: str) -> None:
