@@ -105,7 +105,7 @@ jobs:
           flake8 --inline-quotes="double" ./python/
       - name: Check type correctness.
         run: |
-          python -m pip install mypy
+          python -m pip install numpy mypy
           mypy --allow-untyped-calls --strict ./python/erdos/
 
   build-python:
