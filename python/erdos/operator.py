@@ -4,17 +4,7 @@ import json
 import logging
 import uuid
 from collections import defaultdict, deque
-from typing import (
-    Any,
-    Deque,
-    Dict,
-    Generic,
-    Iterable,
-    List,
-    Optional,
-    Sequence,
-    TypeVar,
-)
+from typing import Any, Deque, Dict, Generic, List, Optional, TypeVar
 
 import numpy as np
 
