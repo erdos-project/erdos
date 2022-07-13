@@ -79,8 +79,7 @@ class BaseOperator:
                 ), f"Non-numeric stat found in runtime_stats: {stat}"
                 stats.append(stat)
 
-            result = np.percentile(stats, percentile)
-            return result
+            return float(np.percentile(stats, percentile))
 
     def save_trace_events(self, file_name: str) -> None:
         import json
