@@ -81,6 +81,7 @@ nitpick_ignore = [
     ("py:data", "typing.Optional"),
     ("py:data", "typing.Tuple"),
     ("py:data", "typing.Callable"),
+    ("py:data", "typing.Union"),
     ("py:data", "Ellipsis"),
     ("py:obj", "erdos.streams.T"),
     ("py:obj", "erdos.operator.T"),
