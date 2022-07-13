@@ -3,14 +3,21 @@ import multiprocessing as mp
 import signal
 import sys
 from functools import wraps
-from typing import Optional, Tuple, Type
+from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar
 
 import erdos.context
 import erdos.internal as _internal
-import erdos.operator
 import erdos.utils
 from erdos.config import OperatorConfig
 from erdos.message import Message, WatermarkMessage
+from erdos.operator import (
+    BaseOperator,
+    OneInOneOut,
+    OneInTwoOut,
+    Sink,
+    Source,
+    TwoInOneOut,
+)
 from erdos.profile import Profile
 from erdos.streams import (
     ExtractStream,
@@ -24,6 +31,7 @@ from erdos.streams import (
 from erdos.timestamp import Timestamp
 
 _num_py_operators = 0
+
 
 # Set the top-level logger for ERDOS logging.
 # Users can change the logging level to the required level by calling setLevel
@@ -39,13 +47,17 @@ logger.addHandler(default_handler)
 logger.setLevel(logging.WARNING)
 logger.propagate = False
 
+T = TypeVar("T")
+U = TypeVar("U")
+V = TypeVar("V")
+
 
 def connect_source(
-    op_type: Type[erdos.operator.Source],
+    op_type: Type[Source[T]],
     config: OperatorConfig,
-    *args,
-    **kwargs,
-) -> OperatorStream:
+    *args: List[Any],
+    **kwargs: Dict[str, Any],
+) -> OperatorStream[T]:
     """Registers a :py:class:`.Source` operator to the dataflow
     graph, and returns the :py:class:`OperatorStream` that the operator will
     write the data on.
@@ -62,7 +74,7 @@ def connect_source(
         An :py:class:`OperatorStream` corresponding to the
         :py:class:`WriteStream` made available to :py:meth:`.Source.run`.
     """
-    if not issubclass(op_type, erdos.operator.Source):
+    if not issubclass(op_type, Source):
         raise TypeError("{} must subclass erdos.operator.Source".format(op_type))
 
     if op_type.run.__code__.co_code == erdos.operator.Source.run.__code__.co_code:
@@ -86,12 +98,12 @@ def connect_source(
 
 
 def connect_sink(
-    op_type: Type[erdos.operator.Sink],
+    op_type: Type[Sink[T]],
     config: OperatorConfig,
-    read_stream: Stream,
-    *args,
-    **kwargs,
-):
+    read_stream: Stream[T],
+    *args: List[Any],
+    **kwargs: Dict[str, Any],
+) -> None:
     """Registers a :py:class:`.Sink` operator to the dataflow
     graph.
 
@@ -105,7 +117,7 @@ def connect_sink(
         **kwargs: Keyword arguments passed to the operator during
             initialization.
     """
-    if not issubclass(op_type, erdos.operator.Sink):
+    if not issubclass(op_type, Sink):
         raise TypeError("{} must subclass erdos.operator.Sink".format(op_type))
 
     if not isinstance(read_stream, Stream):
@@ -140,12 +152,12 @@ def connect_sink(
 
 
 def connect_one_in_one_out(
-    op_type: Type[erdos.operator.OneInOneOut],
+    op_type: Type[OneInOneOut[T, U]],
     config: OperatorConfig,
-    read_stream: Stream,
-    *args,
-    **kwargs,
-) -> OperatorStream:
+    read_stream: Stream[T],
+    *args: List[Any],
+    **kwargs: Dict[str, Any],
+) -> OperatorStream[U]:
     """Registers a :py:class:`.OneInOneOut` operator to the dataflow graph that
     receives input from the given :code:`read_stream`, and returns the
     :py:class:`OperatorStream` that the operator will write the data on.
@@ -166,7 +178,7 @@ def connect_one_in_one_out(
         or to the operator's callbacks via the
         :py:class:`.OneInOneOutContext`.
     """
-    if not issubclass(op_type, erdos.operator.OneInOneOut):
+    if not issubclass(op_type, OneInOneOut):
         raise TypeError("{} must subclass erdos.operator.OneInOneOut".format(op_type))
 
     if not isinstance(read_stream, Stream):
@@ -202,13 +214,13 @@ def connect_one_in_one_out(
 
 
 def connect_two_in_one_out(
-    op_type: Type[erdos.operator.TwoInOneOut],
+    op_type: Type[TwoInOneOut[T, U, V]],
     config: OperatorConfig,
-    left_read_stream: Stream,
-    right_read_stream: Stream,
-    *args,
-    **kwargs,
-) -> OperatorStream:
+    left_read_stream: Stream[T],
+    right_read_stream: Stream[U],
+    *args: List[Any],
+    **kwargs: Dict[str, Any],
+) -> OperatorStream[V]:
     """Registers a :py:class:`.TwoInOneOut` operator to the
     dataflow graph that receives input from the given :code:`left_read_stream`
     and :code:`right_read_stream`, and returns the :py:class:`OperatorStream`
@@ -232,7 +244,7 @@ def connect_two_in_one_out(
         or to the operator's callbacks via the
         :py:class:`.TwoInOneOutContext`.
     """
-    if not issubclass(op_type, erdos.operator.TwoInOneOut):
+    if not issubclass(op_type, TwoInOneOut):
         raise TypeError("{} must subclass erdos.operator.TwoInOneOut".format(op_type))
 
     if not isinstance(left_read_stream, Stream):
@@ -280,12 +292,12 @@ def connect_two_in_one_out(
 
 
 def connect_one_in_two_out(
-    op_type: Type[erdos.operator.OneInTwoOut],
+    op_type: Type[OneInTwoOut[T, U, V]],
     config: OperatorConfig,
-    read_stream: Stream,
-    *args,
-    **kwargs,
-) -> Tuple[OperatorStream, OperatorStream]:
+    read_stream: Stream[T],
+    *args: List[Any],
+    **kwargs: Dict[str, Any],
+) -> Tuple[OperatorStream[U], OperatorStream[V]]:
     """Registers a :py:class:`.OneInTwoOut` operator to the dataflow graph that
     receives input from the given :code:`read_stream`, and returns the pair of
     :py:class:`OperatorStream` instances that the operator will write data on.
@@ -306,7 +318,7 @@ def connect_one_in_two_out(
         :py:meth:`.OneInOneOut.run`, or to the operator's callbacks via the
         :py:class:`.OneInTwoOutContext`.
     """
-    if not issubclass(op_type, erdos.operator.OneInTwoOut):
+    if not issubclass(op_type, OneInTwoOut):
         raise TypeError("{} must subclass erdos.operator.OneInTwoOut".format(op_type))
 
     if not isinstance(read_stream, Stream):
@@ -341,7 +353,7 @@ def connect_one_in_two_out(
     return OperatorStream(left_stream), OperatorStream(right_stream)
 
 
-def reset():
+def reset() -> None:
     """Create a new dataflow graph.
 
     Note:
@@ -367,11 +379,15 @@ class NodeHandle:
         This structure should not be initialized by the users.
     """
 
-    def __init__(self, py_node_handle, processes):
+    def __init__(
+        self,
+        py_node_handle: _internal.PyNodeHandle,
+        processes: List[mp.Process],
+    ):
         self.py_node_handle = py_node_handle
         self.processes = processes
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         """Shuts down the dataflow."""
         logger.info("Shutting down other processes")
         for p in self.processes:
@@ -380,14 +396,14 @@ class NodeHandle:
         logger.info("Shutting down node.")
         self.py_node_handle.shutdown_node()
 
-    def wait(self):
+    def wait(self) -> None:
         """Waits for the completion of all the operators in the dataflow"""
         for p in self.processes:
             p.join()
         logger.debug("Finished waiting for the dataflow graph processes.")
 
 
-def run(graph_filename: Optional[str] = None, start_port: int = 9000):
+def run(graph_filename: Optional[str] = None, start_port: int = 9000) -> None:
     """Instantiates and runs the dataflow graph.
 
     ERDOS will spawn 1 process for each python operator, and connect them via
@@ -405,11 +421,15 @@ def run(graph_filename: Optional[str] = None, start_port: int = 9000):
     driver_handle.wait()
 
 
-def _run_node(node_id, data_addresses, control_addresses):
-    _internal.run(node_id, data_addresses, control_addresses)
+def _run_node(
+    node_id: int, data_addresses: List[str], control_addresses: List[str]
+) -> None:
+    _internal.run(node_id, data_addresses, control_addresses, None)
 
 
-def run_async(graph_filename: str = None, start_port: int = 9000) -> NodeHandle:
+def run_async(
+    graph_filename: Optional[str] = None, start_port: int = 9000
+) -> NodeHandle:
     """Instantiates and runs the dataflow graph asynchronously.
 
     ERDOS will spawn 1 process for each python operator, and connect them via
@@ -448,7 +468,7 @@ def run_async(graph_filename: str = None, start_port: int = 9000) -> NodeHandle:
     ]
 
     # Needed to shut down child processes
-    def sigint_handler(sig, frame):
+    def sigint_handler(sig: Any, frame: Any) -> None:
         for p in processes:
             p.terminate()
         sys.exit(0)
@@ -464,17 +484,19 @@ def run_async(graph_filename: str = None, start_port: int = 9000) -> NodeHandle:
         0, data_addresses, control_addresses, graph_filename
     )
 
-    return NodeHandle(py_node_handle, processes)
+    return NodeHandle(py_node_handle, processes)  # type: ignore
 
 
-def profile(event_name, operator, event_data=None):
+def profile(
+    event_name: str, operator: BaseOperator, event_data: Optional[Dict[str, str]] = None
+) -> Profile:
     return Profile(event_name, operator, event_data)
 
 
-def profile_method(**decorator_kwargs):
-    def decorator(func):
+def profile_method(**decorator_kwargs):  # type: ignore
+    def decorator(func):  # type: ignore
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: List[Any], **kwargs: Dict[str, Any]):  # type: ignore
             if isinstance(args[0], erdos.operator.BaseOperator):
                 # The func is an operator method.
                 op_name = args[0].config.name
@@ -484,7 +506,7 @@ def profile_method(**decorator_kwargs):
                 else:
                     # Set the event name to the operator name and the callback
                     # name if it's not passed by the user.
-                    event_name = op_name + "." + cb_name
+                    event_name = f"{op_name}.{cb_name}"
                 timestamp = None
                 if len(args) > 1:
                     if isinstance(args[1], Timestamp):

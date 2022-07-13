@@ -1,3 +1,6 @@
+from typing import Optional
+
+
 class OperatorConfig:
     """An :py:class:`OperatorConfig` allows developers to configure an
     operator.
@@ -16,11 +19,11 @@ class OperatorConfig:
 
     def __init__(
         self,
-        name: str = None,
+        name: Optional[str] = None,
         flow_watermarks: bool = True,
-        log_file_name: str = None,
-        csv_log_file_name: str = None,
-        profile_file_name: str = None,
+        log_file_name: Optional[str] = None,
+        csv_log_file_name: Optional[str] = None,
+        profile_file_name: Optional[str] = None,
     ):
         self._name = name
         self._flow_watermarks = flow_watermarks
@@ -29,34 +32,34 @@ class OperatorConfig:
         self._profile_file_name = profile_file_name
 
     @property
-    def name(self):
+    def name(self) -> Optional[str]:
         """Name of the operator."""
         return self._name
 
     @property
-    def flow_watermarks(self):
+    def flow_watermarks(self) -> bool:
         """Whether to automatically pass on the low watermark."""
         return self._flow_watermarks
 
     @property
-    def log_file_name(self):
+    def log_file_name(self) -> Optional[str]:
         """File name used for logging."""
         return self._log_file_name
 
     @property
-    def csv_log_file_name(self):
+    def csv_log_file_name(self) -> Optional[str]:
         """File name used for logging to CSV."""
         return self._csv_log_file_name
 
     @property
-    def profile_file_name(self):
+    def profile_file_name(self) -> Optional[str]:
         """File named used for profiling an operator's performance."""
         return self._profile_file_name
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "OperatorConfig(name={}, flow_watermarks={})".format(
             self.name, self.flow_watermarks
         )
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self)

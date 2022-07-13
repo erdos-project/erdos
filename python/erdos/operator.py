@@ -1,9 +1,14 @@
+from __future__ import annotations
+
 import json
+import logging
+import uuid
 from collections import defaultdict, deque
-from typing import Any, Generic, TypeVar
+from typing import Any, Deque, Dict, Generic, List, Optional, TypeVar
 
 import numpy as np
 
+from erdos.config import OperatorConfig
 from erdos.context import (
     OneInOneOutContext,
     OneInTwoOutContext,
@@ -24,26 +29,35 @@ class BaseOperator:
     methods common to the individual operators.
     """
 
+    _id: uuid.UUID
+    _config: OperatorConfig
+    _trace_events: List[Dict[str, Optional[str | int | Dict[str, str]]]]
+    _trace_event_logger: logging.Logger
+    _runtime_stats: Dict[str, Deque[Optional[str | int | Dict[str, str]]]]
+
     @property
-    def id(self):
+    def id(self) -> uuid.UUID:
         """Returns the operator's ID."""
         return self._id
 
     @property
-    def config(self):
+    def config(self) -> OperatorConfig:
         """Returns the operator's config."""
         return self._config
 
-    def add_trace_event(self, event):
+    def add_trace_event(
+        self, event: Dict[str, Optional[str | int | Dict[str, str]]]
+    ) -> None:
         """Records a profile trace event."""
         self._trace_events.append(event)
         self._trace_event_logger.info(json.dumps(event))
         event_name = event["name"]
+        assert isinstance(event_name, str), "Event name was not a string."
         self._runtime_stats[event_name].append(event["dur"])
         if len(self._runtime_stats[event_name]) > MAX_NUM_RUNTIME_SAMPLES:
             self._runtime_stats[event_name].popleft()
 
-    def get_runtime(self, event_name, percentile):
+    def get_runtime(self, event_name: str, percentile: int | float) -> Optional[float]:
         """Gets the runtime percentile for a given type of event.
 
         Args:
@@ -58,9 +72,13 @@ class BaseOperator:
             # We don't have any runtime statistics.
             return None
         else:
-            return np.percentile(self._runtime_stats[event_name], percentile)
+            result = np.percentile(self._runtime_stats[event_name], percentile)
+            assert isinstance(
+                result, float
+            ), f"Incorrect type found for percentile result: {type(result)}"
+            return result
 
-    def save_trace_events(self, file_name):
+    def save_trace_events(self, file_name: str) -> None:
         import json
 
         with open(file_name, "w") as write_file:
@@ -77,7 +95,7 @@ class Source(BaseOperator, Generic[T]):
     teardown of the operator respectively.
     """
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args: List[Any], **kwargs: Dict[str, Any]) -> Source[T]:
         """Set up variables before call to `__init__` on the python end.
 
         More setup is done in the Rust backend at `src/python/mod.rs`.
@@ -87,7 +105,7 @@ class Source(BaseOperator, Generic[T]):
         instance._runtime_stats = defaultdict(deque)
         return instance
 
-    def run(self, write_stream: WriteStream[T]):
+    def run(self, write_stream: WriteStream[T]) -> None:
         """Runs the operator.
 
         Invoked automatically by ERDOS, and provided with a
@@ -97,7 +115,7 @@ class Source(BaseOperator, Generic[T]):
             write_stream: A :py:class:`.WriteStream` instance to send data on.
         """
 
-    def destroy(self):
+    def destroy(self) -> None:
         """Destroys the operator.
 
         Invoked automatically by ERDOS once :py:func:`.run` finishes its
@@ -117,7 +135,7 @@ class Sink(BaseOperator, Generic[T]):
     callback upon receipt of messages and watermarks.
     """
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args: List[Any], **kwargs: Dict[str, Any]) -> Sink[T]:
         """Set up variables before call to `__init__` on the python end.
 
         More setup is done in the Rust backend at `src/python/mod.rs`.
@@ -127,7 +145,7 @@ class Sink(BaseOperator, Generic[T]):
         instance._runtime_stats = defaultdict(deque)
         return instance
 
-    def run(self, read_stream: ReadStream[T]):
+    def run(self, read_stream: ReadStream[T]) -> None:
         """Runs the operator.
 
         Invoked automatically by ERDOS, and provided with a
@@ -137,7 +155,7 @@ class Sink(BaseOperator, Generic[T]):
             read_stream: A :py:class:`.ReadStream` instance to read data from.
         """
 
-    def on_data(self, context: SinkContext, data: Any):
+    def on_data(self, context: SinkContext, data: T) -> None:
         """Callback invoked upon receipt of a :py:class:`.Message` on the
         operator's :py:class:`.ReadStream`.
 
@@ -148,7 +166,7 @@ class Sink(BaseOperator, Generic[T]):
                 stream.
         """
 
-    def on_watermark(self, context: SinkContext):
+    def on_watermark(self, context: SinkContext) -> None:
         """Callback invoked upon receipt of a :py:class:`.WatermarkMessage` on
         the operator's :py:class:`.ReadStream`.
 
@@ -157,7 +175,7 @@ class Sink(BaseOperator, Generic[T]):
                 about the current invocation of the callback.
         """
 
-    def destroy(self):
+    def destroy(self) -> None:
         """Destroys the operator.
 
         Invoked automatically by ERDOS once :py:func:`.run` finishes its
@@ -180,7 +198,7 @@ class OneInOneOut(BaseOperator, Generic[T, U]):
     messages and watermarks.
     """
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args: List[Any], **kwargs: Dict[str, Any]) -> OneInOneOut[T, U]:
         """Set up variables before call to `__init__` on the python end.
 
         More setup is done in the Rust backend at `src/python/mod.rs`.
@@ -190,7 +208,7 @@ class OneInOneOut(BaseOperator, Generic[T, U]):
         instance._runtime_stats = defaultdict(deque)
         return instance
 
-    def run(self, read_stream: ReadStream[T], write_stream: WriteStream[U]):
+    def run(self, read_stream: ReadStream[T], write_stream: WriteStream[U]) -> None:
         """Runs the operator.
 
         Invoked automatically by ERDOS, and provided with a
@@ -202,7 +220,7 @@ class OneInOneOut(BaseOperator, Generic[T, U]):
             write_stream: A :py:class:`.WriteStream` instance to send data on.
         """
 
-    def on_data(self, context: OneInOneOutContext[U], data: T):
+    def on_data(self, context: OneInOneOutContext[U], data: T) -> None:
         """Callback invoked upon receipt of a :py:class:`.Message` on the
         operator's :py:class:`.ReadStream`.
 
@@ -213,7 +231,7 @@ class OneInOneOut(BaseOperator, Generic[T, U]):
                 stream.
         """
 
-    def on_watermark(self, context: OneInOneOutContext):
+    def on_watermark(self, context: OneInOneOutContext[U]) -> None:
         """Callback invoked upon receipt of a :py:class:`.WatermarkMessage` on
         the operator's :py:class:`.ReadStream`.
 
@@ -222,7 +240,7 @@ class OneInOneOut(BaseOperator, Generic[T, U]):
                 metadata about the current invocation of the callback.
         """
 
-    def destroy(self):
+    def destroy(self) -> None:
         """Destroys the operator.
 
         Invoked automatically by ERDOS once :py:func:`.run` finishes its
@@ -245,7 +263,9 @@ class TwoInOneOut(BaseOperator, Generic[T, U, V]):
     callback upon receipt of messages and watermarks.
     """
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(
+        cls, *args: List[Any], **kwargs: Dict[str, Any]
+    ) -> TwoInOneOut[T, U, V]:
         """Set up variables before call to `__init__` on the python end.
 
         More setup is done in the Rust backend at `src/python/mod.rs`.
@@ -260,7 +280,7 @@ class TwoInOneOut(BaseOperator, Generic[T, U, V]):
         left_read_stream: ReadStream[T],
         right_read_stream: ReadStream[U],
         write_stream: WriteStream[V],
-    ):
+    ) -> None:
         """Runs the operator.
 
         Invoked automatically by ERDOS, and provided with two instances of
@@ -275,7 +295,7 @@ class TwoInOneOut(BaseOperator, Generic[T, U, V]):
             write_stream: A :py:class:`.WriteStream` instance to send data on.
         """
 
-    def on_left_data(self, context: TwoInOneOutContext[V], data: T):
+    def on_left_data(self, context: TwoInOneOutContext[V], data: T) -> None:
         """Callback invoked upon receipt of a :py:class:`.Message` on the
         `left_read_stream`.
 
@@ -286,7 +306,7 @@ class TwoInOneOut(BaseOperator, Generic[T, U, V]):
                 stream.
         """
 
-    def on_right_data(self, context: TwoInOneOutContext[V], data: U):
+    def on_right_data(self, context: TwoInOneOutContext[V], data: U) -> None:
         """Callback invoked puon receipt of a :py:class:`.Message` on the
         `right_read_stream`.
 
@@ -297,7 +317,7 @@ class TwoInOneOut(BaseOperator, Generic[T, U, V]):
                 stream.
         """
 
-    def on_watermark(self, context: TwoInOneOutContext[V]):
+    def on_watermark(self, context: TwoInOneOutContext[V]) -> None:
         """Callback invoked upon receipt of a :py:class:`.WatermarkMessage`
         across the two instances of the operator's :py:class:`.ReadStream`.
 
@@ -306,7 +326,7 @@ class TwoInOneOut(BaseOperator, Generic[T, U, V]):
                 metadata about the current invocation of the callback.
         """
 
-    def destroy(self):
+    def destroy(self) -> None:
         """Destroys the operator.
 
         Invoked automatically by ERDOS once :py:func:`.run` finishes its
@@ -329,7 +349,9 @@ class OneInTwoOut(BaseOperator, Generic[T, U, V]):
     callback upon receipt of messages and watermarks.
     """
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(
+        cls, *args: List[Any], **kwargs: Dict[str, Any]
+    ) -> OneInTwoOut[T, U, V]:
         """Set up variables before call to `__init__` on the python end.
 
         More setup is done in the Rust backend at `src/python/mod.rs`.
@@ -344,7 +366,7 @@ class OneInTwoOut(BaseOperator, Generic[T, U, V]):
         read_stream: ReadStream[T],
         left_write_stream: WriteStream[U],
         right_write_stream: WriteStream[V],
-    ):
+    ) -> None:
         """Runs the operator.
 
         Invoked automatically by ERDOS, and provided with a
@@ -360,7 +382,7 @@ class OneInTwoOut(BaseOperator, Generic[T, U, V]):
                 send data on.
         """
 
-    def on_data(self, context: OneInTwoOutContext[U, V], data: T):
+    def on_data(self, context: OneInTwoOutContext[U, V], data: T) -> None:
         """Callback invoked upon receipt of a :py:class:`.Message` on the
         `read_stream`.
 
@@ -371,7 +393,7 @@ class OneInTwoOut(BaseOperator, Generic[T, U, V]):
                 stream.
         """
 
-    def on_watermark(self, context: OneInTwoOutContext[U, V]):
+    def on_watermark(self, context: OneInTwoOutContext[U, V]) -> None:
         """Callback invoked upon receipt of a :py:class:`.WatermarkMessage` on
         the operator's :py:class:`.ReadStream`.
 
@@ -380,7 +402,7 @@ class OneInTwoOut(BaseOperator, Generic[T, U, V]):
                 metadata about the current invocation of the callback.
         """
 
-    def destroy(self):
+    def destroy(self) -> None:
         """Destroys the operator.
 
         Invoked automatically by ERDOS once :py:func:`.run` finishes its

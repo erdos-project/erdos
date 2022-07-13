@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import pickle
 import uuid
@@ -9,6 +11,7 @@ from typing import (
     Generic,
     Iterable,
     List,
+    Optional,
     Sequence,
     Tuple,
     Type,
@@ -31,8 +34,11 @@ from erdos.timestamp import Timestamp
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T")
+U = TypeVar("U")
 
-def _parse_message(internal_msg: PyMessage):
+
+def _parse_message(internal_msg: PyMessage) -> Message[T] | WatermarkMessage:
     """Creates a Message from an internal stream's response.
 
     Args:
@@ -48,10 +54,6 @@ def _parse_message(internal_msg: PyMessage):
     if internal_msg.is_watermark():
         return WatermarkMessage(Timestamp(_py_timestamp=internal_msg.timestamp))
     raise Exception("Unable to parse message")
-
-
-T = TypeVar("T")
-U = TypeVar("U")
 
 
 class Stream(ABC, Generic[T]):
@@ -158,7 +160,7 @@ class Stream(ABC, Generic[T]):
         left_stream, right_stream = self._internal_stream._split(split_fn)
         return (OperatorStream(left_stream), OperatorStream(right_stream))
 
-    def split_by_type(self, *data_type: Type) -> Tuple["OperatorStream[Any]", ...]:
+    def split_by_type(self, *data_type: Type[Any]) -> Tuple["OperatorStream[Any]", ...]:
         """Returns a stream for each provided type on which each message's data is an
         instance of that provided type.
 
@@ -293,11 +295,11 @@ class ReadStream(Generic[T]):
         """Whether a top watermark message has been received."""
         return self._py_read_stream.is_closed()
 
-    def read(self) -> Message[T]:
+    def read(self) -> Message[T] | WatermarkMessage:
         """Blocks until a message is read from the stream."""
         return _parse_message(self._py_read_stream.read())
 
-    def try_read(self) -> Union[Message[T], None]:
+    def try_read(self) -> Optional[Message[T] | WatermarkMessage]:
         """Tries to read a mesage from the stream.
 
         Returns None if no messages are available at the moment.
@@ -441,7 +443,7 @@ class IngestStream(Stream[T]):
         self._internal_stream.send(internal_msg)
 
 
-class ExtractStream:
+class ExtractStream(Generic[T]):
     """An :py:class:`ExtractStream` enables drivers to read data from a
     running ERDOS applications.
 
@@ -486,11 +488,11 @@ class ExtractStream:
         """
         return self._py_extract_stream.is_closed()
 
-    def read(self) -> Message[T]:
+    def read(self) -> Message[T] | WatermarkMessage:
         """Blocks until a message is read from the stream."""
         return _parse_message(self._py_extract_stream.read())
 
-    def try_read(self) -> Union[Message[T], None]:
+    def try_read(self) -> Optional[Message[T] | WatermarkMessage]:
         """Tries to read a mesage from the stream.
 
         Returns :code:`None` if no messages are available at the moment.

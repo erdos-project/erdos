@@ -26,7 +26,7 @@ class SinkContext:
         self.timestamp = Timestamp(_py_timestamp=timestamp)
         self.config = config
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "SinkContext(Timestamp={}, Config={})".format(
             self.timestamp, self.config
         )
@@ -56,9 +56,9 @@ class OneInOneOutContext(Generic[T]):
         self.config = config
         self.write_stream = write_stream
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "OneInOneOutContext(Timestamp={}, Config={}, WriteStream={})".format(
-            self.timestamp, self.config, self.write_stream.name()
+            self.timestamp, self.config, self.write_stream.name
         )
 
 
@@ -90,7 +90,7 @@ class OneInTwoOutContext(Generic[T, U]):
         self.left_write_stream = left_write_stream
         self.right_write_stream = right_write_stream
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "OneInTwoOutContext(Timestamp={}, Config={}, \
                 Left WriteStream={}, Right WriteStream={})".format(
             self.timestamp,
@@ -124,9 +124,9 @@ class TwoInOneOutContext(Generic[T]):
         self.config = config
         self.write_stream = write_stream
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "TwoInOneOutContext(Timestamp={}, Config={}, WriteStream={})".format(
             self.timestamp,
             self.config,
-            self.write_stream.name(),
+            self.write_stream.name,
         )

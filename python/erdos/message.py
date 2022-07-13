@@ -1,5 +1,5 @@
 import pickle
-from typing import Generic, TypeVar
+from typing import Generic, Optional, TypeVar
 
 from erdos.internal import PyMessage
 from erdos.timestamp import Timestamp
@@ -29,9 +29,9 @@ class Message(Generic[T]):
             raise TypeError("timestamp must be of type `erdos.Timestamp`")
         self.timestamp = timestamp
         self.data = data
-        self._serialized_data = None
+        self._serialized_data: Optional[bytes] = None
 
-    def _serialize_data(self):
+    def _serialize_data(self) -> None:
         """Serializes the message's data using pickle.
 
         Allows an application to front-load cost of serializing data, which
@@ -55,7 +55,7 @@ class Message(Generic[T]):
             self._serialize_data()
         return PyMessage(self.timestamp._to_py_timestamp(), self._serialized_data)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "{{timestamp: {}, data: {}}}".format(self.timestamp, self.data)
 
 
@@ -71,7 +71,7 @@ class WatermarkMessage(Message[None]):
     def __init__(self, timestamp: Timestamp) -> None:
         super(WatermarkMessage, self).__init__(timestamp, None)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "{{timestamp: {}, watermark: True}}".format(self.timestamp)
 
     def _to_py_message(self) -> PyMessage:

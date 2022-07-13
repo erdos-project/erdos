@@ -1,6 +1,7 @@
-from typing import Callable, Dict, Iterable, List, Optional, Tuple, Type
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Type
 
 from erdos import OperatorConfig
+from erdos.operator import BaseOperator
 
 class PyTimestamp:
     def __init__(
@@ -9,6 +10,9 @@ class PyTimestamp:
     def is_top(self) -> bool: ...
     def is_bottom(self) -> bool: ...
     def coordinates(self) -> Optional[List[int]]: ...
+    def __lt__(self, other: Any) -> bool: ...
+    def __eq__(self, other: Any) -> bool: ...
+    def __le__(self, other: Any) -> bool: ...
 
 class PyMessage:
     timestamp: Optional[PyTimestamp] = ...
@@ -68,39 +72,43 @@ class PyExtractStream:
     def id(self) -> str: ...
 
 def connect_source(
-    operator: Type, config: OperatorConfig, args: Tuple, kwargs: Dict, node_id: int
+    operator: Type[BaseOperator],
+    config: OperatorConfig,
+    args: Tuple[Any, ...],
+    kwargs: Dict[str, Any],
+    node_id: int,
 ) -> PyOperatorStream: ...
 def connect_sink(
-    operator: Type,
+    operator: Type[BaseOperator],
     config: OperatorConfig,
     read_stream: PyStream,
-    args: Tuple,
-    kwargs: Dict,
+    args: Tuple[Any, ...],
+    kwargs: Dict[str, Any],
     node_id: int,
 ) -> None: ...
 def connect_one_in_one_out(
-    operator: Type,
+    operator: Type[BaseOperator],
     config: OperatorConfig,
     read_stream: PyStream,
-    args: Tuple,
-    kwargs: Dict,
+    args: Tuple[Any, ...],
+    kwargs: Dict[str, Any],
     node_id: int,
 ) -> PyOperatorStream: ...
 def connect_one_in_two_out(
-    operator: Type,
+    operator: Type[BaseOperator],
     config: OperatorConfig,
     read_stream: PyStream,
-    args: Tuple,
-    kwargs: Dict,
+    args: Tuple[Any, ...],
+    kwargs: Dict[str, Any],
     node_id: int,
 ) -> Tuple[PyOperatorStream, PyOperatorStream]: ...
 def connect_two_in_one_out(
-    operator: Type,
+    operator: Type[BaseOperator],
     config: OperatorConfig,
     left_read_stream: PyStream,
     right_read_stream: PyStream,
-    args: Tuple,
-    kwargs: Dict,
+    args: Tuple[Any, ...],
+    kwargs: Dict[str, Any],
     node_id: int,
 ) -> PyOperatorStream: ...
 def run(
@@ -115,6 +123,7 @@ def run_async(
     control_addresses: List[str],
     graph_filename: Optional[str],
 ) -> PyNodeHandle: ...
+def reset() -> None: ...
 
 class PyNodeHandle:
     def shutdown_node(self) -> None: ...

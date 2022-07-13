@@ -65,6 +65,7 @@ internal_classes = {
     "PyReadStream": "erdos.internal.PyReadStream",
     "PyOperatorStream": "erdos.internal.PyOperatorStream",
     "PyStream": "erdos.internal.PyStream",
+    "PyNodeHandle": "erdos.internal.PyNodeHandle",
 }
 
 mock_erdos_internal = mock.Mock()
@@ -80,10 +81,13 @@ nitpick_ignore = [
     ("py:data", "typing.Optional"),
     ("py:data", "typing.Tuple"),
     ("py:data", "typing.Callable"),
+    ("py:data", "Ellipsis"),
     ("py:obj", "erdos.streams.T"),
     ("py:obj", "erdos.operator.T"),
     ("py:obj", "erdos.operator.U"),
     ("py:obj", "erdos.operator.V"),
+    ("py:class", "uuid.UUID"),
+    ("py:class", "T"),
 ]
 
 # Add any paths that contain templates here, relative to this directory.

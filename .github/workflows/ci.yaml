@@ -105,8 +105,8 @@ jobs:
           flake8 --inline-quotes="double" ./python/
       - name: Check type correctness.
         run: |
-          python -m pip install numpy mypy
-          mypy ./python/erdos/
+          python -m pip install mypy
+          mypy --allow-untyped-calls --strict ./python/erdos/
 
   build-python:
     name: "Python ${{ matrix.python-version }} Build"
