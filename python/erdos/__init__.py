@@ -383,7 +383,7 @@ class NodeHandle:
         self,
         py_node_handle: _internal.PyNodeHandle,
         processes: List[mp.Process],
-    ):
+    ) -> None:
         self.py_node_handle = py_node_handle
         self.processes = processes
 
@@ -493,10 +493,10 @@ def profile(
     return Profile(event_name, operator, event_data)
 
 
-def profile_method(**decorator_kwargs):  # type: ignore
-    def decorator(func):  # type: ignore
+def profile_method(**decorator_kwargs: Any) -> Any:
+    def decorator(func: Any) -> Any:
         @wraps(func)
-        def wrapper(*args: List[Any], **kwargs: Dict[str, Any]):  # type: ignore
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             if isinstance(args[0], erdos.operator.BaseOperator):
                 # The func is an operator method.
                 op_name = args[0].config.name

@@ -74,8 +74,8 @@ class BaseOperator:
         else:
             stats = []
             for stat in self._runtime_stats[event_name]:
-                assert isinstance(stat, int) or isinstance(
-                    stat, float
+                assert isinstance(
+                    stat, (int, float)
                 ), f"Non-numeric stat found in runtime_stats: {stat}"
                 stats.append(stat)
 
