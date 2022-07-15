@@ -1,6 +1,6 @@
 from typing import Generic, TypeVar
 
-import erdos
+from erdos.config import OperatorConfig
 from erdos.internal import PyTimestamp
 from erdos.streams import WriteStream
 from erdos.timestamp import Timestamp
@@ -22,11 +22,11 @@ class SinkContext:
             the driver upon connection of the operator to the graph.
     """
 
-    def __init__(self, timestamp: PyTimestamp, config: "erdos.OperatorConfig"):
+    def __init__(self, timestamp: PyTimestamp, config: OperatorConfig):
         self.timestamp = Timestamp(_py_timestamp=timestamp)
         self.config = config
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "SinkContext(Timestamp={}, Config={})".format(
             self.timestamp, self.config
         )
@@ -49,16 +49,16 @@ class OneInOneOutContext(Generic[T]):
     def __init__(
         self,
         timestamp: PyTimestamp,
-        config: "erdos.OperatorConfig",
+        config: OperatorConfig,
         write_stream: WriteStream[T],
     ):
         self.timestamp = Timestamp(_py_timestamp=timestamp)
         self.config = config
         self.write_stream = write_stream
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "OneInOneOutContext(Timestamp={}, Config={}, WriteStream={})".format(
-            self.timestamp, self.config, self.write_stream.name()
+            self.timestamp, self.config, self.write_stream.name
         )
 
 
@@ -81,7 +81,7 @@ class OneInTwoOutContext(Generic[T, U]):
     def __init__(
         self,
         timestamp: PyTimestamp,
-        config: "erdos.OperatorConfig",
+        config: OperatorConfig,
         left_write_stream: WriteStream[T],
         right_write_stream: WriteStream[U],
     ):
@@ -90,7 +90,7 @@ class OneInTwoOutContext(Generic[T, U]):
         self.left_write_stream = left_write_stream
         self.right_write_stream = right_write_stream
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "OneInTwoOutContext(Timestamp={}, Config={}, \
                 Left WriteStream={}, Right WriteStream={})".format(
             self.timestamp,
@@ -117,16 +117,16 @@ class TwoInOneOutContext(Generic[T]):
     def __init__(
         self,
         timestamp: PyTimestamp,
-        config: "erdos.OperatorConfig",
+        config: OperatorConfig,
         write_stream: WriteStream[T],
     ):
         self.timestamp = Timestamp(_py_timestamp=timestamp)
         self.config = config
         self.write_stream = write_stream
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "TwoInOneOutContext(Timestamp={}, Config={}, WriteStream={})".format(
             self.timestamp,
             self.config,
-            self.write_stream.name(),
+            self.write_stream.name,
         )

@@ -81,7 +81,7 @@ jobs:
           cargo test --verbose --features=ros
 
   format-python:
-    name: "Python Formatting"
+    name: "Python Formatting / Type Verification"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -103,6 +103,10 @@ jobs:
           python -m pip install flake8==3.9.2 flake8-quotes
           flake8 --inline-quotes="double" ./python/doc/
           flake8 --inline-quotes="double" ./python/
+      - name: Check type correctness.
+        run: |
+          python -m pip install numpy mypy
+          mypy --strict ./python/erdos/
 
   build-python:
     name: "Python ${{ matrix.python-version }} Build"

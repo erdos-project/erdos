@@ -1,9 +1,23 @@
+from __future__ import annotations
+
 import logging
 import pickle
 import uuid
 from abc import ABC
 from itertools import zip_longest
-from typing import Callable, Generic, Sequence, Tuple, Type, TypeVar, Union
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+)
 
 from erdos.internal import (
     PyExtractStream,
@@ -20,24 +34,26 @@ from erdos.timestamp import Timestamp
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T")
+U = TypeVar("U")
 
-def _parse_message(internal_msg: PyMessage):
+
+def _parse_message(internal_msg: PyMessage) -> Message[T] | WatermarkMessage:
     """Creates a Message from an internal stream's response.
 
     Args:
         internal_msg: The internal message to parse.
     """
     if internal_msg.is_timestamped_data():
+        assert (
+            internal_msg.data is not None
+        ), "Timestamped data message should always have data."
         timestamp = Timestamp(_py_timestamp=internal_msg.timestamp)
         data = pickle.loads(internal_msg.data)
         return Message(timestamp, data)
     if internal_msg.is_watermark():
         return WatermarkMessage(Timestamp(_py_timestamp=internal_msg.timestamp))
     raise Exception("Unable to parse message")
-
-
-T = TypeVar("T")
-U = TypeVar("U")
 
 
 class Stream(ABC, Generic[T]):
@@ -53,7 +69,7 @@ class Stream(ABC, Generic[T]):
         self._internal_stream: PyStream = internal_stream
 
     @property
-    def id(self) -> str:
+    def id(self) -> uuid.UUID:
         """The id of the stream."""
         return uuid.UUID(self._internal_stream.id())
 
@@ -144,7 +160,7 @@ class Stream(ABC, Generic[T]):
         left_stream, right_stream = self._internal_stream._split(split_fn)
         return (OperatorStream(left_stream), OperatorStream(right_stream))
 
-    def split_by_type(self, *data_type: Type) -> Tuple["OperatorStream"]:
+    def split_by_type(self, *data_type: Type[Any]) -> Tuple["OperatorStream[Any]", ...]:
         """Returns a stream for each provided type on which each message's data is an
         instance of that provided type.
 
@@ -164,15 +180,16 @@ class Stream(ABC, Generic[T]):
             raise ValueError("Did not receive a list of types.")
 
         last_stream = self
-        streams = ()
+        streams = []
         for t in data_type[:-1]:
             s, last_stream = last_stream.split(lambda x: isinstance(x, t))
-            streams += (s,)
+            streams.append(s)
 
         last_type = data_type[-1]
         last_stream = last_stream.filter(lambda x: isinstance(x, last_type))
+        streams.append(last_stream)
 
-        return streams + (last_stream,)
+        return tuple(streams)
 
     def timestamp_join(self, other: "Stream[U]") -> "OperatorStream[Tuple[T,U]]":
         """Joins the data with matching timestamps from the two different streams.
@@ -204,16 +221,11 @@ class Stream(ABC, Generic[T]):
         Returns:
             A stream that carries messages from all merged streams.
         """
-        if len(other) == 0:
-            raise ValueError("Received empty list of streams to merge.")
 
-        # Iteratively keep merging the streams in pairs of two.
-        streams_to_be_merged = list(other) + [self]
-        while len(streams_to_be_merged) != 1:
-            merged_streams = []
-            paired_streams = zip_longest(
-                streams_to_be_merged[::2], streams_to_be_merged[1::2]
-            )
+        def merge_streams(
+            paired_streams: Iterable[Tuple["Stream[T]", "Stream[T]"]]
+        ) -> Sequence["OperatorStream[T]"]:
+            merged_streams: List["OperatorStream[T]"] = []
             for left_stream, right_stream in paired_streams:
                 if right_stream is not None:
                     merged_streams.append(
@@ -225,8 +237,23 @@ class Stream(ABC, Generic[T]):
                     )
                 else:
                     merged_streams.append(left_stream)
-            streams_to_be_merged = merged_streams
-        return streams_to_be_merged[0]
+            return merged_streams
+
+        if len(other) == 0:
+            raise ValueError("Received empty list of streams to merge.")
+
+        # Perform one merge step to remove dependency on `Stream[T]`.
+        streams_to_be_merged = list(other) + [self]
+        first_paired_streams = zip_longest(
+            streams_to_be_merged[::2], streams_to_be_merged[1::2]
+        )
+        merged_streams = merge_streams(first_paired_streams)
+
+        # Iteratively keep merging the streams in pairs of two.
+        while len(merged_streams) != 1:
+            paired_streams = zip_longest(merged_streams[::2], merged_streams[1::2])
+            merged_streams = merge_streams(paired_streams)
+        return merged_streams[0]
 
 
 class ReadStream(Generic[T]):
@@ -260,7 +287,7 @@ class ReadStream(Generic[T]):
         return self._py_read_stream.name()
 
     @property
-    def id(self) -> str:
+    def id(self) -> uuid.UUID:
         """The id of the ReadStream."""
         return uuid.UUID(self._py_read_stream.id())
 
@@ -268,11 +295,11 @@ class ReadStream(Generic[T]):
         """Whether a top watermark message has been received."""
         return self._py_read_stream.is_closed()
 
-    def read(self) -> Message[T]:
+    def read(self) -> Message[T] | WatermarkMessage:
         """Blocks until a message is read from the stream."""
         return _parse_message(self._py_read_stream.read())
 
-    def try_read(self) -> Union[Message[T], None]:
+    def try_read(self) -> Optional[Message[T] | WatermarkMessage]:
         """Tries to read a mesage from the stream.
 
         Returns None if no messages are available at the moment.
@@ -310,7 +337,7 @@ class WriteStream(Generic[T]):
         return self._py_write_stream.name()
 
     @property
-    def id(self) -> str:
+    def id(self) -> uuid.UUID:
         """The id of the WriteStream."""
         return uuid.UUID(self._py_write_stream.id())
 
@@ -363,8 +390,12 @@ class LoopStream(Stream[T]):
         super().__init__(PyLoopStream())
 
     def connect_loop(self, stream: OperatorStream[T]) -> None:
-        if not isinstance(stream, OperatorStream):
+        if not isinstance(stream, OperatorStream) or not isinstance(
+            stream._internal_stream, PyOperatorStream
+        ):
             raise TypeError("Loop must be connected to an `OperatorStream`")
+        if not isinstance(self._internal_stream, PyLoopStream):
+            raise TypeError("Type mismatch on the internal LoopStream.")
         self._internal_stream.connect_loop(stream._internal_stream)
 
 
@@ -388,6 +419,8 @@ class IngestStream(Stream[T]):
         Returns True if the a top watermark message was sent or the
         IngestStream was unable to successfully set up.
         """
+        if not isinstance(self._internal_stream, PyIngestStream):
+            raise ValueError("Type mismatch on the internal IngestStream.")
         return self._internal_stream.is_closed()
 
     def send(self, msg: Message[T]) -> None:
@@ -399,6 +432,8 @@ class IngestStream(Stream[T]):
         """
         if not isinstance(msg, Message):
             raise TypeError("msg must inherent from erdos.Message!")
+        if not isinstance(self._internal_stream, PyIngestStream):
+            raise ValueError("Type mismatch on the internal IngestStream.")
 
         logger.debug(
             "Sending message {} on the Ingest stream {}".format(msg, self.name)
@@ -408,7 +443,7 @@ class IngestStream(Stream[T]):
         self._internal_stream.send(internal_msg)
 
 
-class ExtractStream(Stream[T]):
+class ExtractStream(Generic[T]):
     """An :py:class:`ExtractStream` enables drivers to read data from a
     running ERDOS applications.
 
@@ -424,7 +459,9 @@ class ExtractStream(Stream[T]):
     """
 
     def __init__(self, stream: OperatorStream[T]) -> None:
-        if not isinstance(stream, OperatorStream):
+        if not isinstance(stream, OperatorStream) or not isinstance(
+            stream._internal_stream, PyOperatorStream
+        ):
             raise ValueError(
                 "ExtractStream needs to be initialized with a Stream. "
                 "Received a {}".format(type(stream))
@@ -439,7 +476,7 @@ class ExtractStream(Stream[T]):
         return self._py_extract_stream.name()
 
     @property
-    def id(self) -> str:
+    def id(self) -> uuid.UUID:
         """The id of the ExtractStream."""
         return uuid.UUID(self._py_extract_stream.id())
 
@@ -451,11 +488,11 @@ class ExtractStream(Stream[T]):
         """
         return self._py_extract_stream.is_closed()
 
-    def read(self) -> Message[T]:
+    def read(self) -> Message[T] | WatermarkMessage:
         """Blocks until a message is read from the stream."""
         return _parse_message(self._py_extract_stream.read())
 
-    def try_read(self) -> Union[Message[T], None]:
+    def try_read(self) -> Optional[Message[T] | WatermarkMessage]:
         """Tries to read a mesage from the stream.
 
         Returns :code:`None` if no messages are available at the moment.

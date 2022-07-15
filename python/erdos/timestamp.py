@@ -1,4 +1,4 @@
-from typing import List, Sequence
+from typing import List, Optional
 
 from erdos.internal import PyTimestamp
 
@@ -10,11 +10,11 @@ class Timestamp:
 
     def __init__(
         self,
-        timestamp=None,
-        coordinates: Sequence[int] = None,
+        timestamp: Optional["Timestamp"] = None,
+        coordinates: Optional[List[int]] = None,
         is_top: bool = False,
         is_bottom: bool = False,
-        _py_timestamp: PyTimestamp = None,
+        _py_timestamp: Optional[PyTimestamp] = None,
     ):
         """Constructs a :py:class:`Timestamp`.
 
@@ -53,38 +53,53 @@ class Timestamp:
     def _to_py_timestamp(self) -> PyTimestamp:
         return self._py_timestamp
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self._py_timestamp)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return repr(self._py_timestamp)
 
-    def __eq__(self, timestamp):
+    def __eq__(self, timestamp: object) -> bool:
+        if not isinstance(timestamp, Timestamp):
+            raise ValueError(f"Equality with '{type(timestamp)}' is not implemented.")
         return self._py_timestamp == timestamp._py_timestamp
 
-    def __ne__(self, timestamp):
+    def __ne__(self, timestamp: object) -> bool:
+        if not isinstance(timestamp, Timestamp):
+            raise ValueError(f"Equality with '{type(timestamp)}' is not implemented.")
         return self._py_timestamp != timestamp._py_timestamp
 
-    def __lt__(self, timestamp):
+    def __lt__(self, timestamp: object) -> bool:
+        if not isinstance(timestamp, Timestamp):
+            raise ValueError(f"Comparison with '{type(timestamp)}' is not implemented.")
         return self._py_timestamp < timestamp._py_timestamp
 
-    def __le__(self, timestamp):
+    def __le__(self, timestamp: object) -> bool:
+        if not isinstance(timestamp, Timestamp):
+            raise ValueError(f"Comparison with '{type(timestamp)}' is not implemented.")
         return self._py_timestamp <= timestamp._py_timestamp
 
-    def __gt__(self, timestamp):
+    def __gt__(self, timestamp: object) -> bool:
+        if not isinstance(timestamp, Timestamp):
+            raise ValueError(f"Comparison with '{type(timestamp)}' is not implemented.")
         return self._py_timestamp > timestamp._py_timestamp
 
-    def __ge__(self, timestamp):
+    def __ge__(self, timestamp: object) -> bool:
+        if not isinstance(timestamp, Timestamp):
+            raise ValueError(f"Comparison with '{type(timestamp)}' is not implemented.")
         return self._py_timestamp >= timestamp._py_timestamp
 
-    def __hash__(self):
-        coordinates = self._py_timestamp.coordinates()
-        if coordinates is not None:
-            coordinates = tuple(coordinates)
+    def __hash__(self) -> int:
+        py_timestamp_coordinates = self._py_timestamp.coordinates()
+        coordinates = (
+            tuple(py_timestamp_coordinates)
+            if py_timestamp_coordinates is not None
+            else None
+        )
         return hash((coordinates, self.is_top, self.is_bottom))
 
     @property
-    def coordinates(self) -> List[int]:
+    def coordinates(self) -> Optional[List[int]]:
         """A list of integers representing the time."""
         return self._py_timestamp.coordinates()
 

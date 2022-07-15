@@ -1,10 +1,19 @@
 import time
+from types import TracebackType
+from typing import Dict, Optional, Type
+
+from erdos.operator import BaseOperator
 
 
 class Profile:
     """Used to log the duration of a snippet of code using a with statement."""
 
-    def __init__(self, event_name, operator, event_data=None):
+    def __init__(
+        self,
+        event_name: str,
+        operator: BaseOperator,
+        event_data: Optional[Dict[str, str]] = None,
+    ) -> None:
         self.event_name = event_name
         self.operator = operator
         if event_data is None:
@@ -12,12 +21,17 @@ class Profile:
         else:
             self.event_data = event_data
 
-    def __enter__(self):
+    def __enter__(self) -> "Profile":
         """Log the start time of a profile event."""
         self.start_time = time.time()
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
         for key, value in self.event_data.items():
             if not isinstance(key, str) or not isinstance(value, str):
                 raise ValueError(

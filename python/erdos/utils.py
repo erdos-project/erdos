@@ -1,5 +1,5 @@
 import logging
-from typing import Union
+from typing import Any, Optional, Union
 
 
 def setup_logging(name: str, log_file: Union[str, None] = None) -> logging.Logger:
@@ -51,13 +51,15 @@ def setup_trace_logging(name: str, log_file: Union[str, None] = None) -> logging
     return _setup_logging(name, "%(message)s,", None, log_file)
 
 
-def _setup_logging(name: str, fmt: str, date_fmt: str, log_file=None):
+def _setup_logging(
+    name: str, fmt: str, date_fmt: Optional[str], log_file: Optional[str] = None
+) -> logging.Logger:
     if log_file is None:
-        handler = logging.StreamHandler()
+        handler: logging.StreamHandler[Any] = logging.StreamHandler()
     else:
         handler = logging.FileHandler(log_file)
-    handler.setLevel(logging.DEBUG)
 
+    handler.setLevel(logging.DEBUG)
     formatter = logging.Formatter(fmt=fmt, datefmt=date_fmt)
     handler.setFormatter(formatter)
     logger = logging.getLogger(name)

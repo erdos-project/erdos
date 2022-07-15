@@ -1,4 +1,4 @@
-use pyo3::{exceptions, prelude::*, types::PyBytes};
+use pyo3::{prelude::*, types::PyBytes};
 use std::sync::Arc;
 
 use erdos::dataflow::Message;
@@ -16,16 +16,10 @@ pub(crate) struct PyMessage {
 #[pymethods]
 impl PyMessage {
     #[new]
-    fn new(timestamp: Option<PyTimestamp>, data: Option<&PyBytes>) -> PyResult<Self> {
-        if timestamp.is_none() && data.is_some() {
-            return Err(exceptions::PyValueError::new_err(
-                "Passing a non-None value to data when timestamp=None is not allowed",
-            ));
-        }
+    fn new(timestamp: PyTimestamp, data: Option<&PyBytes>) -> PyResult<Self> {
         let msg = match (timestamp, data) {
-            (Some(t), Some(d)) => Message::new_message(t.into(), Vec::from(d.as_bytes())),
-            (Some(t), None) => Message::new_watermark(t.into()),
-            (_, _) => unreachable!(),
+            (t, Some(d)) => Message::new_message(t.into(), Vec::from(d.as_bytes())),
+            (t, None) => Message::new_watermark(t.into()),
         };
         Ok(Self { msg })
     }
@@ -39,8 +33,8 @@ impl PyMessage {
     }
 
     #[getter(timestamp)]
-    fn timestamp(&self) -> Option<PyTimestamp> {
-        Some(self.msg.timestamp().clone().into())
+    fn timestamp(&self) -> PyTimestamp {
+        self.msg.timestamp().clone().into()
     }
 
     fn is_timestamped_data(&self) -> bool {
