@@ -188,7 +188,7 @@ impl WorkerHandle {
     // them needs to submit it to the Leader. This should later be removed if
     // we choose to dynamically link the user applications into the Worker's
     // memory space.
-    /// Registers the [`Graph`] for execution with the [`Worker`]s.
+    /// Registers the [`Graph`] for execution with the [`Worker`](WorkerHandle)s.
     pub fn register(&self, graph: Graph) -> Result<JobGraphId, HandleError> {
         // Compile the JobGraph and register it with the Worker.
         let job_graph = graph
@@ -215,7 +215,7 @@ impl WorkerHandle {
 
     /// Submits the [`Graph`] to the `Leader` for execution.
     ///
-    /// This method automatically invokes the [`register`] method.
+    /// This method automatically invokes the [`register`](WorkerHandle::register) method.
     pub fn submit(&self, graph: Graph) -> Result<JobGraphId, HandleError> {
         // Compile the JobGraph and register it with the Worker.
         let job_graph_id = self.register(graph)?;
@@ -276,10 +276,11 @@ impl WorkerHandle {
         }
     }
 
-    /// Checks if the [`Graph`] submitted to the [`Worker`] is ready for execution or executing.
+    /// Checks if the [`Graph`] submitted to the `Worker` is ready for execution or executing.
     ///
     /// # Arguments
-    /// - `graph_id`: The ID of the `Graph` returned by the [`submit`] or [`register`] methods.
+    /// - `graph_id`: The ID of the `Graph` returned by the [`submit`](WorkerHandle::submit) or
+    ///      [`register`](WorkerHandle::register) methods.
     pub fn job_graph_ready(&mut self, graph_id: &JobGraphId) -> Result<bool, HandleError> {
         let job_graph_state = self.job_graph_status(graph_id)?;
         Ok(

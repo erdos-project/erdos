@@ -1,6 +1,6 @@
 //! Abstractions that centralize the control plane of execution of
 //! [`Graph`](crate::dataflow::graph::Graph)s from
-//! [`Worker`](crate::node::worker_node::WorkerNode)s.
+//! `Worker`s.
 use std::{
     collections::{HashMap, HashSet},
     net::SocketAddr,

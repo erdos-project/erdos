@@ -5,9 +5,9 @@
 //! The [`new_app`](crate::new_app) helper function may be useful in scaling
 //! from one node to many via command line arguments.
 //!
-//! Currently, operators are manually scheduled to a [`Node`] via the
+//! Currently, operators are manually scheduled to a `Worker` via the
 //! [`OperatorConfig`](crate::dataflow::OperatorConfig). By default, they are
-//! scheduled on node 0. We are looking into more elegant solutions for
+//! scheduled on Worker 0. We are looking into more elegant solutions for
 //! scheduling operators, and hope to provide a versatile solution.
 
 // Private submodules

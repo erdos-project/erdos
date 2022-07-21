@@ -13,7 +13,7 @@ pub struct Configuration {
     pub num_threads: usize,
     /// The address to be used to connect to the [`Leader`](crate::node::LeaderHandle).
     pub leader_address: SocketAddr,
-    /// The address to be used to listen for data plane connections from other 
+    /// The address to be used to listen for data plane connections from other
     /// [`Worker`](crate::node::WorkerHandle)s.
     pub data_plane_address: SocketAddr,
     /// DOT file to export dataflow graph.
