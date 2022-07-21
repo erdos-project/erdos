@@ -10,7 +10,6 @@ use erdos::dataflow::operators::ros::*;
 use erdos::dataflow::stream::WriteStreamT;
 use erdos::dataflow::Message;
 use erdos::dataflow::*;
-use erdos::Configuration;
 
 struct SourceOperator {}
 
