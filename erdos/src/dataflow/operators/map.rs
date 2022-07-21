@@ -19,7 +19,7 @@ use crate::dataflow::{
 ///
 /// ```
 /// # use erdos::dataflow::{Graph, stream::IngressStream, operator::{OperatorConfig}, operators::{FlatMapOperator}};
-/// # let graph = Graph::new();
+/// # let graph = Graph::new("MapExample");
 /// # let source_stream = graph.add_ingress("SourceIngressStream");
 /// let map_stream = graph.connect_one_in_one_out(
 ///     || -> FlatMapOperator<usize, _> {
@@ -93,7 +93,7 @@ where
     /// # Example
     /// ```
     /// # use erdos::dataflow::{Graph, stream::{IngressStream, Stream}, operator::OperatorConfig, operators::Map};
-    /// # let graph = Graph::new();
+    /// # let graph = Graph::new("MapExample");
     /// # let source_stream = graph.add_ingress("SourceIngressStream");
     /// let map_stream = source_stream.map(|x: &usize| -> usize { 2 * x });
     /// ```
@@ -107,7 +107,7 @@ where
     /// ```
     /// # use erdos::dataflow::{Graph, stream::{IngressStream, Stream}, operator::OperatorConfig, operators::Map};
     /// #
-    /// # let graph = Graph::new();
+    /// # let graph = Graph::new("FlatMapExample");
     /// # let source_stream = graph.add_ingress("SourceIngressStream");
     /// let map_stream = source_stream.flat_map(|x: &usize| 0..*x );
     /// ```

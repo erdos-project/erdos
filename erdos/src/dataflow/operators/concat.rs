@@ -21,7 +21,7 @@ use crate::{
 ///
 /// ```
 /// # use erdos::dataflow::{Graph, stream::{IngressStream, Stream}, operator::OperatorConfig, operators::ConcatOperator};
-/// # let graph = Graph::new();
+/// # let graph = Graph::new("ConcatExample");
 /// # let left_stream: IngressStream<usize> = graph.add_ingress("LeftIngressStream");
 /// # let right_stream: IngressStream<usize> = graph.add_ingress("RightIngressStream");
 /// #
@@ -66,7 +66,7 @@ where
 /// # Example
 /// ```
 /// # use erdos::dataflow::{Graph, stream::{IngressStream, Stream}, operator::OperatorConfig, operators::Concat};
-/// # let graph = Graph::new();
+/// # let graph = Graph::new("ConcatExample");
 /// # let left_stream: IngressStream<usize> = graph.add_ingress("LeftIngressStream");
 /// # let right_stream: IngressStream<usize> = graph.add_ingress("RightIngressStream");
 /// #

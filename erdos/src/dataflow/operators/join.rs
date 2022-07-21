@@ -34,7 +34,7 @@ use crate::dataflow::{
 /// #     state::TimeVersionedState,
 /// #     Graph,
 /// # };
-/// # let graph = Graph::new();
+/// # let graph = Graph::new("TimestampJoinExample");
 /// # let left_stream: IngressStream<String> = graph.add_ingress("LeftIngressStream");
 /// # let right_stream: IngressStream<usize> = graph.add_ingress("RightIngressStream");
 /// #
@@ -130,7 +130,7 @@ where
     ///
     /// ```
     /// # use erdos::dataflow::{Graph, stream::IngressStream, operators::Join};
-    /// # let graph = Graph::new();
+    /// # let graph = Graph::new("JoinExample");
     /// # let left_stream: IngressStream<String> = graph.add_ingress("LeftIngressStream");
     /// # let right_stream: IngressStream<usize> = graph.add_ingress("RightIngressStream");
     /// #

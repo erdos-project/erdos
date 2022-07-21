@@ -19,7 +19,7 @@ use crate::dataflow::{
 ///
 /// ```
 /// # use erdos::dataflow::{Graph, stream::IngressStream, operator::{OperatorConfig}, operators::{FilterOperator}};
-/// # let graph = Graph::new();
+/// # let graph = Graph::new("FilterExample");
 /// # let source_stream: IngressStream<usize> = graph.add_ingress("SourceIngressStream");
 /// // Add the mapping function as an argument to the operator via the OperatorConfig.
 /// let filter_config = OperatorConfig::new().name("FilterOperator");

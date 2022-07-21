@@ -34,18 +34,12 @@ use super::GraphCompilationError;
 /// #    Graph,
 /// # };
 /// # use erdos::*;
-/// # use erdos::node::Node;
 /// #
-/// let args = erdos::new_app("ERDOS").get_matches();
-/// let mut node = Node::new(Configuration::from_args(&args));
 /// // Create the Graph
-/// let graph = Graph::new();
+/// let graph = Graph::new("GraphExample");
 ///
 /// // Add streams and operators here
 /// let mut ingress_stream: IngressStream<usize> = graph.add_ingress("ExampleIngressStream");
-///
-/// // Run the graph defined above
-/// node.run_async(graph);
 ///
 /// // Send data on the ingress stream
 /// let msg = Message::new_message(Timestamp::Top, usize::MIN);
