@@ -13,6 +13,7 @@ use erdos::{
 
 struct SourceOperator {}
 
+#[allow(dead_code)]
 impl SourceOperator {
     pub fn new() -> Self {
         Self {}
@@ -101,7 +102,7 @@ fn main() {
                     }
                     Err(_) => {}
                 }
-                std::thread::sleep_ms(2000);
+                std::thread::sleep(Duration::from_millis(2000));
             }
             println!("The graph {:?} is ready.", graph_id);
 
@@ -110,14 +111,12 @@ fn main() {
                 let timestamp = Timestamp::Time(vec![counter as u64]);
                 let _ = ingress_stream.send(Message::new_message(timestamp, counter));
                 counter += 1;
-                std::thread::sleep_ms(1000);
+                std::thread::sleep(Duration::from_millis(1000));
             }
-        } else {
-            return;
         }
-    } else {
-        if let Ok(_) = worker_handle.register(graph) {
-            loop {}
+    } else if worker_handle.register(graph).is_ok() {
+        loop {
+            std::thread::sleep(Duration::from_millis(1000));
         }
     };
 
