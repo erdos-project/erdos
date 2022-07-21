@@ -5,9 +5,9 @@
 //! The [`new_app`](crate::new_app) helper function may be useful in scaling
 //! from one node to many via command line arguments.
 //!
-//! Currently, operators are manually scheduled to a [`Node`] via the
+//! Currently, operators are manually scheduled to a `Worker` via the
 //! [`OperatorConfig`](crate::dataflow::OperatorConfig). By default, they are
-//! scheduled on node 0. We are looking into more elegant solutions for
+//! scheduled on Worker 0. We are looking into more elegant solutions for
 //! scheduling operators, and hope to provide a versatile solution.
 
 // Private submodules
@@ -39,7 +39,8 @@ pub use handles::{LeaderHandle, WorkerHandle};
 use crate::dataflow::graph::JobGraphId;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub(crate) enum JobState {
+pub(crate) enum ExecutionState {
+    NotScheduled,
     Scheduled,
     Ready,
     Executing,
@@ -95,9 +96,5 @@ impl WorkerState {
 
     pub(crate) fn schedule_graph(&mut self, job_graph_id: JobGraphId) {
         self.scheduled_job_graphs.insert(job_graph_id);
-    }
-
-    pub(crate) fn is_graph_scheduled(&self, job_graph_id: &JobGraphId) -> bool {
-        self.scheduled_job_graphs.contains(job_graph_id)
     }
 }

@@ -10,8 +10,6 @@ use erdos::dataflow::operators::ros::*;
 use erdos::dataflow::stream::WriteStreamT;
 use erdos::dataflow::Message;
 use erdos::dataflow::*;
-use erdos::node::Node;
-use erdos::Configuration;
 
 struct SourceOperator {}
 
@@ -60,9 +58,8 @@ fn erdos_to_ros(input: &Message<String>) -> Vec<rosrust_msg::std_msgs::String> {
 }
 
 fn main() {
-    let args = erdos::new_app("ERDOS").get_matches();
-    let mut node = Node::new(Configuration::from_args(&args));
-    let graph = Graph::new();
+    // let args = erdos::new_app("ERDOS").get_matches();
+    let graph = Graph::new("ROSExample");
 
     // Creates a Source node on the ERDOS side which contains the messages of interest to publish
     // to ROS.
@@ -81,6 +78,4 @@ fn main() {
         ros_sink_config,
         &source_stream,
     );
-
-    node.run(graph);
 }

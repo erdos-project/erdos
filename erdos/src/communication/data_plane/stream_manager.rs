@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use std::{
     any::Any,
-    collections::HashMap,
+    collections::{hash_map::Entry, HashMap},
     sync::{Arc, Mutex},
 };
 use tokio::sync::mpsc::{self, UnboundedSender};
@@ -211,6 +211,7 @@ where
 /// the [`Job`]s that are scheduled on the current [`Worker`]. Once the
 /// connections are set up, the [`Operator`]s cast the [`StreamEndpoints`]
 /// to the required message type and retrieve or send the data.
+#[allow(dead_code)]
 pub(crate) struct StreamManager {
     /// The [`Worker`] to which the [`StreamManager`] belongs.
     worker_id: WorkerId,
@@ -218,6 +219,7 @@ pub(crate) struct StreamManager {
     stream_endpoints: HashMap<StreamId, Box<dyn StreamEndpointsT>>,
 }
 
+#[allow(dead_code)]
 impl StreamManager {
     /// Initializes a new [`StreamManager`] for the [`Worker`] with the given ID.
     pub fn new(worker_id: WorkerId) -> Self {
@@ -256,10 +258,10 @@ impl StreamManager {
     ) -> Result<(), CommunicationError> {
         // If there are no endpoints for this stream, create endpoints and install
         // the pusher to the DataReceiver at this connection.
-        if !self.stream_endpoints.contains_key(&stream.id()) {
+        if let Entry::Vacant(e) = self.stream_endpoints.entry(stream.id()) {
             let stream_endpoints = stream.to_stream_endpoints_t();
             let pusher = stream_endpoints.clone_pusher();
-            self.stream_endpoints.insert(stream.id(), stream_endpoints);
+            e.insert(stream_endpoints);
             worker_connection.install_pusher(stream.id(), pusher)?;
         }
 

@@ -2,20 +2,16 @@
 //! and between [`Worker`]s.
 //!
 //! This module provides support for the following two major communication patterns:
-//! 1. [Control Plane] which enables a [`Leader`] to communicate with the [`Worker`]s and
+//! 1. Control Plane, which enables a [`Leader`] to communicate with the [`Worker`]s and
 //!    vice-versa. The specific commands that can be communicated by the [`Leader`] to the
-//!    [`Worker`] are specified in [`LeaderNotification`], and the commands that can be
-//!    communicated by the [`Worker`] to the [`Leader`] are specified in [`WorkerNotification`].
-//! 2. [Data Plane] which enables multiple [`Worker`]s to communicate with each other to exchange
+//!    [`Worker`] are specified in `LeaderNotification`, and the commands that can be
+//!    communicated by the [`Worker`] to the [`Leader`] are specified in `WorkerNotification`.
+//! 2. Data Plane, which enables multiple [`Worker`]s to communicate with each other to exchange
 //!    message data. The existence of other [`Worker`]s is notified by a [`Leader`] and upon
-//!    connection, they perform a [handshake procedure](EhloMetadata).
+//!    connection, they perform a handshake procedure.
 //!
-//! [Control Plane]: crate::communication::control_plane
-//! [Data Plane]: crate::communication::data_plane
 //! [`Leader`]: crate::node::LeaderHandle
 //! [`Worker`]: crate::node::WorkerHandle
-//! [`LeaderNotification`]: crate::communication::control_plane::notifications::LeaderNotification
-//! [`WorkerNotification`]: crate::communication::control_plane::notifications::WorkerNotification
 use std::{fmt::Debug, sync::Arc};
 
 use bytes::BytesMut;

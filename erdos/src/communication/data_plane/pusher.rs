@@ -59,7 +59,7 @@ impl<D: 'static + Serializable + Send + Sync + Debug> Pusher<Arc<D>> {
     }
 
     pub fn send(&mut self, msg: Arc<D>) -> Result<(), CommunicationError> {
-        for endpoint in self.endpoints.values_mut().into_iter() {
+        for endpoint in self.endpoints.values_mut() {
             endpoint.send(Arc::clone(&msg))?;
         }
         Ok(())

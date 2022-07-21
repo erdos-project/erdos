@@ -9,8 +9,6 @@ use erdos::dataflow::operator::*;
 use erdos::dataflow::operators::ros::*;
 use erdos::dataflow::Message;
 use erdos::dataflow::*;
-use erdos::node::Node;
-use erdos::Configuration;
 
 struct SinkOperator {}
 
@@ -40,9 +38,8 @@ fn ros_to_erdos(input: &rosrust_msg::std_msgs::String) -> Vec<Message<String>> {
 }
 
 fn main() {
-    let args = erdos::new_app("ERDOS").get_matches();
-    let mut node = Node::new(Configuration::from_args(&args));
-    let graph = Graph::new();
+    // let args = erdos::new_app("ERDOS").get_matches();
+    let graph = Graph::new("ROSExample");
 
     // Creates FromRosOperator which subscribes to topic "chatter" and converts ROS messages
     // to ERDOS messages.
@@ -57,6 +54,4 @@ fn main() {
     // Connects SinkOperator to ERDOS pipeline.
     let erdos_sink_from_ros = OperatorConfig::new().name("SinkOperator");
     graph.connect_sink(SinkOperator::new, || {}, erdos_sink_from_ros, &ros_source);
-
-    node.run(graph);
 }

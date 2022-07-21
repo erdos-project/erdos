@@ -23,7 +23,7 @@ use std::sync::Arc;
 ///
 /// ```
 /// # use erdos::{
-/// #     dataflow::{Message, operators::ros::ToRosOperator, stream::IngestStream},
+/// #     dataflow::{Message, operators::ros::ToRosOperator, Graph},
 /// #     OperatorConfig
 /// # };
 /// #
@@ -59,9 +59,10 @@ use std::sync::Arc;
 ///     }
 /// }
 ///
-/// # let source_stream = IngestStream::new();
+/// let graph = Graph::new("ToROSExample");
+/// # let source_stream = graph.add_ingress("ExampleIngressStream");
 /// let ros_sink_config = OperatorConfig::new().name("ToRosInt32");
-/// erdos::connect_sink(
+/// graph.connect_sink(
 ///     move || -> ToRosOperator<i32, rosrust_msg::std_msgs::Int32> {
 ///         ToRosOperator::new("int_topic", erdos_int_to_ros_int)
 ///     },

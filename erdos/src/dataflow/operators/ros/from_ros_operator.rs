@@ -26,7 +26,7 @@ use std::sync::{Arc, Mutex};
 ///
 /// ```
 /// # use erdos::{
-/// #     dataflow::{Message, operators::ros::FromRosOperator, Timestamp},
+/// #     dataflow::{Message, operators::ros::FromRosOperator, Timestamp, Graph},
 /// #     OperatorConfig,
 /// # };
 /// #
@@ -54,9 +54,9 @@ use std::sync::{Arc, Mutex};
 /// fn ros_image_to_bytes(input: &rosrust_msg::sensor_msgs::Image) -> Vec<Message<Vec<u8>>> {
 ///     vec![Message::new_message(Timestamp::Time(vec![0 as u64]), input.data.clone())]
 /// }
-///
+/// let graph = Graph::new("FromROSExample");
 /// let ros_source_config = OperatorConfig::new().name("FromRosImage");
-/// let ros_source = erdos::connect_source(
+/// let ros_source = graph.connect_source(
 ///     move || -> FromRosOperator<rosrust_msg::sensor_msgs::Image, Vec<u8>> {
 ///         FromRosOperator::new("image_topic", ros_image_to_bytes)
 ///     },

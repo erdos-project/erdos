@@ -28,11 +28,9 @@ use super::{errors::SendError, InternalStream, Stream, StreamId, WriteStream, Wr
 /// #    Graph,
 /// # };
 /// # use erdos::*;
-/// # use erdos::node::Node;
 /// #
 /// let args = erdos::new_app("ERDOS").get_matches();
-/// let mut node = Node::new(Configuration::from_args(&args));
-/// let graph = Graph::new();
+/// let graph = Graph::new("IngressStreamExample");
 ///
 /// // Create an IngressStream.
 /// let mut ingress_stream = graph.add_ingress("MapIngressStream");
@@ -45,8 +43,6 @@ use super::{errors::SendError, InternalStream, Stream, StreamId, WriteStream, Wr
 ///     &ingress_stream,
 /// );
 /// let mut egress_stream = output_stream.to_egress();
-///
-/// node.run_async(graph);
 ///
 /// // Send data on the IngressStream.
 /// for i in 1..10 {

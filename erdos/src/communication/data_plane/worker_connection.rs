@@ -19,6 +19,7 @@ use super::{
     notifications::DataPlaneNotification, pusher::PusherT,
 };
 
+#[allow(dead_code)]
 pub struct WorkerConnection {
     worker_id: WorkerId,
     data_receiver_handle: JoinHandle<Result<(), CommunicationError>>,
@@ -29,6 +30,7 @@ pub struct WorkerConnection {
     channel_to_data_sender: UnboundedSender<InterWorkerMessage>,
 }
 
+#[allow(dead_code)]
 impl WorkerConnection {
     pub(crate) fn new(
         worker_id: WorkerId,
@@ -77,7 +79,7 @@ impl WorkerConnection {
         self.receiver_initialized = true;
     }
 
-    pub(crate) fn is_initialized(&mut self) -> bool {
+    pub(crate) fn is_initialized(&self) -> bool {
         self.sender_initialized && self.receiver_initialized
     }
 

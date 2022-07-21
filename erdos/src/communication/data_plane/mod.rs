@@ -4,6 +4,7 @@
 
 // Private Submodules
 mod codec;
+#[allow(clippy::module_inception)]
 mod data_plane;
 mod data_receiver;
 mod data_sender;

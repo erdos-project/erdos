@@ -16,8 +16,8 @@ use crate::dataflow::{
 /// # Example
 /// ```
 /// # use erdos::dataflow::{Graph, stream::LoopStream, operator::{OperatorConfig}, operators::{FlatMapOperator}};
-/// let graph = Graph::new();
-/// let loop_stream: LoopStream<usize> = graph.add_loop_stream();
+/// let graph = Graph::new("LoopStreamExample");
+/// let mut loop_stream: LoopStream<usize> = graph.add_loop_stream();
 /// let output_stream = graph.connect_one_in_one_out(
 ///     || FlatMapOperator::new(|x: &usize| { std::iter::once(2 * x) }),
 ///     || {},

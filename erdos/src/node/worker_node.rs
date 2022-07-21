@@ -9,7 +9,7 @@ use std::{
 use futures::{stream::SplitSink, SinkExt, StreamExt};
 use tokio::{
     net::TcpStream,
-    sync::mpsc::{self, Receiver, UnboundedSender},
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
 };
 use tokio_util::codec::Framed;
 
@@ -17,7 +17,7 @@ use crate::{
     communication::{
         control_plane::{
             notifications::{
-                DriverNotification, LeaderNotification, WorkerAddress, WorkerNotification,
+                DriverNotification, LeaderNotification, QueryId, WorkerAddress, WorkerNotification,
             },
             ControlPlaneCodec,
         },
@@ -32,9 +32,10 @@ use crate::{
         stream::StreamId,
     },
     node::{worker::Worker, Resources},
+    Uuid,
 };
 
-use super::{operator_executors::OperatorExecutorT, JobState, WorkerId};
+use super::{operator_executors::OperatorExecutorT, ExecutionState, WorkerId};
 
 /// An alias for the type of the connection between the [`Leader`] and the [`Worker`].
 type ConnectionToLeader = SplitSink<
@@ -53,20 +54,24 @@ pub(crate) struct WorkerNode {
     /// The set of [`Resources`] that the [`Worker`] owns.
     resources: Resources,
     /// A channel where the [`Worker`] receives notifications from the [`Driver`].
-    driver_notification_rx: Receiver<DriverNotification>,
+    channel_from_driver: UnboundedReceiver<DriverNotification>,
+    /// A channel where the [`Worker`] sends notifications to the [`Driver`].
+    channel_to_driver: UnboundedSender<DriverNotification>,
     /// A mapping of the [`JobGraph`]s that have been submitted to the [`Worker`].
     job_graphs: HashMap<JobGraphId, JobGraph>,
     /// A memo of the stream connections that are remaining to be setup for
     /// each [`Job`] before it can be marked Ready to the [`Leader`].
     pending_stream_setups: HashMap<Job, (JobGraphId, HashSet<StreamId>)>,
     /// A mapping of the `JobGraph` to the state of each scheduled `Job`.
-    job_graph_to_job_state: HashMap<JobGraphId, HashMap<Job, JobState>>,
+    job_graph_to_job_state: HashMap<JobGraphId, HashMap<Job, ExecutionState>>,
     /// A memo of the OperatorExecutors that are pending for each JobGraph.
     job_graph_to_operator_executor: HashMap<JobGraphId, Vec<Box<dyn OperatorExecutorT>>>,
     /// A handle to the [`StreamManager`] instance shared with the [`DataPlane`].
     /// The [`DataPlane`] populates the channels on the shared instance upon request,
     /// which are then retrieved for consumption by each [`Job`].
     stream_manager: Arc<Mutex<StreamManager>>,
+    /// A mapping of the pending Queries from the ID of the Query to its source.
+    pending_queries: HashMap<QueryId, Job>,
     /// A data structure that executes the operators.
     // TODO (Sukrit): This should be incorporated into the WorkerNode.
     worker: Worker,
@@ -79,7 +84,8 @@ impl WorkerNode {
         leader_address: SocketAddr,
         data_plane_address: SocketAddr,
         resources: Resources,
-        driver_notification_rx: Receiver<DriverNotification>,
+        channel_from_driver: UnboundedReceiver<DriverNotification>,
+        channel_to_driver: UnboundedSender<DriverNotification>,
         num_threads: usize,
     ) -> Self {
         Self {
@@ -87,12 +93,14 @@ impl WorkerNode {
             leader_address,
             data_plane_address,
             resources,
-            driver_notification_rx,
+            channel_from_driver,
+            channel_to_driver,
             job_graphs: HashMap::new(),
             pending_stream_setups: HashMap::new(),
             job_graph_to_job_state: HashMap::new(),
             job_graph_to_operator_executor: HashMap::new(),
             stream_manager: Arc::new(Mutex::new(StreamManager::new(id))),
+            pending_queries: HashMap::new(),
             worker: Worker::new(num_threads),
         }
     }
@@ -186,7 +194,7 @@ impl WorkerNode {
                 }
 
                 // Handle messages received from the Driver.
-                Some(driver_notification) = self.driver_notification_rx.recv() => {
+                Some(driver_notification) = self.channel_from_driver.recv() => {
                     match driver_notification {
                         DriverNotification::Shutdown => {
                             tracing::info!(
@@ -201,7 +209,8 @@ impl WorkerNode {
                                     error
                                 );
                             }
-                            tokio::join!(data_plane_handle);
+                            // TODO (Sukrit): Define a shutdown method or implement Drop.
+                            let _ = tokio::join!(data_plane_handle);
                             return Ok(());
                         }
                         _ => self.handle_driver_messages(driver_notification, &mut leader_tx).await,
@@ -275,7 +284,7 @@ impl WorkerNode {
                                         .send(WorkerNotification::JobUpdate(
                                             job_graph_id.clone(),
                                             job,
-                                            JobState::Ready,
+                                            ExecutionState::Ready,
                                         ))
                                         .await
                                     {
@@ -294,7 +303,7 @@ impl WorkerNode {
                                     match self.job_graph_to_job_state.get_mut(job_graph_id) {
                                         Some(job_state) => match job_state.get_mut(&job) {
                                             Some(job_state) => {
-                                                *job_state = JobState::Ready;
+                                                *job_state = ExecutionState::Ready;
                                             }
                                             None => {
                                                 tracing::warn!(
@@ -378,10 +387,40 @@ impl WorkerNode {
                     self.worker.execute().await;
                 } else {
                     tracing::error!(
-                        "[Worker {}] Could not find any executors for JobGraph {:?}.
-                            The graph was potentially not scheduled here.",
+                        "[Worker {}] Could not find any executors for JobGraph {:?}. \
+                        This is either a Driver or the Graph was potentially not scheduled here.",
                         self.id,
                         job_graph_id,
+                    );
+                }
+            }
+            LeaderNotification::QueryResponse(query_id, query_response) => {
+                if let Some(source) = self.pending_queries.get(&query_id) {
+                    match source {
+                        Job::Driver => {
+                            // Send the response to the Driver.
+                            if let Err(error) = self
+                                .channel_to_driver
+                                .send(DriverNotification::QueryResponse(query_response))
+                            {
+                                tracing::warn!(
+                                    "[Worker {}] Error sending the response to \
+                                            the Query {:?} to the Driver: {:}",
+                                    self.id,
+                                    query_id,
+                                    error,
+                                );
+                            }
+                        }
+                        // Queries are only initiated by the Driver for now.
+                        Job::Operator(_) => unreachable!(),
+                    }
+                } else {
+                    tracing::warn!(
+                        "[Worker {}] Received a response to the Query {:?} \
+                                    that was not pending on the Worker.",
+                        self.id,
+                        query_id,
                     );
                 }
             }
@@ -434,8 +473,28 @@ impl WorkerNode {
                     )
                 }
             }
-            // The shutdown arm is unreachable, because it should be handled in the main loop.
-            DriverNotification::Shutdown => unreachable!(),
+            DriverNotification::Query(query) => {
+                // Generate a QueryId and forward the Query to the Leader.
+                let query_id = QueryId(Uuid::new_deterministic());
+                if let Err(error) = leader_tx
+                    .send(WorkerNotification::Query(query_id.clone(), query.clone()))
+                    .await
+                {
+                    tracing::error!(
+                        "[Worker {}] Received an error when sending the \
+                                    Query {:?} to the Leader: {:?}",
+                        self.id,
+                        query,
+                        error,
+                    );
+                } else {
+                    // Save the pending Query corresponding to the Driver job.
+                    self.pending_queries.insert(query_id, Job::Driver);
+                }
+            }
+            // The below types should either be handled in the main loop,
+            // or should never be received.
+            DriverNotification::Shutdown | DriverNotification::QueryResponse(_) => unreachable!(),
         }
     }
 
@@ -480,8 +539,8 @@ impl WorkerNode {
                         |stream_id| {
                             let stream = job_graph.stream(stream_id)?;
                             let worker_addresses =
-                                self.get_write_stream_addresses(&stream, worker_addresses);
-                            Some(StreamType::WriteStream(stream, worker_addresses))
+                                self.get_write_stream_addresses(stream.as_ref(), worker_addresses);
+                            Some(StreamType::Write(stream, worker_addresses))
                         },
                     ));
 
@@ -489,8 +548,8 @@ impl WorkerNode {
                     streams_to_setup.extend(operator.read_streams.iter().filter_map(|stream_id| {
                         let stream = job_graph.stream(stream_id)?;
                         let worker_addresses =
-                            self.get_read_stream_address(&stream, worker_addresses)?;
-                        Some(StreamType::ReadStream(stream, worker_addresses))
+                            self.get_read_stream_address(stream.as_ref(), worker_addresses)?;
+                        Some(StreamType::Read(stream, worker_addresses))
                     }));
                 } else {
                     tracing::error!(
@@ -505,16 +564,16 @@ impl WorkerNode {
                 // Request the DataPlane to setup the IngressStreams.
                 streams_to_setup.extend(job_graph.ingress_streams().into_iter().map(|stream| {
                     let worker_addresses =
-                        self.get_write_stream_addresses(&stream, worker_addresses);
-                    StreamType::IngressStream(stream, worker_addresses)
+                        self.get_write_stream_addresses(stream.as_ref(), worker_addresses);
+                    StreamType::Ingress(stream, worker_addresses)
                 }));
 
                 // Request the DataPlane to setup the EgressStreams.
                 streams_to_setup.extend(job_graph.egress_streams().into_iter().filter_map(
                     |stream| {
                         let worker_addresses =
-                            self.get_read_stream_address(&stream, worker_addresses)?;
-                        Some(StreamType::EgressStream(stream, worker_addresses))
+                            self.get_read_stream_address(stream.as_ref(), worker_addresses)?;
+                        Some(StreamType::Egress(stream, worker_addresses))
                     },
                 ));
             }
@@ -536,7 +595,7 @@ impl WorkerNode {
             .job_graph_to_job_state
             .entry(job_graph.id())
             .or_default();
-        job_state.insert(job, JobState::Scheduled);
+        job_state.insert(job, ExecutionState::Scheduled);
 
         // Ask the DataPlane to setup the Streams.
         if let Err(error) =
@@ -554,7 +613,7 @@ impl WorkerNode {
 
     fn get_read_stream_address(
         &self,
-        stream: &Box<dyn AbstractStreamT>,
+        stream: &dyn AbstractStreamT,
         worker_addresses: &HashMap<Job, WorkerAddress>,
     ) -> Option<WorkerAddress> {
         let source_job = stream.source()?;
@@ -576,7 +635,7 @@ impl WorkerNode {
 
     fn get_write_stream_addresses(
         &self,
-        stream: &Box<dyn AbstractStreamT>,
+        stream: &dyn AbstractStreamT,
         worker_addresses: &HashMap<Job, WorkerAddress>,
     ) -> HashMap<Job, WorkerAddress> {
         let mut destination_addresses = HashMap::new();
@@ -598,9 +657,5 @@ impl WorkerNode {
             }
         }
         destination_addresses
-    }
-
-    pub(crate) fn id(&self) -> WorkerId {
-        self.id.clone()
     }
 }

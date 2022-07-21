@@ -21,7 +21,7 @@ use crate::dataflow::{
 ///
 /// ```
 /// # use erdos::dataflow::{Graph, stream::IngressStream, operator::{OperatorConfig}, operators::{SplitOperator}};
-/// # let graph = Graph::new();
+/// # let graph = Graph::new("SplitExample");
 /// # let source_stream = graph.add_ingress("SourceIngressStream");
 /// // Add the mapping function as an argument to the operator via the OperatorConfig.
 /// let split_config = OperatorConfig::new().name("SplitOperator");

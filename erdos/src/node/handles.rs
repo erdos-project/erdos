@@ -1,12 +1,19 @@
 use std::{error::Error, fmt, net::SocketAddr};
 
-use tokio::{runtime::Builder, sync::mpsc, task::JoinHandle};
+use tokio::{
+    runtime::Builder,
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
+    task::JoinHandle,
+};
 use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::format::FmtSpan;
 
 use crate::{
-    communication::{control_plane::notifications::DriverNotification, errors::CommunicationError},
+    communication::{
+        control_plane::notifications::{DriverNotification, QueryResponseType, QueryType},
+        errors::CommunicationError,
+    },
     dataflow::{
         graph::{GraphCompilationError, JobGraphId},
         Graph,
@@ -15,7 +22,7 @@ use crate::{
     Configuration,
 };
 
-use super::WorkerId;
+use super::{ExecutionState, WorkerId};
 
 /// The error raised by the handles when executing commands from the drivers.
 #[derive(Debug)]
@@ -37,6 +44,7 @@ impl fmt::Display for HandleError {
 
 /// A [`LeaderHandle`] is used by driver applications to interact
 /// with the Leader node running on their local instance.
+#[allow(dead_code)]
 pub struct LeaderHandle {
     /// A handle to communicate notifications to the underlying Leader.
     leader_handle: mpsc::Sender<DriverNotification>,
@@ -100,9 +108,12 @@ impl LeaderHandle {
 
 /// A [`WorkerHandle`] is used by driver applications to submit ERDOS applications
 /// to the ERDOS Leader, and query their execution progres.
+#[allow(dead_code)]
 pub struct WorkerHandle {
-    /// A handle to communicate notifications to the underlying Worker.
-    worker_handle: mpsc::Sender<DriverNotification>,
+    /// A channel to communicate notifications to the underlying Worker.
+    channel_to_worker: UnboundedSender<DriverNotification>,
+    /// A channel to receive notifications from the underlying Worker.
+    channel_from_worker: UnboundedReceiver<DriverNotification>,
     /// An ID for the WorkerHandle that mirrors the ID of the underlying Worker.
     handle_id: WorkerId,
     /// A handle for the asynchronously running Worker task.
@@ -142,9 +153,11 @@ impl WorkerHandle {
             .build()
             .unwrap();
 
-        // Initialize a channel between the Handle and the Worker.
+        // Initialize channels between the Handle and the Worker.
         // This channel is used by the Handle to submit requests to the Worker.
-        let (worker_tx, worker_rx) = mpsc::channel(100);
+        let (channel_to_worker_tx, channel_to_worker_rx) = mpsc::unbounded_channel();
+        // This channel is used by the Worker to respond to the Handle.
+        let (channel_from_worker_tx, channel_from_worker_rx) = mpsc::unbounded_channel();
 
         // Initialize a Worker with the given index, and an empty set of Resources.
         // TODO (Sukrit): In the future, the index of the Worker should be generated
@@ -155,13 +168,15 @@ impl WorkerHandle {
             config.leader_address,
             config.data_plane_address,
             worker_resources,
-            worker_rx,
+            channel_to_worker_rx,
+            channel_from_worker_tx,
             config.num_threads,
         );
         let worker_task = worker_runtime.spawn(async move { worker.run().await });
         Self {
             handle_id: config.id,
-            worker_handle: worker_tx,
+            channel_to_worker: channel_to_worker_tx,
+            channel_from_worker: channel_from_worker_rx,
             worker_task,
             worker_runtime,
             logger_guard,
@@ -173,12 +188,12 @@ impl WorkerHandle {
     // them needs to submit it to the Leader. This should later be removed if
     // we choose to dynamically link the user applications into the Worker's
     // memory space.
-    /// Registers the [`Graph`] for execution with the [`Worker`]s.
+    /// Registers the [`Graph`] for execution with the [`Worker`](WorkerHandle)s.
     pub fn register(&self, graph: Graph) -> Result<JobGraphId, HandleError> {
         // Compile the JobGraph and register it with the Worker.
         let job_graph = graph
             .compile()
-            .map_err(|err| HandleError::GraphCompilationError(err))?;
+            .map_err(HandleError::GraphCompilationError)?;
         let job_graph_id = job_graph.id();
         tracing::trace!(
             "WorkerHandle {} received a notification from the Driver \
@@ -187,8 +202,8 @@ impl WorkerHandle {
             job_graph.name(),
             job_graph_id,
         );
-        self.worker_handle
-            .blocking_send(DriverNotification::RegisterGraph(job_graph))
+        self.channel_to_worker
+            .send(DriverNotification::RegisterGraph(job_graph))
             .map_err(|_| {
                 HandleError::CommunicationError(String::from(
                     "Error registering the Graph with the Leader.",
@@ -200,14 +215,14 @@ impl WorkerHandle {
 
     /// Submits the [`Graph`] to the `Leader` for execution.
     ///
-    /// This method automatically invokes the [`register`] method.
+    /// This method automatically invokes the [`register`](WorkerHandle::register) method.
     pub fn submit(&self, graph: Graph) -> Result<JobGraphId, HandleError> {
         // Compile the JobGraph and register it with the Worker.
         let job_graph_id = self.register(graph)?;
 
         // Submit the JobGraph to the Leader.
-        self.worker_handle
-            .blocking_send(DriverNotification::SubmitGraph(job_graph_id.clone()))
+        self.channel_to_worker
+            .send(DriverNotification::SubmitGraph(job_graph_id.clone()))
             .map_err(|_| {
                 HandleError::CommunicationError(String::from(
                     "Error submitting the Graph to the Leader.",
@@ -215,6 +230,63 @@ impl WorkerHandle {
             })?;
 
         Ok(job_graph_id)
+    }
+
+    /// Retrieves the status of the `Graph` from the `Leader`.
+    ///
+    /// # Arguments
+    /// - `graph_id`: The ID of the `Graph` whose status needs to be retrieved.
+    #[allow(clippy::collapsible_match)]
+    fn job_graph_status(&mut self, graph_id: &JobGraphId) -> Result<ExecutionState, HandleError> {
+        // Request the Worker for the status of the JobGraph.
+        self.channel_to_worker
+            .send(DriverNotification::Query(QueryType::JobGraphStatus(
+                graph_id.clone(),
+            )))
+            .map_err(|_| {
+                HandleError::CommunicationError(String::from(
+                    "Error requesting the Ready status of the Graph from the Leader.",
+                ))
+            })?;
+
+        // Wait for the response of the Query from the Worker.
+        match self.channel_from_worker.blocking_recv() {
+            Some(notification) => match notification {
+                DriverNotification::QueryResponse(query_response) => match query_response {
+                    QueryResponseType::JobGraphStatus(response_graph_id, job_graph_state) => {
+                        if response_graph_id == *graph_id {
+                            match job_graph_state {
+                                Ok(result) => Ok(result),
+                                Err(error) => Err(HandleError::CommunicationError(error.0)),
+                            }
+                        } else {
+                            Err(HandleError::CommunicationError(String::from(
+                                "Incorrect JobGraph status retrieved from the Leader.",
+                            )))
+                        }
+                    }
+                },
+                _ => Err(HandleError::CommunicationError(String::from(
+                    "Error retrieving the Ready status of the Graph from the Leader.",
+                ))),
+            },
+            None => Err(HandleError::CommunicationError(String::from(
+                "Error retrieving the Ready status of the Graph from the Leader.",
+            ))),
+        }
+    }
+
+    /// Checks if the [`Graph`] submitted to the `Worker` is ready for execution or executing.
+    ///
+    /// # Arguments
+    /// - `graph_id`: The ID of the `Graph` returned by the [`submit`](WorkerHandle::submit) or
+    ///      [`register`](WorkerHandle::register) methods.
+    pub fn job_graph_ready(&mut self, graph_id: &JobGraphId) -> Result<bool, HandleError> {
+        let job_graph_state = self.job_graph_status(graph_id)?;
+        Ok(
+            job_graph_state == ExecutionState::Ready
+                || job_graph_state == ExecutionState::Executing,
+        )
     }
 
     /// Retrieve the ID of the Worker underlying this handle.
