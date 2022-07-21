@@ -1,15 +1,12 @@
 use std::{thread, time::Duration};
 
-use erdos::{
-    dataflow::{
-        context::SinkContext,
-        operator::{Sink, Source},
-        operators::{Filter, Join, Map, Split},
-        state::TimeVersionedState,
-        stream::{WriteStream, WriteStreamT},
-        Graph, Message, OperatorConfig, Timestamp,
-    },
-    Configuration,
+use erdos::dataflow::{
+    context::SinkContext,
+    operator::{Sink, Source},
+    operators::{Filter, Join, Map, Split},
+    state::TimeVersionedState,
+    stream::{WriteStream, WriteStreamT},
+    Graph, Message, OperatorConfig, Timestamp,
 };
 
 struct SourceOperator {}
@@ -74,7 +71,7 @@ impl Sink<TimeVersionedState<usize>, usize> for SinkOperator {
 }
 
 fn main() {
-    let args = erdos::new_app("ERDOS").get_matches();
+    // let args = erdos::new_app("ERDOS").get_matches();
 
     let graph = Graph::new("LINQ_Pipeline");
 

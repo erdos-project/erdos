@@ -12,7 +12,6 @@ use erdos::dataflow::state::TimeVersionedState;
 use erdos::dataflow::stream::*;
 use erdos::dataflow::Graph;
 use erdos::dataflow::*;
-use erdos::Configuration;
 
 struct SourceOperator {}
 
