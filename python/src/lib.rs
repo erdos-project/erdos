@@ -36,6 +36,7 @@ fn internal(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<PyWriteStream>()?;
     m.add_class::<PyIngestStream>()?;
     m.add_class::<PyExtractStream>()?;
+    m.add_class::<PyNodeHandle>()?;
 
     #[pyfn(m)]
     #[pyo3(name = "connect_source")]
