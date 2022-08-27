@@ -55,8 +55,16 @@ class Message(Generic[T]):
             self._serialize_data()
         return PyMessage(self.timestamp._to_py_timestamp(), self._serialized_data)
 
+    def __repr__(self) -> str:
+        return f"Message({self.timestamp}, {self.data})"
+
     def __str__(self) -> str:
-        return "{{timestamp: {}, data: {}}}".format(self.timestamp, self.data)
+        return f"{{timestamp: {self.timestamp}, data: {self.data}}}"
+
+    def __eq__(self, msg: object) -> bool:
+        if not isinstance(msg, Message):
+            raise ValueError(f"Equality with '{type(msg)}' is not implemented.")
+        return self.timestamp == msg.timestamp and self.data == msg.data
 
 
 class WatermarkMessage(Message[None]):
